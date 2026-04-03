@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CafeCard } from "@/components/CafeCard";
 import { SearchBar } from "@/components/SearchBar";
@@ -16,31 +17,20 @@ import { useApp } from "@/context/AppContext";
 import { CAFES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 
-const CATEGORIES = ["All", "Specialty", "Traditional", "Artisan", "Bistro"];
-
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, cartCount } = useApp();
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
 
   const filteredCafes = useMemo(() => {
-    return CAFES.filter((c) => {
-      const matchesSearch =
-        !search ||
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.category.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory =
-        selectedCategory === "All" ||
-        c.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-        c.tags.some((t) =>
-          t.toLowerCase().includes(selectedCategory.toLowerCase())
-        );
-      return matchesSearch && matchesCategory;
-    });
-  }, [search, selectedCategory]);
+    return CAFES.filter((c) =>
+      !search ||
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.category.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search]);
 
   const topPadding =
     Platform.OS === "web" ? 67 : insets.top;
@@ -89,45 +79,9 @@ export default function HomeScreen() {
           />
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categories}
-          contentContainerStyle={styles.categoriesContent}
-        >
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryPill,
-                {
-                  backgroundColor:
-                    selectedCategory === cat ? colors.primary : colors.secondary,
-                },
-              ]}
-              onPress={() => setSelectedCategory(cat)}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.categoryText,
-                  {
-                    color:
-                      selectedCategory === cat
-                        ? colors.primaryForeground
-                        : colors.secondaryForeground,
-                  },
-                ]}
-              >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            {selectedCategory === "All" ? "Nearby Cafes" : selectedCategory}
+            Nearby Cafes
           </Text>
           <Text style={[styles.count, { color: colors.mutedForeground }]}>
             {filteredCafes.length} cafes
@@ -207,23 +161,6 @@ const styles = StyleSheet.create({
   },
   searchWrapper: {
     marginBottom: 16,
-  },
-  categories: {
-    marginBottom: 16,
-    marginHorizontal: -20,
-  },
-  categoriesContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  categoryPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  categoryText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
   },
   sectionHeader: {
     flexDirection: "row",
