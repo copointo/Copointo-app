@@ -2,7 +2,6 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  FlatList,
   Platform,
   ScrollView,
   StyleSheet,
@@ -143,9 +142,13 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : (
-          filteredCafes.map((cafe) => (
-            <CafeCard key={cafe.id} cafe={cafe} />
-          ))
+          <View style={styles.grid}>
+            {filteredCafes.map((cafe, index) => (
+              <View key={cafe.id} style={styles.gridItem}>
+                <CafeCard cafe={cafe} compact />
+              </View>
+            ))}
+          </View>
         )}
 
         <View style={{ height: Platform.OS === "web" ? 110 : 100 }} />
@@ -245,5 +248,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontFamily: "Inter_400Regular",
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  gridItem: {
+    width: "48%",
   },
 });

@@ -14,9 +14,10 @@ import { useColors } from "@/hooks/useColors";
 
 interface CafeCardProps {
   cafe: Cafe;
+  compact?: boolean;
 }
 
-export function CafeCard({ cafe }: CafeCardProps) {
+export function CafeCard({ cafe, compact = false }: CafeCardProps) {
   const colors = useColors();
   const router = useRouter();
 
@@ -24,6 +25,52 @@ export function CafeCard({ cafe }: CafeCardProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/cafe/${cafe.id}`);
   };
+
+  if (compact) {
+    return (
+      <TouchableOpacity
+        style={[styles.compactCard, { backgroundColor: colors.card, shadowColor: colors.espresso }]}
+        onPress={handlePress}
+        activeOpacity={0.92}
+      >
+        <Image source={cafe.image} style={styles.compactImage} resizeMode="cover" />
+        <View style={[styles.compactStatusBadge, { backgroundColor: cafe.isOpen ? colors.success : colors.muted }]}>
+          <Text style={[styles.compactStatusText, { color: cafe.isOpen ? colors.successForeground : colors.mutedForeground }]}>
+            {cafe.isOpen ? "Open" : "Closed"}
+          </Text>
+        </View>
+        <View style={styles.compactContent}>
+          <View style={styles.compactLogoRow}>
+            <View style={styles.compactLogoCircle}>
+              <Text style={styles.compactLogoEmoji}>{cafe.logo}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.compactName, { color: colors.foreground }]} numberOfLines={1}>
+                {cafe.name}
+              </Text>
+              <Text style={[styles.compactCategory, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {cafe.category}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.compactMeta}>
+            <View style={styles.metaItem}>
+              <Feather name="star" size={11} color={colors.gold} />
+              <Text style={[styles.compactMetaText, { color: colors.foreground }]}>
+                {cafe.rating}
+              </Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Feather name="map-pin" size={11} color={colors.mutedForeground} />
+              <Text style={[styles.compactMetaText, { color: colors.mutedForeground }]}>
+                {cafe.distance}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
@@ -168,6 +215,73 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   tagText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+  },
+
+  // Compact (grid) styles
+  compactCard: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  compactImage: {
+    width: "100%",
+    height: 110,
+    resizeMode: "cover",
+  },
+  compactStatusBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  compactStatusText: {
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  compactContent: {
+    padding: 10,
+    gap: 6,
+  },
+  compactLogoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  compactLogoCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#FFF8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  compactLogoEmoji: {
+    fontSize: 14,
+  },
+  compactName: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 1,
+  },
+  compactCategory: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+  },
+  compactMeta: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  compactMetaText: {
     fontSize: 11,
     fontFamily: "Inter_500Medium",
   },
