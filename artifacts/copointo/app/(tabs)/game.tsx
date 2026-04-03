@@ -280,21 +280,53 @@ export default function GameScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ── Floating Leaderboard Button ── */}
-      <TouchableOpacity
-        style={[styles.fab, {
-          backgroundColor: tierColor,
-          bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
-        }]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          router.push("/leaderboard");
-        }}
-        activeOpacity={0.85}
-      >
-        <Feather name="users" size={22} color="#0F0A2E" />
-        <Text style={styles.fabLabel}>Leaderboard</Text>
-      </TouchableOpacity>
+      {/* ── Floating action buttons (column, bottom-right) ── */}
+      <View style={[styles.fabGroup, {
+        bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
+      }]}>
+
+        {/* Notifications */}
+        <TouchableOpacity
+          style={[styles.fabSmall, { backgroundColor: "rgba(255,255,255,0.10)", borderColor: tierColor + "60" }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/leaderboard");
+          }}
+          activeOpacity={0.85}
+        >
+          <Feather name="bell" size={20} color={tierColor} />
+          {/* Badge */}
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>3</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Add Friends */}
+        <TouchableOpacity
+          style={[styles.fabSmall, { backgroundColor: "rgba(255,255,255,0.10)", borderColor: tierColor + "60" }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/leaderboard");
+          }}
+          activeOpacity={0.85}
+        >
+          <Feather name="user-plus" size={20} color={tierColor} />
+        </TouchableOpacity>
+
+        {/* Leaderboard — main, larger */}
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: tierColor }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push("/leaderboard");
+          }}
+          activeOpacity={0.85}
+        >
+          <Feather name="users" size={22} color="#0F0A2E" />
+          <Text style={styles.fabLabel}>Leaderboard</Text>
+        </TouchableOpacity>
+
+      </View>
     </View>
   );
 }
@@ -358,8 +390,43 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35, shadowRadius: 8, elevation: 8,
   },
   goBackText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#0F0A2E" },
+  fabGroup: {
+    position: "absolute",
+    right: 20,
+    alignItems: "center",
+    gap: 10,
+  },
+  fabSmall: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#EF5350",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+    color: "#fff",
+  },
   fab: {
-    position: "absolute", right: 20,
     width: 80, height: 80, borderRadius: 20,
     alignItems: "center", justifyContent: "center", gap: 4,
     shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
