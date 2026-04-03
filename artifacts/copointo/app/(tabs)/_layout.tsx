@@ -15,13 +15,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="videos">
-        <Icon sf={{ default: "play.rectangle", selected: "play.rectangle.fill" }} />
-        <Label>Videos</Label>
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="messages">
         <Icon sf={{ default: "message", selected: "message.fill" }} />
         <Label>Messages</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="videos">
+        <Icon sf={{ default: "play.rectangle", selected: "play.rectangle.fill" }} />
+        <Label>Videos</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="game">
         <Icon sf={{ default: "gamecontroller", selected: "gamecontroller.fill" }} />
@@ -90,18 +90,6 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="videos"
-        options={{
-          title: "Videos",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="play.rectangle" tintColor={color} size={24} />
-            ) : (
-              <Feather name="play-circle" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
         name="messages"
         options={{
           title: "Messages",
@@ -110,6 +98,18 @@ function ClassicTabLayout() {
               <SymbolView name="message" tintColor={color} size={24} />
             ) : (
               <Feather name="message-circle" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="videos"
+        options={{
+          title: "Videos",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="play.rectangle" tintColor={color} size={24} />
+            ) : (
+              <Feather name="play-circle" size={22} color={color} />
             ),
         }}
       />
