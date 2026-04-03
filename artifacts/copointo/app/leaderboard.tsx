@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getRank } from "@/data/mockData";
 
-type LeaderTab = "friends" | "city" | "oman" | "world";
+type LeaderTab = "friends" | "oman";
 
 const LEADERBOARD: Record<LeaderTab, { name: string; level: number; isMe?: boolean; isFriend?: boolean }[]> = {
   friends: [
@@ -22,31 +22,17 @@ const LEADERBOARD: Record<LeaderTab, { name: string; level: number; isMe?: boole
     { name: "Khalid Mansoor", level: 38, isFriend: true },
     { name: "Sara Al-Zahra", level: 31, isFriend: true },
   ],
-  city: [
-    { name: "Muscat Champion", level: 892 },
-    { name: "City King", level: 743 },
-    { name: "Coffee Lover", level: 621 },
-    { name: "Ahmed (You)", level: 42, isMe: true },
-  ],
   oman: [
     { name: "Oman #1", level: 980 },
     { name: "Coffee Master", level: 901 },
     { name: "Top Tier", level: 867 },
     { name: "Ahmed (You)", level: 42, isMe: true },
   ],
-  world: [
-    { name: "World Champion", level: 999 },
-    { name: "Global Hero", level: 998 },
-    { name: "Legend Player", level: 995 },
-    { name: "Ahmed (You)", level: 42, isMe: true },
-  ],
 };
 
 const TAB_LABELS: Record<LeaderTab, string> = {
-  friends: "👥 Friends",
-  city: "🏙️ City",
-  oman: "🇴🇲 Oman",
-  world: "🌍 World",
+  friends: "👥 الأصدقاء",
+  oman: "🇴🇲 عُمان",
 };
 
 const MEDAL = ["🥇", "🥈", "🥉"];
