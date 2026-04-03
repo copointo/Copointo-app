@@ -288,7 +288,7 @@ export default function GameScreen() {
         {/* Notifications */}
         <TouchableOpacity
           style={[styles.fabSmall, { backgroundColor: "rgba(255,255,255,0.10)", borderColor: tierColor + "60" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/leaderboard"); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
           activeOpacity={0.85}
         >
           <Feather name="bell" size={20} color={tierColor} />
@@ -298,7 +298,7 @@ export default function GameScreen() {
         {/* Add Friends */}
         <TouchableOpacity
           style={[styles.fabSmall, { backgroundColor: "rgba(255,255,255,0.10)", borderColor: tierColor + "60" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/leaderboard"); }}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
           activeOpacity={0.85}
         >
           <Feather name="user-plus" size={20} color={tierColor} />
