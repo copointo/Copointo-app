@@ -40,14 +40,46 @@ const SZ_CURRENT = 92;
 const SZ_OTHER   = 68;
 const SZ_DONE    = 52;
 
-// square of side s rotated 45° → visual height = s*√2
 const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
-const ROW_H = outerSz(SZ_OTHER) + 10; // ~106 px per row
 
-// ─── 3-position snake (based on level number → consistent ordering) ────────
-const POSITIONS = [-85, 0, 85]; // left / center / right
+// ─── 3-position snake (keyed on level number for consistency) ─────────────
+const POSITIONS = [-85, 0, 85];
 
-// ─── Static background stars ──────────────────────────────────────────────
+// ─── Gap between tiles (filled by connector line) ─────────────────────────
+const CONNECTOR_GAP = 28;
+
+// ─── Connector line component ─────────────────────────────────────────────
+function ConnectorLine({
+  fromX,
+  toX,
+  isReached,
+}: {
+  fromX: number;
+  toX: number;
+  isReached: boolean;
+}) {
+  const dx     = toX - fromX;
+  const dy     = CONNECTOR_GAP;
+  const length = Math.sqrt(dx * dx + dy * dy);
+  const angle  = Math.atan2(dx, dy) * (180 / Math.PI);
+  const midX   = (fromX + toX) / 2;
+
+  return (
+    <View style={{ height: CONNECTOR_GAP, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          width: 3,
+          height: length,
+          borderRadius: 2,
+          backgroundColor: isReached ? "#E8B86D" : "rgba(255,255,255,0.18)",
+          transform: [{ translateX: midX }, { rotate: `${angle}deg` }],
+        }}
+      />
+    </View>
+  );
+}
+
+// ─── Background stars ─────────────────────────────────────────────────────
 const STARS = Array.from({ length: 26 }, (_, i) => ({
   id: i,
   x: Math.round((i * 137.5) % SCREEN_WIDTH),
@@ -57,52 +89,52 @@ const STARS = Array.from({ length: 26 }, (_, i) => ({
   op: 0.07 + (i % 5) * 0.03,
 }));
 
-const BG   = "#0F0A2E";
+const BG     = "#0F0A2E";
 const BEFORE = 12;
 const AFTER  = 48;
 
 export default function GameScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user } = useApp();
+  const insets    = useSafeAreaInsets();
+  const router    = useRouter();
+  const { user }  = useApp();
   const scrollRef = useRef<ScrollView>(null);
   const [showGoBack, setShowGoBack] = useState(false);
-  const currentScrollY = useRef(0);
 
-  const level = user?.level ?? 0;
-  const rank  = getRank(level);
+  const level     = user?.level ?? 0;
+  const rank      = getRank(level);
   const tierColor = getTierColor(level);
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 1000) * 100, 100);
 
-  // ── Visible range: a window of levels around current ──────────────────
+  // Visible window around current level
   const startLvl = Math.max(0,    level - BEFORE);
   const endLvl   = Math.min(1000, level + AFTER);
 
-  // Render DESCENDING: highest level first (top), lowest last (bottom)
-  // → low level numbers appear near the bottom of the scroll
+  // Descending: highest at top, lowest (current) at bottom
   const visibleLevels = Array.from(
     { length: endLvl - startLvl + 1 },
-    (_, i) => endLvl - i       // endLvl, endLvl-1, ..., startLvl
+    (_, i) => endLvl - i
   );
 
-  // ── Y position of current level tile inside the scroll content ─────────
-  const currentIdxInList = endLvl - level;          // index in visibleLevels
+  // Row height = outer tile size + connector gap
+  const ROW_H = outerSz(SZ_OTHER) + CONNECTOR_GAP + 2;
+
+  // Y-position of current level in scroll
+  const currentIdxInList = endLvl - level;
   const currentTileY     = currentIdxInList * ROW_H;
 
-  // ── Scroll to current level on mount ──────────────────────────────────
+  // Scroll to current level on mount
   useEffect(() => {
-    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.4);
+    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.45);
     setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 250);
   }, [level]);
 
-  // ── Show/hide "go to current" button ───────────────────────────────────
+  // Show/hide "go to current" button when scrolling away
   const handleScroll = useCallback(
     (e: any) => {
-      const y = e.nativeEvent.contentOffset.y;
-      currentScrollY.current = y;
-      const targetY = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.4);
+      const y       = e.nativeEvent.contentOffset.y;
+      const targetY = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.45);
       setShowGoBack(Math.abs(y - targetY) > 160);
     },
     [currentTileY]
@@ -110,7 +142,7 @@ export default function GameScreen() {
 
   const goToCurrent = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.4);
+    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.45);
     scrollRef.current?.scrollTo({ y: target, animated: true });
   };
 
@@ -149,7 +181,7 @@ export default function GameScreen() {
           }]} />
         </View>
         <Text style={[styles.progressNote, { color: tierColor }]}>
-          {nextFreeLevel === 0 ? "☕ Free!" : `☕ ${nextFreeLevel}`}
+          {nextFreeLevel === 0 ? "☕ Free!" : `☕ −${nextFreeLevel}`}
         </Text>
       </View>
 
@@ -162,17 +194,23 @@ export default function GameScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={40}
       >
-        {/* Top spacer */}
         <View style={{ height: 16 }} />
 
-        {visibleLevels.map((lvl) => {
-          const isCurrent = lvl === level;
-          const isDone    = lvl < level;
-          const sz        = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER;
-          const osZ       = outerSz(sz);
-          const tc        = getTierColor(lvl);
-          const xOff      = POSITIONS[lvl % 3]; // consistent per level number
-          const rankForLvl = RANKS.find((r) => r.min === lvl);
+        {visibleLevels.map((lvl, listIdx) => {
+          const isCurrent   = lvl === level;
+          const isDone      = lvl < level;
+          const isFreeCoffee = lvl > 0 && lvl % 7 === 0;
+          const sz          = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER;
+          const osZ         = outerSz(sz);
+          const tc          = getTierColor(lvl);
+          const xOff        = POSITIONS[lvl % 3];
+          const rankForLvl  = RANKS.find((r) => r.min === lvl);
+
+          // Connector to the tile below (lvl - 1)
+          const hasConnector = lvl > startLvl;
+          const nextLvl     = lvl - 1;
+          const nextXOff    = POSITIONS[((nextLvl % 3) + 3) % 3];
+          const connReached = nextLvl <= level; // golden if already reached
 
           return (
             <View key={lvl} style={{ alignItems: "center" }}>
@@ -186,57 +224,91 @@ export default function GameScreen() {
                 </View>
               )}
 
-              {/* ── Diamond tile (outer wrapper keeps layout rect) ── */}
+              {/* ── Diamond tile ── */}
               <View style={{
                 width: osZ, height: osZ,
                 alignItems: "center", justifyContent: "center",
                 transform: [{ translateX: xOff }],
-                marginVertical: 3,
               }}>
                 <View style={[styles.diamond, {
                   width: sz, height: sz,
                   backgroundColor: isCurrent
                     ? tc
+                    : isFreeCoffee && isDone
+                    ? "rgba(232,184,109,0.18)"
+                    : isFreeCoffee
+                    ? "rgba(232,184,109,0.10)"
                     : isDone
                     ? "rgba(255,255,255,0.04)"
                     : "rgba(255,255,255,0.07)",
                   borderColor: isCurrent
                     ? "#FFFFFF"
+                    : isFreeCoffee
+                    ? "#E8B86D"
                     : isDone
                     ? "rgba(255,255,255,0.10)"
                     : tc,
-                  borderWidth: isCurrent ? 3 : 2,
-                  shadowColor:   isCurrent ? tc : "#000",
-                  shadowOpacity: isCurrent ? 0.75 : 0.25,
-                  shadowRadius:  isCurrent ? 16 : 4,
+                  borderWidth: isCurrent ? 3 : isFreeCoffee ? 2.5 : 2,
+                  shadowColor:   isCurrent ? tc : isFreeCoffee ? "#E8B86D" : "#000",
+                  shadowOpacity: isCurrent ? 0.75 : isFreeCoffee ? 0.5 : 0.2,
+                  shadowRadius:  isCurrent ? 16 : isFreeCoffee ? 10 : 4,
                 }]}>
                   <View style={styles.diamondInner}>
+
+                    {/* Current level: always ☕ + number */}
                     {isCurrent ? (
                       <>
                         <Text style={styles.curEmoji}>☕</Text>
                         <Text style={[styles.curNum, { color: "#0F0A2E" }]}>{lvl}</Text>
                       </>
+
+                    /* Past free-coffee level */
+                    ) : isDone && isFreeCoffee ? (
+                      <>
+                        <Text style={{ fontSize: 16 }}>☕</Text>
+                        <Text style={[styles.doneCheck, { color: "#E8B86D88" }]}>✓</Text>
+                      </>
+
+                    /* Past regular level */
                     ) : isDone ? (
                       <Text style={styles.doneCheck}>✓</Text>
+
+                    /* Future free-coffee level */
+                    ) : isFreeCoffee ? (
+                      <Text style={{ fontSize: sz === SZ_CURRENT ? 28 : 22 }}>☕</Text>
+
+                    /* Future regular level */
                     ) : (
                       <Text style={[styles.futureNum, { color: tc }]}>{lvl}</Text>
                     )}
+
                   </View>
                 </View>
               </View>
+
+              {/* ── Connector line to next tile below ── */}
+              {hasConnector && (
+                <ConnectorLine
+                  fromX={xOff}
+                  toX={nextXOff}
+                  isReached={connReached}
+                />
+              )}
             </View>
           );
         })}
 
-        {/* Bottom spacer */}
         <View style={{ height: Platform.OS === "web" ? 130 : insets.bottom + 120 }} />
       </ScrollView>
 
-      {/* ── "Go to my level" button — shown when scrolled away ── */}
+      {/* ── "Go to my level" button ── */}
       {showGoBack && (
         <TouchableOpacity
-          style={[styles.goBackBtn, { backgroundColor: tierColor, left: 20,
-            bottom: Platform.OS === "web" ? 100 : insets.bottom + 90 }]}
+          style={[styles.goBackBtn, {
+            backgroundColor: tierColor,
+            left: 20,
+            bottom: Platform.OS === "web" ? 100 : insets.bottom + 90,
+          }]}
           onPress={goToCurrent}
           activeOpacity={0.85}
         >
@@ -274,110 +346,61 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 8,
   },
-  headerLevel: {
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-    color: "#FF8C42",
-  },
+  headerLevel: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FF8C42" },
   rankChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1.5,
     backgroundColor: "rgba(255,255,255,0.07)",
   },
   rankChipIcon: { fontSize: 16 },
   rankChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    gap: 12,
-    paddingBottom: 12,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 20, gap: 12, paddingBottom: 12,
   },
   progressTrack: {
     flex: 1, height: 5, borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.12)",
-    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.12)", overflow: "hidden",
   },
   progressFill: { height: "100%", borderRadius: 3 },
-  progressNote: {
-    fontSize: 13,
-    fontFamily: "Inter_700Bold",
-    minWidth: 64,
-    textAlign: "right",
-  },
+  progressNote: { fontSize: 13, fontFamily: "Inter_700Bold", minWidth: 64, textAlign: "right" },
   board: { flex: 1 },
   boardContent: { alignItems: "center", paddingHorizontal: 20 },
   milestone: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+    borderWidth: 1, borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 6,
     backgroundColor: "rgba(255,255,255,0.05)",
-    marginTop: 18,
-    marginBottom: 4,
+    marginTop: 18, marginBottom: 4,
   },
   milestoneText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   diamond: {
     borderRadius: 14,
     transform: [{ rotate: "45deg" }],
-    alignItems: "center",
-    justifyContent: "center",
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    alignItems: "center", justifyContent: "center",
+    shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   diamondInner: {
     transform: [{ rotate: "-45deg" }],
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
+    alignItems: "center", justifyContent: "center", gap: 2,
   },
   curEmoji:  { fontSize: 28 },
   curNum:    { fontSize: 12, fontFamily: "Inter_700Bold" },
   doneCheck: { fontSize: 16, color: "rgba(255,255,255,0.22)", fontFamily: "Inter_700Bold" },
   futureNum: { fontSize: 18, fontFamily: "Inter_700Bold" },
   goBackBtn: {
-    position: "absolute",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
+    position: "absolute", flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 8, elevation: 8,
   },
-  goBackText: {
-    fontSize: 13,
-    fontFamily: "Inter_700Bold",
-    color: "#0F0A2E",
-  },
+  goBackText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#0F0A2E" },
   fab: {
-    position: "absolute",
-    right: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 10,
+    position: "absolute", right: 20,
+    width: 80, height: 80, borderRadius: 20,
+    alignItems: "center", justifyContent: "center", gap: 4,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45, shadowRadius: 12, elevation: 10,
   },
-  fabLabel: {
-    fontSize: 10,
-    fontFamily: "Inter_700Bold",
-    color: "#0F0A2E",
-    textAlign: "center",
-  },
+  fabLabel: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#0F0A2E", textAlign: "center" },
 });
