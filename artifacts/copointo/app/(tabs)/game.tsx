@@ -85,7 +85,7 @@ export default function GameScreen() {
   );
 
   // Row height = outer tile size + connector gap
-  const ROW_H = outerSz(SZ_OTHER) + CONNECTOR_GAP + 2;
+  const ROW_H = outerSz(SZ_OTHER) + 14 + 2; // tile outer size + margins
 
   // Y-position of current level in scroll
   const currentIdxInList = endLvl - level;
