@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "pGbA86SqRr0d3D9Z-qchn"
+uri = "file://artifacts/copointo/assets/images/icon.png"
+type = "image"
+title = "copointo app icon"
+
+[[generated]]
+id = "zwRj6Z4iiDcjSn8DS8tv5"
+uri = "file://artifacts/copointo/assets/images/splash.png"
+type = "image"
+title = "copointo splash"
+
+[[generated]]
+id = "LS-pKPOHJ4RCDDxem0-_k"
+uri = "file://artifacts/copointo/assets/images/cafe1.png"
+type = "image"
+title = "copointo cafe placeholder 1"
+
+[[generated]]
+id = "JbrjwVcluQ3wM4bc0myCB"
+uri = "file://artifacts/copointo/assets/images/cafe2.png"
+type = "image"
+title = "copointo cafe placeholder 2"
+
+[[generated]]
+id = "IAHmzmzvONAV7RwUAi9GA"
+uri = "file://artifacts/copointo/assets/images/cafe3.png"
+type = "image"
+title = "copointo cafe placeholder 3"
