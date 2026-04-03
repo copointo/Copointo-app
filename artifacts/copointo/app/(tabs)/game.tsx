@@ -45,53 +45,6 @@ const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
 // ─── 3-position snake (keyed on level number for consistency) ─────────────
 const POSITIONS = [-85, 0, 85];
 
-// ─── Gap between tile edges ────────────────────────────────────────────────
-const CONNECTOR_GAP = 24;
-
-// ─── Connector line: goes from CENTER of upper tile to CENTER of lower tile ─
-function ConnectorLine({
-  fromX,
-  toX,
-  curOsZ,
-  nextOsZ,
-  isReached,
-}: {
-  fromX: number;
-  toX: number;
-  curOsZ: number;
-  nextOsZ: number;
-  isReached: boolean;
-}) {
-  // total vertical span: bottom-half of upper tile + gap + top-half of lower tile
-  const totalH = curOsZ / 2 + CONNECTOR_GAP + nextOsZ / 2;
-  const dx     = toX - fromX;
-  const length = Math.sqrt(dx * dx + totalH * totalH);
-  const angle  = Math.atan2(dx, totalH) * (180 / Math.PI);
-  const midX   = (fromX + toX) / 2;
-
-  return (
-    <View
-      style={{
-        height: totalH,
-        marginTop: -(curOsZ / 2),   // reach up into center of current tile
-        marginBottom: -(nextOsZ / 2), // next tile overlaps the connector bottom
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 0,
-      }}
-    >
-      <View
-        style={{
-          width: 3,
-          height: length,
-          borderRadius: 2,
-          backgroundColor: isReached ? "#E8B86D" : "rgba(255,255,255,0.20)",
-          transform: [{ translateX: midX }, { rotate: `${angle}deg` }],
-        }}
-      />
-    </View>
-  );
-}
 
 // ─── Background stars ─────────────────────────────────────────────────────
 const STARS = Array.from({ length: 26 }, (_, i) => ({
@@ -220,15 +173,6 @@ export default function GameScreen() {
           const xOff        = POSITIONS[lvl % 3];
           const rankForLvl  = RANKS.find((r) => r.min === lvl);
 
-          // Connector to the tile below (lvl - 1)
-          const hasConnector = lvl > startLvl;
-          const nextLvl      = lvl - 1;
-          const nextXOff     = POSITIONS[((nextLvl % 3) + 3) % 3];
-          const nextIsCur    = nextLvl === level;
-          const nextIsDone   = nextLvl < level;
-          const nextSz       = nextIsCur ? SZ_CURRENT : nextIsDone ? SZ_DONE : SZ_OTHER;
-          const nextOsZ      = outerSz(nextSz);
-          const connReached  = nextLvl <= level;
 
           return (
             <View key={lvl} style={{ alignItems: "center" }}>
@@ -242,12 +186,13 @@ export default function GameScreen() {
                 </View>
               )}
 
-              {/* ── Diamond tile — zIndex: 2 so it appears above connector ── */}
+              {/* ── Diamond tile ── */}
               <View style={{
                 width: osZ, height: osZ,
                 alignItems: "center", justifyContent: "center",
                 transform: [{ translateX: xOff }],
-                zIndex: 2,
+                marginVertical: 6,
+                opacity: isCurrent ? 1 : isDone ? 0.85 : 0.3,
               }}>
                 <View style={[styles.diamond, {
                   width: sz, height: sz,
@@ -305,16 +250,6 @@ export default function GameScreen() {
                 </View>
               </View>
 
-              {/* ── Connector: exits current tile center → enters next tile center ── */}
-              {hasConnector && (
-                <ConnectorLine
-                  fromX={xOff}
-                  toX={nextXOff}
-                  curOsZ={osZ}
-                  nextOsZ={nextOsZ}
-                  isReached={connReached}
-                />
-              )}
             </View>
           );
         })}
