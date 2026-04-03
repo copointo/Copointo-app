@@ -43,8 +43,8 @@ const SZ_DONE = 55;
 // Outer wrapper = tile rotated 45°, so visual bounding = size * √2
 const outer = (sz: number) => Math.round(sz * Math.SQRT2);
 
-// ─── Zigzag X offset per index ────────────────────────────────────────────
-const ZIGZAG: number[] = [0, 65, -65, 35, -35, 0];
+// ─── Fixed 3-position cycle (left → center → right) ──────────────────────
+const POSITIONS = [-90, 0, 90]; // clean snake: left, center, right
 
 // ─── Background stars ─────────────────────────────────────────────────────
 const STARS = Array.from({ length: 24 }, (_, i) => ({
@@ -57,7 +57,6 @@ const STARS = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 const BG = "#0F0A2E";
-const BEFORE = 5;
 const AFTER = 45;
 
 export default function GameScreen() {
@@ -73,19 +72,16 @@ export default function GameScreen() {
   const nextFreeLevel = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 1000) * 100, 100);
 
-  const startLvl = Math.max(1, level - BEFORE);
+  // Start from current level, show future levels below
   const endLvl = Math.min(1000, level + AFTER);
   const visibleLevels = Array.from(
-    { length: endLvl - startLvl + 1 },
-    (_, i) => endLvl - i          // render top-to-bottom = high → low (scroll down = past)
+    { length: endLvl - level + 1 },
+    (_, i) => level + i  // current first → future going down
   );
 
-  // Scroll so current level appears near top
-  const currentIdx = visibleLevels.indexOf(level);
+  // No scroll needed — current level is always first (y=0)
   useEffect(() => {
-    if (currentIdx < 0 || !scrollRef.current) return;
-    const approxY = currentIdx * (outer(SZ_CURRENT) + 8);
-    setTimeout(() => scrollRef.current?.scrollTo({ y: approxY, animated: false }), 250);
+    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), 100);
   }, [level]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -152,7 +148,7 @@ export default function GameScreen() {
           const sz = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_FUTURE;
           const outerSz = outer(sz);
           const tc = getTierColor(lvl);
-          const xOff = isCurrent ? 0 : ZIGZAG[idx % ZIGZAG.length];
+          const xOff = POSITIONS[idx % POSITIONS.length];
 
           // Tier-change milestone label (every 100 levels)
           const rankForLvl = RANKS.find((r) => r.min === lvl);
