@@ -280,53 +280,23 @@ export default function GameScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ── Floating action buttons (column, bottom-right) ── */}
-      <View style={[styles.fabGroup, {
-        bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
-      }]}>
-
-        {/* Notifications */}
-        <TouchableOpacity
-          style={[styles.fabSmall, { backgroundColor: "rgba(255,255,255,0.10)", borderColor: tierColor + "60" }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/leaderboard");
-          }}
-          activeOpacity={0.85}
-        >
-          <Feather name="bell" size={20} color={tierColor} />
-          {/* Badge */}
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>3</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Add Friends */}
-        <TouchableOpacity
-          style={[styles.fabSmall, { backgroundColor: "rgba(255,255,255,0.10)", borderColor: tierColor + "60" }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/leaderboard");
-          }}
-          activeOpacity={0.85}
-        >
-          <Feather name="user-plus" size={20} color={tierColor} />
-        </TouchableOpacity>
-
-        {/* Leaderboard — main, larger */}
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: tierColor }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            router.push("/leaderboard");
-          }}
-          activeOpacity={0.85}
-        >
-          <Feather name="users" size={22} color="#0F0A2E" />
-          <Text style={styles.fabLabel}>Leaderboard</Text>
-        </TouchableOpacity>
-
-      </View>
+      {/* ── Floating Leaderboard Button ── */}
+      <TouchableOpacity
+        style={[styles.fab, {
+          backgroundColor: tierColor,
+          position: "absolute",
+          right: 20,
+          bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
+        }]}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push("/leaderboard");
+        }}
+        activeOpacity={0.85}
+      >
+        <Feather name="users" size={22} color="#0F0A2E" />
+        <Text style={styles.fabLabel}>Leaderboard</Text>
+      </TouchableOpacity>
     </View>
   );
 }
