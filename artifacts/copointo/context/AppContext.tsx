@@ -60,7 +60,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     id: "user_1",
     name: "Ahmed Al-Rashidi",
     avatar: undefined,
-    level: 42,
+    level: 0,
     totalOrders: 89,
     points: 2450,
   });

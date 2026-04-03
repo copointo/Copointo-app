@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Platform,
@@ -15,195 +15,206 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { RANKS, getRank } from "@/data/mockData";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// ─── Tier Colors (vibrant on dark bg) ─────────────────────────────────────
+// ─── Tier colors per 100 levels ───────────────────────────────────────────
 const TIER_COLORS = [
-  "#E8B86D", // 1–100   Coffee Beginner   — golden sand
-  "#4FC3F7", // 101–200 Coffee Enthusiast — sky blue
-  "#81C784", // 201–300 Coffee Pro        — light green
-  "#FFD54F", // 301–400 Coffee Expert     — amber
-  "#CE93D8", // 401–500 Coffee Global     — lavender
-  "#FF8A65", // 501–600 Coffee Fanatic    — orange
-  "#EF5350", // 601–700 Coffee Veteran    — red
-  "#BA68C8", // 701–800 Coffee Mayor      — purple
-  "#F06292", // 801–900 Coffee King       — pink
-  "#00E5FF", // 901–1000 Coffee Elite     — cyan
+  "#E8B86D", // 0–99    Coffee Beginner   — golden sand
+  "#4FC3F7", // 100–199 Coffee Enthusiast — sky blue
+  "#81C784", // 200–299 Coffee Pro        — light green
+  "#FFD54F", // 300–399 Coffee Expert     — amber
+  "#CE93D8", // 400–499 Coffee Global     — lavender
+  "#FF8A65", // 500–599 Coffee Fanatic    — orange
+  "#EF5350", // 600–699 Coffee Veteran    — red
+  "#BA68C8", // 700–799 Coffee Mayor      — purple
+  "#F06292", // 800–899 Coffee King       — pink
+  "#00E5FF", // 900–1000 Coffee Elite     — cyan
 ];
 
-function getTierColor(level: number): string {
-  return TIER_COLORS[Math.min(Math.floor((level - 1) / 100), 9)];
+function getTierColor(lvl: number): string {
+  return TIER_COLORS[Math.min(Math.floor(lvl / 100), 9)];
 }
 
 // ─── Tile sizes ────────────────────────────────────────────────────────────
-const SZ_CURRENT = 90;
-const SZ_FUTURE = 70;
-const SZ_DONE = 55;
+const SZ_CURRENT = 92;
+const SZ_OTHER   = 68;
+const SZ_DONE    = 52;
 
-// Outer wrapper = tile rotated 45°, so visual bounding = size * √2
-const outer = (sz: number) => Math.round(sz * Math.SQRT2);
+// square of side s rotated 45° → visual height = s*√2
+const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
+const ROW_H = outerSz(SZ_OTHER) + 10; // ~106 px per row
 
-// ─── Fixed 3-position cycle (left → center → right) ──────────────────────
-const POSITIONS = [-90, 0, 90]; // clean snake: left, center, right
+// ─── 3-position snake (based on level number → consistent ordering) ────────
+const POSITIONS = [-85, 0, 85]; // left / center / right
 
-// ─── Background stars ─────────────────────────────────────────────────────
-const STARS = Array.from({ length: 24 }, (_, i) => ({
+// ─── Static background stars ──────────────────────────────────────────────
+const STARS = Array.from({ length: 26 }, (_, i) => ({
   id: i,
   x: Math.round((i * 137.5) % SCREEN_WIDTH),
-  y: Math.round((i * 97) % 900),
-  char: i % 3 === 0 ? "✦" : "✧",
-  size: i % 4 === 0 ? 18 : 13,
-  opacity: 0.08 + (i % 4) * 0.04,
+  y: Math.round((i * 97)    % 900),
+  ch: i % 3 === 0 ? "✦" : "✧",
+  sz: i % 4 === 0 ? 18 : 13,
+  op: 0.07 + (i % 5) * 0.03,
 }));
 
-const BG = "#0F0A2E";
-const AFTER = 45;
+const BG   = "#0F0A2E";
+const BEFORE = 12;
+const AFTER  = 48;
 
 export default function GameScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useApp();
   const scrollRef = useRef<ScrollView>(null);
+  const [showGoBack, setShowGoBack] = useState(false);
+  const currentScrollY = useRef(0);
 
-  const level = user?.level ?? 1;
-  const rank = getRank(level);
+  const level = user?.level ?? 0;
+  const rank  = getRank(level);
   const tierColor = getTierColor(level);
   const ordersThisLevel = level % 7;
-  const nextFreeLevel = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
+  const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 1000) * 100, 100);
 
-  // Start from current level, show future levels below
-  const endLvl = Math.min(1000, level + AFTER);
+  // ── Visible range: a window of levels around current ──────────────────
+  const startLvl = Math.max(0,    level - BEFORE);
+  const endLvl   = Math.min(1000, level + AFTER);
+
+  // Render DESCENDING: highest level first (top), lowest last (bottom)
+  // → low level numbers appear near the bottom of the scroll
   const visibleLevels = Array.from(
-    { length: endLvl - level + 1 },
-    (_, i) => level + i  // current first → future going down
+    { length: endLvl - startLvl + 1 },
+    (_, i) => endLvl - i       // endLvl, endLvl-1, ..., startLvl
   );
 
-  // No scroll needed — current level is always first (y=0)
+  // ── Y position of current level tile inside the scroll content ─────────
+  const currentIdxInList = endLvl - level;          // index in visibleLevels
+  const currentTileY     = currentIdxInList * ROW_H;
+
+  // ── Scroll to current level on mount ──────────────────────────────────
   useEffect(() => {
-    setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), 100);
+    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.4);
+    setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 250);
   }, [level]);
+
+  // ── Show/hide "go to current" button ───────────────────────────────────
+  const handleScroll = useCallback(
+    (e: any) => {
+      const y = e.nativeEvent.contentOffset.y;
+      currentScrollY.current = y;
+      const targetY = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.4);
+      setShowGoBack(Math.abs(y - targetY) > 160);
+    },
+    [currentTileY]
+  );
+
+  const goToCurrent = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.4);
+    scrollRef.current?.scrollTo({ y: target, animated: true });
+  };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-      {/* ── Fixed star background ── */}
+
+      {/* ── Star background ── */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {STARS.map((s) => (
-          <Text
-            key={s.id}
-            style={{
-              position: "absolute",
-              left: s.x,
-              top: s.y,
-              fontSize: s.size,
-              color: `rgba(255,255,255,${s.opacity})`,
-            }}
-          >
-            {s.char}
+          <Text key={s.id} style={{
+            position: "absolute", left: s.x, top: s.y,
+            fontSize: s.sz, color: `rgba(255,255,255,${s.op})`,
+          }}>
+            {s.ch}
           </Text>
         ))}
       </View>
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Text style={styles.levelProgress}>
-          المستوى {level} / 999
-        </Text>
-        <TouchableOpacity
-          style={[styles.rankChip, { borderColor: tierColor + "80" }]}
-          activeOpacity={0.85}
-        >
+        <Text style={styles.headerLevel}>المستوى {level} / 999</Text>
+        <View style={[styles.rankChip, { borderColor: tierColor + "80" }]}>
           <Text style={styles.rankChipIcon}>{rank.icon}</Text>
           <Text style={[styles.rankChipText, { color: tierColor }]}>{rank.name}</Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Progress bar ── */}
       <View style={styles.progressRow}>
         <View style={styles.progressTrack}>
-          <View
-            style={[
-              styles.progressFill,
-              { width: `${overallProgress}%` as any, backgroundColor: tierColor },
-            ]}
-          />
+          <View style={[styles.progressFill, {
+            width: `${overallProgress}%` as any,
+            backgroundColor: tierColor,
+          }]} />
         </View>
         <Text style={[styles.progressNote, { color: tierColor }]}>
-          {nextFreeLevel === 0 ? "☕ Free!" : `☕ −${nextFreeLevel}`}
+          {nextFreeLevel === 0 ? "☕ Free!" : `☕ ${nextFreeLevel}`}
         </Text>
       </View>
 
-      {/* ── Game board ── */}
+      {/* ── Game Board ── */}
       <ScrollView
         ref={scrollRef}
         style={styles.board}
         contentContainerStyle={styles.boardContent}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={40}
       >
-        {visibleLevels.map((lvl, idx) => {
-          const isCurrent = lvl === level;
-          const isDone = lvl < level;
-          const sz = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_FUTURE;
-          const outerSz = outer(sz);
-          const tc = getTierColor(lvl);
-          const xOff = POSITIONS[idx % POSITIONS.length];
+        {/* Top spacer */}
+        <View style={{ height: 16 }} />
 
-          // Tier-change milestone label (every 100 levels)
+        {visibleLevels.map((lvl) => {
+          const isCurrent = lvl === level;
+          const isDone    = lvl < level;
+          const sz        = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER;
+          const osZ       = outerSz(sz);
+          const tc        = getTierColor(lvl);
+          const xOff      = POSITIONS[lvl % 3]; // consistent per level number
           const rankForLvl = RANKS.find((r) => r.min === lvl);
 
           return (
             <View key={lvl} style={{ alignItems: "center" }}>
-              {/* Milestone badge at tier start */}
-              {rankForLvl && (
-                <View style={[styles.milestone, { borderColor: tc + "60", marginBottom: 6 }]}>
+
+              {/* ── Tier milestone badge ── */}
+              {rankForLvl && lvl > 0 && (
+                <View style={[styles.milestone, { borderColor: tc + "55" }]}>
                   <Text style={[styles.milestoneText, { color: tc }]}>
                     {rankForLvl.icon}  {rankForLvl.name}
                   </Text>
                 </View>
               )}
 
-              {/* Diamond wrapper */}
-              <View
-                style={{
-                  width: outerSz,
-                  height: outerSz,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transform: [{ translateX: xOff }],
-                  marginVertical: 4,
-                }}
-              >
-                <View
-                  style={[
-                    styles.diamond,
-                    {
-                      width: sz,
-                      height: sz,
-                      backgroundColor: isCurrent
-                        ? tc
-                        : isDone
-                        ? "rgba(255,255,255,0.04)"
-                        : "rgba(255,255,255,0.07)",
-                      borderColor: isCurrent
-                        ? "#FFFFFF"
-                        : isDone
-                        ? "rgba(255,255,255,0.12)"
-                        : tc,
-                      borderWidth: isCurrent ? 3 : 2,
-                      shadowColor: isCurrent ? tc : "#000",
-                      shadowOpacity: isCurrent ? 0.7 : 0.3,
-                      shadowRadius: isCurrent ? 14 : 4,
-                    },
-                  ]}
-                >
-                  {/* Counter-rotate content so text stays upright */}
+              {/* ── Diamond tile (outer wrapper keeps layout rect) ── */}
+              <View style={{
+                width: osZ, height: osZ,
+                alignItems: "center", justifyContent: "center",
+                transform: [{ translateX: xOff }],
+                marginVertical: 3,
+              }}>
+                <View style={[styles.diamond, {
+                  width: sz, height: sz,
+                  backgroundColor: isCurrent
+                    ? tc
+                    : isDone
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(255,255,255,0.07)",
+                  borderColor: isCurrent
+                    ? "#FFFFFF"
+                    : isDone
+                    ? "rgba(255,255,255,0.10)"
+                    : tc,
+                  borderWidth: isCurrent ? 3 : 2,
+                  shadowColor:   isCurrent ? tc : "#000",
+                  shadowOpacity: isCurrent ? 0.75 : 0.25,
+                  shadowRadius:  isCurrent ? 16 : 4,
+                }]}>
                   <View style={styles.diamondInner}>
                     {isCurrent ? (
                       <>
-                        <Text style={styles.currentEmoji}>☕</Text>
-                        <Text style={[styles.currentNum, { color: "#0F0A2E" }]}>{lvl}</Text>
+                        <Text style={styles.curEmoji}>☕</Text>
+                        <Text style={[styles.curNum, { color: "#0F0A2E" }]}>{lvl}</Text>
                       </>
                     ) : isDone ? (
                       <Text style={styles.doneCheck}>✓</Text>
@@ -217,18 +228,29 @@ export default function GameScreen() {
           );
         })}
 
+        {/* Bottom spacer */}
         <View style={{ height: Platform.OS === "web" ? 130 : insets.bottom + 120 }} />
       </ScrollView>
 
+      {/* ── "Go to my level" button — shown when scrolled away ── */}
+      {showGoBack && (
+        <TouchableOpacity
+          style={[styles.goBackBtn, { backgroundColor: tierColor, left: 20,
+            bottom: Platform.OS === "web" ? 100 : insets.bottom + 90 }]}
+          onPress={goToCurrent}
+          activeOpacity={0.85}
+        >
+          <Feather name="crosshair" size={16} color="#0F0A2E" />
+          <Text style={styles.goBackText}>مستواي</Text>
+        </TouchableOpacity>
+      )}
+
       {/* ── Floating Leaderboard Button ── */}
       <TouchableOpacity
-        style={[
-          styles.fab,
-          {
-            bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
-            backgroundColor: tierColor,
-          },
-        ]}
+        style={[styles.fab, {
+          backgroundColor: tierColor,
+          bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
+        }]}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           router.push("/leaderboard");
@@ -243,10 +265,7 @@ export default function GameScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-  },
+  container: { flex: 1, backgroundColor: BG },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -255,7 +274,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 8,
   },
-  levelProgress: {
+  headerLevel: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
     color: "#FF8C42",
@@ -270,13 +289,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     backgroundColor: "rgba(255,255,255,0.07)",
   },
-  rankChipIcon: {
-    fontSize: 16,
-  },
-  rankChipText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-  },
+  rankChipIcon: { fontSize: 16 },
+  rankChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   progressRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -285,42 +299,29 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   progressTrack: {
-    flex: 1,
-    height: 5,
-    borderRadius: 3,
+    flex: 1, height: 5, borderRadius: 3,
     backgroundColor: "rgba(255,255,255,0.12)",
     overflow: "hidden",
   },
-  progressFill: {
-    height: "100%",
-    borderRadius: 3,
-  },
+  progressFill: { height: "100%", borderRadius: 3 },
   progressNote: {
     fontSize: 13,
     fontFamily: "Inter_700Bold",
     minWidth: 64,
     textAlign: "right",
   },
-  board: {
-    flex: 1,
-  },
-  boardContent: {
-    alignItems: "center",
-    paddingTop: 12,
-    paddingHorizontal: 20,
-  },
+  board: { flex: 1 },
+  boardContent: { alignItems: "center", paddingHorizontal: 20 },
   milestone: {
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 6,
     backgroundColor: "rgba(255,255,255,0.05)",
-    marginTop: 16,
+    marginTop: 18,
+    marginBottom: 4,
   },
-  milestoneText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-  },
+  milestoneText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   diamond: {
     borderRadius: 14,
     transform: [{ rotate: "45deg" }],
@@ -335,21 +336,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
-  currentEmoji: {
-    fontSize: 28,
+  curEmoji:  { fontSize: 28 },
+  curNum:    { fontSize: 12, fontFamily: "Inter_700Bold" },
+  doneCheck: { fontSize: 16, color: "rgba(255,255,255,0.22)", fontFamily: "Inter_700Bold" },
+  futureNum: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  goBackBtn: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  currentNum: {
-    fontSize: 12,
+  goBackText: {
+    fontSize: 13,
     fontFamily: "Inter_700Bold",
-  },
-  doneCheck: {
-    fontSize: 18,
-    color: "rgba(255,255,255,0.25)",
-    fontFamily: "Inter_700Bold",
-  },
-  futureNum: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
+    color: "#0F0A2E",
   },
   fab: {
     position: "absolute",
