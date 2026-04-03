@@ -15,18 +15,18 @@ import { getRank } from "@/data/mockData";
 
 type LeaderTab = "friends" | "oman";
 
-const LEADERBOARD: Record<LeaderTab, { name: string; level: number; isMe?: boolean; isFriend?: boolean }[]> = {
+const LEADERBOARD: Record<LeaderTab, { name: string; username: string; level: number; isMe?: boolean; isFriend?: boolean }[]> = {
   friends: [
-    { name: "Mohammed Al-Habsi", level: 45, isFriend: true },
-    { name: "Ahmed (You)", level: 42, isMe: true },
-    { name: "Khalid Mansoor", level: 38, isFriend: true },
-    { name: "Sara Al-Zahra", level: 31, isFriend: true },
+    { name: "Mohammed Al-Habsi", username: "mohammed_h", level: 45, isFriend: true },
+    { name: "Ahmed (You)",        username: "",           level: 42, isMe: true },
+    { name: "Khalid Mansoor",    username: "khalid_r",   level: 38, isFriend: true },
+    { name: "Sara Al-Zahra",     username: "sara_z",     level: 31, isFriend: true },
   ],
   oman: [
-    { name: "Oman #1", level: 980 },
-    { name: "Coffee Master", level: 901 },
-    { name: "Top Tier", level: 867 },
-    { name: "Ahmed (You)", level: 42, isMe: true },
+    { name: "Oman #1",       username: "oman_1",   level: 980 },
+    { name: "Coffee Master", username: "coffee_m", level: 901 },
+    { name: "Top Tier",      username: "top_tier", level: 867 },
+    { name: "Ahmed (You)",   username: "",         level: 42, isMe: true },
   ],
 };
 
@@ -48,6 +48,11 @@ export default function LeaderboardScreen() {
   const handleAddFriend = (name: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setAddedFriends((prev) => [...prev, name]);
+  };
+
+  const openProfile = (username: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/competitor-profile?id=${username}`);
   };
 
   return (
@@ -123,6 +128,17 @@ export default function LeaderboardScreen() {
                   Level {entry.level} · {rankInfo.nameEn} {rankInfo.icon}
                 </Text>
               </View>
+
+              {/* Profile button — for everyone except "me" */}
+              {!entry.isMe && entry.username && (
+                <TouchableOpacity
+                  style={styles.profileBtn}
+                  onPress={() => openProfile(entry.username)}
+                  activeOpacity={0.8}
+                >
+                  <Feather name="user" size={15} color="#FFF" />
+                </TouchableOpacity>
+              )}
 
               {!entry.isMe && !entry.isFriend && (
                 <TouchableOpacity
@@ -217,6 +233,11 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   addBtnDone: { backgroundColor: "#4CAF50" },
+  profileBtn: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center", justifyContent: "center",
+  },
   friendTag: {
     paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)",
