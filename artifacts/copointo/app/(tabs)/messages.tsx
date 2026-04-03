@@ -87,11 +87,6 @@ export default function MessagesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
-        <TouchableOpacity
-          style={[styles.composeBtn, { backgroundColor: colors.primary }]}
-        >
-          <Feather name="edit-2" size={18} color={colors.primaryForeground} />
-        </TouchableOpacity>
       </View>
 
       <View style={[styles.searchBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -103,18 +98,6 @@ export default function MessagesScreen() {
           value={search}
           onChangeText={setSearch}
         />
-      </View>
-
-      <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, { borderBottomColor: colors.primary }]}>
-          <Text style={[styles.tabText, { color: colors.primary }]}>All</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab}>
-          <Text style={[styles.tabText, { color: colors.mutedForeground }]}>Cafes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab}>
-          <Text style={[styles.tabText, { color: colors.mutedForeground }]}>Friends</Text>
-        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -151,13 +134,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: "Inter_700Bold",
   },
-  composeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -174,21 +150,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     padding: 0,
-  },
-  tabs: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    marginBottom: 4,
-    gap: 24,
-  },
-  tab: {
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  tabText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
   },
   convItem: {
     flexDirection: "row",
