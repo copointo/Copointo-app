@@ -1,15 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CafeCard } from "@/components/CafeCard";
 import { SearchBar } from "@/components/SearchBar";
@@ -20,8 +17,7 @@ import { useColors } from "@/hooks/useColors";
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user, cartCount } = useApp();
+  const { user } = useApp();
   const [search, setSearch] = useState("");
 
   const filteredCafes = useMemo(() => {
@@ -51,19 +47,6 @@ export default function HomeScreen() {
             {user?.name.split(" ")[0]} ☕
           </Text>
         </View>
-        <TouchableOpacity
-          style={[styles.cartBtn, { backgroundColor: colors.primary }]}
-          onPress={() => router.push("/cart")}
-        >
-          <Feather name="shopping-bag" size={20} color={colors.primaryForeground} />
-          {cartCount > 0 && (
-            <View style={[styles.badge, { backgroundColor: colors.espresso }]}>
-              <Text style={[styles.badgeText, { color: "#FFF" }]}>
-                {cartCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -97,7 +80,7 @@ export default function HomeScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
-            {filteredCafes.map((cafe, index) => (
+            {filteredCafes.map((cafe) => (
               <View key={cafe.id} style={styles.gridItem}>
                 <CafeCard cafe={cafe} compact />
               </View>
@@ -129,28 +112,6 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 22,
-    fontFamily: "Inter_700Bold",
-  },
-  cartBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badge: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    fontSize: 10,
     fontFamily: "Inter_700Bold",
   },
   scroll: {
