@@ -250,6 +250,15 @@ export default function GameScreen() {
                 </View>
               </View>
 
+              {/* ── Free-coffee hint label (future multiples of 7 only) ── */}
+              {isFreeCoffee && !isDone && !isCurrent && (
+                <View style={[styles.freeHint, { transform: [{ translateX: xOff > 0 ? -30 : xOff < 0 ? 30 : 0 }] }]}>
+                  {/* Small arrow pointing up toward the tile */}
+                  <View style={styles.freeHintArrow} />
+                  <Text style={styles.freeHintText}>☕ اصل لهذا المستوى للحصول على مشروب مجاني</Text>
+                </View>
+              )}
+
             </View>
           );
         })}
@@ -359,4 +368,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45, shadowRadius: 12, elevation: 10,
   },
   fabLabel: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#0F0A2E", textAlign: "center" },
+  freeHint: {
+    marginTop: 4,
+    marginBottom: 2,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1,
+    borderColor: "#E8B86D55",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: 210,
+    alignItems: "center",
+  },
+  freeHintArrow: {
+    position: "absolute",
+    top: -6,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderBottomWidth: 6,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "#E8B86D55",
+  },
+  freeHintText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "#E8B86D",
+    textAlign: "center",
+    writingDirection: "rtl",
+  },
 });
