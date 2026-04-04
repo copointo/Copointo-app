@@ -48,6 +48,14 @@ export interface Message {
   type: "user" | "cafe";
 }
 
+export interface ChatMessage {
+  id: string;
+  text: string;
+  fromMe: boolean;
+  time: string;       // e.g. "10:32 ص"
+  seen: boolean;      // true → ✓✓ blue, false → ✓ grey
+}
+
 export const CAFES: Cafe[] = [
   {
     id: "cafe_1",
@@ -344,6 +352,37 @@ export const MESSAGES: Message[] = [
     type: "user",
   },
 ];
+
+export const CHAT_HISTORY: Record<string, ChatMessage[]> = {
+  m1: [
+    { id: "1", text: "مرحباً! طلبك جاهز للاستلام من الكاونتر 🎉", fromMe: false, time: "10:30 ص", seen: true },
+    { id: "2", text: "شكراً، في الطريق الآن", fromMe: true, time: "10:31 ص", seen: true },
+    { id: "3", text: "طلبك جاهز! تفضل للكاونتر من فضلك.", fromMe: false, time: "10:32 ص", seen: false },
+  ],
+  m2: [
+    { id: "1", text: "هلا! كيفك؟", fromMe: false, time: "9:00 ص", seen: true },
+    { id: "2", text: "تمام الحمدلله، وأنتِ؟", fromMe: true, time: "9:02 ص", seen: true },
+    { id: "3", text: "تمام 😊 هل ستذهب لـ Altitude Cafe اليوم؟", fromMe: false, time: "9:10 ص", seen: true },
+    { id: "4", text: "أفكر في ذلك، ليش؟", fromMe: true, time: "9:12 ص", seen: true },
+    { id: "5", text: "فيه عرض على القهوة الباردة اليوم فقط!", fromMe: false, time: "9:13 ص", seen: true },
+    { id: "6", text: "Are you going to Altitude Cafe today?", fromMe: false, time: "9:15 ص", seen: false },
+  ],
+  m3: [
+    { id: "1", text: "عرض خاص: خصم 20% على كل القهوة الباردة هذا الأسبوع! ☕", fromMe: false, time: "أمس", seen: true },
+    { id: "2", text: "رائع! سأزوركم قريباً", fromMe: true, time: "أمس", seen: true },
+  ],
+  m4: [
+    { id: "1", text: "السلام عليكم!", fromMe: false, time: "8:00 ص", seen: true },
+    { id: "2", text: "وعليكم السلام", fromMe: true, time: "8:01 ص", seen: true },
+    { id: "3", text: "نتقهوى في Brew & Beyond بكرة؟", fromMe: false, time: "8:05 ص", seen: true },
+    { id: "4", text: "Let's grab coffee at Brew & Beyond tomorrow?", fromMe: false, time: "8:06 ص", seen: false },
+  ],
+  m5: [
+    { id: "1", text: "وصلت المستوى 300 — Coffee Expert! 🎉", fromMe: false, time: "أمس", seen: true },
+    { id: "2", text: "مبروك! 🎊", fromMe: true, time: "أمس", seen: true },
+    { id: "3", text: "شكراً يا صاحبي 😄", fromMe: false, time: "أمس", seen: true },
+  ],
+};
 
 export const RANKS = [
   { min: 0, max: 100, name: "مبتدئ كوفي", nameEn: "Coffee Beginner", color: "#8B7355", icon: "☕" },

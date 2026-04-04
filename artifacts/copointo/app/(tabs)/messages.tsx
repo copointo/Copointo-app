@@ -1,4 +1,6 @@
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   FlatList,
@@ -15,12 +17,19 @@ import { useColors } from "@/hooks/useColors";
 
 function ConversationItem({ msg }: { msg: Message }) {
   const colors = useColors();
-  const isCafe = msg.type === "cafe";
+  const router  = useRouter();
+  const isCafe  = msg.type === "cafe";
+
+  const openChat = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/conversation?id=${msg.id}&name=${encodeURIComponent(msg.senderName)}&type=${msg.type}`);
+  };
 
   return (
     <TouchableOpacity
       style={[styles.convItem, { borderBottomColor: colors.border }]}
       activeOpacity={0.85}
+      onPress={openChat}
     >
       <View
         style={[
