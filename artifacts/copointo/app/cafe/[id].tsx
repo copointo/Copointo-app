@@ -35,24 +35,27 @@ export default function CafeLandingScreen() {
 
   const ACTIONS = [
     {
-      emoji: "🛒",
-      label: "اطلب الان",
-      sub:   "تصفح القائمة واطلب مشروبك",
-      color: PRIMARY,
+      icon:    "☕",
+      label:   "اطلب الان",
+      sub:     "تصفح القائمة واطلب مشروبك المفضل",
+      grad:    ["#C67C4E", "#A0522D"] as const,
+      badge:   "الأكثر طلباً",
       onPress: () => go(`/cafe/${id}/order`),
     },
     {
-      emoji: "🤖",
-      label: "شات Copointo",
-      sub:   "احصل على توصية من الذكاء الاصطناعي",
-      color: CARD,
+      icon:    "✨",
+      label:   "شات Copointo",
+      sub:     "احصل على توصية ذكية تناسبك",
+      grad:    ["#6C3FC5", "#3B1FA0"] as const,
+      badge:   "AI مدعوم بـ",
       onPress: () => go(`/cafe/${id}/chat`),
     },
     {
-      emoji: "📅",
-      label: "احجز طاولة",
-      sub:   "احجز مقعدك مسبقاً",
-      color: CARD,
+      icon:    "🪑",
+      label:   "احجز طاولة",
+      sub:     "احجز مقعدك واستمتع بتجربتك",
+      grad:    ["#1A6B4A", "#0D4A31"] as const,
+      badge:   "متاح الآن",
       onPress: () => go(`/cafe/${id}/book`),
     },
   ];
@@ -137,16 +140,35 @@ export default function CafeLandingScreen() {
           {ACTIONS.map((a) => (
             <TouchableOpacity
               key={a.label}
-              style={[styles.actionBtn, { backgroundColor: a.color, borderColor: a.color === CARD ? BORDER : "transparent" }]}
               onPress={a.onPress}
-              activeOpacity={0.85}
+              activeOpacity={0.88}
+              style={styles.actionWrap}
             >
-              <Text style={styles.actionEmoji}>{a.emoji}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionLabel}>{a.label}</Text>
-                <Text style={styles.actionSub}>{a.sub}</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.50)" />
+              <LinearGradient
+                colors={a.grad}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionGrad}
+              >
+                {/* Badge top-right */}
+                <View style={styles.badgeWrap}>
+                  <Text style={styles.badgeText}>{a.badge}</Text>
+                </View>
+
+                {/* Big icon */}
+                <Text style={styles.actionBigIcon}>{a.icon}</Text>
+
+                {/* Text bottom */}
+                <View style={styles.actionBottom}>
+                  <Text style={styles.actionLabel}>{a.label}</Text>
+                  <Text style={styles.actionSub}>{a.sub}</Text>
+                </View>
+
+                {/* Arrow */}
+                <View style={styles.arrowCircle}>
+                  <Feather name="arrow-right" size={16} color="#FFF" />
+                </View>
+              </LinearGradient>
             </TouchableOpacity>
           ))}
         </View>
@@ -210,13 +232,27 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.40)", marginBottom: 4 },
 
   // Actions
-  actions:    { gap: 12 },
-  actionBtn:  {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    borderRadius: 20, padding: 18,
-    borderWidth: 1,
+  actions:     { gap: 14 },
+  actionWrap:  { borderRadius: 24, overflow: "hidden" },
+  actionGrad:  {
+    padding: 20, minHeight: 120,
+    justifyContent: "space-between",
   },
-  actionEmoji: { fontSize: 26 },
-  actionLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 2 },
-  actionSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+  badgeWrap: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.20)",
+    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
+    marginBottom: 8,
+  },
+  badgeText:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  actionBigIcon:{ fontSize: 38, marginBottom: 8 },
+  actionBottom: { gap: 3 },
+  actionLabel:  { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
+  actionSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)" },
+  arrowCircle:  {
+    position: "absolute", bottom: 16, right: 16,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.20)",
+    alignItems: "center", justifyContent: "center",
+  },
 });
