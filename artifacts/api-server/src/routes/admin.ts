@@ -1,0 +1,87 @@
+import { Router } from "express";
+import { cafes, users, type Cafe } from "../store";
+
+const router = Router();
+
+// ── GET /api/admin/cafes ────────────────────
+router.get("/cafes", (_req, res) => {
+  res.json({ cafes });
+});
+
+// ── POST /api/admin/cafes ───────────────────
+router.post("/cafes", (req, res) => {
+  const { name, ownerPhone, logo, openTime, closeTime, managerPassword, address, tags } = req.body;
+  if (!name || !ownerPhone || !openTime || !closeTime || !managerPassword) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+  const newCafe: Cafe = {
+    id: Date.now().toString(),
+    name,
+    ownerPhone,
+    logo: logo || "https://images.unsplash.com/photo-1559305616-3f99cd43e353?w=200&q=80",
+    openTime,
+    closeTime,
+    managerPassword,
+    active: true,
+    subscriptionPaid: true,
+    subscriptionAmount: 300,
+    createdAt: new Date().toISOString(),
+    rating: 4.5,
+    tags: tags || [],
+    address: address || "عُمان",
+    image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80",
+  };
+  cafes.push(newCafe);
+  res.status(201).json({ cafe: newCafe });
+});
+
+// ── PATCH /api/admin/cafes/:id/toggle ──────
+router.patch("/cafes/:id/toggle", (req, res) => {
+  const cafe = cafes.find(c => c.id === req.params.id);
+  if (!cafe) return res.status(404).json({ error: "Cafe not found" });
+  cafe.active = !cafe.active;
+  res.json({ cafe });
+});
+
+// ── DELETE /api/admin/cafes/:id ────────────
+router.delete("/cafes/:id", (req, res) => {
+  const idx = cafes.findIndex(c => c.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Cafe not found" });
+  cafes.splice(idx, 1);
+  res.json({ success: true });
+});
+
+// ── GET /api/admin/users ────────────────────
+router.get("/users", (_req, res) => {
+  res.json({ users });
+});
+
+// ── PATCH /api/admin/users/:id/ban ─────────
+router.patch("/users/:id/ban", (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.banned = !user.banned;
+  res.json({ user });
+});
+
+// ── GET /api/admin/stats ────────────────────
+router.get("/stats", (_req, res) => {
+  const totalCafes   = cafes.length;
+  const activeCafes  = cafes.filter(c => c.active).length;
+  const totalRevenue = cafes.filter(c => c.subscriptionPaid).length * 300;
+  const totalUsers   = users.length;
+  const bannedUsers  = users.filter(u => u.banned).length;
+  res.json({ totalCafes, activeCafes, totalRevenue, totalUsers, bannedUsers });
+});
+
+// ── GET /api/cafes (public — mobile app) ────
+router.get("/public", (_req, res) => {
+  const publicCafes = cafes.filter(c => c.active).map(c => ({
+    id: c.id, name: c.name, logo: c.logo, image: c.image,
+    openTime: c.openTime, closeTime: c.closeTime,
+    rating: c.rating, tags: c.tags, address: c.address,
+  }));
+  res.json({ cafes: publicCafes });
+});
+
+export default router;
