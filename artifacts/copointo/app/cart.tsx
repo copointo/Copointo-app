@@ -1,31 +1,128 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
-import { useColors } from "@/hooks/useColors";
 
+const BG      = "#0F0A2E";
+const CARD    = "rgba(255,255,255,0.07)";
+const BORDER  = "rgba(255,255,255,0.10)";
+const PRIMARY = "#C67C4E";
+const SUCCESS = "#2E7D32";
+
+type OrderType = "dine" | "car" | null;
+type Step      = "cart" | "type" | "form" | "done";
+
+// ─── Field Row ────────────────────────────────────────────────
+function Field({
+  label, icon, value, onChange, placeholder, keyboardType, maxLength,
+}: {
+  label: string; icon: string; value: string;
+  onChange: (v: string) => void; placeholder: string;
+  keyboardType?: any; maxLength?: number;
+}) {
+  return (
+    <View style={fStyles.wrap}>
+      <Text style={fStyles.label}>{icon}  {label}</Text>
+      <TextInput
+        style={fStyles.input}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor="rgba(255,255,255,0.28)"
+        keyboardType={keyboardType ?? "default"}
+        maxLength={maxLength}
+        selectionColor={PRIMARY}
+      />
+    </View>
+  );
+}
+
+const fStyles = StyleSheet.create({
+  wrap:  { gap: 6 },
+  label: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
+  input: {
+    backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, fontFamily: "Inter_500Medium", color: "#FFF",
+  },
+});
+
+// ─── Cart Item Row ─────────────────────────────────────────────
+function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
+  return (
+    <View style={styles.cartItem}>
+      <View style={styles.itemInfo}>
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemPrice}>{item.price.toFixed(3)} OMR × {item.quantity}</Text>
+      </View>
+      <View style={styles.qtyRow}>
+        <TouchableOpacity style={styles.qtyBtn} onPress={onMinus}>
+          <Feather name="minus" size={13} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.qtyText}>{item.quantity}</Text>
+        <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: PRIMARY }]} onPress={onPlus}>
+          <Feather name="plus" size={13} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.itemTotal}>{(item.price * item.quantity).toFixed(3)}</Text>
+      <TouchableOpacity onPress={onRemove} style={{ padding: 4 }}>
+        <Feather name="trash-2" size={15} color="#EF5350" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────
 export default function CartScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { cart, cartTotal, cartCount, updateQuantity, removeFromCart, clearCart, addOrder } = useApp();
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
+  const [step,      setStep]      = useState<Step>("cart");
+  const [orderType, setOrderType] = useState<OrderType>(null);
+  const [typeModal, setTypeModal] = useState(false);
 
-  const handleCheckout = () => {
-    if (cart.length === 0) return;
+  // Dine-in form
+  const [dineName,  setDineName]  = useState("");
+  const [dinePhone, setDinePhone] = useState("");
+  const [dineTable, setDineTable] = useState("");
+
+  // Car form
+  const [carName,      setCarName]      = useState("");
+  const [carPhone,     setCarPhone]     = useState("");
+  const [carPlateNum,  setCarPlateNum]  = useState("");
+  const [carPlateChar, setCarPlateChar] = useState("");
+
+  const orderSummary = cart.map(i => `${i.name} ×${i.quantity}`).join("، ");
+
+  const submitOrder = () => {
+    const isDine = orderType === "dine";
+    if (isDine) {
+      if (!dineName.trim() || !dinePhone.trim() || !dineTable.trim()) {
+        Alert.alert("تنبيه", "يرجى تعبئة جميع الحقول"); return;
+      }
+    } else {
+      if (!carName.trim() || !carPhone.trim() || !carPlateNum.trim() || !carPlateChar.trim()) {
+        Alert.alert("تنبيه", "يرجى تعبئة جميع الحقول"); return;
+      }
+    }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     addOrder({
       id: Date.now().toString(),
@@ -37,237 +134,415 @@ export default function CartScreen() {
       createdAt: new Date().toISOString(),
     });
     clearCart();
-    Alert.alert(
-      "Order Placed!",
-      "Your order has been sent to the cafe. You'll get a notification when it's ready.",
-      [{ text: "OK", onPress: () => router.back() }]
-    );
+    setStep("done");
   };
 
-  if (cart.length === 0) {
+  // ── Empty cart ──
+  if (cart.length === 0 && step !== "done") {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { paddingTop: topPadding + 8 }]}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Feather name="arrow-left" size={22} color={colors.foreground} />
+      <View style={[styles.container, { paddingTop: topPad }]}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={20} color="#FFF" />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.foreground }]}>Cart</Text>
-          <View style={{ width: 22 }} />
+          <Text style={styles.headerTitle}>السلة</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <View style={styles.empty}>
+        <View style={styles.emptyWrap}>
           <Text style={{ fontSize: 64 }}>🛒</Text>
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Your cart is empty</Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Add items from a cafe to get started
-          </Text>
-          <TouchableOpacity
-            style={[styles.browseBtn, { backgroundColor: colors.primary }]}
-            onPress={() => router.back()}
-          >
-            <Text style={[styles.browseBtnText, { color: colors.primaryForeground }]}>
-              Browse Cafes
-            </Text>
+          <Text style={styles.emptyTitle}>السلة فارغة</Text>
+          <Text style={styles.emptyText}>أضف طلبات من قائمة الكوفي</Text>
+          <TouchableOpacity style={styles.browseBtn} onPress={() => router.back()}>
+            <Text style={styles.browseBtnText}>تصفح الكوفيهات</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 8 }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          Cart ({cartCount})
+  // ── Success ──
+  if (step === "done") {
+    return (
+      <View style={[styles.container, { paddingTop: topPad, justifyContent: "center", alignItems: "center", gap: 20, paddingHorizontal: 32 }]}>
+        <View style={styles.successCircle}>
+          <Text style={{ fontSize: 48 }}>✅</Text>
+        </View>
+        <Text style={styles.successTitle}>تم إرسال طلبك!</Text>
+        <Text style={styles.successSub}>
+          {orderType === "dine"
+            ? `سيصلك طلبك على الطاولة رقم ${dineTable} قريباً`
+            : "سنحضر طلبك إلى سيارتك قريباً"}
         </Text>
+        <TouchableOpacity
+          style={[styles.browseBtn, { marginTop: 12 }]}
+          onPress={() => router.replace("/(tabs)")}
+        >
+          <Text style={styles.browseBtnText}>العودة للرئيسية</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── Form ──
+  if (step === "form") {
+    const isDine = orderType === "dine";
+    return (
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: topPad }]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => setStep("type")}>
+            <Feather name="arrow-left" size={20} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {isDine ? "طلب داخل الكوفي" : "طلب في السيارة"}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.formContent, { paddingBottom: botPad + 30 }]}
+        >
+          {/* Icon banner */}
+          <LinearGradient
+            colors={isDine ? ["#C67C4E", "#8B4513"] : ["#1A3A6B", "#0D1F3C"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.formBanner}
+          >
+            <Text style={{ fontSize: 42 }}>{isDine ? "🪑" : "🚗"}</Text>
+            <View>
+              <Text style={styles.bannerTitle}>{isDine ? "طلب داخل الكوفي" : "طلب في السيارة"}</Text>
+              <Text style={styles.bannerSub}>{isDine ? "سنحضر طلبك لطاولتك" : "ابق في سيارتك وانتظر"}</Text>
+            </View>
+          </LinearGradient>
+
+          {/* Fields */}
+          <View style={styles.fields}>
+            <Field
+              label="الاسم الكامل" icon="👤"
+              value={isDine ? dineName : carName}
+              onChange={isDine ? setDineName : setCarName}
+              placeholder="أدخل اسمك الكامل"
+            />
+            <Field
+              label="رقم الهاتف" icon="📞"
+              value={isDine ? dinePhone : carPhone}
+              onChange={isDine ? setDinePhone : setCarPhone}
+              placeholder="9XXXXXXXX"
+              keyboardType="phone-pad"
+              maxLength={12}
+            />
+            {isDine ? (
+              <Field
+                label="رقم الطاولة" icon="🪑"
+                value={dineTable}
+                onChange={setDineTable}
+                placeholder="مثال: 12"
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+            ) : (
+              /* License plate: number + arabic chars */
+              <View style={styles.plateWrap}>
+                <Text style={styles.plateLabel}>🚗  رقم لوحة السيارة</Text>
+                <View style={styles.plateRow}>
+                  {/* Number part */}
+                  <View style={[styles.plateBox, { flex: 1.2 }]}>
+                    <Text style={styles.plateBoxLabel}>الأرقام</Text>
+                    <TextInput
+                      style={styles.plateInput}
+                      value={carPlateNum}
+                      onChangeText={setCarPlateNum}
+                      placeholder="12345"
+                      placeholderTextColor="rgba(255,255,255,0.28)"
+                      keyboardType="number-pad"
+                      maxLength={5}
+                      selectionColor={PRIMARY}
+                    />
+                  </View>
+                  {/* Divider */}
+                  <View style={styles.plateDivider} />
+                  {/* Char part */}
+                  <View style={[styles.plateBox, { flex: 1 }]}>
+                    <Text style={styles.plateBoxLabel}>الحروف</Text>
+                    <TextInput
+                      style={[styles.plateInput, { fontSize: 20 }]}
+                      value={carPlateChar}
+                      onChangeText={setCarPlateChar}
+                      placeholder="ب ق ر"
+                      placeholderTextColor="rgba(255,255,255,0.28)"
+                      maxLength={5}
+                      selectionColor={PRIMARY}
+                    />
+                  </View>
+                  {/* Oman flag */}
+                  <View style={styles.plateFlag}>
+                    <Text style={{ fontSize: 22 }}>🇴🇲</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Order summary */}
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryBoxTitle}>📋  تفاصيل الطلب</Text>
+              {cart.map(i => (
+                <View key={i.id} style={styles.summaryRow}>
+                  <Text style={styles.summaryItem}>{i.name}</Text>
+                  <Text style={styles.summaryQty}>×{i.quantity}</Text>
+                  <Text style={styles.summaryPrice}>{(i.price * i.quantity).toFixed(3)} OMR</Text>
+                </View>
+              ))}
+              <View style={styles.summaryDivider} />
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryItem, { color: "#FFF", fontFamily: "Inter_700Bold" }]}>الإجمالي</Text>
+                <Text style={[styles.summaryPrice, { color: PRIMARY, fontFamily: "Inter_700Bold", fontSize: 15 }]}>
+                  {cartTotal.toFixed(3)} OMR
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Submit */}
+          <TouchableOpacity style={styles.submitBtn} onPress={submitOrder} activeOpacity={0.88}>
+            <LinearGradient
+              colors={["#C67C4E", "#8B4513"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.submitGrad}
+            >
+              <Text style={styles.submitText}>اطلب الان  •  {cartTotal.toFixed(3)} OMR</Text>
+              <Feather name="send" size={18} color="#FFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ── Cart ──
+  return (
+    <View style={[styles.container, { paddingTop: topPad }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={20} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>السلة ({cartCount})</Text>
         <TouchableOpacity onPress={clearCart}>
-          <Text style={[styles.clearBtn, { color: colors.destructive }]}>Clear</Text>
+          <Text style={styles.clearText}>مسح</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: bottomPadding + 100 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: botPad + 110 }}
       >
-        <View style={[styles.cafeLabel, { backgroundColor: colors.secondary }]}>
-          <Text style={{ fontSize: 16 }}>☕</Text>
-          <Text style={[styles.cafeLabelText, { color: colors.secondaryForeground }]}>
-            {cart[0].cafeName}
-          </Text>
+        {/* Cafe label */}
+        <View style={styles.cafeLabel}>
+          <Text style={{ fontSize: 18 }}>☕</Text>
+          <Text style={styles.cafeLabelText}>{cart[0]?.cafeName}</Text>
         </View>
 
+        {/* Items */}
         {cart.map((item) => (
-          <View
+          <CartItemRow
             key={item.id}
-            style={[styles.cartItem, { backgroundColor: colors.card, borderColor: colors.border }]}
-          >
-            <View style={styles.itemInfo}>
-              <Text style={[styles.itemName, { color: colors.foreground }]}>{item.name}</Text>
-              <Text style={[styles.itemPrice, { color: colors.primary }]}>
-                {item.price.toFixed(3)} OMR each
-              </Text>
-            </View>
-            <View style={styles.quantityRow}>
-              <TouchableOpacity
-                style={[styles.qtyBtn, { backgroundColor: colors.secondary }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  updateQuantity(item.id, item.quantity - 1);
-                }}
-              >
-                <Feather name="minus" size={14} color={colors.secondaryForeground} />
-              </TouchableOpacity>
-              <Text style={[styles.qty, { color: colors.foreground }]}>{item.quantity}</Text>
-              <TouchableOpacity
-                style={[styles.qtyBtn, { backgroundColor: colors.primary }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  updateQuantity(item.id, item.quantity + 1);
-                }}
-              >
-                <Feather name="plus" size={14} color={colors.primaryForeground} />
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.itemTotal, { color: colors.foreground }]}>
-              {(item.price * item.quantity).toFixed(3)}
-            </Text>
-            <TouchableOpacity
-              style={styles.removeBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                removeFromCart(item.id);
-              }}
-            >
-              <Feather name="trash-2" size={16} color={colors.destructive} />
-            </TouchableOpacity>
-          </View>
+            item={item}
+            onMinus={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuantity(item.id, item.quantity - 1); }}
+            onPlus={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); updateQuantity(item.id, item.quantity + 1); }}
+            onRemove={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); removeFromCart(item.id); }}
+          />
         ))}
 
-        <View style={[styles.summary, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Subtotal</Text>
-            <Text style={[styles.summaryValue, { color: colors.foreground }]}>
-              {cartTotal.toFixed(3)} OMR
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Delivery</Text>
-            <Text style={[styles.summaryValue, { color: colors.success }]}>Free</Text>
-          </View>
-          <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-            <Text style={[styles.totalLabel, { color: colors.foreground }]}>Total</Text>
-            <Text style={[styles.totalValue, { color: colors.primary }]}>
-              {cartTotal.toFixed(3)} OMR
-            </Text>
+        {/* Summary */}
+        <View style={styles.totalCard}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>المجموع</Text>
+            <Text style={styles.totalValue}>{cartTotal.toFixed(3)} OMR</Text>
           </View>
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: bottomPadding + 12 }]}>
+      {/* Footer */}
+      <View style={[styles.footer, { paddingBottom: botPad + 12 }]}>
         <TouchableOpacity
-          style={[styles.checkoutBtn, { backgroundColor: colors.primary }]}
-          onPress={handleCheckout}
+          style={styles.checkoutBtn}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setTypeModal(true); }}
+          activeOpacity={0.88}
         >
-          <Text style={[styles.checkoutText, { color: colors.primaryForeground }]}>
-            Place Order • {cartTotal.toFixed(3)} OMR
-          </Text>
+          <LinearGradient
+            colors={["#C67C4E", "#8B4513"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={styles.checkoutGrad}
+          >
+            <Text style={styles.checkoutText}>اطلب الان  •  {cartTotal.toFixed(3)} OMR</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Order Type Modal */}
+      <Modal visible={typeModal} transparent animationType="slide" onRequestClose={() => setTypeModal(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setTypeModal(false)} />
+        <View style={[styles.typeSheet, { paddingBottom: botPad + 16 }]}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>كيف تريد طلبك؟</Text>
+          <Text style={styles.sheetSub}>اختر طريقة الاستلام</Text>
+
+          <View style={styles.typeCards}>
+            {/* Dine In */}
+            <TouchableOpacity
+              style={styles.typeCardWrap}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setOrderType("dine");
+                setTypeModal(false);
+                setStep("form");
+              }}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={["#C67C4E", "#8B4513"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.typeCard}
+              >
+                <Text style={styles.typeIcon}>🪑</Text>
+                <Text style={styles.typeLabel}>داخل الكوفي</Text>
+                <Text style={styles.typeSub}>استلام على الطاولة</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Car */}
+            <TouchableOpacity
+              style={styles.typeCardWrap}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setOrderType("car");
+                setTypeModal(false);
+                setStep("form");
+              }}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={["#1A3A6B", "#0D1F3C"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.typeCard}
+              >
+                <Text style={styles.typeIcon}>🚗</Text>
+                <Text style={styles.typeLabel}>في السيارة</Text>
+                <Text style={styles.typeSub}>ابق بسيارتك وانتظر</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
+
+  // Header
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: BORDER,
   },
-  title: { fontSize: 20, fontFamily: "Inter_700Bold" },
-  clearBtn: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingHorizontal: 40,
+  backBtn: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
   },
-  emptyTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center" },
-  browseBtn: {
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 16,
-    marginTop: 8,
+  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
+  clearText:   { fontSize: 14, fontFamily: "Inter_500Medium", color: "#EF5350" },
+
+  // Empty
+  emptyWrap:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, paddingHorizontal: 40 },
+  emptyTitle:    { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF" },
+  emptyText:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", textAlign: "center" },
+  browseBtn:     { backgroundColor: PRIMARY, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 },
+  browseBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+
+  // Cafe label
+  cafeLabel:     { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 12, marginBottom: 14, marginTop: 12 },
+  cafeLabelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+
+  // Cart item
+  cartItem:  { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, padding: 14, marginBottom: 10 },
+  itemInfo:  { flex: 1 },
+  itemName:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF", marginBottom: 3 },
+  itemPrice: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+  qtyRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
+  qtyBtn:    { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.10)", alignItems: "center", justifyContent: "center" },
+  qtyText:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF", minWidth: 20, textAlign: "center" },
+  itemTotal: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", minWidth: 50, textAlign: "right" },
+
+  // Total card
+  totalCard:  { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, marginTop: 8 },
+  totalRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  totalLabel: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
+  totalValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Footer
+  footer:        { paddingHorizontal: 16, paddingTop: 12 },
+  checkoutBtn:   { borderRadius: 18, overflow: "hidden" },
+  checkoutGrad:  { height: 58, alignItems: "center", justifyContent: "center" },
+  checkoutText:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+
+  // Type modal
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
+  typeSheet: {
+    backgroundColor: "#13102B",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 10, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: BORDER, borderBottomWidth: 0,
   },
-  browseBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  cafeLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginBottom: 14,
-    marginTop: 8,
-  },
-  cafeLabelText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  cartItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-    marginBottom: 10,
-    gap: 10,
-  },
-  itemInfo: { flex: 1 },
-  itemName: { fontSize: 15, fontFamily: "Inter_600SemiBold", marginBottom: 3 },
-  itemPrice: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  quantityRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  qtyBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  qty: { fontSize: 16, fontFamily: "Inter_700Bold", minWidth: 20, textAlign: "center" },
-  itemTotal: { fontSize: 15, fontFamily: "Inter_700Bold", minWidth: 55, textAlign: "right" },
-  removeBtn: { padding: 4 },
-  summary: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginTop: 8,
-    gap: 10,
-  },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between" },
-  summaryLabel: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  summaryValue: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    paddingTop: 10,
-    marginTop: 4,
-  },
-  totalLabel: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  totalValue: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  checkoutBtn: {
-    height: 58,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkoutText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  sheetHandle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.20)", marginBottom: 20 },
+  sheetTitle:  { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4 },
+  sheetSub:    { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", marginBottom: 24 },
+  typeCards:   { flexDirection: "row", gap: 14 },
+  typeCardWrap: { flex: 1, borderRadius: 20, overflow: "hidden" },
+  typeCard:    { padding: 20, minHeight: 140, justifyContent: "flex-end", gap: 6 },
+  typeIcon:    { fontSize: 38, marginBottom: 8 },
+  typeLabel:   { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  typeSub:     { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
+
+  // Form
+  formContent: { paddingHorizontal: 16, paddingTop: 16, gap: 14 },
+  formBanner:  { borderRadius: 20, padding: 20, flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 4 },
+  bannerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
+  bannerSub:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
+  fields:      { gap: 14 },
+
+  // Plate
+  plateWrap:      { gap: 6 },
+  plateLabel:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
+  plateRow:       { flexDirection: "row", alignItems: "center", backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: "hidden" },
+  plateBox:       { padding: 14, gap: 4 },
+  plateBoxLabel:  { fontSize: 10, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.40)" },
+  plateInput:     { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF", padding: 0 },
+  plateDivider:   { width: 1, height: 50, backgroundColor: BORDER },
+  plateFlag:      { paddingHorizontal: 14, alignItems: "center", justifyContent: "center" },
+
+  // Order summary box
+  summaryBox:     { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, gap: 10 },
+  summaryBoxTitle:{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)", marginBottom: 4 },
+  summaryRow:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  summaryItem:    { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.75)" },
+  summaryQty:     { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.45)" },
+  summaryPrice:   { fontSize: 13, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+  summaryDivider: { height: 1, backgroundColor: BORDER },
+
+  // Submit
+  submitBtn:   { borderRadius: 18, overflow: "hidden", marginTop: 6 },
+  submitGrad:  { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  submitText:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+
+  // Success
+  successCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: "rgba(46,125,50,0.15)", alignItems: "center", justifyContent: "center" },
+  successTitle:  { fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFF" },
+  successSub:    { fontSize: 15, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
 });
