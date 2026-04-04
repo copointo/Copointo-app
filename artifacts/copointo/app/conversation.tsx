@@ -13,7 +13,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CHAT_HISTORY, MESSAGES, ChatMessage } from "@/data/mockData";
+import { ChatMessage } from "@/data/mockData";
+import { useMessages } from "@/context/MessagesContext";
 
 const BG      = "#0F0A2E";
 const ME_BG   = "#C67C4E";
@@ -45,28 +46,26 @@ export default function ConversationScreen() {
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type: string }>();
 
+  const { chats, markRead, appendMsg, markSeen } = useMessages();
+  const convMsgs = chats[id ?? ""] ?? [];
+
   const listRef = useRef<FlatList>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>(CHAT_HISTORY[id] ?? []);
   const [text, setText] = useState("");
 
-  // Mark all incoming as seen after 1.5 s (simulate read receipt)
+  // Mark conversation as read + scroll to bottom on open
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMessages(prev => prev.map(m => (!m.fromMe ? { ...m, seen: true } : m)));
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (id) markRead(id);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 150);
+  }, [id]);
 
-  // Scroll to bottom on open
+  // Auto-scroll when new messages arrive
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
-    }
-  }, []);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
+  }, [convMsgs.length]);
 
   const sendMessage = () => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || !id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const newMsg: ChatMessage = {
       id: Date.now().toString(),
@@ -75,22 +74,19 @@ export default function ConversationScreen() {
       time: now(),
       seen: false,
     };
-    setMessages(prev => [...prev, newMsg]);
+    appendMsg(id, newMsg);
     setText("");
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
     // Simulate "seen" after 2 s
     setTimeout(() => {
-      setMessages(prev =>
-        prev.map(m => m.id === newMsg.id ? { ...m, seen: true } : m)
-      );
+      markSeen(id, newMsg.id);
     }, 2000);
   };
 
   const isCafe = type === "cafe";
 
   const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {
-    const prevMsg  = messages[index - 1];
+    const prevMsg  = convMsgs[index - 1];
     const showTime = !prevMsg || prevMsg.time !== item.time;
 
     return (
@@ -162,12 +158,11 @@ export default function ConversationScreen() {
       {/* Messages list */}
       <FlatList
         ref={listRef}
-        data={messages}
-        keyExtractor={item => item.id}
+        data={convMsgs}
+        keyExtractor={(item, i) => `${item.id}-${i}`}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
       />
 
       {/* Input bar */}

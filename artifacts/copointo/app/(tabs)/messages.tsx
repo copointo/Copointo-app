@@ -12,16 +12,19 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { MESSAGES, Message } from "@/data/mockData";
+import { Message } from "@/data/mockData";
+import { useMessages } from "@/context/MessagesContext";
 import { useColors } from "@/hooks/useColors";
 
 function ConversationItem({ msg }: { msg: Message }) {
-  const colors = useColors();
+  const colors  = useColors();
   const router  = useRouter();
+  const { markRead } = useMessages();
   const isCafe  = msg.type === "cafe";
 
   const openChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    markRead(msg.id);
     router.push(`/conversation?id=${msg.id}&name=${encodeURIComponent(msg.senderName)}&type=${msg.type}`);
   };
 
@@ -80,12 +83,13 @@ function ConversationItem({ msg }: { msg: Message }) {
 export default function MessagesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { convList } = useMessages();
   const [search, setSearch] = useState("");
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const filtered = MESSAGES.filter(
+  const filtered = convList.filter(
     (m) =>
       !search ||
       m.senderName.toLowerCase().includes(search.toLowerCase()) ||
