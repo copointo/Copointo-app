@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React from "react";
 import {
   Image,
   Platform,
@@ -12,270 +13,210 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ProductCard } from "@/components/ProductCard";
-import { useApp } from "@/context/AppContext";
-import { CAFES, PRODUCTS } from "@/data/mockData";
-import { useColors } from "@/hooks/useColors";
+import { CAFES } from "@/data/mockData";
 
-const CATEGORY_TABS = [
-  { key: "hot", label: "Hot Drinks", icon: "☕" },
-  { key: "cold", label: "Cold Drinks", icon: "🧊" },
-  { key: "dessert", label: "Desserts", icon: "🍰" },
-];
+const BG      = "#0F0A2E";
+const CARD    = "rgba(255,255,255,0.07)";
+const BORDER  = "rgba(255,255,255,0.10)";
+const PRIMARY = "#C67C4E";
 
-export default function CafeScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { cartCount, cartTotal } = useApp();
+export default function CafeLandingScreen() {
+  const { id }  = useLocalSearchParams<{ id: string }>();
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
+  const topPad  = Platform.OS === "web" ? 67 : insets.top;
 
   const cafe = CAFES.find((c) => c.id === id) ?? CAFES[0];
-  const [activeCategory, setActiveCategory] = useState<"hot" | "cold" | "dessert">("hot");
 
-  const products = PRODUCTS.filter(
-    (p) => p.cafeId === "cafe_1" && p.category === activeCategory
-  );
+  const go = (path: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(path as any);
+  };
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
-  const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
+  const ACTIONS = [
+    {
+      emoji: "🛒",
+      label: "اطلب الان",
+      sub:   "تصفح القائمة واطلب مشروبك",
+      color: PRIMARY,
+      onPress: () => go(`/cafe/${id}/order`),
+    },
+    {
+      emoji: "🤖",
+      label: "شات Copointo",
+      sub:   "احصل على توصية من الذكاء الاصطناعي",
+      color: CARD,
+      onPress: () => go(`/cafe/${id}/chat`),
+    },
+    {
+      emoji: "📅",
+      label: "احجز طاولة",
+      sub:   "احجز مقعدك مسبقاً",
+      color: CARD,
+      onPress: () => go(`/cafe/${id}/book`),
+    },
+  ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[styles.headerImage]}>
-          <Image source={cafe.image} style={styles.coverImage} resizeMode="cover" />
-          <TouchableOpacity
-            style={[styles.backBtn, { top: topPadding + 8, backgroundColor: "rgba(0,0,0,0.5)" }]}
-            onPress={() => router.back()}
-          >
-            <Feather name="arrow-left" size={20} color="#FFF" />
-          </TouchableOpacity>
+    <View style={styles.container}>
+      {/* ── Hero Image ── */}
+      <View style={styles.heroWrap}>
+        <Image source={cafe.image} style={styles.heroImg} resizeMode="cover" />
+        <LinearGradient
+          colors={["transparent", "rgba(15,10,46,0.85)", BG]}
+          style={styles.gradient}
+        />
 
-          <View style={[styles.cafeInfo, { backgroundColor: colors.card }]}>
-            <View style={styles.cafeInfoHeader}>
-              <View style={[styles.logoCircle, { backgroundColor: colors.cream }]}>
-                <Text style={styles.logoEmoji}>{cafe.logo}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.cafeName, { color: colors.foreground }]}>{cafe.name}</Text>
-                <Text style={[styles.cafeCategory, { color: colors.mutedForeground }]}>
-                  {cafe.category}
-                </Text>
-              </View>
-              <View style={[styles.statusPill, { backgroundColor: cafe.isOpen ? colors.success + "20" : colors.muted }]}>
-                <View style={[styles.statusDot, { backgroundColor: cafe.isOpen ? colors.success : colors.mutedForeground }]} />
-                <Text style={[styles.statusText, { color: cafe.isOpen ? colors.success : colors.mutedForeground }]}>
-                  {cafe.isOpen ? "Open" : "Closed"}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.cafeMeta}>
-              <View style={styles.metaItem}>
-                <Feather name="star" size={14} color={colors.gold} />
-                <Text style={[styles.metaText, { color: colors.foreground }]}>{cafe.rating}</Text>
-                <Text style={[styles.metaSubtext, { color: colors.mutedForeground }]}>
-                  ({cafe.reviewCount})
-                </Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{cafe.distance}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Feather name="clock" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                  {cafe.isOpen ? "7am – 11pm" : "Opens 7am"}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.menu}>
-          <View style={styles.categoryTabs}>
-            {CATEGORY_TABS.map((tab) => (
-              <TouchableOpacity
-                key={tab.key}
-                style={[
-                  styles.categoryTab,
-                  {
-                    backgroundColor:
-                      activeCategory === tab.key ? colors.primary : colors.secondary,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setActiveCategory(tab.key as any);
-                }}
-              >
-                <Text style={styles.categoryIcon}>{tab.icon}</Text>
-                <Text
-                  style={[
-                    styles.categoryLabel,
-                    {
-                      color:
-                        activeCategory === tab.key
-                          ? colors.primaryForeground
-                          : colors.secondaryForeground,
-                    },
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.products}>
-            {products.length === 0 ? (
-              <View style={styles.emptyProducts}>
-                <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                  No items in this category
-                </Text>
-              </View>
-            ) : (
-              products.map((p) => (
-                <ProductCard key={p.id} product={p} cafeName={cafe.name} />
-              ))
-            )}
-          </View>
-        </View>
-
-        <View style={{ height: 120 }} />
-      </ScrollView>
-
-      {cartCount > 0 && (
+        {/* Back button */}
         <TouchableOpacity
-          style={[styles.cartFloating, { backgroundColor: colors.primary, bottom: bottomPadding + 20 }]}
-          onPress={() => router.push("/cart")}
+          style={[styles.backBtn, { top: topPad + 8 }]}
+          onPress={() => router.back()}
+          activeOpacity={0.85}
         >
-          <View style={[styles.cartBadge, { backgroundColor: colors.espresso }]}>
-            <Text style={[styles.cartBadgeText, { color: "#FFF" }]}>{cartCount}</Text>
-          </View>
-          <Text style={[styles.cartFloatingText, { color: colors.primaryForeground }]}>
-            View Cart
-          </Text>
-          <Text style={[styles.cartFloatingPrice, { color: colors.primaryForeground }]}>
-            {cartTotal.toFixed(3)} OMR
-          </Text>
+          <Feather name="arrow-left" size={20} color="#FFF" />
         </TouchableOpacity>
-      )}
+
+        {/* Cafe identity on image */}
+        <View style={styles.heroInfo}>
+          <View style={styles.logoCircle}>
+            <Text style={{ fontSize: 30 }}>{cafe.logo}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroName}>{cafe.name}</Text>
+            <Text style={styles.heroCategory}>{cafe.category}</Text>
+          </View>
+          <View style={[styles.statusPill, { backgroundColor: cafe.isOpen ? "#1B5E20" : "#424242" }]}>
+            <View style={[styles.statusDot, { backgroundColor: cafe.isOpen ? "#66BB6A" : "#9E9E9E" }]} />
+            <Text style={styles.statusText}>{cafe.isOpen ? "مفتوح" : "مغلق"}</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        style={{ flex: 1, backgroundColor: BG }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+      >
+        {/* ── Meta chips ── */}
+        <View style={styles.metaRow}>
+          <View style={styles.chip}>
+            <Feather name="star" size={13} color="#F9C74F" />
+            <Text style={styles.chipText}>{cafe.rating}  ({cafe.reviewCount} تقييم)</Text>
+          </View>
+          <View style={styles.chip}>
+            <Feather name="map-pin" size={13} color="rgba(255,255,255,0.55)" />
+            <Text style={styles.chipText}>{cafe.distance}</Text>
+          </View>
+          <View style={styles.chip}>
+            <Feather name="clock" size={13} color="rgba(255,255,255,0.55)" />
+            <Text style={styles.chipText}>{cafe.isOpen ? "7ص – 11م" : "يفتح 7ص"}</Text>
+          </View>
+        </View>
+
+        {/* ── Address ── */}
+        <View style={styles.addressRow}>
+          <Feather name="navigation" size={14} color={PRIMARY} />
+          <Text style={styles.addressText}>{cafe.address}</Text>
+        </View>
+
+        {/* ── Tags ── */}
+        <View style={styles.tagsRow}>
+          {cafe.tags.map((t) => (
+            <View key={t} style={styles.tag}>
+              <Text style={styles.tagText}>{t}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Divider ── */}
+        <View style={styles.divider} />
+
+        {/* ── Action buttons ── */}
+        <Text style={styles.sectionLabel}>ماذا تريد؟</Text>
+        <View style={styles.actions}>
+          {ACTIONS.map((a) => (
+            <TouchableOpacity
+              key={a.label}
+              style={[styles.actionBtn, { backgroundColor: a.color, borderColor: a.color === CARD ? BORDER : "transparent" }]}
+              onPress={a.onPress}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.actionEmoji}>{a.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionLabel}>{a.label}</Text>
+                <Text style={styles.actionSub}>{a.sub}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.50)" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  headerImage: { position: "relative" },
-  coverImage: { width: "100%", height: 240, resizeMode: "cover" },
-  backBtn: {
-    position: "absolute",
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+  container: { flex: 1, backgroundColor: BG },
+
+  // Hero
+  heroWrap: { height: 300, position: "relative" },
+  heroImg:  { width: "100%", height: "100%", resizeMode: "cover" },
+  gradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: 180 },
+  backBtn:  {
+    position: "absolute", left: 16,
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center", justifyContent: "center",
   },
-  cafeInfo: {
-    marginHorizontal: 16,
-    marginTop: -24,
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  cafeInfoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+  heroInfo: {
+    position: "absolute", bottom: 16, left: 16, right: 16,
+    flexDirection: "row", alignItems: "center", gap: 12,
   },
   logoCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: "center",
-    justifyContent: "center",
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.25)",
   },
-  logoEmoji: { fontSize: 28 },
-  cafeName: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 2 },
-  cafeCategory: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  heroName:     { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 2 },
+  heroCategory: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
   statusPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
   },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  cafeMeta: { flexDirection: "row", gap: 14, flexWrap: "wrap" },
-  metaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  metaSubtext: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  actions: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 10,
+  statusDot:  { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+
+  // Content
+  content: { paddingHorizontal: 20, paddingTop: 20, gap: 12 },
+  metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: CARD, borderRadius: 20,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 12, paddingVertical: 7,
   },
-  actionBtn: {
-    flex: 1,
-    height: 52,
-    borderRadius: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+  chipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.80)" },
+  addressRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  addressText:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", flex: 1 },
+  tagsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tag: {
+    backgroundColor: `${PRIMARY}22`, borderRadius: 20,
+    borderWidth: 1, borderColor: `${PRIMARY}44`,
+    paddingHorizontal: 12, paddingVertical: 5,
   },
-  actionBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  menu: { paddingHorizontal: 16 },
-  categoryTabs: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  categoryTab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 14,
-    alignItems: "center",
-    gap: 4,
+  tagText: { fontSize: 12, fontFamily: "Inter_500Medium", color: PRIMARY },
+  divider: { height: 1, backgroundColor: BORDER, marginVertical: 4 },
+  sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.40)", marginBottom: 4 },
+
+  // Actions
+  actions:    { gap: 12 },
+  actionBtn:  {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 20, padding: 18,
+    borderWidth: 1,
   },
-  categoryIcon: { fontSize: 18 },
-  categoryLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  products: { gap: 0 },
-  emptyProducts: {
-    paddingVertical: 40,
-    alignItems: "center",
-  },
-  emptyText: { fontSize: 15, fontFamily: "Inter_400Regular" },
-  cartFloating: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    height: 58,
-    borderRadius: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  cartBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cartBadgeText: { fontSize: 12, fontFamily: "Inter_700Bold" },
-  cartFloatingText: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  cartFloatingPrice: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  actionEmoji: { fontSize: 26 },
+  actionLabel: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 2 },
+  actionSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
 });

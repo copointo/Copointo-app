@@ -26,8 +26,9 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="cafe/[id]" options={{ headerShown: false, animation: "slide_from_right" }} />
-      <Stack.Screen name="cafe/[id]/chat" options={{ headerShown: false, animation: "slide_from_bottom" }} />
-      <Stack.Screen name="cafe/[id]/book" options={{ headerShown: false, animation: "slide_from_bottom" }} />
+      <Stack.Screen name="cafe/[id]/order" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="cafe/[id]/chat" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="cafe/[id]/book" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="cart" options={{ headerShown: false, animation: "slide_from_bottom" }} />
     </Stack>
   );
