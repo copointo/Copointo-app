@@ -15,14 +15,16 @@ import { useColors } from "@/hooks/useColors";
 interface CafeCardProps {
   cafe: Cafe;
   compact?: boolean;
+  onPress?: (cafe: Cafe) => void;
 }
 
-export function CafeCard({ cafe, compact = false }: CafeCardProps) {
+export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
   const colors = useColors();
   const router = useRouter();
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onPress) { onPress(cafe); return; }
     router.push(`/cafe/${cafe.id}`);
   };
 

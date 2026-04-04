@@ -9,9 +9,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CafeCard } from "@/components/CafeCard";
+import { CafeSheet } from "@/components/CafeSheet";
 import { SearchBar } from "@/components/SearchBar";
 import { useApp } from "@/context/AppContext";
-import { CAFES } from "@/data/mockData";
+import { CAFES, Cafe } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 
 export default function HomeScreen() {
@@ -19,6 +20,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useApp();
   const [search, setSearch] = useState("");
+  const [selectedCafe, setSelectedCafe] = useState<Cafe | null>(null);
 
   const filteredCafes = useMemo(() => {
     return CAFES.filter((c) =>
@@ -82,7 +84,7 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             {filteredCafes.map((cafe) => (
               <View key={cafe.id} style={styles.gridItem}>
-                <CafeCard cafe={cafe} compact />
+                <CafeCard cafe={cafe} compact onPress={setSelectedCafe} />
               </View>
             ))}
           </View>
@@ -90,6 +92,8 @@ export default function HomeScreen() {
 
         <View style={{ height: Platform.OS === "web" ? 110 : 100 }} />
       </ScrollView>
+
+      <CafeSheet cafe={selectedCafe} onClose={() => setSelectedCafe(null)} />
     </View>
   );
 }

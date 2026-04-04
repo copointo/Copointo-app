@@ -92,31 +92,6 @@ export default function CafeScreen() {
           </View>
         </View>
 
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-            onPress={() => {}}
-            activeOpacity={0.85}
-          >
-            <Feather name="shopping-cart" size={18} color={colors.primaryForeground} />
-            <Text style={[styles.actionBtnText, { color: colors.primaryForeground }]}>Order Now</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.secondary, flex: 0, width: 52 }]}
-            onPress={() => router.push(`/cafe/${id}/chat`)}
-          >
-            <Text style={{ fontSize: 22 }}>🤖</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: colors.secondary, flex: 0, width: 52 }]}
-            onPress={() => router.push(`/cafe/${id}/book`)}
-          >
-            <Feather name="calendar" size={18} color={colors.secondaryForeground} />
-          </TouchableOpacity>
-        </View>
-
         <View style={styles.menu}>
           <View style={styles.categoryTabs}>
             {CATEGORY_TABS.map((tab) => (
