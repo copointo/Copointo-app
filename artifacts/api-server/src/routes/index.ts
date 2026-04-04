@@ -1,12 +1,14 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import adminRouter from "./admin";
+import cafeDashRouter from "./cafe-dashboard";
 import { cafes } from "../store";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/admin", adminRouter);
+router.use("/cafe/:cafeId", cafeDashRouter);
 
 // Public cafes endpoint for mobile app
 router.get("/cafes", (_req, res) => {

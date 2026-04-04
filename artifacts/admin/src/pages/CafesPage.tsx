@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard } from "lucide-react";
+import { Link } from "wouter";
 import { api } from "@/lib/api";
 
 interface Cafe {
@@ -112,6 +113,11 @@ export default function CafesPage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2">
+                      <Link href={`/cafe/${cafe.id}`}>
+                        <a title="داشبورد الكوفي" className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center">
+                          <LayoutDashboard size={16} />
+                        </a>
+                      </Link>
                       <button
                         onClick={() => toggle(cafe.id)}
                         title={cafe.active ? "إيقاف" : "تفعيل"}

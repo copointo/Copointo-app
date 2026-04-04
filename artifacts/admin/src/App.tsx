@@ -2,11 +2,12 @@ import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
-import LoginPage    from "@/pages/LoginPage";
-import DashboardPage from "@/pages/DashboardPage";
-import CafesPage    from "@/pages/CafesPage";
-import UsersPage    from "@/pages/UsersPage";
-import Sidebar      from "@/components/Sidebar";
+import LoginPage         from "@/pages/LoginPage";
+import DashboardPage     from "@/pages/DashboardPage";
+import CafesPage         from "@/pages/CafesPage";
+import UsersPage         from "@/pages/UsersPage";
+import CafeDashboardPage from "@/pages/CafeDashboardPage";
+import Sidebar           from "@/components/Sidebar";
 
 const queryClient = new QueryClient();
 const ADMIN_PASS = "admin@copointo";
@@ -16,6 +17,15 @@ function AdminApp() {
   const [location]          = useLocation();
 
   if (!authed) return <LoginPage onLogin={() => { sessionStorage.setItem("adm","1"); setAuthed(true); }} password={ADMIN_PASS} />;
+
+  // Cafe dashboard has its own full-screen layout (no sidebar)
+  if (location.startsWith("/cafe/")) {
+    return (
+      <Switch>
+        <Route path="/cafe/:id" component={CafeDashboardPage} />
+      </Switch>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
