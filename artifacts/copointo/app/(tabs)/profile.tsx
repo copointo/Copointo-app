@@ -143,19 +143,39 @@ export default function ProfileScreen() {
           <RankBadge level={level} size="lg" />
         </View>
 
-        {/* ── Stats row ── */}
-        <View style={styles.statsRow}>
-          {[
-            { icon: "⭐", label: "المستوى",       value: level.toString() },
-            { icon: "☕", label: "الطلبات",        value: (user?.totalOrders ?? 0).toString() },
-            { icon: "🎁", label: "قهوة مجانية",   value: freeCoffees.toString() },
-          ].map((s) => (
-            <View key={s.label} style={styles.statBox}>
-              <Text style={{ fontSize: 22 }}>{s.icon}</Text>
-              <Text style={styles.statValue}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
+        {/* ── Stats grid ── */}
+        <View style={styles.statsGrid}>
+          {/* Row 1 */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statBox, styles.statBoxCard]}>
+              <Text style={styles.statIcon}>👥</Text>
+              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statLabel}>الأصدقاء</Text>
             </View>
-          ))}
+            <View style={[styles.statBox, styles.statBoxCard]}>
+              <Text style={styles.statIcon}>⭐</Text>
+              <Text style={styles.statValue}>{level}</Text>
+              <Text style={styles.statLabel}>المستوى</Text>
+            </View>
+            <View style={[styles.statBox, styles.statBoxCard]}>
+              <Text style={styles.statIcon}>🎁</Text>
+              <Text style={styles.statValue}>{freeCoffees}</Text>
+              <Text style={styles.statLabel}>قهوة مجانية</Text>
+            </View>
+          </View>
+          {/* Row 2 */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
+              <Text style={styles.statIcon}>👫</Text>
+              <Text style={styles.statValue}>#3</Text>
+              <Text style={styles.statLabel}>تصنيف الأصدقاء</Text>
+            </View>
+            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
+              <Text style={styles.statIcon}>🇴🇲</Text>
+              <Text style={styles.statValue}>#42</Text>
+              <Text style={styles.statLabel}>تصنيف عُمان</Text>
+            </View>
+          </View>
         </View>
 
         {/* ── Progress bar ── */}
@@ -256,14 +276,16 @@ const styles = StyleSheet.create({
   changePhotoHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.35)" },
 
   // Stats
-  statsRow:  {
-    flexDirection: "row", backgroundColor: CARD,
-    borderRadius: 20, borderWidth: 1, borderColor: BORDER,
-    paddingVertical: 16,
+  statsGrid:    { gap: 10 },
+  statsRow:     { flexDirection: "row", gap: 10 },
+  statBox:      { alignItems: "center", gap: 6, paddingVertical: 16, paddingHorizontal: 8 },
+  statBoxCard:  {
+    flex: 1, backgroundColor: CARD, borderRadius: 18,
+    borderWidth: 1, borderColor: BORDER,
   },
-  statBox:   { flex: 1, alignItems: "center", gap: 4 },
+  statIcon:  { fontSize: 22 },
   statValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
+  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)", textAlign: "center" },
 
   // Progress
   progressCard:   {
