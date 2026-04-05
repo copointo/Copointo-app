@@ -95,7 +95,7 @@ export default function CafeLandingScreen() {
   const ACTIONS = [
     {
       mciIcon: "coffee-maker" as const,
-      label:   cafe.name,
+      label:   "اطلب قهوة",
       sub:     "تصفح القائمة واطلب مشروبك المفضل",
       bg:      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500&h=500&fit=crop&q=90",
       deep:    "#0D0704",
