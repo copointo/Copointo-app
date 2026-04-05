@@ -93,8 +93,9 @@ export default function CafeLandingScreen() {
       mciIcon: "message-text" as const,
       label:   "شات Copointo",
       sub:     "احصل على توصية ذكية تناسبك",
-      bg:      "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=400&fit=crop&q=90",
-      deep:    "#050D18",
+      bg:      "",
+      solidColors: ["#7C3AED", "#5B21B6", "#3B0764"] as const,
+      deep:    "#1A0845",
       onPress: () => go(`/cafe/${id}/chat`),
     },
   ];
@@ -212,15 +213,25 @@ export default function CafeLandingScreen() {
           >
             {/* 3D depth layer */}
             <View style={[styles.actionWideDepth, { backgroundColor: ACTIONS[2].deep }]} />
-            <ImageBackground
-              source={{ uri: ACTIONS[2].bg }}
-              style={styles.actionWide}
-              imageStyle={styles.actionBgImage}
-            >
-              {/* Dark overlay */}
-              <View style={styles.actionOverlay} />
-              <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
-            </ImageBackground>
+            {ACTIONS[2].solidColors ? (
+              <LinearGradient
+                colors={ACTIONS[2].solidColors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionWide}
+              >
+                <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
+              </LinearGradient>
+            ) : (
+              <ImageBackground
+                source={{ uri: ACTIONS[2].bg }}
+                style={styles.actionWide}
+                imageStyle={styles.actionBgImage}
+              >
+                <View style={styles.actionOverlay} />
+                <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
+              </ImageBackground>
+            )}
           </TouchableOpacity>
         )}
       </ScrollView>
