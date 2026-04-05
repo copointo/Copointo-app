@@ -2,9 +2,11 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  Easing,
   Image,
   ImageBackground,
   Platform,
@@ -39,6 +41,24 @@ export default function CafeLandingScreen() {
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const [cafe, setCafe] = useState<ApiCafe | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Shimmer animation — must be before any conditional return
+  const shimmer = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 1400,
+          easing: Easing.linear,
+          useNativeDriver: false,
+        }),
+        Animated.delay(1800),
+        Animated.timing(shimmer, { toValue: 0, duration: 0, useNativeDriver: false }),
+      ])
+    ).start();
+  }, [shimmer]);
+  const shimmerX = shimmer.interpolate({ inputRange: [0, 1], outputRange: [-160, 520] });
 
   useEffect(() => {
     apiFetch<{ cafes: ApiCafe[] }>("/cafes")
@@ -198,6 +218,17 @@ export default function CafeLandingScreen() {
               >
                 {/* Dark overlay for readability */}
                 <View style={styles.actionOverlay} />
+                {/* Shimmer sweep */}
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "25deg" }] }]}
+                >
+                  <LinearGradient
+                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.22)", "rgba(255,255,255,0)"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ flex: 1 }}
+                  />
+                </Animated.View>
                 <Text style={styles.actionSquareLabel}>{a.label}</Text>
               </ImageBackground>
             </TouchableOpacity>
@@ -220,6 +251,16 @@ export default function CafeLandingScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.actionWide}
               >
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "20deg" }] }]}
+                >
+                  <LinearGradient
+                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.20)", "rgba(255,255,255,0)"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ flex: 1 }}
+                  />
+                </Animated.View>
                 <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
               </LinearGradient>
             ) : (
@@ -229,6 +270,16 @@ export default function CafeLandingScreen() {
                 imageStyle={styles.actionBgImage}
               >
                 <View style={styles.actionOverlay} />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "20deg" }] }]}
+                >
+                  <LinearGradient
+                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.20)", "rgba(255,255,255,0)"]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ flex: 1 }}
+                  />
+                </Animated.View>
                 <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
               </ImageBackground>
             )}
@@ -326,6 +377,13 @@ const styles = StyleSheet.create({
 
   // Background photo image style (for ImageBackground imageStyle prop)
   actionBgImage: { borderRadius: 22 },
+
+  // Shimmer sweep strip
+  shimmerStrip: {
+    position: "absolute", top: -80, bottom: -80,
+    width: 55,
+    overflow: "visible",
+  },
 
   // Dark overlay — high opacity so photo is subtle background
   actionOverlay: {
