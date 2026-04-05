@@ -111,7 +111,7 @@ export default function CafeLandingScreen() {
     },
     {
       mciIcon: "message-text" as const,
-      label:   "شات",
+      label:   `شات ${cafe.name}`,
       sub:     "احصل على توصية ذكية تناسبك",
       bg:      "",
       solidColors: ["#7C3AED", "#5B21B6", "#3B0764"] as const,
