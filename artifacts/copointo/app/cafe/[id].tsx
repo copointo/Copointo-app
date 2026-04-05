@@ -181,34 +181,36 @@ export default function CafeLandingScreen() {
             <TouchableOpacity
               key={a.label}
               onPress={a.onPress}
-              activeOpacity={0.88}
+              activeOpacity={0.85}
               style={styles.actionWrap}
             >
-              <LinearGradient
-                colors={a.grad}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.actionGrad}
-              >
-                {/* Badge top-right */}
-                <View style={styles.badgeWrap}>
-                  <Text style={styles.badgeText}>{a.badge}</Text>
-                </View>
+              <View style={[styles.actionRow, { borderColor: a.grad[0] + "44" }]}>
+                {/* Icon circle with gradient */}
+                <LinearGradient
+                  colors={a.grad}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.actionIconCircle}
+                >
+                  <Text style={styles.actionIcon}>{a.icon}</Text>
+                </LinearGradient>
 
-                {/* Big icon */}
-                <Text style={styles.actionBigIcon}>{a.icon}</Text>
-
-                {/* Text bottom */}
-                <View style={styles.actionBottom}>
+                {/* Text */}
+                <View style={styles.actionText}>
                   <Text style={styles.actionLabel}>{a.label}</Text>
-                  <Text style={styles.actionSub}>{a.sub}</Text>
+                  <Text style={styles.actionSub} numberOfLines={1}>{a.sub}</Text>
                 </View>
 
-                {/* Arrow */}
-                <View style={styles.arrowCircle}>
-                  <Feather name="arrow-right" size={16} color="#FFF" />
+                {/* Badge + Arrow */}
+                <View style={styles.actionRight}>
+                  <View style={[styles.badgeWrap, { backgroundColor: a.grad[0] + "22", borderColor: a.grad[0] + "44" }]}>
+                    <Text style={[styles.badgeText, { color: a.grad[0] }]}>{a.badge}</Text>
+                  </View>
+                  <View style={[styles.arrowCircle, { backgroundColor: a.grad[0] + "22" }]}>
+                    <Feather name="chevron-left" size={16} color={a.grad[0]} />
+                  </View>
                 </View>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -272,27 +274,31 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.40)", marginBottom: 4 },
 
   // Actions
-  actions:     { gap: 14 },
-  actionWrap:  { borderRadius: 24, overflow: "hidden" },
-  actionGrad:  {
-    padding: 20, minHeight: 120,
-    justifyContent: "space-between",
+  actions:    { gap: 10 },
+  actionWrap: { borderRadius: 18, overflow: "hidden" },
+  actionRow: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14,
   },
+  actionIconCircle: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  },
+  actionIcon:   { fontSize: 22 },
+  actionText:   { flex: 1, gap: 3 },
+  actionLabel:  { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
+  actionSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+  actionRight:  { alignItems: "flex-end", gap: 6, flexShrink: 0 },
   badgeWrap: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.20)",
-    borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
-    marginBottom: 8,
+    borderWidth: 1, borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 3,
   },
-  badgeText:    { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  actionBigIcon:{ fontSize: 38, marginBottom: 8 },
-  actionBottom: { gap: 3 },
-  actionLabel:  { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
-  actionSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)" },
-  arrowCircle:  {
-    position: "absolute", bottom: 16, right: 16,
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.20)",
+  badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  arrowCircle: {
+    width: 30, height: 30, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
   },
 });
