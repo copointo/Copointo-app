@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  ImageBackground,
   Platform,
   ScrollView,
   StyleSheet,
@@ -76,24 +77,24 @@ export default function CafeLandingScreen() {
       mciIcon: "coffee-maker" as const,
       label:   "اطلب الان",
       sub:     "تصفح القائمة واطلب مشروبك المفضل",
-      grad:    ["#A0673A", "#6B3A1F", "#3D1E0A"] as const,
-      deep:    "#1A0A03",
+      bg:      "https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=500&h=500&fit=crop&q=80",
+      deep:    "#0D0704",
       onPress: () => go(`/cafe/${id}/order`),
     },
     {
       mciIcon: "message-text" as const,
       label:   "شات Copointo",
       sub:     "احصل على توصية ذكية تناسبك",
-      grad:    ["#A0673A", "#6B3A1F", "#3D1E0A"] as const,
-      deep:    "#1A0A03",
+      bg:      "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=500&h=500&fit=crop&q=80",
+      deep:    "#050D18",
       onPress: () => go(`/cafe/${id}/chat`),
     },
     {
       mciIcon: "table-furniture" as const,
       label:   "احجز طاولة",
       sub:     "احجز مقعدك واستمتع بتجربتك",
-      grad:    ["#A0673A", "#6B3A1F", "#3D1E0A"] as const,
-      deep:    "#1A0A03",
+      bg:      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=400&fit=crop&q=80",
+      deep:    "#080503",
       onPress: () => go(`/cafe/${id}/book`),
     },
   ];
@@ -188,29 +189,30 @@ export default function CafeLandingScreen() {
             >
               {/* 3D depth layer */}
               <View style={[styles.actionDepth, { backgroundColor: a.deep }]} />
-              {/* Main card */}
-              <LinearGradient
-                colors={a.grad}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
+              {/* Main card with photo background */}
+              <ImageBackground
+                source={{ uri: a.bg }}
                 style={styles.actionSquare}
+                imageStyle={styles.actionBgImage}
               >
+                {/* Dark overlay for readability */}
+                <View style={styles.actionOverlay} />
                 {/* Top shine */}
                 <LinearGradient
-                  colors={["rgba(255,255,255,0.30)", "rgba(255,255,255,0.00)"]}
+                  colors={["rgba(255,255,255,0.18)", "rgba(255,255,255,0.00)"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 0, y: 1 }}
                   style={styles.actionShine}
                 />
                 <View style={styles.actionIconWrap}>
-                  <MaterialCommunityIcons name={a.mciIcon} size={52} color="rgba(255,255,255,0.92)" />
+                  <MaterialCommunityIcons name={a.mciIcon} size={52} color="rgba(255,255,255,0.95)" />
                 </View>
                 <Text style={styles.actionSquareLabel}>{a.label}</Text>
                 <Text style={styles.actionSquareSub} numberOfLines={2}>{a.sub}</Text>
                 <View style={styles.actionSquareArrow}>
                   <Feather name="arrow-up-right" size={13} color="rgba(255,255,255,0.9)" />
                 </View>
-              </LinearGradient>
+              </ImageBackground>
             </TouchableOpacity>
           ))}
         </View>
@@ -224,15 +226,16 @@ export default function CafeLandingScreen() {
           >
             {/* 3D depth layer */}
             <View style={[styles.actionWideDepth, { backgroundColor: ACTIONS[2].deep }]} />
-            <LinearGradient
-              colors={ACTIONS[2].grad}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
+            <ImageBackground
+              source={{ uri: ACTIONS[2].bg }}
               style={styles.actionWide}
+              imageStyle={styles.actionBgImage}
             >
+              {/* Dark overlay */}
+              <View style={styles.actionOverlay} />
               {/* Top shine */}
               <LinearGradient
-                colors={["rgba(255,255,255,0.28)", "rgba(255,255,255,0.00)"]}
+                colors={["rgba(255,255,255,0.15)", "rgba(255,255,255,0.00)"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFillObject}
@@ -247,7 +250,7 @@ export default function CafeLandingScreen() {
               <View style={styles.actionWideArrow}>
                 <Feather name="arrow-up-right" size={18} color="#fff" />
               </View>
-            </LinearGradient>
+            </ImageBackground>
           </TouchableOpacity>
         )}
       </ScrollView>
@@ -339,6 +342,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 10,
+  },
+
+  // Background photo image style (for ImageBackground imageStyle prop)
+  actionBgImage: { borderRadius: 22 },
+
+  // Dark overlay on top of the photo for text readability
+  actionOverlay: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.52)",
   },
 
   // White shimmer overlay (top half of card)
