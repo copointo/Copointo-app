@@ -95,7 +95,7 @@ export default function CafeLandingScreen() {
   const ACTIONS = [
     {
       mciIcon: "coffee-maker" as const,
-      label:   "اطلب الان",
+      label:   cafe.name,
       sub:     "تصفح القائمة واطلب مشروبك المفضل",
       bg:      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500&h=500&fit=crop&q=90",
       deep:    "#0D0704",
@@ -111,7 +111,7 @@ export default function CafeLandingScreen() {
     },
     {
       mciIcon: "message-text" as const,
-      label:   "شات Copointo",
+      label:   "شات",
       sub:     "احصل على توصية ذكية تناسبك",
       bg:      "",
       solidColors: ["#7C3AED", "#5B21B6", "#3B0764"] as const,
