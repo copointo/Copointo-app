@@ -36,7 +36,6 @@ router.post("/cafes", (req, res) => {
     rating: 4.5,
     tags: tags || [],
     address: address || "عُمان",
-    image: "",
   };
   cafes.push(newCafe);
   res.status(201).json({ cafe: newCafe });
