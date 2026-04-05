@@ -2,8 +2,9 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Platform,
   ScrollView,
@@ -13,7 +14,17 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CAFES } from "@/data/mockData";
+import { apiFetch } from "@/constants/api";
+
+interface ApiCafe {
+  id: string; name: string; logo: string; image: string;
+  openTime: string; closeTime: string; rating: number; tags: string[]; address: string;
+}
+function isOpen(o: string, c: string) {
+  const now = new Date(); const m = now.getHours()*60+now.getMinutes();
+  const p = (t:string)=>{const[h,mm]=t.split(":").map(Number);return h*60+(mm||0);};
+  const op=p(o),cl=p(c); return cl<=op?(m>=op||m<cl):(m>=op&&m<cl);
+}
 
 const BG      = "#0F0A2E";
 const CARD    = "rgba(255,255,255,0.07)";
@@ -25,8 +36,35 @@ export default function CafeLandingScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
+  const [cafe, setCafe] = useState<ApiCafe | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const cafe = CAFES.find((c) => c.id === id) ?? CAFES[0];
+  useEffect(() => {
+    apiFetch<{ cafes: ApiCafe[] }>("/cafes")
+      .then(d => { const found = d.cafes.find(c => c.id === id); if (found) setCafe(found); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: BG, alignItems: "center", justifyContent: "center" }]}>
+        <ActivityIndicator size="large" color={PRIMARY} />
+      </View>
+    );
+  }
+  if (!cafe) {
+    return (
+      <View style={[styles.container, { backgroundColor: BG, alignItems: "center", justifyContent: "center" }]}>
+        <Text style={{ color: "#fff", fontSize: 16 }}>الكوفي غير موجود</Text>
+      </View>
+    );
+  }
+
+  const cafeOpen     = isOpen(cafe.openTime, cafe.closeTime);
+  const cafeCategory = cafe.tags?.[0] ?? "Coffee";
+  const cafeImage    = cafe.image ? { uri: cafe.image } : require("@/assets/images/icon.png");
+  const isLogoUrl    = cafe.logo?.startsWith("http");
 
   const go = (path: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -64,7 +102,7 @@ export default function CafeLandingScreen() {
     <View style={styles.container}>
       {/* ── Hero Image ── */}
       <View style={styles.heroWrap}>
-        <Image source={cafe.image} style={styles.heroImg} resizeMode="cover" />
+        <Image source={cafeImage} style={styles.heroImg} resizeMode="cover" />
         <LinearGradient
           colors={["transparent", "rgba(15,10,46,0.85)", BG]}
           style={styles.gradient}
@@ -82,15 +120,17 @@ export default function CafeLandingScreen() {
         {/* Cafe identity on image */}
         <View style={styles.heroInfo}>
           <View style={styles.logoCircle}>
-            <Text style={{ fontSize: 30 }}>{cafe.logo}</Text>
+            {isLogoUrl
+              ? <Image source={{ uri: cafe.logo }} style={{ width: 50, height: 50, borderRadius: 25 }} />
+              : <Text style={{ fontSize: 30 }}>{cafe.logo || "☕"}</Text>}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroName}>{cafe.name}</Text>
-            <Text style={styles.heroCategory}>{cafe.category}</Text>
+            <Text style={styles.heroCategory}>{cafeCategory}</Text>
           </View>
-          <View style={[styles.statusPill, { backgroundColor: cafe.isOpen ? "#1B5E20" : "#424242" }]}>
-            <View style={[styles.statusDot, { backgroundColor: cafe.isOpen ? "#66BB6A" : "#9E9E9E" }]} />
-            <Text style={styles.statusText}>{cafe.isOpen ? "مفتوح" : "مغلق"}</Text>
+          <View style={[styles.statusPill, { backgroundColor: cafeOpen ? "#1B5E20" : "#424242" }]}>
+            <View style={[styles.statusDot, { backgroundColor: cafeOpen ? "#66BB6A" : "#9E9E9E" }]} />
+            <Text style={styles.statusText}>{cafeOpen ? "مفتوح" : "مغلق"}</Text>
           </View>
         </View>
       </View>
@@ -104,15 +144,15 @@ export default function CafeLandingScreen() {
         <View style={styles.metaRow}>
           <View style={styles.chip}>
             <Feather name="star" size={13} color="#F9C74F" />
-            <Text style={styles.chipText}>{cafe.rating}  ({cafe.reviewCount} تقييم)</Text>
+            <Text style={styles.chipText}>{cafe.rating.toFixed(1)}</Text>
           </View>
           <View style={styles.chip}>
             <Feather name="map-pin" size={13} color="rgba(255,255,255,0.55)" />
-            <Text style={styles.chipText}>{cafe.distance}</Text>
+            <Text style={styles.chipText}>{cafe.address}</Text>
           </View>
           <View style={styles.chip}>
             <Feather name="clock" size={13} color="rgba(255,255,255,0.55)" />
-            <Text style={styles.chipText}>{cafe.isOpen ? "7ص – 11م" : "يفتح 7ص"}</Text>
+            <Text style={styles.chipText}>{cafe.openTime} – {cafe.closeTime}</Text>
           </View>
         </View>
 

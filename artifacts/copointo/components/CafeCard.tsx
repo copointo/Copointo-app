@@ -9,8 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { Cafe } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+
+function isUrl(s: string) { return s?.startsWith("http"); }
 
 interface CafeCardProps {
   cafe: Cafe;
@@ -44,7 +47,9 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
         <View style={styles.compactContent}>
           <View style={styles.compactLogoRow}>
             <View style={styles.compactLogoCircle}>
-              <Text style={styles.compactLogoEmoji}>{cafe.logo}</Text>
+              {isUrl(cafe.logo)
+                ? <Image source={{ uri: cafe.logo }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                : <Text style={styles.compactLogoEmoji}>{cafe.logo}</Text>}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.compactName, { color: colors.foreground }]} numberOfLines={1}>
@@ -89,7 +94,9 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>{cafe.logo}</Text>
+            {isUrl(cafe.logo)
+              ? <Image source={{ uri: cafe.logo }} style={{ width: 42, height: 42, borderRadius: 21 }} />
+              : <Text style={styles.logoEmoji}>{cafe.logo}</Text>}
           </View>
           <View style={styles.info}>
             <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
