@@ -113,10 +113,8 @@ export default function CafesPage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <Link href={`/cafe/${cafe.id}`}>
-                        <a title="داشبورد الكوفي" className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center">
-                          <LayoutDashboard size={16} />
-                        </a>
+                      <Link href={`/cafe/${cafe.id}`} title="داشبورد الكوفي" className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center">
+                        <LayoutDashboard size={16} />
                       </Link>
                       <button
                         onClick={() => toggle(cafe.id)}
