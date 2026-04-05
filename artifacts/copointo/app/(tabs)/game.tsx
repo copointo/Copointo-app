@@ -46,17 +46,17 @@ const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
 const POSITIONS = [-85, 0, 85];
 
 
-// ─── Background stars ─────────────────────────────────────────────────────
-const STARS = Array.from({ length: 26 }, (_, i) => ({
+// ─── Background coffee beans ───────────────────────────────────────────────
+const BEANS = Array.from({ length: 22 }, (_, i) => ({
   id: i,
-  x: Math.round((i * 137.5) % SCREEN_WIDTH),
-  y: Math.round((i * 97)    % 900),
-  ch: i % 3 === 0 ? "✦" : "✧",
-  sz: i % 4 === 0 ? 18 : 13,
-  op: 0.07 + (i % 5) * 0.03,
+  x:   Math.round((i * 173.1) % SCREEN_WIDTH),
+  y:   Math.round((i * 131)   % 1100),
+  rot: (i * 47) % 360,
+  sz:  i % 4 === 0 ? 54 : i % 4 === 1 ? 40 : i % 4 === 2 ? 66 : 48,
+  op:  0.09 + (i % 5) * 0.04,
 }));
 
-const BG     = "#0F0A2E";
+const BG     = "#2C1400";
 const BEFORE = 12;
 const AFTER  = 48;
 
@@ -118,14 +118,15 @@ export default function GameScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
 
-      {/* ── Star background ── */}
+      {/* ── Coffee bean background ── */}
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {STARS.map((s) => (
-          <Text key={s.id} style={{
-            position: "absolute", left: s.x, top: s.y,
-            fontSize: s.sz, color: `rgba(255,255,255,${s.op})`,
+        {BEANS.map((b) => (
+          <Text key={b.id} style={{
+            position: "absolute", left: b.x, top: b.y,
+            fontSize: b.sz, opacity: b.op,
+            transform: [{ rotate: `${b.rot}deg` }],
           }}>
-            {s.ch}
+            🫘
           </Text>
         ))}
       </View>
@@ -223,7 +224,7 @@ export default function GameScreen() {
                     {isCurrent ? (
                       <>
                         <Text style={styles.curEmoji}>☕</Text>
-                        <Text style={[styles.curNum, { color: "#0F0A2E" }]}>{lvl}</Text>
+                        <Text style={[styles.curNum, { color: "#1A0800" }]}>{lvl}</Text>
                       </>
 
                     /* Past free-coffee level */
@@ -275,7 +276,7 @@ export default function GameScreen() {
           onPress={goToCurrent}
           activeOpacity={0.85}
         >
-          <Feather name="crosshair" size={16} color="#0F0A2E" />
+          <Feather name="crosshair" size={16} color="#1A0800" />
           <Text style={styles.goBackText}>مستواي</Text>
         </TouchableOpacity>
       )}
@@ -310,7 +311,7 @@ export default function GameScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/leaderboard"); }}
           activeOpacity={0.85}
         >
-          <Feather name="users" size={22} color="#0F0A2E" />
+          <Feather name="users" size={22} color="#1A0800" />
           <Text style={styles.fabLabel}>Leaderboard</Text>
         </TouchableOpacity>
 
@@ -377,7 +378,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35, shadowRadius: 8, elevation: 8,
   },
-  goBackText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#0F0A2E" },
+  goBackText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#1A0800" },
   fabGroup: {
     position: "absolute",
     right: 20,
@@ -420,7 +421,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45, shadowRadius: 12, elevation: 10,
   },
-  fabLabel: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#0F0A2E", textAlign: "center" },
+  fabLabel: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#1A0800", textAlign: "center" },
   freeHint: {
     marginTop: 5,
     marginBottom: 4,
