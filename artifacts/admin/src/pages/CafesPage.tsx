@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays, Globe } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -9,6 +9,7 @@ interface Cafe {
   openTime: string; closeTime: string; managerPassword: string;
   active: boolean; subscriptionAmount: number; createdAt: string;
   subscriptionStart: string; subscriptionEnd: string;
+  website: string;
   rating: number; address: string; tags: string[];
 }
 
@@ -16,7 +17,7 @@ const today = new Date().toISOString().split("T")[0];
 const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
 const nextYearStr = nextYear.toISOString().split("T")[0];
 
-const EMPTY = { name: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr };
+const EMPTY = { name: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
 
 // Build the full dashboard URL for a given cafe id
 function dashUrl(id: string) {
@@ -144,6 +145,7 @@ export default function CafesPage() {
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">التوقيت</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الاشتراك</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">مدة الاشتراك</th>
+                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الموقع</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الحالة</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الإجراءات</th>
               </tr>
@@ -173,6 +175,16 @@ export default function CafesPage() {
                       <p className="text-muted-foreground">البداية: <span className="text-foreground font-medium">{cafe.subscriptionStart || "—"}</span></p>
                       <p className="text-muted-foreground">الانتهاء: <span className={`font-medium ${cafe.subscriptionEnd && cafe.subscriptionEnd < today ? "text-red-400" : "text-foreground"}`}>{cafe.subscriptionEnd || "—"}</span></p>
                     </div>
+                  </td>
+                  <td className="px-5 py-4">
+                    {cafe.website ? (
+                      <a href={cafe.website} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs max-w-[140px] truncate">
+                        <Globe size={12} /> {cafe.website.replace(/^https?:\/\//, "")}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground/50 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${cafe.active ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
@@ -304,6 +316,9 @@ export default function CafesPage() {
               </div>
               <Field label="العنوان" icon={<MapPin size={15} />}>
                 <input value={form.address} onChange={f("address")} placeholder="مسقط، شارع الروي" className={inp} />
+              </Field>
+              <Field label="رابط موقع الكوفي" icon={<Globe size={15} />}>
+                <input value={form.website} onChange={f("website")} placeholder="https://mycafe.com" className={inp} dir="ltr" />
               </Field>
               <Field label="التصنيفات (مفصولة بفاصلة عربية)" icon={<Tag size={15} />}>
                 <input value={form.tags} onChange={f("tags")} placeholder="قهوة مختصة، كيك، هادئ" className={inp} />
