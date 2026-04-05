@@ -64,7 +64,7 @@ export default function CafeLandingScreen() {
   const cafeOpen     = isOpen(cafe.openTime, cafe.closeTime);
   const cafeCategory = cafe.tags?.[0] ?? "Coffee";
   const cafeImage    = cafe.image ? { uri: cafe.image } : require("@/assets/images/icon.png");
-  const isLogoUrl    = cafe.logo?.startsWith("http");
+  const isLogoUrl    = !!(cafe.logo && (cafe.logo.startsWith("http") || cafe.logo.startsWith("data:") || cafe.logo.startsWith("blob:")));
 
   const go = (path: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

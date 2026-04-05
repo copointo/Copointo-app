@@ -53,17 +53,21 @@ export default function CafesPage() {
       const img = new Image();
       img.onload = () => {
         try {
-          const MAX = 400;
-          const scale = Math.min(MAX / img.width, MAX / img.height, 1);
-          const canvas = document.createElement("canvas");
-          canvas.width  = Math.round(img.width  * scale);
-          canvas.height = Math.round(img.height * scale);
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const compressed = canvas.toDataURL("image/jpeg", 0.75);
-            setLogoPreview(compressed);
-            setForm(p => ({ ...p, logo: compressed }));
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            const MAX = 400;
+            const scale = Math.min(MAX / img.naturalWidth, MAX / img.naturalHeight, 1);
+            const canvas = document.createElement("canvas");
+            canvas.width  = Math.round(img.naturalWidth  * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const compressed = canvas.toDataURL("image/jpeg", 0.75);
+              if (compressed.length > 3000) {
+                setLogoPreview(compressed);
+                setForm(p => ({ ...p, logo: compressed }));
+              }
+            }
           }
         } catch { /* keep raw */ }
       };
@@ -99,17 +103,26 @@ export default function CafesPage() {
       const img = new Image();
       img.onload = () => {
         try {
-          const MAX_W = 800, MAX_H = 400;
-          const scale = Math.min(MAX_W / img.width, MAX_H / img.height, 1);
-          const canvas = document.createElement("canvas");
-          canvas.width  = Math.round(img.width  * scale);
-          canvas.height = Math.round(img.height * scale);
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const compressed = canvas.toDataURL("image/jpeg", 0.65);
-            setForm(p => ({ ...p, image: compressed }));
+          // Guard: if the image didn't load real pixel data (sandboxed iframe),
+          // img.naturalWidth will be 0 — keep raw data URL in that case
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            const MAX_W = 800, MAX_H = 400;
+            const scale = Math.min(MAX_W / img.naturalWidth, MAX_H / img.naturalHeight, 1);
+            const canvas = document.createElement("canvas");
+            canvas.width  = Math.round(img.naturalWidth  * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const compressed = canvas.toDataURL("image/jpeg", 0.65);
+              // Only use compressed if it's a real image (>= 5 KB base64 ≈ covers a blank white JPEG)
+              if (compressed.length > 5000) {
+                setForm(p => ({ ...p, image: compressed }));
+              }
+              // else: keep rawDataUrl already stored above
+            }
           }
+          // else: naturalWidth=0 means sandboxed; keep rawDataUrl
         } catch { /* keep raw data URL */ }
         setCoverProcessing(false);
       };

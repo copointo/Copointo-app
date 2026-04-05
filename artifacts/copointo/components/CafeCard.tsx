@@ -13,7 +13,9 @@ import {
 import { Cafe } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 
-function isUrl(s: string) { return s?.startsWith("http"); }
+function isImgSrc(s: string | null | undefined): boolean {
+  return !!(s && (s.startsWith("http") || s.startsWith("data:") || s.startsWith("blob:")));
+}
 
 interface CafeCardProps {
   cafe: Cafe;
@@ -47,9 +49,9 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
         <View style={styles.compactContent}>
           <View style={styles.compactLogoRow}>
             <View style={styles.compactLogoCircle}>
-              {isUrl(cafe.logo)
+              {isImgSrc(cafe.logo)
                 ? <Image source={{ uri: cafe.logo }} style={{ width: 28, height: 28, borderRadius: 14 }} />
-                : <Text style={styles.compactLogoEmoji}>{cafe.logo}</Text>}
+                : <Text style={styles.compactLogoEmoji}>{cafe.logo || "☕"}</Text>}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.compactName, { color: colors.foreground }]} numberOfLines={1}>
@@ -94,9 +96,9 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.logoCircle}>
-            {isUrl(cafe.logo)
+            {isImgSrc(cafe.logo)
               ? <Image source={{ uri: cafe.logo }} style={{ width: 42, height: 42, borderRadius: 21 }} />
-              : <Text style={styles.logoEmoji}>{cafe.logo}</Text>}
+              : <Text style={styles.logoEmoji}>{cafe.logo || "☕"}</Text>}
           </View>
           <View style={styles.info}>
             <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
