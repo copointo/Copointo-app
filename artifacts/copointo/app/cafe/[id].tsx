@@ -77,7 +77,7 @@ export default function CafeLandingScreen() {
       mciIcon: "coffee-maker" as const,
       label:   "اطلب الان",
       sub:     "تصفح القائمة واطلب مشروبك المفضل",
-      bg:      "https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=500&h=500&fit=crop&q=80",
+      bg:      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=500&h=500&fit=crop&q=90",
       deep:    "#0D0704",
       onPress: () => go(`/cafe/${id}/order`),
     },
@@ -85,7 +85,7 @@ export default function CafeLandingScreen() {
       mciIcon: "message-text" as const,
       label:   "شات Copointo",
       sub:     "احصل على توصية ذكية تناسبك",
-      bg:      "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=500&h=500&fit=crop&q=80",
+      bg:      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&h=500&fit=crop&q=90",
       deep:    "#050D18",
       onPress: () => go(`/cafe/${id}/chat`),
     },
@@ -93,7 +93,7 @@ export default function CafeLandingScreen() {
       mciIcon: "table-furniture" as const,
       label:   "احجز طاولة",
       sub:     "احجز مقعدك واستمتع بتجربتك",
-      bg:      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&h=400&fit=crop&q=80",
+      bg:      "https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=800&h=400&fit=crop&q=90",
       deep:    "#080503",
       onPress: () => go(`/cafe/${id}/book`),
     },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   actionOverlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.52)",
+    backgroundColor: "rgba(0,0,0,0.30)",
   },
 
   // White shimmer overlay (top half of card)
