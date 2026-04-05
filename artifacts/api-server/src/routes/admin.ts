@@ -10,7 +10,7 @@ router.get("/cafes", (_req, res) => {
 
 // ── POST /api/admin/cafes ───────────────────
 router.post("/cafes", (req, res) => {
-  const { name, ownerName, ownerPhone, logo, openTime, closeTime, managerPassword, address, tags, subscriptionStart, subscriptionEnd, website } = req.body;
+  const { name, ownerName, ownerPhone, logo, openTime, closeTime, managerPassword, address, tags, subscriptionStart, subscriptionEnd, website, lat, lng } = req.body;
   if (!name || !ownerPhone || !openTime || !closeTime || !managerPassword) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -36,6 +36,8 @@ router.post("/cafes", (req, res) => {
     rating: 4.5,
     tags: tags || [],
     address: address || "عُمان",
+    lat: lat ? Number(lat) : undefined,
+    lng: lng ? Number(lng) : undefined,
   };
   cafes.push(newCafe);
   res.status(201).json({ cafe: newCafe });

@@ -5,6 +5,7 @@ export interface Cafe {
   subscriptionStart: string; subscriptionEnd: string;
   website: string;
   createdAt: string; rating: number; tags: string[]; address: string; image: string;
+  lat?: number; lng?: number;
 }
 export interface AppUser {
   id: string; username: string; phone: string; level: number;

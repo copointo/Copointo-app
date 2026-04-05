@@ -1,5 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
@@ -9,6 +10,7 @@ import {
   Easing,
   Image,
   ImageBackground,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,13 +22,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiFetch } from "@/constants/api";
 
 interface ApiCafe {
-  id: string; name: string; logo: string; image: string;
+  id: string; name: string; logo: string; image: string; lat?: number; lng?: number;
   openTime: string; closeTime: string; rating: number; tags: string[]; address: string;
 }
 function isOpen(o: string, c: string) {
   const now = new Date(); const m = now.getHours()*60+now.getMinutes();
   const p = (t:string)=>{const[h,mm]=t.split(":").map(Number);return h*60+(mm||0);};
   const op=p(o),cl=p(c); return cl<=op?(m>=op||m<cl):(m>=op&&m<cl);
+}
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371;
+  const d = (x: number) => x * Math.PI / 180;
+  const dLat = d(lat2 - lat1), dLon = d(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(d(lat1)) * Math.cos(d(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
 }
 
 const BG      = "#0F0A2E";
@@ -41,6 +50,17 @@ export default function CafeLandingScreen() {
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const [cafe, setCafe] = useState<ApiCafe | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // User location — must be before any conditional return
+  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    })();
+  }, []);
 
   // Shimmer animation — must be before any conditional return
   const shimmer = useRef(new Animated.Value(0)).current;
@@ -178,11 +198,42 @@ export default function CafeLandingScreen() {
           </View>
         </View>
 
-        {/* ── Address ── */}
-        <View style={styles.addressRow}>
-          <Feather name="navigation" size={14} color={PRIMARY} />
-          <Text style={styles.addressText}>{cafe.address}</Text>
-        </View>
+        {/* ── Location & Distance ── */}
+        {(() => {
+          const dist = (userLoc && cafe.lat && cafe.lng)
+            ? haversineKm(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng)
+            : null;
+          const openMaps = () => {
+            const q = cafe.lat && cafe.lng
+              ? `${cafe.lat},${cafe.lng}`
+              : encodeURIComponent(cafe.address);
+            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
+          };
+          return (
+            <View style={styles.locationCard}>
+              <View style={{ flex: 1 }}>
+                <View style={styles.locationRow}>
+                  <Feather name="map-pin" size={14} color={PRIMARY} />
+                  <Text style={styles.locationAddress} numberOfLines={2}>{cafe.address}</Text>
+                </View>
+                {dist !== null && (
+                  <View style={styles.distRow}>
+                    <Feather name="navigation" size={12} color="#66BB6A" />
+                    <Text style={styles.distText}>
+                      {dist < 1
+                        ? `${Math.round(dist * 1000)} م منك`
+                        : `${dist.toFixed(1)} كم منك`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
+                <Feather name="map" size={15} color="#FFF" />
+                <Text style={styles.mapsBtnText}>الخريطة</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
 
         {/* ── Tags ── */}
         <View style={styles.tagsRow}>
@@ -332,8 +383,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   chipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.80)" },
-  addressRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  addressText:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", flex: 1 },
+  // Location card
+  locationCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: CARD, borderRadius: 16,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 16, paddingVertical: 14,
+    marginBottom: 8,
+  },
+  locationRow:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  locationAddress:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)", flex: 1 },
+  distRow:  { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
+  distText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#66BB6A" },
+  mapsBtn:  {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: PRIMARY, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  mapsBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   tagsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {
     backgroundColor: `${PRIMARY}22`, borderRadius: 20,

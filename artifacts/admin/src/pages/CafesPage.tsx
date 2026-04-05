@@ -10,14 +10,14 @@ interface Cafe {
   active: boolean; subscriptionAmount: number; createdAt: string;
   subscriptionStart: string; subscriptionEnd: string;
   website: string;
-  rating: number; address: string; tags: string[];
+  rating: number; address: string; tags: string[]; lat?: number; lng?: number;
 }
 
 const today = new Date().toISOString().split("T")[0];
 const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
 const nextYearStr = nextYear.toISOString().split("T")[0];
 
-const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
+const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "", lat: "", lng: "" };
 
 // Manager dashboard URL  →  /admin/cafe/:id
 function managerUrl(id: string) {
@@ -465,6 +465,18 @@ export default function CafesPage() {
               <Field label="العنوان" icon={<MapPin size={15} />}>
                 <input value={form.address} onChange={f("address")} placeholder="مسقط، شارع الروي" className={inp} />
               </Field>
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
+                  <MapPin size={15} /> إحداثيات الموقع <span className="text-xs text-muted-foreground/60">(اختياري — لعرض المسافة)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="number" step="any" value={form.lat} onChange={f("lat")} placeholder="خط العرض  23.58" className={inp} dir="ltr" />
+                  <input type="number" step="any" value={form.lng} onChange={f("lng")} placeholder="خط الطول  58.40" className={inp} dir="ltr" />
+                </div>
+                <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1">
+                  <ExternalLink size={11} /> ابحث عن الكوفي في Google Maps ← انقر بالزر الأيمن ← نسخ الإحداثيات
+                </a>
+              </div>
               <Field label="رابط موقع الكوفي" icon={<Globe size={15} />}>
                 <input value={form.website} onChange={f("website")} placeholder="https://mycafe.com" className={inp} dir="ltr" />
               </Field>
