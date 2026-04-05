@@ -85,7 +85,7 @@ export default function CafeLandingScreen() {
       mciIcon: "message-text" as const,
       label:   "شات Copointo",
       sub:     "احصل على توصية ذكية تناسبك",
-      bg:      "https://images.unsplash.com/photo-1531746790731-6c087fecd65a?w=500&h=500&fit=crop&q=90",
+      bg:      "https://images.unsplash.com/photo-1577563908411-5077b6dc7624?w=500&h=500&fit=crop&q=90",
       deep:    "#050D18",
       onPress: () => go(`/cafe/${id}/chat`),
     },
