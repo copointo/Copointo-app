@@ -46,19 +46,28 @@ export default function CafesPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
+      const rawDataUrl = ev.target?.result as string;
+      if (!rawDataUrl) return;
+      setLogoPreview(rawDataUrl);
+      setForm(p => ({ ...p, logo: rawDataUrl }));
       const img = new Image();
       img.onload = () => {
-        const MAX = 400;
-        const scale = Math.min(MAX / img.width, MAX / img.height, 1);
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.75);
-        setLogoPreview(compressed);
-        setForm(p => ({ ...p, logo: compressed }));
+        try {
+          const MAX = 400;
+          const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const compressed = canvas.toDataURL("image/jpeg", 0.75);
+            setLogoPreview(compressed);
+            setForm(p => ({ ...p, logo: compressed }));
+          }
+        } catch { /* keep raw */ }
       };
-      img.src = ev.target?.result as string;
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -80,23 +89,34 @@ export default function CafesPage() {
     setCoverProcessing(true);
     const reader = new FileReader();
     reader.onload = (ev) => {
+      const rawDataUrl = ev.target?.result as string;
+      if (!rawDataUrl) { setCoverProcessing(false); return; }
+      // Show preview immediately — data URL always works
+      setCoverPreview(rawDataUrl);
+      // Store raw first (safe fallback in case canvas fails)
+      setForm(p => ({ ...p, image: rawDataUrl }));
+      // Try to compress via canvas
       const img = new Image();
       img.onload = () => {
-        const MAX_W = 800, MAX_H = 400;
-        const scale = Math.min(MAX_W / img.width, MAX_H / img.height, 1);
-        const canvas = document.createElement("canvas");
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.65);
-        setCoverPreview(compressed);
-        setForm(p => ({ ...p, image: compressed }));
+        try {
+          const MAX_W = 800, MAX_H = 400;
+          const scale = Math.min(MAX_W / img.width, MAX_H / img.height, 1);
+          const canvas = document.createElement("canvas");
+          canvas.width  = Math.round(img.width  * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const compressed = canvas.toDataURL("image/jpeg", 0.65);
+            setForm(p => ({ ...p, image: compressed }));
+          }
+        } catch { /* keep raw data URL */ }
         setCoverProcessing(false);
-        console.log("[cover] done, size:", compressed.length);
       };
       img.onerror = () => setCoverProcessing(false);
-      img.src = ev.target?.result as string;
+      img.src = rawDataUrl;
     };
+    reader.onerror = () => setCoverProcessing(false);
     reader.readAsDataURL(file);
   };
 
