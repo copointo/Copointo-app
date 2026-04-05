@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -73,7 +73,7 @@ export default function CafeLandingScreen() {
 
   const ACTIONS = [
     {
-      icon:    "☕",
+      mciIcon: "coffee-maker" as const,
       label:   "اطلب الان",
       sub:     "تصفح القائمة واطلب مشروبك المفضل",
       grad:    ["#A0673A", "#6B3A1F", "#3D1E0A"] as const,
@@ -81,7 +81,7 @@ export default function CafeLandingScreen() {
       onPress: () => go(`/cafe/${id}/order`),
     },
     {
-      icon:    "✨",
+      mciIcon: "message-text" as const,
       label:   "شات Copointo",
       sub:     "احصل على توصية ذكية تناسبك",
       grad:    ["#A0673A", "#6B3A1F", "#3D1E0A"] as const,
@@ -89,7 +89,7 @@ export default function CafeLandingScreen() {
       onPress: () => go(`/cafe/${id}/chat`),
     },
     {
-      icon:    "🪑",
+      mciIcon: "table-furniture" as const,
       label:   "احجز طاولة",
       sub:     "احجز مقعدك واستمتع بتجربتك",
       grad:    ["#A0673A", "#6B3A1F", "#3D1E0A"] as const,
@@ -202,7 +202,9 @@ export default function CafeLandingScreen() {
                   end={{ x: 0, y: 1 }}
                   style={styles.actionShine}
                 />
-                <Text style={styles.actionSquareIcon}>{a.icon}</Text>
+                <View style={styles.actionIconWrap}>
+                  <MaterialCommunityIcons name={a.mciIcon} size={52} color="rgba(255,255,255,0.92)" />
+                </View>
                 <Text style={styles.actionSquareLabel}>{a.label}</Text>
                 <Text style={styles.actionSquareSub} numberOfLines={2}>{a.sub}</Text>
                 <View style={styles.actionSquareArrow}>
@@ -236,7 +238,7 @@ export default function CafeLandingScreen() {
                 style={StyleSheet.absoluteFillObject}
               />
               <View style={styles.actionWideLeft}>
-                <Text style={styles.actionWideIcon}>{ACTIONS[2].icon}</Text>
+                <MaterialCommunityIcons name={ACTIONS[2].mciIcon} size={44} color="rgba(255,255,255,0.92)" />
                 <View>
                   <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
                   <Text style={styles.actionWideSub}>{ACTIONS[2].sub}</Text>
@@ -347,7 +349,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 22,
   },
 
-  actionSquareIcon:  { fontSize: 34, marginBottom: 8 },
+  actionIconWrap: { marginBottom: 12 },
   actionSquareLabel: {
     fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF",
     marginBottom: 4,
@@ -389,7 +391,6 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   actionWideLeft:  { flexDirection: "row", alignItems: "center", gap: 16 },
-  actionWideIcon:  { fontSize: 32 },
   actionWideLabel: {
     fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4,
     textShadowColor: "rgba(0,0,0,0.4)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
