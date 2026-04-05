@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -27,6 +27,28 @@ export default function CafesPage() {
   const [saving,  setSaving]  = useState(false);
   const [err,     setErr]     = useState("");
 
+  // Logo file state
+  const [logoPreview, setLogoPreview] = useState("");
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setLogoPreview(dataUrl);
+      setForm(p => ({ ...p, logo: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const resetLogo = () => {
+    setLogoPreview("");
+    setForm(p => ({ ...p, logo: "" }));
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  };
+
   // Success state: holds the newly-added cafe
   const [newCafe, setNewCafe] = useState<Cafe | null>(null);
   const [copied,  setCopied]  = useState(false);
@@ -52,6 +74,7 @@ export default function CafesPage() {
       setModal(false);
       setNewCafe(created);
       setForm({ ...EMPTY });
+      setLogoPreview("");
       setErr("");
     } catch { setErr("حدث خطأ أثناء الإضافة"); }
     finally { setSaving(false); }
@@ -193,14 +216,14 @@ export default function CafesPage() {
       {/* ── Add Cafe Modal ── */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setModal(false)} />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setModal(false); resetLogo(); }} />
           <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl z-10" dir="rtl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-border">
               <div>
                 <h2 className="text-xl font-bold text-foreground">إضافة كوفي جديد</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">اشتراك سنوي: <span className="text-primary font-bold">300 OMR</span></p>
               </div>
-              <button onClick={() => setModal(false)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setModal(false); resetLogo(); }} className="text-muted-foreground hover:text-foreground">
                 <X size={20} />
               </button>
             </div>
@@ -211,9 +234,46 @@ export default function CafesPage() {
               <Field label="رقم هاتف الصاحب *" icon={<Phone size={15} />}>
                 <input value={form.ownerPhone} onChange={f("ownerPhone")} placeholder="9XXXXXXXX" className={inp} dir="ltr" />
               </Field>
-              <Field label="رابط شعار الكوفي" icon={<span className="text-base">🖼️</span>}>
-                <input value={form.logo} onChange={f("logo")} placeholder="https://..." className={inp} dir="ltr" />
-              </Field>
+              {/* Logo file upload */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
+                  <ImageIcon size={15} /> شعار الكوفي
+                </label>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoFile}
+                  className="hidden"
+                  id="logo-upload"
+                />
+                {logoPreview ? (
+                  <div className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/20">
+                    <img src={logoPreview} alt="preview" className="w-14 h-14 rounded-xl object-cover border border-border" />
+                    <div className="flex-1">
+                      <p className="text-sm text-foreground font-medium">تم اختيار الصورة</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">اضغط للتغيير أو احذف</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <label htmlFor="logo-upload" className="cursor-pointer p-2 rounded-lg hover:bg-muted/40 text-muted-foreground transition-colors">
+                        <Upload size={15} />
+                      </label>
+                      <button type="button" onClick={resetLogo} className="p-2 rounded-lg hover:bg-red-500/15 text-red-400 transition-colors">
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="logo-upload"
+                    className="flex flex-col items-center justify-center gap-2 w-full py-6 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                  >
+                    <Upload size={22} className="text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">اضغط لاختيار صورة الشعار</span>
+                    <span className="text-xs text-muted-foreground/60">PNG, JPG, WEBP</span>
+                  </label>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="وقت الفتح *" icon={<Clock size={15} />}>
                   <input type="time" value={form.openTime} onChange={f("openTime")} className={inp} />
