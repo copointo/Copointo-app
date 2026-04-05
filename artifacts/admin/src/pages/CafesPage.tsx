@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
 
 interface Cafe {
-  id: string; name: string; ownerPhone: string; logo: string;
+  id: string; name: string; ownerName: string; ownerPhone: string; logo: string;
   openTime: string; closeTime: string; managerPassword: string;
   active: boolean; subscriptionAmount: number; createdAt: string;
   subscriptionStart: string; subscriptionEnd: string;
@@ -17,7 +17,7 @@ const today = new Date().toISOString().split("T")[0];
 const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
 const nextYearStr = nextYear.toISOString().split("T")[0];
 
-const EMPTY = { name: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
+const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
 
 // Build the full dashboard URL for a given cafe id
 function dashUrl(id: string) {
@@ -165,7 +165,10 @@ export default function CafesPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-foreground">{cafe.ownerPhone}</td>
+                  <td className="px-5 py-4">
+                    <p className="text-foreground font-medium">{cafe.ownerName || "—"}</p>
+                    <p className="text-muted-foreground text-xs mt-0.5" dir="ltr">{cafe.ownerPhone}</p>
+                  </td>
                   <td className="px-5 py-4 text-muted-foreground">{cafe.openTime} – {cafe.closeTime}</td>
                   <td className="px-5 py-4">
                     <span className="text-green-400 font-semibold">{cafe.subscriptionAmount} OMR</span>
@@ -254,6 +257,9 @@ export default function CafesPage() {
             <form onSubmit={submit} className="px-6 py-5 space-y-4">
               <Field label="اسم الكوفي *" icon={<span className="text-base">☕</span>}>
                 <input value={form.name} onChange={f("name")} placeholder="مثال: روست آند كو" className={inp} />
+              </Field>
+              <Field label="اسم صاحب الكوفي" icon={<span className="text-base">👤</span>}>
+                <input value={form.ownerName} onChange={f("ownerName")} placeholder="محمد العبري" className={inp} />
               </Field>
               <Field label="رقم هاتف الصاحب *" icon={<Phone size={15} />}>
                 <input value={form.ownerPhone} onChange={f("ownerPhone")} placeholder="9XXXXXXXX" className={inp} dir="ltr" />

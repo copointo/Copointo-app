@@ -1,5 +1,5 @@
 export interface Cafe {
-  id: string; name: string; ownerPhone: string; logo: string;
+  id: string; name: string; ownerName: string; ownerPhone: string; logo: string;
   openTime: string; closeTime: string; managerPassword: string;
   active: boolean; subscriptionPaid: boolean; subscriptionAmount: number;
   subscriptionStart: string; subscriptionEnd: string;
