@@ -197,21 +197,7 @@ export default function CafeLandingScreen() {
               >
                 {/* Dark overlay for readability */}
                 <View style={styles.actionOverlay} />
-                {/* Top shine */}
-                <LinearGradient
-                  colors={["rgba(255,255,255,0.18)", "rgba(255,255,255,0.00)"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={styles.actionShine}
-                />
-                <View style={styles.actionIconWrap}>
-                  <MaterialCommunityIcons name={a.mciIcon} size={52} color="rgba(255,255,255,0.95)" />
-                </View>
                 <Text style={styles.actionSquareLabel}>{a.label}</Text>
-                <Text style={styles.actionSquareSub} numberOfLines={2}>{a.sub}</Text>
-                <View style={styles.actionSquareArrow}>
-                  <Feather name="arrow-up-right" size={13} color="rgba(255,255,255,0.9)" />
-                </View>
               </ImageBackground>
             </TouchableOpacity>
           ))}
@@ -233,23 +219,7 @@ export default function CafeLandingScreen() {
             >
               {/* Dark overlay */}
               <View style={styles.actionOverlay} />
-              {/* Top shine */}
-              <LinearGradient
-                colors={["rgba(255,255,255,0.15)", "rgba(255,255,255,0.00)"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={styles.actionWideLeft}>
-                <MaterialCommunityIcons name={ACTIONS[2].mciIcon} size={44} color="rgba(255,255,255,0.92)" />
-                <View>
-                  <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
-                  <Text style={styles.actionWideSub}>{ACTIONS[2].sub}</Text>
-                </View>
-              </View>
-              <View style={styles.actionWideArrow}>
-                <Feather name="arrow-up-right" size={18} color="#fff" />
-              </View>
+              <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
             </ImageBackground>
           </TouchableOpacity>
         )}
@@ -327,16 +297,15 @@ const styles = StyleSheet.create({
 
   actionSquare: {
     padding: 18, aspectRatio: 1,
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 22,
     overflow: "hidden",
-    // top-highlight border
     borderTopWidth: 1.5,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderBottomWidth: 0,
     borderColor: "rgba(255,255,255,0.45)",
-    // iOS shadow
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.45,
@@ -347,37 +316,17 @@ const styles = StyleSheet.create({
   // Background photo image style (for ImageBackground imageStyle prop)
   actionBgImage: { borderRadius: 22 },
 
-  // Dark overlay on top of the photo for text readability
+  // Dark overlay — high opacity so photo is subtle background
   actionOverlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.30)",
+    backgroundColor: "rgba(0,0,0,0.65)",
   },
 
-  // White shimmer overlay (top half of card)
-  actionShine: {
-    position: "absolute", top: 0, left: 0, right: 0,
-    height: 80,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-  },
-
-  actionIconWrap: { marginBottom: 12 },
   actionSquareLabel: {
-    fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF",
-    marginBottom: 4,
-    textShadowColor: "rgba(0,0,0,0.4)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
-  },
-  actionSquareSub: {
-    fontSize: 11, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.72)", lineHeight: 15,
-  },
-  actionSquareArrow: {
-    position: "absolute", top: 12, right: 12,
-    width: 26, height: 26, borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.22)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.35)",
-    alignItems: "center", justifyContent: "center",
+    fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFF",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
 
   // Wide card (احجز طاولة)
@@ -390,9 +339,9 @@ const styles = StyleSheet.create({
   },
 
   actionWide: {
-    flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 22, paddingHorizontal: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32, paddingHorizontal: 24,
     borderRadius: 22, overflow: "hidden",
     borderTopWidth: 1.5, borderLeftWidth: 1,
     borderRightWidth: 1, borderBottomWidth: 0,
@@ -403,16 +352,9 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 10,
   },
-  actionWideLeft:  { flexDirection: "row", alignItems: "center", gap: 16 },
   actionWideLabel: {
-    fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4,
-    textShadowColor: "rgba(0,0,0,0.4)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
-  },
-  actionWideSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)" },
-  actionWideArrow: {
-    width: 40, height: 40, borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.20)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.35)",
-    alignItems: "center", justifyContent: "center",
+    fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFF",
+    textAlign: "center",
+    textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
 });
