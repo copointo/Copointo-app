@@ -46,15 +46,6 @@ const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
 const POSITIONS = [-85, 0, 85];
 
 
-// ─── Background coffee beans ───────────────────────────────────────────────
-const BEANS = Array.from({ length: 22 }, (_, i) => ({
-  id: i,
-  x:   Math.round((i * 173.1) % SCREEN_WIDTH),
-  y:   Math.round((i * 131)   % 1100),
-  rot: (i * 47) % 360,
-  sz:  i % 4 === 0 ? 54 : i % 4 === 1 ? 40 : i % 4 === 2 ? 66 : 48,
-  op:  0.09 + (i % 5) * 0.04,
-}));
 
 const BG     = "#2C1400";
 const BEFORE = 12;
@@ -118,18 +109,6 @@ export default function GameScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
 
-      {/* ── Coffee bean background ── */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {BEANS.map((b) => (
-          <Text key={b.id} style={{
-            position: "absolute", left: b.x, top: b.y,
-            fontSize: b.sz, opacity: b.op,
-            transform: [{ rotate: `${b.rot}deg` }],
-          }}>
-            🫘
-          </Text>
-        ))}
-      </View>
 
       {/* ── Header ── */}
       <View style={styles.header}>
