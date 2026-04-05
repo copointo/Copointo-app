@@ -76,24 +76,24 @@ export default function CafeLandingScreen() {
       icon:    "☕",
       label:   "اطلب الان",
       sub:     "تصفح القائمة واطلب مشروبك المفضل",
-      grad:    ["#C67C4E", "#A0522D"] as const,
-      badge:   "الأكثر طلباً",
+      grad:    ["#FFBB6B", "#E8721F", "#A83D00"] as const,
+      deep:    "#6B2200",
       onPress: () => go(`/cafe/${id}/order`),
     },
     {
       icon:    "✨",
       label:   "شات Copointo",
       sub:     "احصل على توصية ذكية تناسبك",
-      grad:    ["#6C3FC5", "#3B1FA0"] as const,
-      badge:   "AI مدعوم بـ",
+      grad:    ["#D4A8FF", "#9333EA", "#5B21B6"] as const,
+      deep:    "#2D0070",
       onPress: () => go(`/cafe/${id}/chat`),
     },
     {
       icon:    "🪑",
       label:   "احجز طاولة",
       sub:     "احجز مقعدك واستمتع بتجربتك",
-      grad:    ["#1A6B4A", "#0D4A31"] as const,
-      badge:   "متاح الآن",
+      grad:    ["#6EE7B7", "#059669", "#064E3B"] as const,
+      deep:    "#012A1E",
       onPress: () => go(`/cafe/${id}/book`),
     },
   ];
@@ -183,20 +183,30 @@ export default function CafeLandingScreen() {
             <TouchableOpacity
               key={a.label}
               onPress={a.onPress}
-              activeOpacity={0.85}
+              activeOpacity={0.82}
               style={styles.actionSquareWrap}
             >
+              {/* 3D depth layer */}
+              <View style={[styles.actionDepth, { backgroundColor: a.deep }]} />
+              {/* Main card */}
               <LinearGradient
                 colors={a.grad}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+                end={{ x: 0, y: 1 }}
                 style={styles.actionSquare}
               >
+                {/* Top shine */}
+                <LinearGradient
+                  colors={["rgba(255,255,255,0.30)", "rgba(255,255,255,0.00)"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={styles.actionShine}
+                />
                 <Text style={styles.actionSquareIcon}>{a.icon}</Text>
                 <Text style={styles.actionSquareLabel}>{a.label}</Text>
                 <Text style={styles.actionSquareSub} numberOfLines={2}>{a.sub}</Text>
                 <View style={styles.actionSquareArrow}>
-                  <Feather name="arrow-up-right" size={14} color="rgba(255,255,255,0.8)" />
+                  <Feather name="arrow-up-right" size={13} color="rgba(255,255,255,0.9)" />
                 </View>
               </LinearGradient>
             </TouchableOpacity>
@@ -207,15 +217,24 @@ export default function CafeLandingScreen() {
         {ACTIONS[2] && (
           <TouchableOpacity
             onPress={ACTIONS[2].onPress}
-            activeOpacity={0.85}
+            activeOpacity={0.82}
             style={styles.actionWideWrap}
           >
+            {/* 3D depth layer */}
+            <View style={[styles.actionWideDepth, { backgroundColor: ACTIONS[2].deep }]} />
             <LinearGradient
               colors={ACTIONS[2].grad}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+              end={{ x: 0, y: 1 }}
               style={styles.actionWide}
             >
+              {/* Top shine */}
+              <LinearGradient
+                colors={["rgba(255,255,255,0.28)", "rgba(255,255,255,0.00)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
               <View style={styles.actionWideLeft}>
                 <Text style={styles.actionWideIcon}>{ACTIONS[2].icon}</Text>
                 <View>
@@ -291,36 +310,95 @@ const styles = StyleSheet.create({
   // Actions — grid layout
   actionsTopRow: { flexDirection: "row", gap: 12 },
 
-  // Square cards (اطلب الان & شات)
-  actionSquareWrap: { flex: 1, borderRadius: 22, overflow: "hidden" },
+  // Square cards — 3D stack
+  actionSquareWrap: { flex: 1, borderRadius: 22 },
+
+  // Dark depth slab (the "bottom face" of the 3D button)
+  actionDepth: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 22,
+    transform: [{ translateY: 5 }],
+  },
+
   actionSquare: {
     padding: 18, aspectRatio: 1,
     justifyContent: "flex-end",
+    borderRadius: 22,
+    overflow: "hidden",
+    // top-highlight border
+    borderTopWidth: 1.5,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255,255,255,0.45)",
+    // iOS shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  actionSquareIcon:  { fontSize: 32, marginBottom: 10 },
-  actionSquareLabel: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4 },
-  actionSquareSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", lineHeight: 16 },
+
+  // White shimmer overlay (top half of card)
+  actionShine: {
+    position: "absolute", top: 0, left: 0, right: 0,
+    height: 80,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+
+  actionSquareIcon:  { fontSize: 34, marginBottom: 8 },
+  actionSquareLabel: {
+    fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF",
+    marginBottom: 4,
+    textShadowColor: "rgba(0,0,0,0.4)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
+  },
+  actionSquareSub: {
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.72)", lineHeight: 15,
+  },
   actionSquareArrow: {
-    position: "absolute", top: 14, right: 14,
-    width: 28, height: 28, borderRadius: 9,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    position: "absolute", top: 12, right: 12,
+    width: 26, height: 26, borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.35)",
     alignItems: "center", justifyContent: "center",
   },
 
   // Wide card (احجز طاولة)
-  actionWideWrap: { borderRadius: 22, overflow: "hidden", marginTop: 12 },
+  actionWideWrap: { borderRadius: 22, marginTop: 14 },
+
+  actionWideDepth: {
+    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: 22,
+    transform: [{ translateY: 5 }],
+  },
+
   actionWide: {
     flexDirection: "row", alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 20, paddingHorizontal: 22,
+    paddingVertical: 22, paddingHorizontal: 24,
+    borderRadius: 22, overflow: "hidden",
+    borderTopWidth: 1.5, borderLeftWidth: 1,
+    borderRightWidth: 1, borderBottomWidth: 0,
+    borderColor: "rgba(255,255,255,0.40)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 10,
   },
   actionWideLeft:  { flexDirection: "row", alignItems: "center", gap: 16 },
-  actionWideIcon:  { fontSize: 30 },
-  actionWideLabel: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 3 },
-  actionWideSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
+  actionWideIcon:  { fontSize: 32 },
+  actionWideLabel: {
+    fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4,
+    textShadowColor: "rgba(0,0,0,0.4)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
+  },
+  actionWideSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)" },
   actionWideArrow: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    width: 40, height: 40, borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.20)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.35)",
     alignItems: "center", justifyContent: "center",
   },
 });
