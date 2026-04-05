@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
+  Animated,
+  Easing,
   Image,
   StyleSheet,
   Text,
@@ -33,6 +36,24 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
     router.push(`/cafe/${cafe.id}`);
   };
 
+  // Shimmer sweep animation
+  const shimmer = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, {
+          toValue: 1, duration: 1300,
+          easing: Easing.linear, useNativeDriver: false,
+        }),
+        Animated.delay(2800),
+        Animated.timing(shimmer, { toValue: 0, duration: 0, useNativeDriver: false }),
+      ])
+    ).start();
+  }, [shimmer]);
+  const shimmerX = shimmer.interpolate({
+    inputRange: [0, 1], outputRange: [-120, 420],
+  });
+
   if (compact) {
     return (
       <TouchableOpacity
@@ -40,7 +61,19 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
         onPress={handlePress}
         activeOpacity={0.92}
       >
-        <Image source={cafe.image} style={styles.compactImage} resizeMode="cover" />
+        <View style={styles.compactImageWrap}>
+          <Image source={cafe.image} style={styles.compactImage} resizeMode="cover" />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "22deg" }] }]}
+          >
+            <LinearGradient
+              colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.28)", "rgba(255,255,255,0)"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ flex: 1 }}
+            />
+          </Animated.View>
+        </View>
         <View style={[styles.compactStatusBadge, { backgroundColor: cafe.isOpen ? colors.success : colors.muted }]}>
           <Text style={[styles.compactStatusText, { color: cafe.isOpen ? colors.successForeground : colors.mutedForeground }]}>
             {cafe.isOpen ? "Open" : "Closed"}
@@ -87,7 +120,19 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
       onPress={handlePress}
       activeOpacity={0.92}
     >
-      <Image source={cafe.image} style={styles.image} resizeMode="cover" />
+      <View style={styles.imageWrap}>
+        <Image source={cafe.image} style={styles.image} resizeMode="cover" />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "22deg" }] }]}
+        >
+          <LinearGradient
+            colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.28)", "rgba(255,255,255,0)"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      </View>
       <View style={[styles.statusBadge, { backgroundColor: cafe.isOpen ? colors.success : colors.muted }]}>
         <Text style={[styles.statusText, { color: cafe.isOpen ? colors.successForeground : colors.mutedForeground }]}>
           {cafe.isOpen ? "Open" : "Closed"}
@@ -148,10 +193,21 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
+  imageWrap: {
+    width: "100%",
+    height: 160,
+    overflow: "hidden",
+  },
   image: {
     width: "100%",
     height: 160,
     resizeMode: "cover",
+  },
+  shimmerStrip: {
+    position: "absolute",
+    top: -80,
+    bottom: -80,
+    width: 60,
   },
   statusBadge: {
     position: "absolute",
@@ -231,6 +287,11 @@ const styles = StyleSheet.create({
   },
 
   // Compact (grid) styles
+  compactImageWrap: {
+    width: "100%",
+    height: 110,
+    overflow: "hidden",
+  },
   compactCard: {
     flex: 1,
     borderRadius: 16,
