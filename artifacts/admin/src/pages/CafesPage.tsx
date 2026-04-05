@@ -42,9 +42,19 @@ export default function CafesPage() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      setLogoPreview(dataUrl);
-      setForm(p => ({ ...p, logo: dataUrl }));
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 400;
+        const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL("image/jpeg", 0.75);
+        setLogoPreview(compressed);
+        setForm(p => ({ ...p, logo: compressed }));
+      };
+      img.src = ev.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
