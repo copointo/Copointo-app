@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays, Globe } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays, Globe, Download } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -19,10 +19,14 @@ const nextYearStr = nextYear.toISOString().split("T")[0];
 
 const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
 
-// Build the full dashboard URL for a given cafe id
-function dashUrl(id: string) {
+// Manager dashboard URL  →  /admin/cafe/:id
+function managerUrl(id: string) {
   const base = window.location.origin + (import.meta.env.BASE_URL ?? "/admin").replace(/\/$/, "");
   return `${base}/cafe/${id}`;
+}
+// Customer-facing cafe page URL  →  same origin root + /cafe/:id
+function customerUrl(id: string) {
+  return `${window.location.origin}/cafe/${id}`;
 }
 
 export default function CafesPage() {
@@ -66,9 +70,11 @@ export default function CafesPage() {
   };
 
   // Success state: holds the newly-added cafe
-  const [newCafe, setNewCafe] = useState<Cafe | null>(null);
-  const [copied,  setCopied]  = useState(false);
-  const qrRef = useRef<HTMLDivElement>(null);
+  const [newCafe,        setNewCafe]        = useState<Cafe | null>(null);
+  const [copiedManager,  setCopiedManager]  = useState(false);
+  const [copiedCustomer, setCopiedCustomer] = useState(false);
+  const qrManagerRef  = useRef<HTMLDivElement>(null);
+  const qrCustomerRef = useRef<HTMLDivElement>(null);
 
   const load = () => api.getCafes().then(d => setCafes(d.cafes)).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
@@ -107,21 +113,27 @@ export default function CafesPage() {
     setCafes(prev => prev.filter(c => c.id !== id));
   };
 
-  const copyLink = (url: string) => {
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const copyManagerLink = () => {
+    if (!newCafe) return;
+    navigator.clipboard.writeText(managerUrl(newCafe.id)).then(() => {
+      setCopiedManager(true); setTimeout(() => setCopiedManager(false), 2000);
+    });
+  };
+  const copyCustomerLink = () => {
+    if (!newCafe) return;
+    navigator.clipboard.writeText(customerUrl(newCafe.id)).then(() => {
+      setCopiedCustomer(true); setTimeout(() => setCopiedCustomer(false), 2000);
     });
   };
 
-  const downloadQR = () => {
-    const svg = qrRef.current?.querySelector("svg");
+  const downloadQR = (ref: React.RefObject<HTMLDivElement | null>, label: string) => {
+    const svg = ref.current?.querySelector("svg");
     if (!svg) return;
     const xml = new XMLSerializer().serializeToString(svg);
     const blob = new Blob([xml], { type: "image/svg+xml" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `qr-${newCafe?.name ?? "cafe"}.svg`;
+    a.href = url; a.download = `qr-${label}-${newCafe?.name ?? "cafe"}.svg`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -360,11 +372,11 @@ export default function CafesPage() {
         </div>
       )}
 
-      {/* ── QR Code / Dashboard Link Modal ── */}
+      {/* ── QR Code Modal (two separate QRs) ── */}
       {newCafe && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setNewCafe(null)} />
-          <div className="relative bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl z-10 overflow-hidden" dir="rtl">
+          <div className="relative bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl z-10 overflow-hidden" dir="rtl">
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-gradient-to-l from-amber-900/30 to-transparent">
@@ -380,62 +392,69 @@ export default function CafesPage() {
               </button>
             </div>
 
-            <div className="px-6 py-6 space-y-5">
-              {/* QR Code */}
-              <div className="flex flex-col items-center gap-3">
-                <p className="text-sm text-muted-foreground font-medium">QR Code للداشبورد</p>
-                <div ref={qrRef} className="bg-white rounded-2xl p-4 shadow-lg">
-                  <QRCodeSVG
-                    value={dashUrl(newCafe.id)}
-                    size={180}
-                    level="H"
-                    includeMargin={false}
-                    imageSettings={{
-                      src: "",
-                      height: 0,
-                      width: 0,
-                      excavate: false,
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground text-center">امسح الرمز للوصول لداشبورد الكوفي</p>
-              </div>
+            <div className="px-6 py-6">
+              <div className="grid grid-cols-2 gap-5">
 
-              {/* Dashboard link */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">رابط الداشبورد</p>
-                <div className="flex items-center gap-2 bg-muted/40 border border-border rounded-xl px-4 py-2.5">
-                  <span className="flex-1 text-xs text-foreground truncate font-mono" dir="ltr">
-                    {dashUrl(newCafe.id)}
-                  </span>
-                  <button
-                    onClick={() => copyLink(dashUrl(newCafe.id))}
-                    className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                    title="نسخ الرابط"
-                  >
-                    {copied ? <Check size={15} className="text-green-400" /> : <Copy size={15} />}
-                  </button>
+                {/* ── Manager QR ── */}
+                <div className="flex flex-col gap-3 p-4 border border-amber-500/30 rounded-2xl bg-amber-500/5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-sm">🔐</div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">رابط المدير</p>
+                      <p className="text-xs text-muted-foreground">لوحة إدارة الكوفي</p>
+                    </div>
+                  </div>
+                  <div ref={qrManagerRef} className="bg-white rounded-xl p-3 shadow flex items-center justify-center">
+                    <QRCodeSVG value={managerUrl(newCafe.id)} size={150} level="H" includeMargin={false} />
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
+                    <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{managerUrl(newCafe.id)}</span>
+                    <button onClick={copyManagerLink} className="shrink-0 text-muted-foreground hover:text-foreground" title="نسخ">
+                      {copiedManager ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <a href={managerUrl(newCafe.id)} target="_blank" rel="noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 text-white py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
+                      <ExternalLink size={12} /> فتح الداشبورد
+                    </a>
+                    <button onClick={() => downloadQR(qrManagerRef, "manager")}
+                      className="px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs hover:bg-muted/30 transition-colors">
+                      <Download size={13} />
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-1">
-                <a
-                  href={dashUrl(newCafe.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
-                >
-                  <ExternalLink size={15} />
-                  فتح الداشبورد
-                </a>
-                <button
-                  onClick={downloadQR}
-                  className="px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted/30 transition-colors"
-                  title="تحميل QR"
-                >
-                  ⬇ تحميل QR
-                </button>
+                {/* ── Customer QR ── */}
+                <div className="flex flex-col gap-3 p-4 border border-primary/30 rounded-2xl bg-primary/5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-sm">👤</div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">رابط الزبائن</p>
+                      <p className="text-xs text-muted-foreground">صفحة الكوفي للمستخدمين</p>
+                    </div>
+                  </div>
+                  <div ref={qrCustomerRef} className="bg-white rounded-xl p-3 shadow flex items-center justify-center">
+                    <QRCodeSVG value={customerUrl(newCafe.id)} size={150} level="H" includeMargin={false} />
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
+                    <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{customerUrl(newCafe.id)}</span>
+                    <button onClick={copyCustomerLink} className="shrink-0 text-muted-foreground hover:text-foreground" title="نسخ">
+                      {copiedCustomer ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <a href={customerUrl(newCafe.id)} target="_blank" rel="noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
+                      <ExternalLink size={12} /> فتح صفحة الكوفي
+                    </a>
+                    <button onClick={() => downloadQR(qrCustomerRef, "customer")}
+                      className="px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs hover:bg-muted/30 transition-colors">
+                      <Download size={13} />
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
