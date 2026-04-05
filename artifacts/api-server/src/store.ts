@@ -2,6 +2,7 @@ export interface Cafe {
   id: string; name: string; ownerPhone: string; logo: string;
   openTime: string; closeTime: string; managerPassword: string;
   active: boolean; subscriptionPaid: boolean; subscriptionAmount: number;
+  subscriptionStart: string; subscriptionEnd: string;
   createdAt: string; rating: number; tags: string[]; address: string; image: string;
 }
 export interface AppUser {

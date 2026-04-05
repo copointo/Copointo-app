@@ -10,26 +10,30 @@ router.get("/cafes", (_req, res) => {
 
 // ── POST /api/admin/cafes ───────────────────
 router.post("/cafes", (req, res) => {
-  const { name, ownerPhone, logo, openTime, closeTime, managerPassword, address, tags } = req.body;
+  const { name, ownerPhone, logo, openTime, closeTime, managerPassword, address, tags, subscriptionStart, subscriptionEnd } = req.body;
   if (!name || !ownerPhone || !openTime || !closeTime || !managerPassword) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+  const today = new Date().toISOString().split("T")[0];
+  const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
   const newCafe: Cafe = {
     id: Date.now().toString(),
     name,
     ownerPhone,
-    logo: logo || "https://images.unsplash.com/photo-1559305616-3f99cd43e353?w=200&q=80",
+    logo: logo || "",
     openTime,
     closeTime,
     managerPassword,
     active: true,
     subscriptionPaid: true,
     subscriptionAmount: 300,
+    subscriptionStart: subscriptionStart || today,
+    subscriptionEnd:   subscriptionEnd   || oneYear.toISOString().split("T")[0],
     createdAt: new Date().toISOString(),
     rating: 4.5,
     tags: tags || [],
     address: address || "عُمان",
-    image: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&q=80",
+    image: "",
   };
   cafes.push(newCafe);
   res.status(201).json({ cafe: newCafe });

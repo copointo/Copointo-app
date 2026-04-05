@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -8,10 +8,15 @@ interface Cafe {
   id: string; name: string; ownerPhone: string; logo: string;
   openTime: string; closeTime: string; managerPassword: string;
   active: boolean; subscriptionAmount: number; createdAt: string;
+  subscriptionStart: string; subscriptionEnd: string;
   rating: number; address: string; tags: string[];
 }
 
-const EMPTY = { name: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "" };
+const today = new Date().toISOString().split("T")[0];
+const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
+const nextYearStr = nextYear.toISOString().split("T")[0];
+
+const EMPTY = { name: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr };
 
 // Build the full dashboard URL for a given cafe id
 function dashUrl(id: string) {
@@ -66,7 +71,7 @@ export default function CafesPage() {
     }
     setSaving(true);
     try {
-      await api.addCafe({ ...form, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean) });
+      await api.addCafe({ ...form, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd });
       const res = await api.getCafes();
       setCafes(res.cafes);
       // Find the newly created cafe (last one with matching name)
@@ -138,6 +143,7 @@ export default function CafesPage() {
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">صاحب الكوفي</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">التوقيت</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الاشتراك</th>
+                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">مدة الاشتراك</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الحالة</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الإجراءات</th>
               </tr>
@@ -161,6 +167,12 @@ export default function CafesPage() {
                   <td className="px-5 py-4 text-muted-foreground">{cafe.openTime} – {cafe.closeTime}</td>
                   <td className="px-5 py-4">
                     <span className="text-green-400 font-semibold">{cafe.subscriptionAmount} OMR</span>
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="text-xs space-y-0.5">
+                      <p className="text-muted-foreground">البداية: <span className="text-foreground font-medium">{cafe.subscriptionStart || "—"}</span></p>
+                      <p className="text-muted-foreground">الانتهاء: <span className={`font-medium ${cafe.subscriptionEnd && cafe.subscriptionEnd < today ? "text-red-400" : "text-foreground"}`}>{cafe.subscriptionEnd || "—"}</span></p>
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${cafe.active ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
@@ -280,6 +292,14 @@ export default function CafesPage() {
                 </Field>
                 <Field label="وقت الإغلاق *" icon={<Clock size={15} />}>
                   <input type="time" value={form.closeTime} onChange={f("closeTime")} className={inp} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="تاريخ بداية الاشتراك" icon={<CalendarDays size={15} />}>
+                  <input type="date" value={form.subscriptionStart} onChange={f("subscriptionStart")} className={inp} />
+                </Field>
+                <Field label="تاريخ انتهاء الاشتراك" icon={<CalendarDays size={15} />}>
+                  <input type="date" value={form.subscriptionEnd} onChange={f("subscriptionEnd")} className={inp} />
                 </Field>
               </div>
               <Field label="العنوان" icon={<MapPin size={15} />}>
