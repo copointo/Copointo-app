@@ -176,44 +176,59 @@ export default function CafeLandingScreen() {
 
         {/* ── Action buttons ── */}
         <Text style={styles.sectionLabel}>ماذا تريد؟</Text>
-        <View style={styles.actions}>
-          {ACTIONS.map((a) => (
+
+        {/* Top row: 2 square cards */}
+        <View style={styles.actionsTopRow}>
+          {ACTIONS.slice(0, 2).map((a) => (
             <TouchableOpacity
               key={a.label}
               onPress={a.onPress}
               activeOpacity={0.85}
-              style={styles.actionWrap}
+              style={styles.actionSquareWrap}
             >
-              <View style={[styles.actionRow, { borderColor: a.grad[0] + "44" }]}>
-                {/* Icon circle with gradient */}
-                <LinearGradient
-                  colors={a.grad}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.actionIconCircle}
-                >
-                  <Text style={styles.actionIcon}>{a.icon}</Text>
-                </LinearGradient>
-
-                {/* Text */}
-                <View style={styles.actionText}>
-                  <Text style={styles.actionLabel}>{a.label}</Text>
-                  <Text style={styles.actionSub} numberOfLines={1}>{a.sub}</Text>
+              <LinearGradient
+                colors={a.grad}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.actionSquare}
+              >
+                <Text style={styles.actionSquareIcon}>{a.icon}</Text>
+                <Text style={styles.actionSquareLabel}>{a.label}</Text>
+                <Text style={styles.actionSquareSub} numberOfLines={2}>{a.sub}</Text>
+                <View style={styles.actionSquareArrow}>
+                  <Feather name="arrow-up-right" size={14} color="rgba(255,255,255,0.8)" />
                 </View>
-
-                {/* Badge + Arrow */}
-                <View style={styles.actionRight}>
-                  <View style={[styles.badgeWrap, { backgroundColor: a.grad[0] + "22", borderColor: a.grad[0] + "44" }]}>
-                    <Text style={[styles.badgeText, { color: a.grad[0] }]}>{a.badge}</Text>
-                  </View>
-                  <View style={[styles.arrowCircle, { backgroundColor: a.grad[0] + "22" }]}>
-                    <Feather name="chevron-left" size={16} color={a.grad[0]} />
-                  </View>
-                </View>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Bottom: full-width card */}
+        {ACTIONS[2] && (
+          <TouchableOpacity
+            onPress={ACTIONS[2].onPress}
+            activeOpacity={0.85}
+            style={styles.actionWideWrap}
+          >
+            <LinearGradient
+              colors={ACTIONS[2].grad}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.actionWide}
+            >
+              <View style={styles.actionWideLeft}>
+                <Text style={styles.actionWideIcon}>{ACTIONS[2].icon}</Text>
+                <View>
+                  <Text style={styles.actionWideLabel}>{ACTIONS[2].label}</Text>
+                  <Text style={styles.actionWideSub}>{ACTIONS[2].sub}</Text>
+                </View>
+              </View>
+              <View style={styles.actionWideArrow}>
+                <Feather name="arrow-up-right" size={18} color="#fff" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
@@ -273,32 +288,39 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: BORDER, marginVertical: 4 },
   sectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.40)", marginBottom: 4 },
 
-  // Actions
-  actions:    { gap: 10 },
-  actionWrap: { borderRadius: 18, overflow: "hidden" },
-  actionRow: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    backgroundColor: CARD,
-    borderWidth: 1,
-    borderRadius: 18, paddingVertical: 13, paddingHorizontal: 14,
+  // Actions — grid layout
+  actionsTopRow: { flexDirection: "row", gap: 12 },
+
+  // Square cards (اطلب الان & شات)
+  actionSquareWrap: { flex: 1, borderRadius: 22, overflow: "hidden" },
+  actionSquare: {
+    padding: 18, aspectRatio: 1,
+    justifyContent: "flex-end",
   },
-  actionIconCircle: {
-    width: 48, height: 48, borderRadius: 14,
+  actionSquareIcon:  { fontSize: 32, marginBottom: 10 },
+  actionSquareLabel: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4 },
+  actionSquareSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", lineHeight: 16 },
+  actionSquareArrow: {
+    position: "absolute", top: 14, right: 14,
+    width: 28, height: 28, borderRadius: 9,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
   },
-  actionIcon:   { fontSize: 22 },
-  actionText:   { flex: 1, gap: 3 },
-  actionLabel:  { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
-  actionSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
-  actionRight:  { alignItems: "flex-end", gap: 6, flexShrink: 0 },
-  badgeWrap: {
-    borderWidth: 1, borderRadius: 20,
-    paddingHorizontal: 8, paddingVertical: 3,
+
+  // Wide card (احجز طاولة)
+  actionWideWrap: { borderRadius: 22, overflow: "hidden", marginTop: 12 },
+  actionWide: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 20, paddingHorizontal: 22,
   },
-  badgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  arrowCircle: {
-    width: 30, height: 30, borderRadius: 10,
+  actionWideLeft:  { flexDirection: "row", alignItems: "center", gap: 16 },
+  actionWideIcon:  { fontSize: 30 },
+  actionWideLabel: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 3 },
+  actionWideSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
+  actionWideArrow: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center", justifyContent: "center",
   },
 });
