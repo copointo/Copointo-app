@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
 
 interface Cafe {
-  id: string; name: string; ownerName: string; ownerPhone: string; logo: string;
+  id: string; name: string; ownerName: string; ownerPhone: string; logo: string; image: string;
   openTime: string; closeTime: string; managerPassword: string;
   active: boolean; subscriptionAmount: number; createdAt: string;
   subscriptionStart: string; subscriptionEnd: string;
@@ -70,26 +70,31 @@ export default function CafesPage() {
   };
 
   // Cover image state
-  const [coverPreview, setCoverPreview] = useState("");
+  const [coverPreview,    setCoverPreview]    = useState("");
+  const [coverProcessing, setCoverProcessing] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCoverProcessing(true);
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
       img.onload = () => {
-        const MAX_W = 1200, MAX_H = 600;
+        const MAX_W = 800, MAX_H = 400;
         const scale = Math.min(MAX_W / img.width, MAX_H / img.height, 1);
         const canvas = document.createElement("canvas");
         canvas.width  = Math.round(img.width  * scale);
         canvas.height = Math.round(img.height * scale);
         canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-        const compressed = canvas.toDataURL("image/jpeg", 0.80);
+        const compressed = canvas.toDataURL("image/jpeg", 0.65);
         setCoverPreview(compressed);
         setForm(p => ({ ...p, image: compressed }));
+        setCoverProcessing(false);
+        console.log("[cover] done, size:", compressed.length);
       };
+      img.onerror = () => setCoverProcessing(false);
       img.src = ev.target?.result as string;
     };
     reader.readAsDataURL(file);
@@ -120,6 +125,7 @@ export default function CafesPage() {
     }
     setSaving(true);
     try {
+      console.log("[submit] form.image length:", form.image?.length ?? 0, "form.logo length:", form.logo?.length ?? 0);
       await api.addCafe({ ...form, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd });
       const res = await api.getCafes();
       setCafes(res.cafes);
@@ -131,7 +137,11 @@ export default function CafesPage() {
       setLogoPreview("");
       setCoverPreview("");
       setErr("");
-    } catch { setErr("حدث خطأ أثناء الإضافة"); }
+    } catch (e: any) {
+      const msg = e?.message ? `خطأ: ${e.message.substring(0, 200)}` : "حدث خطأ أثناء الإضافة";
+      console.error("[submit] error:", e);
+      setErr(msg);
+    }
     finally { setSaving(false); }
   };
 
@@ -437,8 +447,8 @@ export default function CafesPage() {
               </div>
               {err && <p className="text-destructive text-sm">{err}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:opacity-90">
-                  {saving ? "جاري الإضافة..." : "إضافة الكوفي"}
+                <button type="submit" disabled={saving || coverProcessing} className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:opacity-90">
+                  {saving ? "جاري الإضافة..." : coverProcessing ? "جاري تحميل الصورة..." : "إضافة الكوفي"}
                 </button>
                 <button type="button" onClick={() => setModal(false)} className="px-5 py-3 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted/30">
                   إلغاء
