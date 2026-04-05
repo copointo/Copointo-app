@@ -82,20 +82,20 @@ export default function CafeLandingScreen() {
       onPress: () => go(`/cafe/${id}/order`),
     },
     {
-      mciIcon: "message-text" as const,
-      label:   "شات Copointo",
-      sub:     "احصل على توصية ذكية تناسبك",
-      bg:      "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=500&h=500&fit=crop&q=90",
-      deep:    "#050D18",
-      onPress: () => go(`/cafe/${id}/chat`),
-    },
-    {
       mciIcon: "table-furniture" as const,
       label:   "احجز طاولة",
       sub:     "احجز مقعدك واستمتع بتجربتك",
-      bg:      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=800&h=400&fit=crop&q=90",
+      bg:      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=500&h=500&fit=crop&q=90",
       deep:    "#080503",
       onPress: () => go(`/cafe/${id}/book`),
+    },
+    {
+      mciIcon: "message-text" as const,
+      label:   "شات Copointo",
+      sub:     "احصل على توصية ذكية تناسبك",
+      bg:      "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=800&h=400&fit=crop&q=90",
+      deep:    "#050D18",
+      onPress: () => go(`/cafe/${id}/chat`),
     },
   ];
 
