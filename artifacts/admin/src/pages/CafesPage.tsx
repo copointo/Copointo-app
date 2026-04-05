@@ -17,7 +17,7 @@ const today = new Date().toISOString().split("T")[0];
 const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
 const nextYearStr = nextYear.toISOString().split("T")[0];
 
-const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
+const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "" };
 
 // Manager dashboard URL  →  /admin/cafe/:id
 function managerUrl(id: string) {
@@ -69,6 +69,38 @@ export default function CafesPage() {
     if (logoInputRef.current) logoInputRef.current.value = "";
   };
 
+  // Cover image state
+  const [coverPreview, setCoverPreview] = useState("");
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_W = 1200, MAX_H = 600;
+        const scale = Math.min(MAX_W / img.width, MAX_H / img.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const compressed = canvas.toDataURL("image/jpeg", 0.80);
+        setCoverPreview(compressed);
+        setForm(p => ({ ...p, image: compressed }));
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const resetCover = () => {
+    setCoverPreview("");
+    setForm(p => ({ ...p, image: "" }));
+    if (coverInputRef.current) coverInputRef.current.value = "";
+  };
+
   // Success state: holds the newly-added cafe
   const [newCafe,        setNewCafe]        = useState<Cafe | null>(null);
   const [copiedManager,  setCopiedManager]  = useState(false);
@@ -97,6 +129,7 @@ export default function CafesPage() {
       setNewCafe(created);
       setForm({ ...EMPTY });
       setLogoPreview("");
+      setCoverPreview("");
       setErr("");
     } catch { setErr("حدث خطأ أثناء الإضافة"); }
     finally { setSaving(false); }
@@ -177,13 +210,20 @@ export default function CafesPage() {
                 <tr key={cafe.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      {cafe.logo
-                        ? <img src={cafe.logo} alt="" className="w-10 h-10 rounded-xl object-cover" />
-                        : <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-xl">☕</div>
-                      }
+                      {/* Logo circle */}
+                      <div className="relative shrink-0">
+                        {cafe.image
+                          ? <img src={cafe.image} alt="" className="w-14 h-14 rounded-2xl object-cover border border-border" />
+                          : <div className="w-14 h-14 rounded-2xl bg-muted/60 border border-border flex items-center justify-center text-2xl">☕</div>
+                        }
+                        {cafe.logo
+                          ? <img src={cafe.logo} alt="" className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full object-cover border-2 border-card shadow" />
+                          : <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-amber-500/20 border-2 border-card shadow flex items-center justify-center text-sm">☕</div>
+                        }
+                      </div>
                       <div>
                         <p className="font-semibold text-foreground">{cafe.name}</p>
-                        <p className="text-xs text-muted-foreground">{cafe.address}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{cafe.address}</p>
                       </div>
                     </div>
                   </td>
@@ -265,14 +305,14 @@ export default function CafesPage() {
       {/* ── Add Cafe Modal ── */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setModal(false); resetLogo(); }} />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setModal(false); resetLogo(); resetCover(); }} />
           <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl z-10" dir="rtl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-border">
               <div>
                 <h2 className="text-xl font-bold text-foreground">إضافة كوفي جديد</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">اشتراك سنوي: <span className="text-primary font-bold">300 OMR</span></p>
               </div>
-              <button onClick={() => { setModal(false); resetLogo(); }} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setModal(false); resetLogo(); resetCover(); }} className="text-muted-foreground hover:text-foreground">
                 <X size={20} />
               </button>
             </div>
@@ -326,6 +366,43 @@ export default function CafesPage() {
                   </label>
                 )}
               </div>
+              {/* Cover / Banner image upload */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
+                  <ImageIcon size={15} /> صورة الغلاف (البانر)
+                </label>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleCoverFile}
+                  className="hidden"
+                  id="cover-upload"
+                />
+                {coverPreview ? (
+                  <div className="relative rounded-xl overflow-hidden border border-border h-32">
+                    <img src={coverPreview} alt="cover" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-3 opacity-0 hover:opacity-100 transition-opacity">
+                      <label htmlFor="cover-upload" className="cursor-pointer p-2 bg-white/20 rounded-lg hover:bg-white/30 text-white transition-colors">
+                        <Upload size={15} />
+                      </label>
+                      <button type="button" onClick={resetCover} className="p-2 bg-red-500/60 rounded-lg hover:bg-red-500/80 text-white transition-colors">
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="cover-upload"
+                    className="flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                  >
+                    <Upload size={22} className="text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">اضغط لاختيار صورة الغلاف</span>
+                    <span className="text-xs text-muted-foreground/60">صورة عريضة — PNG, JPG, WEBP</span>
+                  </label>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="وقت الفتح *" icon={<Clock size={15} />}>
                   <input type="time" value={form.openTime} onChange={f("openTime")} className={inp} />

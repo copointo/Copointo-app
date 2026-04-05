@@ -22,6 +22,7 @@ router.post("/cafes", (req, res) => {
     ownerName: ownerName || "",
     ownerPhone,
     logo: logo || "",
+    image: req.body.image || "",
     openTime,
     closeTime,
     managerPassword,
