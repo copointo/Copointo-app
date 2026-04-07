@@ -102,12 +102,14 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
                 {cafe.rating}
               </Text>
             </View>
-            <View style={styles.metaItem}>
-              <Feather name="map-pin" size={11} color={colors.mutedForeground} />
-              <Text style={[styles.compactMetaText, { color: colors.mutedForeground }]}>
-                {cafe.distance}
-              </Text>
-            </View>
+            {!!cafe.distance && (
+              <View style={styles.metaItem}>
+                <Feather name="navigation" size={11} color="#4CAF50" />
+                <Text style={[styles.compactMetaText, { color: "#4CAF50", fontFamily: "Inter_600SemiBold" }]}>
+                  {cafe.distance}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -164,12 +166,14 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
               ({cafe.reviewCount})
             </Text>
           </View>
-          <View style={styles.metaItem}>
-            <Feather name="map-pin" size={13} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-              {cafe.distance}
-            </Text>
-          </View>
+          {!!cafe.distance && (
+            <View style={styles.metaItem}>
+              <Feather name="navigation" size={13} color="#4CAF50" />
+              <Text style={[styles.metaText, { color: "#4CAF50", fontFamily: "Inter_600SemiBold" }]}>
+                {cafe.distance}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.tags}>
           {cafe.tags.slice(0, 3).map((tag) => (

@@ -16,6 +16,7 @@ router.get("/cafes", (_req, res) => {
     id: c.id, name: c.name, logo: c.logo, image: c.image,
     openTime: c.openTime, closeTime: c.closeTime,
     rating: c.rating, tags: c.tags, address: c.address,
+    lat: c.lat, lng: c.lng,
   }));
   res.json({ cafes: publicCafes });
 });

@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import * as Location from "expo-location";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -28,6 +29,8 @@ interface ApiCafe {
   rating: number;
   tags: string[];
   address: string;
+  lat?: number;
+  lng?: number;
 }
 
 function isOpen(openTime: string, closeTime: string): boolean {
@@ -39,7 +42,27 @@ function isOpen(openTime: string, closeTime: string): boolean {
   return close <= open ? (mins >= open || mins < close) : (mins >= open && mins < close);
 }
 
-function mapCafe(c: ApiCafe): Cafe {
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDist(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} م`;
+  return `${km.toFixed(1)} كم`;
+}
+
+function mapCafe(c: ApiCafe, userLat?: number, userLng?: number): Cafe {
+  let distance = "";
+  if (userLat != null && userLng != null && c.lat != null && c.lng != null) {
+    distance = formatDist(haversineKm(userLat, userLng, c.lat, c.lng));
+  }
   return {
     id:          c.id,
     name:        c.name,
@@ -48,10 +71,12 @@ function mapCafe(c: ApiCafe): Cafe {
     isOpen:      isOpen(c.openTime, c.closeTime),
     rating:      c.rating ?? 0,
     reviewCount: 0,
-    distance:    "",
+    distance,
     category:    c.tags?.[0] ?? "Coffee",
     address:     c.address,
     tags:        c.tags ?? [],
+    lat:         c.lat,
+    lng:         c.lng,
   };
 }
 
@@ -61,17 +86,39 @@ export default function HomeScreen() {
   const insets  = useSafeAreaInsets();
   const { user } = useApp();
   const [search,      setSearch]      = useState("");
+  const [rawCafes,    setRawCafes]    = useState<ApiCafe[]>([]);
   const [apiCafes,    setApiCafes]    = useState<Cafe[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
+  const [userLoc,     setUserLoc]     = useState<{ lat: number; lng: number } | null>(null);
+  const locRequested = useRef(false);
+
+  // Request location once on mount
+  useEffect(() => {
+    if (locRequested.current) return;
+    locRequested.current = true;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } catch { /* permission denied or unavailable */ }
+    })();
+  }, []);
+
+  // Re-map cafes whenever raw data or user location changes
+  useEffect(() => {
+    setApiCafes(rawCafes.map(c => mapCafe(c, userLoc?.lat, userLoc?.lng)));
+  }, [rawCafes, userLoc]);
 
   const fetchCafes = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
       const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
-      setApiCafes(data.cafes.map(mapCafe));
+      setRawCafes(data.cafes);
     } catch {
       setError("تعذّر تحميل الكوفيهات");
     } finally {

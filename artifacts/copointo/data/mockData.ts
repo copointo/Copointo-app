@@ -10,6 +10,8 @@ export interface Cafe {
   image: any;
   reviewCount: number;
   tags: string[];
+  lat?: number;
+  lng?: number;
 }
 
 export interface Product {
