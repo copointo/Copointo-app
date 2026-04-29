@@ -19,10 +19,14 @@ router.post("/cafes", async (req, res) => {
   const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
   const finalAddress = address || "عُمان";
 
-  // Auto-geocode if no manual coordinates provided
-  let finalLat = lat ? Number(lat) : undefined;
-  let finalLng = lng ? Number(lng) : undefined;
-  if ((finalLat == null || finalLng == null) && finalAddress) {
+  // Coordinates: only use BOTH manual values if valid; otherwise geocode
+  const manualLat = lat !== undefined && lat !== null && lat !== "" ? Number(lat) : NaN;
+  const manualLng = lng !== undefined && lng !== null && lng !== "" ? Number(lng) : NaN;
+  let finalLat: number | undefined;
+  let finalLng: number | undefined;
+  if (Number.isFinite(manualLat) && Number.isFinite(manualLng)) {
+    finalLat = manualLat; finalLng = manualLng;
+  } else if (finalAddress) {
     const geo = await geocodeAddress(finalAddress);
     if (geo) { finalLat = geo.lat; finalLng = geo.lng; }
   }

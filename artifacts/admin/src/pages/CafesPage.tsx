@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays, Globe, Download } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays, Globe, Download, LocateFixed, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -150,6 +150,25 @@ export default function CafesPage() {
   useEffect(() => { load(); }, []);
 
   const f = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoMsg,     setGeoMsg]     = useState("");
+  const useMyLocation = () => {
+    if (!navigator.geolocation) { setGeoMsg("المتصفح لا يدعم تحديد الموقع"); return; }
+    setGeoLoading(true); setGeoMsg("");
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setForm(p => ({ ...p, lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }));
+        setGeoMsg("تم تحديد موقعك بدقة ✓");
+        setGeoLoading(false);
+      },
+      err => {
+        setGeoMsg(err.code === 1 ? "تم رفض إذن الموقع" : "تعذّر تحديد الموقع");
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -467,14 +486,24 @@ export default function CafesPage() {
               </Field>
               <div>
                 <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
-                  <MapPin size={15} /> إحداثيات الموقع <span className="text-xs text-muted-foreground/60">(اختياري — لعرض المسافة)</span>
+                  <MapPin size={15} /> إحداثيات الموقع <span className="text-xs text-muted-foreground/60">(يُحدَّد تلقائياً من العنوان — أو حدّده يدوياً للدقة)</span>
                 </label>
+                <button
+                  type="button"
+                  onClick={useMyLocation}
+                  disabled={geoLoading}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-sm font-medium transition disabled:opacity-60"
+                >
+                  {geoLoading ? <Loader2 size={15} className="animate-spin" /> : <LocateFixed size={15} />}
+                  {geoLoading ? "...جاري تحديد الموقع" : "📍 استخدم موقعي الحالي (إن كنت في الكوفي)"}
+                </button>
+                {geoMsg && <div className={`text-xs mb-2 ${geoMsg.includes("✓") ? "text-green-500" : "text-amber-500"}`}>{geoMsg}</div>}
                 <div className="grid grid-cols-2 gap-3">
                   <input type="number" step="any" value={form.lat} onChange={f("lat")} placeholder="خط العرض  23.58" className={inp} dir="ltr" />
                   <input type="number" step="any" value={form.lng} onChange={f("lng")} placeholder="خط الطول  58.40" className={inp} dir="ltr" />
                 </div>
                 <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1">
-                  <ExternalLink size={11} /> ابحث عن الكوفي في Google Maps ← انقر بالزر الأيمن ← نسخ الإحداثيات
+                  <ExternalLink size={11} /> أو ابحث في Google Maps ← انقر بالزر الأيمن ← نسخ الإحداثيات
                 </a>
               </div>
               <Field label="رابط موقع الكوفي" icon={<Globe size={15} />}>
