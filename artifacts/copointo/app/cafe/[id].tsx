@@ -286,41 +286,28 @@ export default function CafeLandingScreen() {
             Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
           };
           return (
-            <>
-              {/* Distance badge — shown only when location available */}
-              {distStr !== null && (
-                <LinearGradient
-                  colors={["rgba(76,175,80,0.18)", "rgba(76,175,80,0.08)"]}
-                  style={styles.distBadge}
-                >
-                  <Feather name="navigation" size={18} color="#66BB6A" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.distBadgeLabel}>المسافة عنك</Text>
-                    <Text style={styles.distBadgeValue}>{distStr}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
-                    <Feather name="map" size={14} color="#FFF" />
-                    <Text style={styles.mapsBtnText}>افتح الخريطة</Text>
-                  </TouchableOpacity>
-                </LinearGradient>
-              )}
-
-              {/* Address card */}
-              <View style={styles.locationCard}>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.locationRow}>
-                    <Feather name="map-pin" size={14} color={PRIMARY} />
-                    <Text style={styles.locationAddress} numberOfLines={2}>{cafe.address}</Text>
-                  </View>
+            <View style={styles.locationCard}>
+              {/* Left: address + distance */}
+              <View style={{ flex: 1, gap: 6 }}>
+                <View style={styles.locationRow}>
+                  <Feather name="map-pin" size={14} color={PRIMARY} />
+                  <Text style={styles.locationAddress} numberOfLines={2}>{cafe.address}</Text>
                 </View>
-                {distStr === null && (
-                  <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
-                    <Feather name="map" size={14} color="#FFF" />
-                    <Text style={styles.mapsBtnText}>الخريطة</Text>
-                  </TouchableOpacity>
+                {distStr !== null && (
+                  <View style={styles.locationRow}>
+                    <Feather name="navigation" size={13} color="#66BB6A" />
+                    <Text style={styles.distInlineText}>
+                      يبعد عنك <Text style={styles.distInlineValue}>{distStr}</Text>
+                    </Text>
+                  </View>
                 )}
               </View>
-            </>
+              {/* Right: map button */}
+              <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
+                <Feather name="map" size={15} color="#FFF" />
+                <Text style={styles.mapsBtnText}>الخريطة</Text>
+              </TouchableOpacity>
+            </View>
           );
         })()}
 
@@ -472,15 +459,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   chipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.80)" },
-  // Distance badge (prominent green card)
-  distBadge: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderRadius: 18, borderWidth: 1, borderColor: "rgba(76,175,80,0.30)",
-    paddingHorizontal: 16, paddingVertical: 16,
-  },
-  distBadgeLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", marginBottom: 3 },
-  distBadgeValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#66BB6A" },
-
   // Location card
   locationCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
@@ -488,12 +466,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
     paddingHorizontal: 16, paddingVertical: 14,
   },
-  locationRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  locationAddress:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)", flex: 1 },
-  mapsBtn:  {
+  locationRow:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  locationAddress: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)", flex: 1 },
+  distInlineText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
+  distInlineValue: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#66BB6A" },
+  mapsBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: PRIMARY, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 9,
+    paddingHorizontal: 14, paddingVertical: 10,
   },
   mapsBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
 
