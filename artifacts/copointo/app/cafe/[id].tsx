@@ -11,6 +11,7 @@ import {
   Image,
   ImageBackground,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -51,15 +52,50 @@ export default function CafeLandingScreen() {
   const [cafe, setCafe] = useState<ApiCafe | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // User location — must be before any conditional return
-  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
-  useEffect(() => {
-    (async () => {
+  // User location states
+  const [userLoc,        setUserLoc]        = useState<{ lat: number; lng: number } | null>(null);
+  const [locPrompt,      setLocPrompt]      = useState(false);   // show custom prompt
+  const [locLoading,     setLocLoading]     = useState(false);   // fetching coords
+
+  // Prompt slide-up animation
+  const promptAnim = useRef(new Animated.Value(0)).current;
+  const showPrompt = () => {
+    setLocPrompt(true);
+    Animated.spring(promptAnim, { toValue: 1, useNativeDriver: false, tension: 60, friction: 10 }).start();
+  };
+  const hidePrompt = () => {
+    Animated.timing(promptAnim, { toValue: 0, duration: 220, useNativeDriver: false, easing: Easing.out(Easing.ease) }).start(() => setLocPrompt(false));
+  };
+  const promptTranslate = promptAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] });
+
+  const requestLocation = async () => {
+    setLocLoading(true);
+    try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
+      if (status !== "granted") { hidePrompt(); return; }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    } catch { /* unavailable */ }
+    finally { setLocLoading(false); hidePrompt(); }
+  };
+
+  // On mount: check permission status, show prompt if undetermined
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.getForegroundPermissionsAsync();
+      if (status === "granted") {
+        // Already granted — silently get location
+        try {
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        } catch { /* ignore */ }
+      } else if (status === "undetermined") {
+        // Show our custom prompt after a short delay
+        setTimeout(showPrompt, 600);
+      }
+      // If denied: nothing shown
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Shimmer animation — must be before any conditional return
@@ -142,6 +178,44 @@ export default function CafeLandingScreen() {
 
   return (
     <View style={styles.container}>
+
+      {/* ── Location Permission Prompt ── */}
+      <Modal transparent visible={locPrompt} animationType="none" statusBarTranslucent>
+        <View style={styles.promptBackdrop}>
+          <Animated.View style={[styles.promptSheet, { transform: [{ translateY: promptTranslate }] }]}>
+            {/* Header pill */}
+            <View style={styles.promptPill} />
+            {/* Icon */}
+            <View style={styles.promptIconWrap}>
+              <LinearGradient colors={["#C67C4E", "#8B4513"]} style={styles.promptIconBg}>
+                <Feather name="navigation" size={28} color="#FFF" />
+              </LinearGradient>
+            </View>
+            <Text style={styles.promptTitle}>اعرف مسافتك عن الكوفي</Text>
+            <Text style={styles.promptBody}>
+              نحتاج إذنك للوصول إلى موقعك الحالي لحساب المسافة بينك وبين الكوفي
+            </Text>
+            <TouchableOpacity
+              style={styles.promptAllowBtn}
+              onPress={requestLocation}
+              activeOpacity={0.85}
+              disabled={locLoading}
+            >
+              {locLoading
+                ? <ActivityIndicator color="#FFF" size="small" />
+                : <>
+                    <Feather name="map-pin" size={16} color="#FFF" />
+                    <Text style={styles.promptAllowText}>السماح بالموقع</Text>
+                  </>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.promptLaterBtn} onPress={hidePrompt} activeOpacity={0.7}>
+              <Text style={styles.promptLaterText}>لاحقاً</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+
       {/* ── Hero Image ── */}
       <View style={styles.heroWrap}>
         <Image source={cafeImage} style={styles.heroImg} resizeMode="cover" />
@@ -203,6 +277,8 @@ export default function CafeLandingScreen() {
           const dist = (userLoc && cafe.lat && cafe.lng)
             ? haversineKm(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng)
             : null;
+          const distStr = dist === null ? null
+            : dist < 1 ? `${Math.round(dist * 1000)} م` : `${dist.toFixed(1)} كم`;
           const openMaps = () => {
             const q = cafe.lat && cafe.lng
               ? `${cafe.lat},${cafe.lng}`
@@ -210,28 +286,41 @@ export default function CafeLandingScreen() {
             Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${q}`);
           };
           return (
-            <View style={styles.locationCard}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.locationRow}>
-                  <Feather name="map-pin" size={14} color={PRIMARY} />
-                  <Text style={styles.locationAddress} numberOfLines={2}>{cafe.address}</Text>
-                </View>
-                {dist !== null && (
-                  <View style={styles.distRow}>
-                    <Feather name="navigation" size={12} color="#66BB6A" />
-                    <Text style={styles.distText}>
-                      {dist < 1
-                        ? `${Math.round(dist * 1000)} م منك`
-                        : `${dist.toFixed(1)} كم منك`}
-                    </Text>
+            <>
+              {/* Distance badge — shown only when location available */}
+              {distStr !== null && (
+                <LinearGradient
+                  colors={["rgba(76,175,80,0.18)", "rgba(76,175,80,0.08)"]}
+                  style={styles.distBadge}
+                >
+                  <Feather name="navigation" size={18} color="#66BB6A" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.distBadgeLabel}>المسافة عنك</Text>
+                    <Text style={styles.distBadgeValue}>{distStr}</Text>
                   </View>
+                  <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
+                    <Feather name="map" size={14} color="#FFF" />
+                    <Text style={styles.mapsBtnText}>افتح الخريطة</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              )}
+
+              {/* Address card */}
+              <View style={styles.locationCard}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.locationRow}>
+                    <Feather name="map-pin" size={14} color={PRIMARY} />
+                    <Text style={styles.locationAddress} numberOfLines={2}>{cafe.address}</Text>
+                  </View>
+                </View>
+                {distStr === null && (
+                  <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
+                    <Feather name="map" size={14} color="#FFF" />
+                    <Text style={styles.mapsBtnText}>الخريطة</Text>
+                  </TouchableOpacity>
                 )}
               </View>
-              <TouchableOpacity style={styles.mapsBtn} onPress={openMaps} activeOpacity={0.8}>
-                <Feather name="map" size={15} color="#FFF" />
-                <Text style={styles.mapsBtnText}>الخريطة</Text>
-              </TouchableOpacity>
-            </View>
+            </>
           );
         })()}
 
@@ -383,24 +472,72 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7,
   },
   chipText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.80)" },
+  // Distance badge (prominent green card)
+  distBadge: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderRadius: 18, borderWidth: 1, borderColor: "rgba(76,175,80,0.30)",
+    paddingHorizontal: 16, paddingVertical: 16,
+  },
+  distBadgeLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", marginBottom: 3 },
+  distBadgeValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#66BB6A" },
+
   // Location card
   locationCard: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: CARD, borderRadius: 16,
     borderWidth: 1, borderColor: BORDER,
     paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 8,
   },
-  locationRow:    { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  locationRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
   locationAddress:{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.70)", flex: 1 },
-  distRow:  { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
-  distText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#66BB6A" },
   mapsBtn:  {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: PRIMARY, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
   },
   mapsBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+
+  // Location permission prompt (bottom sheet)
+  promptBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  promptSheet: {
+    backgroundColor: "#1A1040",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 28, paddingBottom: 36, paddingTop: 14,
+    alignItems: "center",
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  promptPill: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.20)", marginBottom: 24,
+  },
+  promptIconWrap: { marginBottom: 18 },
+  promptIconBg: {
+    width: 72, height: 72, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+  },
+  promptTitle: {
+    fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF",
+    textAlign: "center", marginBottom: 10,
+  },
+  promptBody: {
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.60)", textAlign: "center",
+    lineHeight: 22, marginBottom: 28,
+  },
+  promptAllowBtn: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: PRIMARY, borderRadius: 16,
+    paddingVertical: 16, paddingHorizontal: 40,
+    width: "100%", justifyContent: "center", marginBottom: 12,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
+  },
+  promptAllowText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  promptLaterBtn: { paddingVertical: 10, paddingHorizontal: 20 },
+  promptLaterText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
   tagsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tag: {
     backgroundColor: `${PRIMARY}22`, borderRadius: 20,
