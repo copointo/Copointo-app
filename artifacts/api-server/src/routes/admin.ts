@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { cafes, users, type Cafe } from "../store";
+import { geocodeAddress } from "../utils/geocode";
 
 const router = Router();
 
@@ -9,13 +10,23 @@ router.get("/cafes", (_req, res) => {
 });
 
 // ── POST /api/admin/cafes ───────────────────
-router.post("/cafes", (req, res) => {
+router.post("/cafes", async (req, res) => {
   const { name, ownerName, ownerPhone, logo, openTime, closeTime, managerPassword, address, tags, subscriptionStart, subscriptionEnd, website, lat, lng } = req.body;
   if (!name || !ownerPhone || !openTime || !closeTime || !managerPassword) {
     return res.status(400).json({ error: "Missing required fields" });
   }
   const today = new Date().toISOString().split("T")[0];
   const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
+  const finalAddress = address || "عُمان";
+
+  // Auto-geocode if no manual coordinates provided
+  let finalLat = lat ? Number(lat) : undefined;
+  let finalLng = lng ? Number(lng) : undefined;
+  if ((finalLat == null || finalLng == null) && finalAddress) {
+    const geo = await geocodeAddress(finalAddress);
+    if (geo) { finalLat = geo.lat; finalLng = geo.lng; }
+  }
+
   const newCafe: Cafe = {
     id: Date.now().toString(),
     name,
@@ -35,9 +46,9 @@ router.post("/cafes", (req, res) => {
     createdAt: new Date().toISOString(),
     rating: 4.5,
     tags: tags || [],
-    address: address || "عُمان",
-    lat: lat ? Number(lat) : undefined,
-    lng: lng ? Number(lng) : undefined,
+    address: finalAddress,
+    lat: finalLat,
+    lng: finalLng,
   };
   cafes.push(newCafe);
   res.status(201).json({ cafe: newCafe });
