@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
-import { getRank } from "@/data/mockData";
+import { RANKS, getRank } from "@/data/mockData";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -357,6 +357,105 @@ function LogoutConfirmModal({ visible, onClose, onConfirm }: { visible: boolean;
   );
 }
 
+// ─── Ranks Journey Modal ─────────────────────────────────────
+function RanksModal({
+  visible, onClose, currentLevel,
+}: { visible: boolean; onClose: () => void; currentLevel: number }) {
+  const currentRank = getRank(currentLevel);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.ranksCard}>
+          {/* Header */}
+          <View style={styles.ranksHeader}>
+            <Text style={styles.ranksTitle}>رحلة القهوة</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+              <Feather name="x" size={22} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.ranksSubtitle}>
+            أنت الآن في المستوى <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{currentLevel}</Text>
+            {"  •  "}
+            <Text style={{ color: PRIMARY }}>{currentRank.name}</Text>
+          </Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 6 }}>
+            {RANKS.map((r) => {
+              const isPast    = currentLevel > r.max;
+              const isCurrent = currentLevel >= r.min && currentLevel <= r.max;
+              const cupsLeft  = Math.max(0, r.min - currentLevel);
+
+              return (
+                <View
+                  key={r.nameEn}
+                  style={[
+                    styles.rankRow,
+                    isCurrent && styles.rankRowCurrent,
+                    isPast && { opacity: 0.55 },
+                  ]}
+                >
+                  {/* Icon */}
+                  <View style={[
+                    styles.rankRowIcon,
+                    isCurrent && { borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.15)" }
+                  ]}>
+                    <Text style={{ fontSize: 22 }}>{r.icon}</Text>
+                  </View>
+
+                  {/* Name + range */}
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Text style={[styles.rankRowName, isCurrent && { color: PRIMARY }]}>{r.nameEn}</Text>
+                      {isCurrent && (
+                        <View style={styles.hereBadge}>
+                          <Text style={styles.hereBadgeText}>أنت هنا</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.rankRowSub}>{r.name}</Text>
+                    <Text style={styles.rankRowRange}>المستويات {r.min}–{r.max}</Text>
+                  </View>
+
+                  {/* Status */}
+                  <View style={styles.rankRowStatus}>
+                    {isPast ? (
+                      <View style={styles.checkPill}>
+                        <Feather name="check" size={14} color="#7DD87D" />
+                      </View>
+                    ) : isCurrent ? (
+                      <View style={styles.cupsRemainingCol}>
+                        <Text style={styles.cupsRemainingNum}>{r.max - currentLevel + 1}</Text>
+                        <Text style={styles.cupsRemainingLbl}>كوفي حتى التالية</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.cupsRemainingCol}>
+                        <View style={styles.cupsPill}>
+                          <Text style={{ fontSize: 11 }}>☕</Text>
+                          <Text style={styles.cupsPillNum}>{cupsLeft}</Text>
+                        </View>
+                        <Text style={styles.cupsRemainingLbl}>متبقي</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+            <View style={{ height: 8 }} />
+          </ScrollView>
+
+          {/* Footer note */}
+          <View style={styles.ranksFooter}>
+            <Feather name="info" size={13} color="rgba(255,255,255,0.5)" />
+            <Text style={styles.ranksFooterText}>كل طلب قهوة = 1 مستوى. كل 7 مستويات = ☕ مجاني!</Text>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 // ─── Profile Screen ───────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -366,6 +465,7 @@ export default function ProfileScreen() {
   const [authOpen,    setAuthOpen]    = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [modal, setModal] = useState<null | "username" | "password">(null);
+  const [ranksOpen, setRanksOpen] = useState(false);
 
   const avatarUri = user?.avatar ?? null;
   const genderEmoji = user?.gender === "female" ? "👩" : user?.gender === "male" ? "🧑" : "👤";
@@ -467,8 +567,12 @@ export default function ProfileScreen() {
           <Text style={styles.changePhotoHint}>اضغط لتغيير الصورة</Text>
         </View>
 
-        {/* ── Rank pill (matches design) ── */}
-        <View style={styles.rankPill}>
+        {/* ── Rank pill (tap to view full ranks journey) ── */}
+        <TouchableOpacity
+          style={styles.rankPill}
+          activeOpacity={0.85}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRanksOpen(true); }}
+        >
           <View style={styles.rankPillIconRing}>
             <Text style={styles.rankPillIcon}>{rank?.icon ?? "☕"}</Text>
           </View>
@@ -476,7 +580,8 @@ export default function ProfileScreen() {
             <Text style={styles.rankPillName}>{rank?.nameEn ?? "Coffee Beginner"}</Text>
             <Text style={styles.rankPillSub}>{rank?.name ?? "مبتدئ كوفي"}</Text>
           </View>
-        </View>
+          <Feather name="chevron-left" size={18} color={PRIMARY} style={{ opacity: 0.7 }} />
+        </TouchableOpacity>
 
         {/* ── Stats grid ── */}
         <View style={styles.statsGrid}>
@@ -599,6 +704,13 @@ export default function ProfileScreen() {
         visible={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={async () => { setConfirmOpen(false); await logout(); }}
+      />
+
+      {/* Ranks journey */}
+      <RanksModal
+        visible={ranksOpen}
+        onClose={() => setRanksOpen(false)}
+        currentLevel={level}
       />
     </View>
   );
@@ -880,4 +992,78 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   confirmSub: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.60)", textAlign: "center", lineHeight: 20 },
+
+  // Ranks Modal
+  ranksCard: {
+    width: "100%", maxHeight: "85%",
+    backgroundColor: "#0F0606",
+    borderRadius: 24, padding: 18,
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 }, elevation: 12,
+  },
+  ranksHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingBottom: 6,
+  },
+  ranksTitle: { fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFF" },
+  ranksSubtitle: {
+    fontSize: 13, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.65)", textAlign: "right",
+    paddingBottom: 8,
+  },
+  rankRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 16, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.10)",
+  },
+  rankRowCurrent: {
+    backgroundColor: "rgba(232,184,109,0.07)",
+    borderColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 }, elevation: 6,
+  },
+  rankRowIcon: {
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.25)",
+  },
+  rankRowName: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF" },
+  rankRowSub:  { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(232,184,109,0.65)" },
+  rankRowRange:{ fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
+  rankRowStatus: { minWidth: 70, alignItems: "center", justifyContent: "center" },
+  hereBadge: {
+    backgroundColor: PRIMARY, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+  },
+  hereBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+  checkPill: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "rgba(125,216,125,0.15)",
+    borderWidth: 1, borderColor: "rgba(125,216,125,0.45)",
+    alignItems: "center", justifyContent: "center",
+  },
+  cupsRemainingCol: { alignItems: "center", gap: 3 },
+  cupsRemainingNum: { fontSize: 18, fontFamily: "Inter_700Bold", color: PRIMARY },
+  cupsRemainingLbl: {
+    fontSize: 9, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.50)", textAlign: "center",
+  },
+  cupsPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+  },
+  cupsPillNum: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  ranksFooter: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingTop: 10, marginTop: 4,
+    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  ranksFooterText: {
+    flex: 1, fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.50)", textAlign: "right",
+  },
 });

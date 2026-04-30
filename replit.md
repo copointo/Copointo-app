@@ -30,7 +30,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
   - TikTok-style vertical video feed
   - Messaging hub (user-to-user and user-to-cafe)
   - Copointo Game with 1000 levels, 10 rank tiers, free coffee every 7 levels
-  - User profile with level/rank progress
+  - User profile with level/rank progress; tapping the rank pill opens a "Ranks Journey" modal listing all 10 ranks with cups remaining to reach each one
   - Shopping cart with order management
 - **State**: AsyncStorage for all persistence (no backend needed for first build)
 - **Colors**: Pure-black + amber-glow (#E8B86D) theme on the Profile and Game screens — black background, amber-glowing borders/rings on cards, double glowing ring around the profile avatar showing the level number, diamond-shaped game tiles (rotated squares) with amber borders + lock icons for locked levels, dotted amber connectors between tiles, purple Leaderboard FAB on Game screen.
