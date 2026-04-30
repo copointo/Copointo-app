@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   FlatList,
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -21,6 +22,7 @@ function ConversationItem({ msg }: { msg: Message }) {
   const router  = useRouter();
   const { markRead } = useMessages();
   const isCafe  = msg.type === "cafe";
+  const isGroup = msg.type === "group";
 
   const openChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -28,23 +30,36 @@ function ConversationItem({ msg }: { msg: Message }) {
     router.push(`/conversation?id=${msg.id}&name=${encodeURIComponent(msg.senderName)}&type=${msg.type}`);
   };
 
+  // Render avatar: image URI, emoji, or placeholder
+  const isImageAvatar =
+    !!msg.senderAvatar &&
+    (msg.senderAvatar.startsWith("http") || msg.senderAvatar.startsWith("data:") || msg.senderAvatar.startsWith("file:"));
+  const placeholderEmoji = isCafe ? "☕" : isGroup ? "👥" : "👤";
+
   return (
     <TouchableOpacity
       style={[styles.convItem, { borderBottomColor: colors.border }]}
       activeOpacity={0.85}
       onPress={openChat}
     >
-      <View
-        style={[
-          styles.avatar,
-          {
-            backgroundColor: isCafe ? colors.primary + "22" : colors.secondary,
-            borderColor: isCafe ? colors.primary : colors.border,
-          },
-        ]}
-      >
-        <Text style={styles.avatarEmoji}>{isCafe ? "☕" : "👤"}</Text>
-      </View>
+      {isImageAvatar ? (
+        <Image
+          source={{ uri: msg.senderAvatar! }}
+          style={[styles.avatar, { borderColor: isGroup ? colors.primary : colors.border }]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.avatar,
+            {
+              backgroundColor: isCafe || isGroup ? colors.primary + "22" : colors.secondary,
+              borderColor: isCafe || isGroup ? colors.primary : colors.border,
+            },
+          ]}
+        >
+          <Text style={styles.avatarEmoji}>{msg.senderAvatar && !isImageAvatar ? msg.senderAvatar : placeholderEmoji}</Text>
+        </View>
+      )}
       <View style={styles.convContent}>
         <View style={styles.convHeader}>
           <Text style={[styles.senderName, { color: colors.foreground }]}>
@@ -83,6 +98,7 @@ function ConversationItem({ msg }: { msg: Message }) {
 export default function MessagesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { convList, refreshChats } = useMessages();
   const [search, setSearch] = useState("");
 
@@ -107,6 +123,17 @@ export default function MessagesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
+        <TouchableOpacity
+          style={[styles.newGroupBtn, { backgroundColor: colors.primary }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/create-group");
+          }}
+          activeOpacity={0.85}
+        >
+          <Feather name="users" size={14} color="#000" />
+          <Text style={styles.newGroupText}>مجموعة جديدة</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.searchBox, { borderColor: colors.border, backgroundColor: colors.card }]}>
@@ -153,6 +180,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontFamily: "Inter_700Bold",
+  },
+  newGroupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  newGroupText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: "#000",
   },
   searchBox: {
     flexDirection: "row",

@@ -47,7 +47,7 @@ export interface Message {
   preview: string;
   timestamp: string;
   unread: number;
-  type: "user" | "cafe";
+  type: "user" | "cafe" | "group";
 }
 
 export interface ChatMessage {
@@ -56,6 +56,47 @@ export interface ChatMessage {
   fromMe: boolean;
   time: string;       // e.g. "10:32 ص"
   seen: boolean;      // true → ✓✓ blue, false → ✓ grey
+  /** For group messages: who sent it (display purposes). */
+  senderId?: string;
+  senderName?: string;
+  senderAvatar?: string;
+}
+
+/** A user-created chat group. Stored per-user and mirrored to members. */
+export interface Group {
+  id: string;
+  name: string;
+  /** Optional avatar — image URI (data: or http) or a single emoji. */
+  avatar?: string;
+  /** All member user IDs, including the creator. */
+  members: string[];
+  createdBy: string;
+  createdAt: number;
+}
+
+/** A game community / clan. 2-50 members. Score is the sum of members' totalOrders. */
+export interface Community {
+  id: string;
+  name: string;
+  /** Optional avatar — image URI (data: or http) or a single emoji. */
+  avatar?: string;
+  /** Confirmed member user IDs (includes the creator). 2 ≤ length ≤ 50. */
+  members: string[];
+  createdBy: string;
+  createdAt: number;
+}
+
+export const COMMUNITY_MIN_MEMBERS = 2;
+export const COMMUNITY_MAX_MEMBERS = 50;
+
+/** A pending invitation for a user to join a community. */
+export interface CommunityInvite {
+  communityId: string;
+  communityName: string;
+  communityAvatar?: string;
+  fromUserId: string;
+  fromUserName: string;
+  invitedAt: number;
 }
 
 export const CAFES: Cafe[] = [

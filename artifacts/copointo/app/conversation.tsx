@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -14,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatMessage } from "@/data/mockData";
+import { useApp } from "@/context/AppContext";
 import { useMessages } from "@/context/MessagesContext";
 
 const BG      = "#000000";
@@ -47,8 +49,16 @@ export default function ConversationScreen() {
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type: string }>();
 
-  const { chats, markRead, appendMsg, markSeen } = useMessages();
+  const { chats, markRead, appendMsg, markSeen, getGroup } = useMessages();
+  const { registeredUsers } = useApp();
   const convMsgs = chats[id ?? ""] ?? [];
+
+  const isGroup = type === "group";
+  // For group conversations, the underlying group id is the convId without the `group_` prefix
+  const groupId = isGroup && id?.startsWith("group_") ? id.slice("group_".length) : undefined;
+  const group = groupId ? getGroup(groupId) : undefined;
+  const isImageAvatar = !!group?.avatar &&
+    (group.avatar.startsWith("http") || group.avatar.startsWith("data:") || group.avatar.startsWith("file:"));
 
   const listRef = useRef<FlatList>(null);
   const [text, setText] = useState("");
@@ -89,6 +99,15 @@ export default function ConversationScreen() {
   const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {
     const prevMsg  = convMsgs[index - 1];
     const showTime = !prevMsg || prevMsg.time !== item.time;
+    // In a group, only show sender name on the first bubble of a run from that sender
+    const isRunStart = !prevMsg || prevMsg.fromMe || prevMsg.senderId !== item.senderId;
+    const showSenderName = isGroup && !item.fromMe && isRunStart && !!item.senderName;
+
+    // Sender avatar for this message (group messages may carry their own)
+    const senderEmoji = isCafe ? "☕" : isGroup ? "👤" : "👤";
+    const senderAvatarUri = item.senderAvatar &&
+      (item.senderAvatar.startsWith("http") || item.senderAvatar.startsWith("data:") || item.senderAvatar.startsWith("file:"))
+        ? item.senderAvatar : null;
 
     return (
       <View>
@@ -96,17 +115,24 @@ export default function ConversationScreen() {
           <Text style={styles.timeLabel}>{item.time}</Text>
         )}
         <View style={[styles.bubbleRow, item.fromMe && styles.bubbleRowMe]}>
-          {/* Their avatar (only first in group) */}
-          {!item.fromMe && (!prevMsg || prevMsg.fromMe) && (
-            <View style={styles.theirAvatar}>
-              <Text style={{ fontSize: 16 }}>{isCafe ? "☕" : "👤"}</Text>
-            </View>
+          {/* Their avatar (only first of a run) */}
+          {!item.fromMe && isRunStart && (
+            senderAvatarUri ? (
+              <Image source={{ uri: senderAvatarUri }} style={styles.theirAvatarImg} />
+            ) : (
+              <View style={styles.theirAvatar}>
+                <Text style={{ fontSize: 16 }}>{senderEmoji}</Text>
+              </View>
+            )
           )}
-          {!item.fromMe && prevMsg && !prevMsg.fromMe && (
+          {!item.fromMe && !isRunStart && (
             <View style={{ width: 32 }} />
           )}
 
           <View style={[styles.bubble, item.fromMe ? styles.meBubble : styles.themBubble]}>
+            {showSenderName && (
+              <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
+            )}
             <Text style={[styles.bubbleText, item.fromMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
               {item.text}
             </Text>
@@ -145,15 +171,37 @@ export default function ConversationScreen() {
           <Feather name="arrow-left" size={22} color="#FFF" />
         </TouchableOpacity>
 
-        <View style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <Text style={{ fontSize: 18 }}>{isCafe ? "☕" : "👤"}</Text>
+        <TouchableOpacity
+          style={styles.headerInfo}
+          onPress={() => {
+            if (isGroup && groupId) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push(`/group-info?id=${groupId}`);
+            }
+          }}
+          activeOpacity={isGroup ? 0.7 : 1}
+          disabled={!isGroup}
+        >
+          {isGroup && isImageAvatar ? (
+            <Image source={{ uri: group!.avatar! }} style={styles.headerAvatarImg} />
+          ) : (
+            <View style={[styles.headerAvatar, isGroup && { backgroundColor: PRIMARY + "22" }]}>
+              <Text style={{ fontSize: 18 }}>{isCafe ? "☕" : isGroup ? "👥" : "👤"}</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {isGroup && group ? group.name : name}
+            </Text>
+            <Text style={styles.headerSub}>
+              {isCafe
+                ? "مقهى"
+                : isGroup
+                  ? `${group?.members.length ?? 0} أعضاء · اضغط للتفاصيل`
+                  : "صديق"}
+            </Text>
           </View>
-          <View>
-            <Text style={styles.headerName} numberOfLines={1}>{name}</Text>
-            <Text style={styles.headerSub}>{isCafe ? "مقهى" : "صديق"}</Text>
-          </View>
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Messages list */}
@@ -212,6 +260,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.10)",
     alignItems: "center", justifyContent: "center",
   },
+  headerAvatarImg: {
+    width: 40, height: 40, borderRadius: 20,
+    borderWidth: 1, borderColor: PRIMARY,
+  },
   headerName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
   headerSub:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
 
@@ -232,6 +284,16 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.10)",
     alignItems: "center", justifyContent: "center",
+  },
+  theirAvatarImg: {
+    width: 32, height: 32, borderRadius: 16,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+  },
+  senderLabel: {
+    fontSize: 11, fontFamily: "Inter_700Bold",
+    color: PRIMARY,
+    marginBottom: 3,
+    textAlign: "right",
   },
 
   bubble:      { maxWidth: "100%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },

@@ -1,6 +1,6 @@
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useCommunities } from "@/context/CommunityContext";
 import { RANKS, getRank } from "@/data/mockData";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -38,6 +39,14 @@ export default function GameScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
   const { user }  = useApp();
+  const { incomingInvites, refresh: refreshCommunities } = useCommunities();
+
+  // Re-read invite badge whenever the Game tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshCommunities();
+    }, [refreshCommunities]),
+  );
   const scrollRef = useRef<ScrollView>(null);
   const [showGoBack, setShowGoBack] = useState(false);
 
@@ -251,6 +260,20 @@ export default function GameScreen() {
           activeOpacity={0.85}
         >
           <Feather name="user-plus" size={22} color={PRIMARY} />
+        </TouchableOpacity>
+
+        {/* Communities */}
+        <TouchableOpacity
+          style={styles.fabSmall}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="users" size={22} color={PRIMARY} />
+          {incomingInvites.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{incomingInvites.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Leaderboard - purple distinctive */}
