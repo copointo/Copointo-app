@@ -33,7 +33,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
   - User profile with level/rank progress
   - Shopping cart with order management
 - **State**: AsyncStorage for all persistence (no backend needed for first build)
-- **Colors**: Warm espresso/amber palette with dark mode support
+- **Colors**: Pure-black + amber-glow (#E8B86D) theme on the Profile and Game screens — black background, amber-glowing borders/rings on cards, double glowing ring around the profile avatar showing the level number, diamond-shaped game tiles (rotated squares) with amber borders + lock icons for locked levels, dotted amber connectors between tiles, purple Leaderboard FAB on Game screen.
 - **Data**: Mock data in `data/mockData.ts` (CAFES, PRODUCTS, VIDEOS, MESSAGES, RANKS)
 - **Auth**: Local AsyncStorage-based register/login. `User` has optional `avatar?: string` and `gender?: "male" | "female"`. The `setUser()` mutator in `AppContext` keeps both `currentUser` and the matching entry in `registeredUsers` in sync (state + AsyncStorage), so profile edits (avatar, etc.) propagate to the leaderboard, game header, friends list, and competitor profile, and persist across logout/login.
 
