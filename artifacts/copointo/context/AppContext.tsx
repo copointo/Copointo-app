@@ -10,11 +10,17 @@ import React, {
 export interface User {
   id: string;
   name: string;
+  email: string;
+  phone: string;
+  gameUsername: string;
+  password: string;
   avatar?: string;
   level: number;
   totalOrders: number;
   points: number;
 }
+
+export type AuthResult = { ok: true } | { ok: false; error: string };
 
 export interface CartItem {
   id: string;
@@ -29,6 +35,9 @@ export interface CartItem {
 interface AppContextType {
   user: User | null;
   setUser: (user: User | null) => void;
+  register: (data: Omit<User, "id" | "level" | "totalOrders" | "points">) => Promise<AuthResult>;
+  login: (phone: string, password: string) => Promise<AuthResult>;
+  logout: () => Promise<void>;
   cart: CartItem[];
   addToCart: (item: Omit<CartItem, "quantity">) => void;
   removeFromCart: (itemId: string) => void;
@@ -56,14 +65,7 @@ export interface Order {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUserState] = useState<User | null>({
-    id: "user_1",
-    name: "Ahmed Al-Rashidi",
-    avatar: undefined,
-    level: 0,
-    totalOrders: 89,
-    points: 2450,
-  });
+  const [user, setUserState] = useState<User | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [likedVideos, setLikedVideos] = useState<string[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
@@ -74,19 +76,70 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [cartData, likesData, ordersData] = await Promise.all([
+      const [cartData, likesData, ordersData, userData] = await Promise.all([
         AsyncStorage.getItem("cart"),
         AsyncStorage.getItem("likedVideos"),
         AsyncStorage.getItem("orderHistory"),
+        AsyncStorage.getItem("currentUser"),
       ]);
       if (cartData) setCart(JSON.parse(cartData));
       if (likesData) setLikedVideos(JSON.parse(likesData));
       if (ordersData) setOrderHistory(JSON.parse(ordersData));
+      if (userData) setUserState(JSON.parse(userData));
     } catch (e) {}
   };
 
   const setUser = useCallback((u: User | null) => {
     setUserState(u);
+    if (u) AsyncStorage.setItem("currentUser", JSON.stringify(u));
+    else AsyncStorage.removeItem("currentUser");
+  }, []);
+
+  const register = useCallback(
+    async (data: Omit<User, "id" | "level" | "totalOrders" | "points">): Promise<AuthResult> => {
+      try {
+        const raw = await AsyncStorage.getItem("registeredUsers");
+        const users: User[] = raw ? JSON.parse(raw) : [];
+        if (users.some(u => u.phone === data.phone))
+          return { ok: false, error: "رقم الهاتف مسجّل مسبقاً" };
+        if (users.some(u => u.gameUsername.toLowerCase() === data.gameUsername.toLowerCase()))
+          return { ok: false, error: "يوزر اللعبة مستخدم مسبقاً" };
+        const newUser: User = {
+          ...data,
+          id: `user_${Date.now()}`,
+          level: 0,
+          totalOrders: 0,
+          points: 0,
+        };
+        const updated = [...users, newUser];
+        await AsyncStorage.setItem("registeredUsers", JSON.stringify(updated));
+        await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
+        setUserState(newUser);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "حدث خطأ أثناء التسجيل" };
+      }
+    },
+    []
+  );
+
+  const login = useCallback(async (phone: string, password: string): Promise<AuthResult> => {
+    try {
+      const raw = await AsyncStorage.getItem("registeredUsers");
+      const users: User[] = raw ? JSON.parse(raw) : [];
+      const found = users.find(u => u.phone === phone && u.password === password);
+      if (!found) return { ok: false, error: "رقم الهاتف أو كلمة المرور غير صحيحة" };
+      await AsyncStorage.setItem("currentUser", JSON.stringify(found));
+      setUserState(found);
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "حدث خطأ أثناء تسجيل الدخول" };
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    await AsyncStorage.removeItem("currentUser");
+    setUserState(null);
   }, []);
 
   const addToCart = useCallback((item: Omit<CartItem, "quantity">) => {
@@ -152,6 +205,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         setUser,
+        register,
+        login,
+        logout,
         cart,
         addToCart,
         removeFromCart,
