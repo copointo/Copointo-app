@@ -16,15 +16,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { RankBadge } from "@/components/RankBadge";
 import { useApp } from "@/context/AppContext";
 import { getRank } from "@/data/mockData";
 
-const BG   = "#0F0A2E";
-const CARD = "rgba(255,255,255,0.06)";
-const BORDER = "rgba(255,255,255,0.10)";
-const PRIMARY = "#C67C4E";
-const DANGER = "#E55353";
+const BG      = "#000000";
+const CARD    = "#0A0606";
+const BORDER  = "rgba(232,184,109,0.35)";
+const PRIMARY = "#E8B86D";
+const DANGER  = "#E55353";
 
 // ─── Edit Modal ──────────────────────────────────────────────
 function EditModal({
@@ -450,27 +449,33 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 16 }}
       >
-        {/* ── Avatar ── */}
+        {/* ── Avatar with double glowing ring ── */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity style={styles.avatarWrap} onPress={pickImage} activeOpacity={0.85}>
-            {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
-            ) : (
-              <View style={[styles.avatarFallback, { borderColor: rank?.color ?? PRIMARY }]}>
-                <Text style={styles.avatarLetter}>{genderEmoji}</Text>
-              </View>
-            )}
-            {/* Camera overlay */}
-            <View style={styles.cameraOverlay}>
-              <Feather name="camera" size={16} color="#FFF" />
+          <TouchableOpacity onPress={pickImage} activeOpacity={0.85} style={styles.avatarOuterRing}>
+            <View style={styles.avatarInnerRing}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+              ) : (
+                <Text style={styles.avatarLevelNum}>{level}</Text>
+              )}
+            </View>
+            {/* Camera badge bottom-right inside ring */}
+            <View style={styles.cameraBadge}>
+              <Feather name="camera" size={15} color="#FFF" />
             </View>
           </TouchableOpacity>
           <Text style={styles.changePhotoHint}>اضغط لتغيير الصورة</Text>
         </View>
 
-        {/* ── Rank badge ── */}
-        <View style={{ alignItems: "center" }}>
-          <RankBadge level={level} size="lg" />
+        {/* ── Rank pill (matches design) ── */}
+        <View style={styles.rankPill}>
+          <View style={styles.rankPillIconRing}>
+            <Text style={styles.rankPillIcon}>{rank?.icon ?? "☕"}</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <Text style={styles.rankPillName}>{rank?.nameEn ?? "Coffee Beginner"}</Text>
+            <Text style={styles.rankPillSub}>{rank?.name ?? "مبتدئ كوفي"}</Text>
+          </View>
         </View>
 
         {/* ── Stats grid ── */}
@@ -626,65 +631,115 @@ const styles = StyleSheet.create({
   },
   loginBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
 
-  // Avatar
-  avatarSection:  { alignItems: "center", gap: 8, marginTop: 8 },
-  avatarWrap:     { position: "relative" },
-  avatarImg:      { width: 100, height: 100, borderRadius: 50 },
-  avatarFallback: {
-    width: 100, height: 100, borderRadius: 50,
-    borderWidth: 3, alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.08)",
+  // ── Avatar (double glowing ring) ──
+  avatarSection: { alignItems: "center", gap: 10, marginTop: 12 },
+  avatarOuterRing: {
+    width: 160, height: 160, borderRadius: 80,
+    borderWidth: 2, borderColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "transparent",
+    position: "relative",
+    shadowColor: PRIMARY, shadowOpacity: 0.6,
+    shadowRadius: 20, shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
   },
-  avatarLetter:   { fontSize: 42, fontFamily: "Inter_700Bold", color: "#FFF" },
-  cameraOverlay:  {
-    position: "absolute", bottom: 0, right: 0,
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: BG,
+  avatarInnerRing: {
+    width: 132, height: 132, borderRadius: 66,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.45)",
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#0A0606", overflow: "hidden",
   },
-  changePhotoHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.35)" },
+  avatarImg: { width: 132, height: 132, borderRadius: 66 },
+  avatarLevelNum: {
+    fontSize: 64, fontFamily: "Inter_700Bold", color: "#FFF",
+    lineHeight: 74,
+  },
+  cameraBadge: {
+    position: "absolute", bottom: 6, right: 6,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "rgba(232,184,109,0.18)",
+    borderWidth: 1.5, borderColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+  },
+  changePhotoHint: {
+    fontSize: 12, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.45)", marginTop: 4,
+  },
 
-  // Stats
-  statsGrid:    { gap: 10 },
-  statsRow:     { flexDirection: "row", gap: 10 },
-  statBox:      { alignItems: "center", gap: 6, paddingVertical: 16, paddingHorizontal: 8 },
-  statBoxCard:  {
-    flex: 1, backgroundColor: CARD, borderRadius: 18,
+  // ── Rank pill ──
+  rankPill: {
+    flexDirection: "row", alignItems: "center", gap: 16,
+    backgroundColor: CARD, borderRadius: 22,
     borderWidth: 1, borderColor: BORDER,
+    paddingVertical: 14, paddingHorizontal: 20,
+    shadowColor: PRIMARY, shadowOpacity: 0.18,
+    shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
-  statIcon:  { fontSize: 22 },
-  statValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },
-  statLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)", textAlign: "center" },
+  rankPillIconRing: {
+    width: 50, height: 50, borderRadius: 25,
+    borderWidth: 1.5, borderColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,184,109,0.08)",
+    shadowColor: PRIMARY, shadowOpacity: 0.5,
+    shadowRadius: 10, shadowOffset: { width: 0, height: 0 },
+  },
+  rankPillIcon: { fontSize: 24 },
+  rankPillName: { fontSize: 18, fontFamily: "Inter_700Bold", color: PRIMARY },
+  rankPillSub:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.55)", marginTop: 2 },
 
-  // Progress
-  progressCard:   {
-    backgroundColor: CARD, borderRadius: 18, borderWidth: 1,
-    borderColor: BORDER, padding: 16, gap: 10,
+  // ── Stats (glowing cards) ──
+  statsGrid: { gap: 12 },
+  statsRow:  { flexDirection: "row", gap: 12 },
+  statBox:   { alignItems: "center", gap: 8, paddingVertical: 18, paddingHorizontal: 8 },
+  statBoxCard: {
+    flex: 1, backgroundColor: CARD, borderRadius: 22,
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: PRIMARY, shadowOpacity: 0.22,
+    shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  statIcon:  { fontSize: 26 },
+  statValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFF" },
+  statLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
+
+  // ── Progress ──
+  progressCard: {
+    backgroundColor: CARD, borderRadius: 22, borderWidth: 1,
+    borderColor: BORDER, padding: 18, gap: 10,
+    shadowColor: PRIMARY, shadowOpacity: 0.18,
+    shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
   },
   progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   progressTitle:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  progressPct:    { fontSize: 14, fontFamily: "Inter_700Bold" },
-  progressTrack:  { height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.10)", overflow: "hidden" },
+  progressPct:    { fontSize: 15, fontFamily: "Inter_700Bold" },
+  progressTrack:  { height: 8, borderRadius: 4, backgroundColor: "rgba(232,184,109,0.12)", overflow: "hidden" },
   progressFill:   { height: "100%", borderRadius: 4 },
-  progressSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)", textAlign: "center" },
+  progressSub:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
 
-  // Edit fields
+  // ── Edit fields ──
   fieldsCard: {
-    backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
+    backgroundColor: CARD, borderRadius: 22, borderWidth: 1,
     borderColor: BORDER, overflow: "hidden",
+    shadowColor: PRIMARY, shadowOpacity: 0.18,
+    shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
   },
-  fieldRow:  {
+  fieldRow: {
     flexDirection: "row", alignItems: "center", gap: 14,
-    paddingHorizontal: 16, paddingVertical: 16,
+    paddingHorizontal: 18, paddingVertical: 18,
   },
   fieldIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: `${PRIMARY}20`, alignItems: "center", justifyContent: "center",
+    width: 42, height: 42, borderRadius: 12,
+    borderWidth: 1, borderColor: PRIMARY,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    alignItems: "center", justifyContent: "center",
   },
-  fieldText: { flex: 1, gap: 2 },
-  fieldLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
+  fieldText:  { flex: 1, gap: 2 },
+  fieldLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
   fieldValue: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  divider:    { height: 1, backgroundColor: BORDER, marginHorizontal: 16 },
+  divider:    { height: 1, backgroundColor: "rgba(232,184,109,0.18)", marginHorizontal: 18 },
 
   // Logout
   logoutBtn: {
@@ -700,7 +755,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", padding: 24,
   },
   modalCard: {
-    width: "100%", backgroundColor: "#1A143A",
+    width: "100%", backgroundColor: "#0F0606",
     borderRadius: 24, padding: 24, gap: 16,
     borderWidth: 1, borderColor: BORDER,
     position: "relative",
@@ -749,7 +804,7 @@ const styles = StyleSheet.create({
 
   // ── Auth modal (new) ──
   authCard: {
-    width: "100%", backgroundColor: "#1A143A",
+    width: "100%", backgroundColor: "#0F0606",
     borderRadius: 28, padding: 22, gap: 14,
     borderWidth: 1, borderColor: BORDER,
     position: "relative",
@@ -801,7 +856,7 @@ const styles = StyleSheet.create({
     width: 26, height: 26, borderRadius: 13,
     backgroundColor: PRIMARY,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#1A143A",
+    borderWidth: 2, borderColor: "#0F0606",
   },
   regAvatarHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)", marginTop: 6 },
 
