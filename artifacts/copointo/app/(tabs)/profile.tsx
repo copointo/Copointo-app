@@ -91,21 +91,35 @@ function AuthModal({ visible, onClose }: { visible: boolean; onClose: () => void
   const [logPhone, setLogPhone] = useState("");
   const [logPass,  setLogPass]  = useState("");
 
-  // register fields
+  // register fields (simplified)
+  const [regAvatar, setRegAvatar] = useState<string | null>(null);
+  const [regGender, setRegGender] = useState<"male" | "female" | null>(null);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [gameUser, setGameUser] = useState("");
   const [pass, setPass] = useState("");
-  const [pass2, setPass2] = useState("");
 
   const reset = () => {
     setLogPhone(""); setLogPass("");
-    setName(""); setEmail(""); setPhone(""); setGameUser(""); setPass(""); setPass2("");
+    setRegAvatar(null); setRegGender(null);
+    setName(""); setPhone(""); setGameUser(""); setPass("");
     setErr(""); setBusy(false);
   };
 
   const close = () => { reset(); onClose(); };
+
+  const pickRegAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { setErr("نحتاج إذن الوصول للصور"); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [1, 1], quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setRegAvatar(result.assets[0].uri);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
 
   const submitLogin = async () => {
     setErr("");
@@ -120,19 +134,27 @@ function AuthModal({ visible, onClose }: { visible: boolean; onClose: () => void
 
   const submitRegister = async () => {
     setErr("");
-    if (!name.trim() || !email.trim() || !phone.trim() || !gameUser.trim() || !pass || !pass2) {
+    if (!name.trim() || !phone.trim() || !gameUser.trim() || !pass) {
       setErr("يرجى تعبئة جميع الحقول"); return;
     }
-    if (!email.includes("@")) { setErr("بريد إلكتروني غير صالح"); return; }
+    if (!regGender) { setErr("الرجاء اختيار الجنس"); return; }
     if (pass.length < 6) { setErr("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
-    if (pass !== pass2) { setErr("كلمتا المرور غير متطابقتين"); return; }
     setBusy(true);
-    const r = await register({ name: name.trim(), email: email.trim(), phone: phone.trim(), gameUsername: gameUser.trim(), password: pass });
+    const r = await register({
+      name: name.trim(),
+      phone: phone.trim(),
+      gameUsername: gameUser.trim(),
+      password: pass,
+      gender: regGender,
+      avatar: regAvatar ?? undefined,
+    });
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     close();
   };
+
+  const fallbackEmoji = regGender === "female" ? "👩" : regGender === "male" ? "🧑" : "📷";
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
@@ -140,33 +162,50 @@ function AuthModal({ visible, onClose }: { visible: boolean; onClose: () => void
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.modalOverlay}
       >
-        <View style={[styles.modalCard, { maxHeight: "92%" }]}>
+        <View style={[styles.authCard, { maxHeight: "94%" }]}>
           {/* close */}
           <TouchableOpacity onPress={close} style={styles.closeBtn} activeOpacity={0.7}>
             <Feather name="x" size={20} color="rgba(255,255,255,0.55)" />
           </TouchableOpacity>
 
-          <Text style={styles.modalTitle}>{mode === "login" ? "تسجيل الدخول" : "إنشاء حساب جديد"}</Text>
+          {/* Brand header */}
+          <View style={styles.authBrand}>
+            <View style={styles.authLogo}>
+              <Text style={{ fontSize: 32 }}>☕</Text>
+            </View>
+            <Text style={styles.authBrandName}>كوبوينتو</Text>
+            <Text style={styles.authBrandSub}>
+              {mode === "login" ? "أهلاً بعودتك!" : "ابدأ رحلتك مع القهوة"}
+            </Text>
+          </View>
 
           {/* Tabs */}
-          <View style={styles.tabsRow}>
+          <View style={styles.authTabs}>
             <TouchableOpacity
               onPress={() => { setMode("login"); setErr(""); }}
-              style={[styles.tab, mode === "login" && styles.tabActive]}
-              activeOpacity={0.8}
+              style={[styles.authTab, mode === "login" && styles.authTabActive]}
+              activeOpacity={0.85}
             >
-              <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>دخول</Text>
+              <Text style={[styles.authTabText, mode === "login" && styles.authTabTextActive]}>
+                دخول
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => { setMode("register"); setErr(""); }}
-              style={[styles.tab, mode === "register" && styles.tabActive]}
-              activeOpacity={0.8}
+              style={[styles.authTab, mode === "register" && styles.authTabActive]}
+              activeOpacity={0.85}
             >
-              <Text style={[styles.tabText, mode === "register" && styles.tabTextActive]}>تسجيل جديد</Text>
+              <Text style={[styles.authTabText, mode === "register" && styles.authTabTextActive]}>
+                حساب جديد
+              </Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ gap: 12, paddingBottom: 4 }}
+            keyboardShouldPersistTaps="handled"
+          >
             {mode === "login" ? (
               <>
                 <AuthField icon="phone" placeholder="رقم الهاتف" value={logPhone} onChange={setLogPhone} keyboardType="phone-pad" />
@@ -174,12 +213,51 @@ function AuthModal({ visible, onClose }: { visible: boolean; onClose: () => void
               </>
             ) : (
               <>
+                {/* Avatar picker (optional) */}
+                <View style={{ alignItems: "center", marginBottom: 4 }}>
+                  <TouchableOpacity onPress={pickRegAvatar} activeOpacity={0.85} style={styles.regAvatarWrap}>
+                    {regAvatar ? (
+                      <Image source={{ uri: regAvatar }} style={styles.regAvatarImg} />
+                    ) : (
+                      <Text style={{ fontSize: 36 }}>{fallbackEmoji}</Text>
+                    )}
+                    <View style={styles.regAvatarBadge}>
+                      <Feather name={regAvatar ? "edit-2" : "camera"} size={13} color="#FFF" />
+                    </View>
+                  </TouchableOpacity>
+                  <Text style={styles.regAvatarHint}>
+                    {regAvatar ? "اضغط لتغيير الصورة" : "أضف صورة (اختياري)"}
+                  </Text>
+                </View>
+
                 <AuthField icon="user" placeholder="الاسم الكامل" value={name} onChange={setName} />
-                <AuthField icon="mail" placeholder="البريد الإلكتروني" value={email} onChange={setEmail} keyboardType="email-address" />
                 <AuthField icon="phone" placeholder="رقم الهاتف" value={phone} onChange={setPhone} keyboardType="phone-pad" />
+
+                {/* Gender selector */}
+                <View>
+                  <Text style={styles.fieldLabel}>الجنس</Text>
+                  <View style={styles.genderRow}>
+                    <TouchableOpacity
+                      onPress={() => { setRegGender("male"); Haptics.selectionAsync(); }}
+                      style={[styles.genderBtn, regGender === "male" && styles.genderBtnActiveMale]}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.genderEmoji}>🧑</Text>
+                      <Text style={[styles.genderText, regGender === "male" && { color: "#FFF" }]}>ذكر</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => { setRegGender("female"); Haptics.selectionAsync(); }}
+                      style={[styles.genderBtn, regGender === "female" && styles.genderBtnActiveFemale]}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.genderEmoji}>👩</Text>
+                      <Text style={[styles.genderText, regGender === "female" && { color: "#FFF" }]}>أنثى</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 <AuthField icon="award" placeholder="يوزر اللعبة" value={gameUser} onChange={setGameUser} />
                 <AuthField icon="lock" placeholder="كلمة المرور (6 أحرف على الأقل)" value={pass} onChange={setPass} secure />
-                <AuthField icon="lock" placeholder="تأكيد كلمة المرور" value={pass2} onChange={setPass2} secure />
               </>
             )}
 
@@ -187,12 +265,25 @@ function AuthModal({ visible, onClose }: { visible: boolean; onClose: () => void
 
             <TouchableOpacity
               onPress={mode === "login" ? submitLogin : submitRegister}
-              style={[styles.saveBtn, { marginTop: 8 }]}
-              activeOpacity={0.85}
+              style={[styles.authPrimaryBtn, busy && { opacity: 0.6 }]}
+              activeOpacity={0.9}
               disabled={busy}
             >
-              <Text style={styles.saveText}>
-                {busy ? "..." : mode === "login" ? "دخول" : "إنشاء الحساب"}
+              <Text style={styles.authPrimaryText}>
+                {busy ? "جارٍ المعالجة..." : mode === "login" ? "دخول" : "إنشاء الحساب"}
+              </Text>
+              {!busy && <Feather name="arrow-left" size={18} color="#FFF" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}
+              style={{ paddingVertical: 8, alignItems: "center" }}
+            >
+              <Text style={styles.authSwitchText}>
+                {mode === "login" ? "ليس لديك حساب؟ " : "لديك حساب؟ "}
+                <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>
+                  {mode === "login" ? "سجّل الآن" : "ادخل"}
+                </Text>
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -275,8 +366,10 @@ export default function ProfileScreen() {
 
   const [authOpen,    setAuthOpen]    = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [modal, setModal] = useState<null | "username" | "password">(null);
+
+  const avatarUri = user?.avatar ?? null;
+  const genderEmoji = user?.gender === "female" ? "👩" : user?.gender === "male" ? "🧑" : "👤";
 
   // ── Logged-out empty state ──
   if (!user) {
@@ -340,8 +433,8 @@ export default function ProfileScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true, aspect: [1, 1], quality: 0.8,
     });
-    if (!result.canceled && result.assets[0]) {
-      setAvatarUri(result.assets[0].uri);
+    if (!result.canceled && result.assets[0] && user) {
+      setUser({ ...user, avatar: result.assets[0].uri });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
@@ -364,7 +457,7 @@ export default function ProfileScreen() {
               <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
             ) : (
               <View style={[styles.avatarFallback, { borderColor: rank?.color ?? PRIMARY }]}>
-                <Text style={styles.avatarLetter}>{username.charAt(0).toUpperCase()}</Text>
+                <Text style={styles.avatarLetter}>{genderEmoji}</Text>
               </View>
             )}
             {/* Camera overlay */}
@@ -648,7 +741,82 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.55)" },
   tabTextActive: { color: "#FFF" },
 
-  errorText: { fontSize: 13, fontFamily: "Inter_500Medium", color: DANGER, textAlign: "center" },
+  errorText: {
+    fontSize: 13, fontFamily: "Inter_500Medium",
+    color: DANGER, textAlign: "center",
+    backgroundColor: `${DANGER}15`, padding: 10, borderRadius: 10,
+  },
+
+  // ── Auth modal (new) ──
+  authCard: {
+    width: "100%", backgroundColor: "#1A143A",
+    borderRadius: 28, padding: 22, gap: 14,
+    borderWidth: 1, borderColor: BORDER,
+    position: "relative",
+  },
+  authBrand: { alignItems: "center", gap: 4, marginTop: 6 },
+  authLogo: {
+    width: 64, height: 64, borderRadius: 18,
+    backgroundColor: `${PRIMARY}25`,
+    borderWidth: 1.5, borderColor: `${PRIMARY}55`,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 4,
+  },
+  authBrandName: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF" },
+  authBrandSub:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+  authTabs: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 14, padding: 4, gap: 4,
+  },
+  authTab: { flex: 1, paddingVertical: 11, borderRadius: 11, alignItems: "center" },
+  authTabActive: {
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOpacity: 0.4,
+    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+  },
+  authTabText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.55)" },
+  authTabTextActive: { color: "#FFF" },
+  authPrimaryBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: PRIMARY, borderRadius: 14,
+    paddingVertical: 15, marginTop: 4,
+    shadowColor: PRIMARY, shadowOpacity: 0.45,
+    shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 5,
+  },
+  authPrimaryText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
+  authSwitchText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+
+  // Register avatar
+  regAvatarWrap: {
+    width: 86, height: 86, borderRadius: 43,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 2, borderColor: `${PRIMARY}60`, borderStyle: "dashed",
+    alignItems: "center", justifyContent: "center",
+    position: "relative", overflow: "hidden",
+  },
+  regAvatarImg: { width: "100%", height: "100%", borderRadius: 43 },
+  regAvatarBadge: {
+    position: "absolute", bottom: -2, right: -2,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#1A143A",
+  },
+  regAvatarHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)", marginTop: 6 },
+
+  // Gender
+  genderRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+  genderBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 13, borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  genderBtnActiveMale:   { backgroundColor: "#4FC3F7", borderColor: "#4FC3F7" },
+  genderBtnActiveFemale: { backgroundColor: "#F06292", borderColor: "#F06292" },
+  genderEmoji: { fontSize: 20 },
+  genderText:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
 
   // Confirm
   warnIcon: {

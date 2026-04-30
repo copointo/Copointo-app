@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -81,9 +82,15 @@ export default function CompetitorProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         {/* Profile card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={{ fontSize: 52 }}>👤</Text>
-          </View>
+          {target.avatar ? (
+            <Image source={{ uri: target.avatar }} style={styles.avatarImg} />
+          ) : (
+            <View style={styles.avatarCircle}>
+              <Text style={{ fontSize: 52 }}>
+                {target.gender === "female" ? "👩" : target.gender === "male" ? "🧑" : "👤"}
+              </Text>
+            </View>
+          )}
 
           <Text style={styles.displayName}>{target.name}</Text>
           <Text style={styles.username}>@{target.gameUsername}</Text>
@@ -164,6 +171,11 @@ const styles = StyleSheet.create({
     width: 96, height: 96, borderRadius: 48,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center", justifyContent: "center",
+    marginBottom: 4,
+  },
+  avatarImg: {
+    width: 96, height: 96, borderRadius: 48,
+    borderWidth: 2.5, borderColor: "rgba(255,255,255,0.20)",
     marginBottom: 4,
   },
   displayName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },

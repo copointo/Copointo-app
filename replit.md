@@ -35,6 +35,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **State**: AsyncStorage for all persistence (no backend needed for first build)
 - **Colors**: Warm espresso/amber palette with dark mode support
 - **Data**: Mock data in `data/mockData.ts` (CAFES, PRODUCTS, VIDEOS, MESSAGES, RANKS)
+- **Auth**: Local AsyncStorage-based register/login. `User` has optional `avatar?: string` and `gender?: "male" | "female"`. The `setUser()` mutator in `AppContext` keeps both `currentUser` and the matching entry in `registeredUsers` in sync (state + AsyncStorage), so profile edits (avatar, etc.) propagate to the leaderboard, game header, friends list, and competitor profile, and persist across logout/login.
 
 ## Key Commands
 

@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -30,6 +31,8 @@ interface Entry {
   level: number;
   isMe: boolean;
   isFriend: boolean;
+  avatar?: string;
+  gender?: "male" | "female";
 }
 
 export default function LeaderboardScreen() {
@@ -47,6 +50,8 @@ export default function LeaderboardScreen() {
     level: u.level,
     isMe: u.id === user?.id,
     isFriend: friends.includes(u.id),
+    avatar: u.avatar,
+    gender: u.gender,
   });
 
   const sortDesc = (a: Entry, b: Entry) => b.level - a.level;
@@ -147,9 +152,15 @@ export default function LeaderboardScreen() {
                 {MEDAL[i] ?? `#${i + 1}`}
               </Text>
 
-              <View style={[styles.avatar, entry.isMe && { backgroundColor: "#FDDCBA" }]}>
-                <Text style={{ fontSize: 20 }}>{entry.isMe ? "😊" : "👤"}</Text>
-              </View>
+              {entry.avatar ? (
+                <Image source={{ uri: entry.avatar }} style={styles.avatarImg} />
+              ) : (
+                <View style={[styles.avatar, entry.isMe && { backgroundColor: "#FDDCBA" }]}>
+                  <Text style={{ fontSize: 20 }}>
+                    {entry.gender === "female" ? "👩" : entry.gender === "male" ? "🧑" : "👤"}
+                  </Text>
+                </View>
+              )}
 
               <View style={styles.entryInfo}>
                 <Text style={[styles.entryName, entry.isMe && { color: "#C67C4E" }]}>
@@ -248,6 +259,10 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
+  },
+  avatarImg: {
+    width: 44, height: 44, borderRadius: 22,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.20)",
   },
   entryInfo: { flex: 1 },
   entryName: {

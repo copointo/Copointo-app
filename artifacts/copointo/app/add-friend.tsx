@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -98,9 +99,15 @@ export default function AddFriendScreen() {
             return (
               <View key={s.id} style={styles.row}>
                 {/* Avatar */}
-                <View style={styles.avatar}>
-                  <Text style={{ fontSize: 22 }}>👤</Text>
-                </View>
+                {s.avatar ? (
+                  <Image source={{ uri: s.avatar }} style={styles.avatarImg} />
+                ) : (
+                  <View style={styles.avatar}>
+                    <Text style={{ fontSize: 22 }}>
+                      {s.gender === "female" ? "👩" : s.gender === "male" ? "🧑" : "👤"}
+                    </Text>
+                  </View>
+                )}
 
                 {/* Info */}
                 <View style={styles.info}>
@@ -181,6 +188,10 @@ const styles = StyleSheet.create({
     width: 46, height: 46, borderRadius: 23,
     backgroundColor: "rgba(255,255,255,0.10)",
     alignItems: "center", justifyContent: "center",
+  },
+  avatarImg: {
+    width: 46, height: 46, borderRadius: 23,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.18)",
   },
   info: { flex: 1 },
   name: {

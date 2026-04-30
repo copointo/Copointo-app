@@ -7,14 +7,17 @@ import React, {
   useState,
 } from "react";
 
+export type Gender = "male" | "female";
+
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone: string;
   gameUsername: string;
   password: string;
   avatar?: string;
+  gender?: Gender;
   level: number;
   totalOrders: number;
   points: number;
@@ -105,8 +108,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setUser = useCallback((u: User | null) => {
     setUserState(u);
-    if (u) AsyncStorage.setItem("currentUser", JSON.stringify(u));
-    else AsyncStorage.removeItem("currentUser");
+    if (u) {
+      AsyncStorage.setItem("currentUser", JSON.stringify(u));
+      // Keep registeredUsers in sync so leaderboard / friends / game / etc.
+      // see updates to the current user's profile (avatar, gender, name, etc.)
+      setRegisteredUsers(prev => {
+        const idx = prev.findIndex(r => r.id === u.id);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next[idx] = u;
+        AsyncStorage.setItem("registeredUsers", JSON.stringify(next));
+        return next;
+      });
+    } else {
+      AsyncStorage.removeItem("currentUser");
+    }
   }, []);
 
   const register = useCallback(

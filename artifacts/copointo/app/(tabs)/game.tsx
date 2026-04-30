@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -112,7 +113,18 @@ export default function GameScreen() {
 
       {/* ── Header ── */}
       <View style={styles.header}>
-        <Text style={styles.headerLevel}>المستوى {level} / 999</Text>
+        <View style={styles.headerLeft}>
+          {user?.avatar ? (
+            <Image source={{ uri: user.avatar }} style={styles.headerAvatarImg} />
+          ) : (
+            <View style={[styles.headerAvatarFallback, { borderColor: tierColor + "80" }]}>
+              <Text style={styles.headerAvatarEmoji}>
+                {user?.gender === "female" ? "👩" : user?.gender === "male" ? "🧑" : "👤"}
+              </Text>
+            </View>
+          )}
+          <Text style={styles.headerLevel}>المستوى {level} / 999</Text>
+        </View>
         <View style={[styles.rankChip, { borderColor: tierColor + "80" }]}>
           <Text style={styles.rankChipIcon}>{rank.icon}</Text>
           <Text style={[styles.rankChipText, { color: tierColor }]}>{rank.name}</Text>
@@ -309,6 +321,17 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 8,
   },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerAvatarImg: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.25)",
+  },
+  headerAvatarFallback: {
+    width: 36, height: 36, borderRadius: 18,
+    borderWidth: 2, alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  headerAvatarEmoji: { fontSize: 18 },
   headerLevel: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FF8C42" },
   rankChip: {
     flexDirection: "row", alignItems: "center", gap: 6,
