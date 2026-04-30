@@ -38,6 +38,10 @@ interface AppContextType {
   register: (data: Omit<User, "id" | "level" | "totalOrders" | "points">) => Promise<AuthResult>;
   login: (phone: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  registeredUsers: User[];
+  friends: string[];
+  addFriend: (userId: string) => void;
+  removeFriend: (userId: string) => void;
   cart: CartItem[];
   addToCart: (item: Omit<CartItem, "quantity">) => void;
   removeFromCart: (itemId: string) => void;
@@ -66,6 +70,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
+  const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+  const [friends, setFriends] = useState<string[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [likedVideos, setLikedVideos] = useState<string[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
@@ -76,16 +82,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [cartData, likesData, ordersData, userData] = await Promise.all([
+      const [cartData, likesData, ordersData, userData, regData] = await Promise.all([
         AsyncStorage.getItem("cart"),
         AsyncStorage.getItem("likedVideos"),
         AsyncStorage.getItem("orderHistory"),
         AsyncStorage.getItem("currentUser"),
+        AsyncStorage.getItem("registeredUsers"),
       ]);
       if (cartData) setCart(JSON.parse(cartData));
       if (likesData) setLikedVideos(JSON.parse(likesData));
       if (ordersData) setOrderHistory(JSON.parse(ordersData));
-      if (userData) setUserState(JSON.parse(userData));
+      if (regData) setRegisteredUsers(JSON.parse(regData));
+      if (userData) {
+        const parsed: User = JSON.parse(userData);
+        setUserState(parsed);
+        // Load per-user friends
+        const fRaw = await AsyncStorage.getItem(`friends:${parsed.id}`);
+        setFriends(fRaw ? JSON.parse(fRaw) : []);
+      }
     } catch (e) {}
   };
 
@@ -114,7 +128,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const updated = [...users, newUser];
         await AsyncStorage.setItem("registeredUsers", JSON.stringify(updated));
         await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
+        await AsyncStorage.setItem(`friends:${newUser.id}`, JSON.stringify([]));
+        setRegisteredUsers(updated);
         setUserState(newUser);
+        setFriends([]);
         return { ok: true };
       } catch {
         return { ok: false, error: "حدث خطأ أثناء التسجيل" };
@@ -127,9 +144,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const raw = await AsyncStorage.getItem("registeredUsers");
       const users: User[] = raw ? JSON.parse(raw) : [];
+      setRegisteredUsers(users);
       const found = users.find(u => u.phone === phone && u.password === password);
       if (!found) return { ok: false, error: "رقم الهاتف أو كلمة المرور غير صحيحة" };
       await AsyncStorage.setItem("currentUser", JSON.stringify(found));
+      const fRaw = await AsyncStorage.getItem(`friends:${found.id}`);
+      setFriends(fRaw ? JSON.parse(fRaw) : []);
       setUserState(found);
       return { ok: true };
     } catch {
@@ -137,9 +157,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const addFriend = useCallback((userId: string) => {
+    if (!user) return;
+    setFriends(prev => {
+      if (prev.includes(userId)) return prev;
+      const updated = [...prev, userId];
+      AsyncStorage.setItem(`friends:${user.id}`, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, [user]);
+
+  const removeFriend = useCallback((userId: string) => {
+    if (!user) return;
+    setFriends(prev => {
+      const updated = prev.filter(id => id !== userId);
+      AsyncStorage.setItem(`friends:${user.id}`, JSON.stringify(updated)).catch(() => {});
+      return updated;
+    });
+  }, [user]);
+
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem("currentUser");
     setUserState(null);
+    setFriends([]);
   }, []);
 
   const addToCart = useCallback((item: Omit<CartItem, "quantity">) => {
@@ -208,6 +248,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         register,
         login,
         logout,
+        registeredUsers,
+        friends,
+        addFriend,
+        removeFriend,
         cart,
         addToCart,
         removeFromCart,

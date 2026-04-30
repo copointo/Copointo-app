@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Platform,
   ScrollView,
@@ -11,90 +11,61 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useApp } from "@/context/AppContext";
 import { getRank } from "@/data/mockData";
 
 const BG = "#0F0A2E";
-
-// Mock cafe orders per competitor (keyed by username)
-const CAFE_ORDERS: Record<string, { cafe: string; count: number; city: string }[]> = {
-  mohammed_h: [
-    { cafe: "Karak House",       count: 18, city: "مسقط" },
-    { cafe: "Coffee Story",      count: 12, city: "مسقط" },
-    { cafe: "Blend Café",        count: 7,  city: "صلالة" },
-    { cafe: "The Roastery",      count: 5,  city: "صحار"  },
-  ],
-  khalid_r: [
-    { cafe: "Mystic Brew",       count: 22, city: "مسقط" },
-    { cafe: "Karak House",       count: 9,  city: "مسقط" },
-    { cafe: "Qahwa Corner",      count: 6,  city: "نزوى"  },
-  ],
-  sara_z: [
-    { cafe: "Blend Café",        count: 14, city: "صلالة" },
-    { cafe: "Coffee Story",      count: 11, city: "مسقط" },
-    { cafe: "Morning Cup",       count: 4,  city: "مسقط" },
-  ],
-  oman_1: [
-    { cafe: "Karak House",       count: 95, city: "مسقط" },
-    { cafe: "Coffee Story",      count: 78, city: "مسقط" },
-    { cafe: "Blend Café",        count: 61, city: "صلالة" },
-    { cafe: "The Roastery",      count: 44, city: "صحار"  },
-    { cafe: "Mystic Brew",       count: 38, city: "مسقط" },
-    { cafe: "Qahwa Corner",      count: 29, city: "نزوى"  },
-  ],
-  coffee_m: [
-    { cafe: "The Roastery",      count: 88, city: "صحار"  },
-    { cafe: "Karak House",       count: 72, city: "مسقط" },
-    { cafe: "Mystic Brew",       count: 55, city: "مسقط" },
-    { cafe: "Blend Café",        count: 40, city: "صلالة" },
-  ],
-  top_tier: [
-    { cafe: "Coffee Story",      count: 80, city: "مسقط" },
-    { cafe: "Karak House",       count: 65, city: "مسقط" },
-    { cafe: "Morning Cup",       count: 50, city: "مسقط" },
-  ],
-};
-
-// Match competitor id → username → data
-const COMPETITOR_DATA: Record<string, {
-  name: string; username: string; level: number; omanRank: number; avatar: string;
-}> = {
-  mohammed_h: { name: "Mohammed Al-Habsi", username: "mohammed_h", level: 45,  omanRank: 24,  avatar: "👤" },
-  khalid_r:   { name: "Khalid Mansoor",    username: "khalid_r",   level: 38,  omanRank: 41,  avatar: "👤" },
-  sara_z:     { name: "Sara Al-Zahra",     username: "sara_z",     level: 31,  omanRank: 63,  avatar: "👤" },
-  oman_1:     { name: "Oman #1",           username: "oman_1",     level: 980, omanRank: 1,   avatar: "🏆" },
-  coffee_m:   { name: "Coffee Master",     username: "coffee_m",   level: 901, omanRank: 2,   avatar: "☕" },
-  top_tier:   { name: "Top Tier",          username: "top_tier",   level: 867, omanRank: 3,   avatar: "🌟" },
-};
 
 export default function CompetitorProfileScreen() {
   const router      = useRouter();
   const insets      = useSafeAreaInsets();
   const { id }      = useLocalSearchParams<{ id: string }>();
   const topPad      = Platform.OS === "web" ? 67 : insets.top;
+  const { registeredUsers, friends, addFriend, user: currentUser } = useApp();
 
-  const data        = COMPETITOR_DATA[id ?? ""] ?? null;
-  const cafeOrders  = CAFE_ORDERS[id ?? ""] ?? [];
-  const rank        = data ? getRank(data.level) : null;
-  const tierColor   = rank ? "#E8B86D" : "#E8B86D";
+  // id is the gameUsername (set by leaderboard route)
+  const target = useMemo(() => {
+    if (!id) return null;
+    return registeredUsers.find(
+      u => u.gameUsername.toLowerCase() === id.toLowerCase()
+    ) ?? null;
+  }, [id, registeredUsers]);
 
-  if (!data) {
+  const omanRank = useMemo(() => {
+    if (!target) return null;
+    const sorted = [...registeredUsers].sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+    const idx = sorted.findIndex(u => u.id === target.id);
+    return idx >= 0 ? idx + 1 : null;
+  }, [target, registeredUsers]);
+
+  const isFriend = target && friends.includes(target.id);
+  const isMe     = target && currentUser?.id === target.id;
+  const rank     = target ? getRank(target.level) : null;
+
+  if (!target) {
     return (
       <View style={[styles.container, { paddingTop: topPad }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color="#FFF" />
-        </TouchableOpacity>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={22} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>الملف الشخصي</Text>
+        </View>
         <View style={styles.centerWrap}>
-          <Text style={styles.emptyText}>لا توجد بيانات</Text>
+          <Text style={styles.emptyIcon}>👤</Text>
+          <Text style={styles.emptyText}>المستخدم غير موجود</Text>
         </View>
       </View>
     );
   }
 
-  const totalCoffees = cafeOrders.reduce((s, c) => s + c.count, 0);
+  const handleAddFriend = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    addFriend(target.id);
+  };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -108,32 +79,29 @@ export default function CompetitorProfileScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-
         {/* Profile card */}
         <View style={styles.profileCard}>
-          {/* Avatar */}
           <View style={styles.avatarCircle}>
-            <Text style={{ fontSize: 52 }}>{data.avatar}</Text>
+            <Text style={{ fontSize: 52 }}>👤</Text>
           </View>
 
-          {/* Name + username */}
-          <Text style={styles.displayName}>{data.name}</Text>
-          <Text style={styles.username}>@{data.username}</Text>
+          <Text style={styles.displayName}>{target.name}</Text>
+          <Text style={styles.username}>@{target.gameUsername}</Text>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
-              <Text style={styles.statValue}>#{data.omanRank}</Text>
+              <Text style={styles.statValue}>{omanRank ? `#${omanRank}` : "—"}</Text>
               <Text style={styles.statLabel}>تصنيف عُمان</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: "#E8B86D" }]}>{data.level}</Text>
+              <Text style={[styles.statValue, { color: "#E8B86D" }]}>{target.level}</Text>
               <Text style={styles.statLabel}>المستوى</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statBox}>
-              <Text style={[styles.statValue, { color: "#4FC3F7" }]}>{totalCoffees}</Text>
+              <Text style={[styles.statValue, { color: "#4FC3F7" }]}>{target.totalOrders ?? 0}</Text>
               <Text style={styles.statLabel}>إجمالي القهوة</Text>
             </View>
           </View>
@@ -143,43 +111,31 @@ export default function CompetitorProfileScreen() {
             <Text style={styles.rankBadgeIcon}>{rank?.icon}</Text>
             <Text style={[styles.rankBadgeName, { color: "#E8B86D" }]}>{rank?.name}</Text>
           </View>
+
+          {/* Add friend button */}
+          {!isMe && !isFriend && currentUser && (
+            <TouchableOpacity style={styles.addFriendBtn} onPress={handleAddFriend} activeOpacity={0.85}>
+              <Feather name="user-plus" size={16} color="#0F0A2E" />
+              <Text style={styles.addFriendText}>إضافة صديق</Text>
+            </TouchableOpacity>
+          )}
+          {!isMe && isFriend && (
+            <View style={[styles.addFriendBtn, { backgroundColor: "#4CAF50" }]}>
+              <Feather name="check" size={16} color="#FFF" />
+              <Text style={[styles.addFriendText, { color: "#FFF" }]}>صديق</Text>
+            </View>
+          )}
         </View>
 
-        {/* Cafe orders section */}
-        <Text style={styles.sectionTitle}>☕ القهوات من كل مقهى في عُمان</Text>
-
-        {cafeOrders.length === 0 ? (
-          <View style={styles.centerWrap}>
-            <Text style={styles.emptyText}>لا توجد بيانات</Text>
-          </View>
-        ) : (
-          <View style={styles.cafeList}>
-            {cafeOrders
-              .sort((a, b) => b.count - a.count)
-              .map((item, i) => {
-                const maxCount = cafeOrders[0].count;
-                const pct      = (item.count / maxCount) * 100;
-                return (
-                  <View key={i} style={styles.cafeRow}>
-                    <View style={styles.cafeLeft}>
-                      <Text style={styles.cafeRank}>#{i + 1}</Text>
-                      <View>
-                        <Text style={styles.cafeName}>{item.cafe}</Text>
-                        <Text style={styles.cafeCity}>{item.city}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.cafeRight}>
-                      {/* Mini bar */}
-                      <View style={styles.barTrack}>
-                        <View style={[styles.barFill, { width: `${pct}%` as any }]} />
-                      </View>
-                      <Text style={styles.cafeCount}>{item.count} ☕</Text>
-                    </View>
-                  </View>
-                );
-              })}
-          </View>
-        )}
+        {/* Activity placeholder */}
+        <Text style={styles.sectionTitle}>☕ النشاط</Text>
+        <View style={styles.placeholderCard}>
+          <Text style={styles.placeholderText}>
+            {(target.totalOrders ?? 0) > 0
+              ? `${target.totalOrders} طلب حتى الآن`
+              : "لم يبدأ هذا المستخدم بطلب القهوة بعد"}
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -230,26 +186,29 @@ const styles = StyleSheet.create({
   },
   rankBadgeIcon: { fontSize: 18 },
   rankBadgeName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  addFriendBtn: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: "#E8B86D",
+    paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: 14, marginTop: 8,
+  },
+  addFriendText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#0F0A2E" },
   sectionTitle: {
     fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF",
     marginHorizontal: 20, marginBottom: 12,
   },
-  cafeList: { marginHorizontal: 16, gap: 10 },
-  cafeRow: {
-    flexDirection: "row", alignItems: "center",
+  placeholderCard: {
+    marginHorizontal: 16, padding: 20,
     backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 14, padding: 14,
+    borderRadius: 14,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    gap: 12,
+    alignItems: "center",
   },
-  cafeLeft:  { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  cafeRank:  { fontSize: 13, fontFamily: "Inter_700Bold", color: "rgba(255,255,255,0.35)", width: 24 },
-  cafeName:  { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  cafeCity:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
-  cafeRight: { alignItems: "flex-end", gap: 5, minWidth: 80 },
-  barTrack:  { width: 80, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.10)" },
-  barFill:   { height: "100%", borderRadius: 2, backgroundColor: "#E8B86D" },
-  cafeCount: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#E8B86D" },
-  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40 },
+  placeholderText: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.55)", textAlign: "center",
+  },
+  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 12 },
+  emptyIcon: { fontSize: 48 },
   emptyText: { fontSize: 15, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.35)" },
 });

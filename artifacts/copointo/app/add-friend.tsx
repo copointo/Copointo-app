@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -12,14 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const SUGGESTIONS = [
-  { id: "s1", name: "Khalid Al-Rashidi",   username: "khalid_r",   level: 58,  mutual: 3 },
-  { id: "s2", name: "Sara Al-Zahra",       username: "sara_z",     level: 34,  mutual: 5 },
-  { id: "s3", name: "Omar Bin Salim",      username: "omar_s",     level: 121, mutual: 1 },
-  { id: "s4", name: "Fatima Al-Balushi",   username: "fatima_b",   level: 77,  mutual: 2 },
-  { id: "s5", name: "Yusuf Al-Maawali",   username: "yusuf_m",    level: 203, mutual: 4 },
-];
+import { useApp } from "@/context/AppContext";
 
 const BG = "#0F0A2E";
 const ACCENT = "#E8B86D";
@@ -28,26 +21,27 @@ export default function AddFriendScreen() {
   const router   = useRouter();
   const insets   = useSafeAreaInsets();
   const topPad   = Platform.OS === "web" ? 67 : insets.top;
+  const { user, registeredUsers, friends, addFriend } = useApp();
 
-  const [query,   setQuery]   = useState("");
-  const [sent,    setSent]    = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
-  const filtered = query.trim()
-    ? SUGGESTIONS.filter(
-        (s) =>
-          s.name.toLowerCase().includes(query.toLowerCase()) ||
-          s.username.toLowerCase().includes(query.toLowerCase())
-      )
-    : SUGGESTIONS;
+  // Show all OTHER registered users (excluding self), filtered by query
+  const candidates = useMemo(() => {
+    const others = registeredUsers.filter(u => u.id !== user?.id);
+    if (!query.trim()) return others;
+    const q = query.toLowerCase();
+    return others.filter(
+      u => u.name.toLowerCase().includes(q) || u.gameUsername.toLowerCase().includes(q)
+    );
+  }, [registeredUsers, user?.id, query]);
 
-  const sendRequest = (id: string, name: string) => {
+  const sendRequest = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSent((prev) => [...prev, id]);
+    addFriend(id);
   };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -65,7 +59,7 @@ export default function AddFriendScreen() {
         <Feather name="search" size={18} color={ACCENT} style={{ marginLeft: 14 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="ابحث باسم المستخدم..."
+          placeholder="ابحث بالاسم أو يوزر اللعبة..."
           placeholderTextColor="rgba(255,255,255,0.35)"
           value={query}
           onChangeText={setQuery}
@@ -82,7 +76,7 @@ export default function AddFriendScreen() {
 
       {/* Section label */}
       <Text style={styles.sectionLabel}>
-        {query.trim() ? "نتائج البحث" : "اقتراحات"}
+        {query.trim() ? "نتائج البحث" : "المستخدمون"}
       </Text>
 
       {/* Results */}
@@ -91,14 +85,16 @@ export default function AddFriendScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {filtered.length === 0 ? (
+        {candidates.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyIcon}>🔍</Text>
-            <Text style={styles.emptyText}>لا توجد نتائج</Text>
+            <Text style={styles.emptyIcon}>{query.trim() ? "🔍" : "👥"}</Text>
+            <Text style={styles.emptyText}>
+              {query.trim() ? "لا توجد نتائج" : "لا يوجد مستخدمون آخرون بعد"}
+            </Text>
           </View>
         ) : (
-          filtered.map((s) => {
-            const isSent = sent.includes(s.id);
+          candidates.map((s) => {
+            const isFriend = friends.includes(s.id);
             return (
               <View key={s.id} style={styles.row}>
                 {/* Avatar */}
@@ -110,24 +106,24 @@ export default function AddFriendScreen() {
                 <View style={styles.info}>
                   <Text style={styles.name}>{s.name}</Text>
                   <Text style={styles.sub}>
-                    @{s.username} · مستوى {s.level}
-                    {s.mutual > 0 && `  ·  ${s.mutual} مشترك`}
+                    @{s.gameUsername} · مستوى {s.level}
                   </Text>
                 </View>
 
                 {/* Action */}
                 <TouchableOpacity
-                  style={[styles.addBtn, isSent && styles.addBtnSent]}
-                  onPress={() => !isSent && sendRequest(s.id, s.name)}
+                  style={[styles.addBtn, isFriend && styles.addBtnSent]}
+                  onPress={() => !isFriend && sendRequest(s.id)}
                   activeOpacity={0.85}
+                  disabled={isFriend}
                 >
                   <Feather
-                    name={isSent ? "check" : "user-plus"}
+                    name={isFriend ? "check" : "user-plus"}
                     size={15}
-                    color={isSent ? "#FFF" : "#0F0A2E"}
+                    color={isFriend ? "#FFF" : "#0F0A2E"}
                   />
-                  <Text style={[styles.addBtnText, isSent && { color: "#FFF" }]}>
-                    {isSent ? "تم الإرسال" : "إضافة"}
+                  <Text style={[styles.addBtnText, isFriend && { color: "#FFF" }]}>
+                    {isFriend ? "صديق" : "إضافة"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -210,5 +206,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 15, fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.35)",
+    textAlign: "center",
   },
 });

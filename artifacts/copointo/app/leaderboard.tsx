@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -11,24 +11,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useApp, type User } from "@/context/AppContext";
 import { getRank } from "@/data/mockData";
 
 type LeaderTab = "friends" | "oman";
-
-const LEADERBOARD: Record<LeaderTab, { name: string; username: string; level: number; isMe?: boolean; isFriend?: boolean }[]> = {
-  friends: [
-    { name: "Mohammed Al-Habsi", username: "mohammed_h", level: 45, isFriend: true },
-    { name: "Ahmed (You)",        username: "",           level: 42, isMe: true },
-    { name: "Khalid Mansoor",    username: "khalid_r",   level: 38, isFriend: true },
-    { name: "Sara Al-Zahra",     username: "sara_z",     level: 31, isFriend: true },
-  ],
-  oman: [
-    { name: "Oman #1",       username: "oman_1",   level: 980 },
-    { name: "Coffee Master", username: "coffee_m", level: 901 },
-    { name: "Top Tier",      username: "top_tier", level: 867 },
-    { name: "Ahmed (You)",   username: "",         level: 42, isMe: true },
-  ],
-};
 
 const TAB_LABELS: Record<LeaderTab, string> = {
   friends: "👥 الأصدقاء",
@@ -37,23 +23,63 @@ const TAB_LABELS: Record<LeaderTab, string> = {
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
+interface Entry {
+  id: string;
+  name: string;
+  username: string;
+  level: number;
+  isMe: boolean;
+  isFriend: boolean;
+}
+
 export default function LeaderboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, registeredUsers, friends, addFriend } = useApp();
   const [activeTab, setActiveTab] = useState<LeaderTab>("friends");
-  const [addedFriends, setAddedFriends] = useState<string[]>([]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const handleAddFriend = (name: string) => {
+  const toEntry = (u: User): Entry => ({
+    id: u.id,
+    name: u.name,
+    username: u.gameUsername,
+    level: u.level,
+    isMe: u.id === user?.id,
+    isFriend: friends.includes(u.id),
+  });
+
+  const sortDesc = (a: Entry, b: Entry) => b.level - a.level;
+
+  const entries = useMemo<Entry[]>(() => {
+    if (activeTab === "oman") {
+      return registeredUsers.map(toEntry).sort(sortDesc);
+    }
+    // friends tab: friends + me, but only if user has at least one friend
+    if (friends.length === 0) return [];
+    return registeredUsers
+      .filter(u => friends.includes(u.id) || u.id === user?.id)
+      .map(toEntry)
+      .sort(sortDesc);
+  }, [activeTab, registeredUsers, friends, user?.id]);
+
+  const handleAddFriend = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setAddedFriends((prev) => [...prev, name]);
+    addFriend(id);
   };
 
   const openProfile = (username: string) => {
+    if (!username) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/competitor-profile?id=${username}`);
   };
+
+  const emptyMsg = activeTab === "friends"
+    ? "لا يوجد أصدقاء بعد"
+    : "لا يوجد مستخدمون في عُمان بعد";
+  const emptySub = activeTab === "friends"
+    ? "أضف أصدقاءك من تبويب «عُمان» لتنافسهم هنا"
+    : "كن أول من يبدأ رحلة القهوة!";
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -97,12 +123,17 @@ export default function LeaderboardScreen() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10 }}
         showsVerticalScrollIndicator={false}
       >
-        {LEADERBOARD[activeTab].map((entry, i) => {
-          const isAdded = addedFriends.includes(entry.name);
+        {entries.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyIcon}>🏁</Text>
+            <Text style={styles.emptyTitle}>{emptyMsg}</Text>
+            <Text style={styles.emptySub}>{emptySub}</Text>
+          </View>
+        ) : entries.map((entry, i) => {
           const rankInfo = getRank(entry.level);
           return (
             <View
-              key={i}
+              key={entry.id}
               style={[
                 styles.entryRow,
                 entry.isMe && styles.entryRowMe,
@@ -122,14 +153,14 @@ export default function LeaderboardScreen() {
 
               <View style={styles.entryInfo}>
                 <Text style={[styles.entryName, entry.isMe && { color: "#C67C4E" }]}>
-                  {entry.name}
+                  {entry.name}{entry.isMe ? " (أنت)" : ""}
                 </Text>
                 <Text style={styles.entryLevel}>
                   Level {entry.level} · {rankInfo.nameEn} {rankInfo.icon}
                 </Text>
               </View>
 
-              {/* Profile button — for everyone except "me" */}
+              {/* Profile button */}
               {!entry.isMe && entry.username && (
                 <TouchableOpacity
                   style={styles.profileBtn}
@@ -142,16 +173,16 @@ export default function LeaderboardScreen() {
 
               {!entry.isMe && !entry.isFriend && (
                 <TouchableOpacity
-                  style={[styles.addBtn, isAdded && styles.addBtnDone]}
-                  onPress={() => !isAdded && handleAddFriend(entry.name)}
+                  style={styles.addBtn}
+                  onPress={() => handleAddFriend(entry.id)}
                   activeOpacity={0.85}
                 >
-                  <Feather name={isAdded ? "check" : "user-plus"} size={14} color="#FFF" />
+                  <Feather name="user-plus" size={14} color="#FFF" />
                 </TouchableOpacity>
               )}
               {entry.isFriend && !entry.isMe && (
                 <View style={styles.friendTag}>
-                  <Text style={styles.friendTagText}>Friend</Text>
+                  <Text style={styles.friendTagText}>صديق</Text>
                 </View>
               )}
             </View>
@@ -232,7 +263,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#C67C4E",
     alignItems: "center", justifyContent: "center",
   },
-  addBtnDone: { backgroundColor: "#4CAF50" },
   profileBtn: {
     width: 34, height: 34, borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -245,5 +275,13 @@ const styles = StyleSheet.create({
   friendTagText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: "rgba(255,255,255,0.8)",
+  },
+  emptyWrap: { alignItems: "center", paddingTop: 80, gap: 10 },
+  emptyIcon: { fontSize: 56 },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
+  emptySub: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.50)",
+    textAlign: "center", paddingHorizontal: 32,
   },
 });

@@ -270,7 +270,7 @@ function LogoutConfirmModal({ visible, onClose, onConfirm }: { visible: boolean;
 // ─── Profile Screen ───────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, setUser, logout } = useApp();
+  const { user, setUser, logout, friends, registeredUsers } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [authOpen,    setAuthOpen]    = useState(false);
@@ -312,6 +312,26 @@ export default function ProfileScreen() {
   const nextRank = getRank(Math.min(level + 1, 1000));
   const pct   = rank ? ((level - rank.min) / Math.max(rank.max - rank.min, 1)) * 100 : 0;
   const freeCoffees = Math.floor((user.totalOrders ?? 0) / 7);
+
+  // Friends count + ranks (show "—" for brand-new users with no activity)
+  const friendsCount = friends.length;
+  const hasActivity = (user.level ?? 0) > 0 || (user.totalOrders ?? 0) > 0 || (user.points ?? 0) > 0;
+
+  const omanRankStr = (() => {
+    if (!hasActivity) return "—";
+    const sorted = [...registeredUsers].sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+    const idx = sorted.findIndex(u => u.id === user.id);
+    return idx >= 0 ? `#${idx + 1}` : "—";
+  })();
+
+  const friendsRankStr = (() => {
+    if (!hasActivity) return "—";
+    const friendPool = registeredUsers.filter(u => friends.includes(u.id) || u.id === user.id);
+    if (friendPool.length === 0) return "—";
+    const sorted = friendPool.sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+    const idx = sorted.findIndex(u => u.id === user.id);
+    return idx >= 0 ? `#${idx + 1}` : "—";
+  })();
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -366,7 +386,7 @@ export default function ProfileScreen() {
           <View style={styles.statsRow}>
             <View style={[styles.statBox, styles.statBoxCard]}>
               <Text style={styles.statIcon}>👥</Text>
-              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statValue}>{friendsCount}</Text>
               <Text style={styles.statLabel}>الأصدقاء</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard]}>
@@ -384,12 +404,12 @@ export default function ProfileScreen() {
           <View style={styles.statsRow}>
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
               <Text style={styles.statIcon}>👫</Text>
-              <Text style={styles.statValue}>#3</Text>
+              <Text style={styles.statValue}>{friendsRankStr}</Text>
               <Text style={styles.statLabel}>تصنيف الأصدقاء</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
               <Text style={styles.statIcon}>🇴🇲</Text>
-              <Text style={styles.statValue}>#42</Text>
+              <Text style={styles.statValue}>{omanRankStr}</Text>
               <Text style={styles.statLabel}>تصنيف عُمان</Text>
             </View>
           </View>
