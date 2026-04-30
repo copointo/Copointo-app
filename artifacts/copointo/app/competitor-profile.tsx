@@ -22,7 +22,12 @@ export default function CompetitorProfileScreen() {
   const insets      = useSafeAreaInsets();
   const { id }      = useLocalSearchParams<{ id: string }>();
   const topPad      = Platform.OS === "web" ? 67 : insets.top;
-  const { registeredUsers, friends, addFriend, user: currentUser } = useApp();
+  const {
+    registeredUsers, friends,
+    outgoingRequests, incomingRequests,
+    sendFriendRequest, cancelFriendRequest, acceptFriendRequest,
+    user: currentUser,
+  } = useApp();
 
   // id is the gameUsername (set by leaderboard route)
   const target = useMemo(() => {
@@ -39,9 +44,11 @@ export default function CompetitorProfileScreen() {
     return idx >= 0 ? idx + 1 : null;
   }, [target, registeredUsers]);
 
-  const isFriend = target && friends.includes(target.id);
-  const isMe     = target && currentUser?.id === target.id;
-  const rank     = target ? getRank(target.level) : null;
+  const isFriend    = !!(target && friends.includes(target.id));
+  const isPending   = !!(target && outgoingRequests.includes(target.id));
+  const hasIncoming = !!(target && incomingRequests.includes(target.id));
+  const isMe        = !!(target && currentUser?.id === target.id);
+  const rank        = target ? getRank(target.level) : null;
 
   if (!target) {
     return (
@@ -60,9 +67,20 @@ export default function CompetitorProfileScreen() {
     );
   }
 
-  const handleAddFriend = () => {
+  const handleSend = () => {
+    if (!target) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    addFriend(target.id);
+    sendFriendRequest(target.id);
+  };
+  const handleCancel = () => {
+    if (!target) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    cancelFriendRequest(target.id);
+  };
+  const handleAccept = () => {
+    if (!target) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    acceptFriendRequest(target.id);
   };
 
   return (
@@ -119,18 +137,50 @@ export default function CompetitorProfileScreen() {
             <Text style={[styles.rankBadgeName, { color: "#E8B86D" }]}>{rank?.name}</Text>
           </View>
 
-          {/* Add friend button */}
-          {!isMe && !isFriend && currentUser && (
-            <TouchableOpacity style={styles.addFriendBtn} onPress={handleAddFriend} activeOpacity={0.85}>
-              <Feather name="user-plus" size={16} color="#0F0A2E" />
-              <Text style={styles.addFriendText}>إضافة صديق</Text>
-            </TouchableOpacity>
-          )}
-          {!isMe && isFriend && (
-            <View style={[styles.addFriendBtn, { backgroundColor: "#4CAF50" }]}>
-              <Feather name="check" size={16} color="#FFF" />
-              <Text style={[styles.addFriendText, { color: "#FFF" }]}>صديق</Text>
-            </View>
+          {/* Friend-request actions */}
+          {!isMe && currentUser && (
+            <>
+              {isFriend && (
+                <View style={[styles.addFriendBtn, { backgroundColor: "#4CAF50" }]}>
+                  <Feather name="check" size={16} color="#FFF" />
+                  <Text style={[styles.addFriendText, { color: "#FFF" }]}>صديق</Text>
+                </View>
+              )}
+              {!isFriend && hasIncoming && (
+                <TouchableOpacity
+                  style={[styles.addFriendBtn, { backgroundColor: "#4CAF50" }]}
+                  onPress={handleAccept}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="check" size={16} color="#FFF" />
+                  <Text style={[styles.addFriendText, { color: "#FFF" }]}>قبول الطلب</Text>
+                </TouchableOpacity>
+              )}
+              {!isFriend && !hasIncoming && isPending && (
+                <TouchableOpacity
+                  style={[
+                    styles.addFriendBtn,
+                    {
+                      backgroundColor: "transparent",
+                      borderWidth: 1,
+                      borderColor: "#E8B86D",
+                      borderStyle: "dashed",
+                    },
+                  ]}
+                  onPress={handleCancel}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="clock" size={16} color="#E8B86D" />
+                  <Text style={[styles.addFriendText, { color: "#E8B86D" }]}>طلب معلّق · إلغاء</Text>
+                </TouchableOpacity>
+              )}
+              {!isFriend && !hasIncoming && !isPending && (
+                <TouchableOpacity style={styles.addFriendBtn} onPress={handleSend} activeOpacity={0.85}>
+                  <Feather name="user-plus" size={16} color="#0F0A2E" />
+                  <Text style={styles.addFriendText}>إضافة صديق</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
 

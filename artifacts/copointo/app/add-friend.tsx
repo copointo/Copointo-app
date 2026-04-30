@@ -22,7 +22,11 @@ export default function AddFriendScreen() {
   const router   = useRouter();
   const insets   = useSafeAreaInsets();
   const topPad   = Platform.OS === "web" ? 67 : insets.top;
-  const { user, registeredUsers, friends, addFriend } = useApp();
+  const {
+    user, registeredUsers, friends,
+    outgoingRequests, incomingRequests,
+    sendFriendRequest, cancelFriendRequest, acceptFriendRequest,
+  } = useApp();
 
   const [query, setQuery] = useState("");
 
@@ -36,9 +40,11 @@ export default function AddFriendScreen() {
     );
   }, [registeredUsers, user?.id, query]);
 
-  const sendRequest = (id: string) => {
+  const handleAction = (id: string, kind: "send" | "cancel" | "accept") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    addFriend(id);
+    if (kind === "send")   sendFriendRequest(id);
+    if (kind === "cancel") cancelFriendRequest(id);
+    if (kind === "accept") acceptFriendRequest(id);
   };
 
   return (
@@ -95,7 +101,25 @@ export default function AddFriendScreen() {
           </View>
         ) : (
           candidates.map((s) => {
-            const isFriend = friends.includes(s.id);
+            const isFriend   = friends.includes(s.id);
+            const isPending  = outgoingRequests.includes(s.id);
+            const hasIncoming = incomingRequests.includes(s.id);
+
+            // Decide button appearance + action
+            let label  = "إضافة";
+            let icon: "user-plus" | "check" | "clock" = "user-plus";
+            let kind: "send" | "cancel" | "accept" = "send";
+            let extraStyle = {};
+            let textColor = "#0F0A2E";
+
+            if (isFriend) {
+              label = "صديق"; icon = "check"; extraStyle = styles.addBtnSent; textColor = "#FFF";
+            } else if (hasIncoming) {
+              label = "قبول"; icon = "check"; kind = "accept";
+            } else if (isPending) {
+              label = "معلّق"; icon = "clock"; kind = "cancel"; extraStyle = styles.addBtnPending; textColor = "#FFF";
+            }
+
             return (
               <View key={s.id} style={styles.row}>
                 {/* Avatar */}
@@ -119,19 +143,13 @@ export default function AddFriendScreen() {
 
                 {/* Action */}
                 <TouchableOpacity
-                  style={[styles.addBtn, isFriend && styles.addBtnSent]}
-                  onPress={() => !isFriend && sendRequest(s.id)}
+                  style={[styles.addBtn, extraStyle]}
+                  onPress={() => !isFriend && handleAction(s.id, kind)}
                   activeOpacity={0.85}
                   disabled={isFriend}
                 >
-                  <Feather
-                    name={isFriend ? "check" : "user-plus"}
-                    size={15}
-                    color={isFriend ? "#FFF" : "#0F0A2E"}
-                  />
-                  <Text style={[styles.addBtnText, isFriend && { color: "#FFF" }]}>
-                    {isFriend ? "صديق" : "إضافة"}
-                  </Text>
+                  <Feather name={icon} size={15} color={textColor} />
+                  <Text style={[styles.addBtnText, { color: textColor }]}>{label}</Text>
                 </TouchableOpacity>
               </View>
             );
@@ -209,6 +227,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   addBtnSent: { backgroundColor: "#4CAF50" },
+  addBtnPending: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: ACCENT,
+    borderStyle: "dashed",
+  },
   addBtnText: {
     fontSize: 12, fontFamily: "Inter_700Bold", color: "#0F0A2E",
   },

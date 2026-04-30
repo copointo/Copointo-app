@@ -17,8 +17,8 @@ import { ChatMessage } from "@/data/mockData";
 import { useMessages } from "@/context/MessagesContext";
 
 const BG      = "#000000";
-const ME_BG   = "#C67C4E";
-const THEM_BG = "rgba(255,255,255,0.08)";
+const ME_BG   = "#E8B86D";
+const THEM_BG = "rgba(232,184,109,0.10)";
 const PRIMARY = "#E8B86D";
 
 function now(): string {
@@ -32,10 +32,11 @@ function now(): string {
 
 // ─── Tick component: single ✓ = sent, double ✓✓ = seen ────────────────────
 function Ticks({ seen }: { seen: boolean }) {
+  // On amber bubble: dark grey for sent, dark blue for seen so they remain legible.
   return (
     <View style={styles.ticksRow}>
-      <Text style={[styles.tick, { color: seen ? "#4FC3F7" : "rgba(255,255,255,0.50)" }]}>✓</Text>
-      {seen && <Text style={[styles.tick, { color: "#4FC3F7", marginLeft: -5 }]}>✓</Text>}
+      <Text style={[styles.tick, { color: seen ? "#1976D2" : "rgba(0,0,0,0.50)" }]}>✓</Text>
+      {seen && <Text style={[styles.tick, { color: "#1976D2", marginLeft: -5 }]}>✓</Text>}
     </View>
   );
 }
@@ -106,13 +107,13 @@ export default function ConversationScreen() {
           )}
 
           <View style={[styles.bubble, item.fromMe ? styles.meBubble : styles.themBubble]}>
-            <Text style={[styles.bubbleText, !item.fromMe && styles.bubbleTextThem]}>
+            <Text style={[styles.bubbleText, item.fromMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
               {item.text}
             </Text>
             {/* Timestamp + ticks for my messages */}
             {item.fromMe && (
               <View style={styles.metaRow}>
-                <Text style={styles.metaTime}>{item.time}</Text>
+                <Text style={styles.metaTimeMe}>{item.time}</Text>
                 <Ticks seen={item.seen} />
               </View>
             )}
@@ -184,7 +185,7 @@ export default function ConversationScreen() {
           activeOpacity={0.85}
           disabled={!text.trim()}
         >
-          <Feather name="send" size={18} color="#FFF" />
+          <Feather name="send" size={18} color="#000" />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -237,11 +238,13 @@ const styles = StyleSheet.create({
   meBubble:    { backgroundColor: ME_BG, borderBottomRightRadius: 4 },
   themBubble:  { backgroundColor: THEM_BG, borderBottomLeftRadius: 4 },
 
-  bubbleText:     { fontSize: 14, fontFamily: "Inter_400Regular", color: "#FFF", lineHeight: 20 },
-  bubbleTextThem: { color: "rgba(255,255,255,0.90)" },
+  bubbleText:     { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
+  bubbleTextMe:   { color: "#000" },
+  bubbleTextThem: { color: "rgba(255,255,255,0.92)" },
 
-  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 3 },
-  metaTime: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", alignSelf: "flex-end" },
+  metaRow:    { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 3 },
+  metaTime:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", alignSelf: "flex-end" },
+  metaTimeMe: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(0,0,0,0.55)", alignSelf: "flex-end" },
 
   // Ticks
   ticksRow: { flexDirection: "row", alignItems: "center" },
@@ -265,5 +268,5 @@ const styles = StyleSheet.create({
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
   },
-  sendBtnDisabled: { backgroundColor: "rgba(198,124,78,0.35)" },
+  sendBtnDisabled: { backgroundColor: "rgba(232,184,109,0.35)" },
 });

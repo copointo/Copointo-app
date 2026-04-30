@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   FlatList,
   Platform,
@@ -83,8 +83,15 @@ function ConversationItem({ msg }: { msg: Message }) {
 export default function MessagesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { convList } = useMessages();
+  const { convList, refreshChats } = useMessages();
   const [search, setSearch] = useState("");
+
+  // Pick up mirrored cross-user messages each time the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      refreshChats();
+    }, [refreshChats])
+  );
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;

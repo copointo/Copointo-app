@@ -307,84 +307,9 @@ export const VIDEOS: VideoPost[] = [
   },
 ];
 
-export const MESSAGES: Message[] = [
-  {
-    id: "m1",
-    senderId: "cafe_1",
-    senderName: "Roastery of Muscat",
-    preview: "Your order is ready! Please proceed to the counter.",
-    timestamp: "2 min ago",
-    unread: 1,
-    type: "cafe",
-  },
-  {
-    id: "m2",
-    senderId: "user_2",
-    senderName: "Sara Al-Zahra",
-    preview: "Are you going to Altitude Cafe today?",
-    timestamp: "15 min ago",
-    unread: 2,
-    type: "user",
-  },
-  {
-    id: "m3",
-    senderId: "cafe_4",
-    senderName: "The Coffee Vault",
-    preview: "Special offer: 20% off all cold brews this weekend!",
-    timestamp: "1 hr ago",
-    unread: 0,
-    type: "cafe",
-  },
-  {
-    id: "m4",
-    senderId: "user_3",
-    senderName: "Khalid Mansoor",
-    preview: "Let's grab coffee at Brew & Beyond tomorrow?",
-    timestamp: "3 hrs ago",
-    unread: 0,
-    type: "user",
-  },
-  {
-    id: "m5",
-    senderId: "user_4",
-    senderName: "Fatima Al-Balushi",
-    preview: "I just hit Level 300 — Coffee Expert! 🎉",
-    timestamp: "Yesterday",
-    unread: 0,
-    type: "user",
-  },
-];
+export const MESSAGES: Message[] = [];
 
-export const CHAT_HISTORY: Record<string, ChatMessage[]> = {
-  m1: [
-    { id: "1", text: "مرحباً! طلبك جاهز للاستلام من الكاونتر 🎉", fromMe: false, time: "10:30 ص", seen: true },
-    { id: "2", text: "شكراً، في الطريق الآن", fromMe: true, time: "10:31 ص", seen: true },
-    { id: "3", text: "طلبك جاهز! تفضل للكاونتر من فضلك.", fromMe: false, time: "10:32 ص", seen: false },
-  ],
-  m2: [
-    { id: "1", text: "هلا! كيفك؟", fromMe: false, time: "9:00 ص", seen: true },
-    { id: "2", text: "تمام الحمدلله، وأنتِ؟", fromMe: true, time: "9:02 ص", seen: true },
-    { id: "3", text: "تمام 😊 هل ستذهب لـ Altitude Cafe اليوم؟", fromMe: false, time: "9:10 ص", seen: true },
-    { id: "4", text: "أفكر في ذلك، ليش؟", fromMe: true, time: "9:12 ص", seen: true },
-    { id: "5", text: "فيه عرض على القهوة الباردة اليوم فقط!", fromMe: false, time: "9:13 ص", seen: true },
-    { id: "6", text: "Are you going to Altitude Cafe today?", fromMe: false, time: "9:15 ص", seen: false },
-  ],
-  m3: [
-    { id: "1", text: "عرض خاص: خصم 20% على كل القهوة الباردة هذا الأسبوع! ☕", fromMe: false, time: "أمس", seen: true },
-    { id: "2", text: "رائع! سأزوركم قريباً", fromMe: true, time: "أمس", seen: true },
-  ],
-  m4: [
-    { id: "1", text: "السلام عليكم!", fromMe: false, time: "8:00 ص", seen: true },
-    { id: "2", text: "وعليكم السلام", fromMe: true, time: "8:01 ص", seen: true },
-    { id: "3", text: "نتقهوى في Brew & Beyond بكرة؟", fromMe: false, time: "8:05 ص", seen: true },
-    { id: "4", text: "Let's grab coffee at Brew & Beyond tomorrow?", fromMe: false, time: "8:06 ص", seen: false },
-  ],
-  m5: [
-    { id: "1", text: "وصلت المستوى 300 — Coffee Expert! 🎉", fromMe: false, time: "أمس", seen: true },
-    { id: "2", text: "مبروك! 🎊", fromMe: true, time: "أمس", seen: true },
-    { id: "3", text: "شكراً يا صاحبي 😄", fromMe: false, time: "أمس", seen: true },
-  ],
-};
+export const CHAT_HISTORY: Record<string, ChatMessage[]> = {};
 
 export const RANKS = [
   { min: 0, max: 100, name: "مبتدئ كوفي", nameEn: "Coffee Beginner", color: "#8B7355", icon: "☕" },

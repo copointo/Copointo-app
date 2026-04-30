@@ -31,6 +31,8 @@ interface Entry {
   level: number;
   isMe: boolean;
   isFriend: boolean;
+  isPending: boolean;
+  hasIncoming: boolean;
   avatar?: string;
   gender?: "male" | "female";
 }
@@ -38,7 +40,11 @@ interface Entry {
 export default function LeaderboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, registeredUsers, friends, addFriend } = useApp();
+  const {
+    user, registeredUsers, friends,
+    outgoingRequests, incomingRequests,
+    sendFriendRequest, cancelFriendRequest,
+  } = useApp();
   const [activeTab, setActiveTab] = useState<LeaderTab>("friends");
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -50,6 +56,8 @@ export default function LeaderboardScreen() {
     level: u.level,
     isMe: u.id === user?.id,
     isFriend: friends.includes(u.id),
+    isPending: outgoingRequests.includes(u.id),
+    hasIncoming: incomingRequests.includes(u.id),
     avatar: u.avatar,
     gender: u.gender,
   });
@@ -66,11 +74,19 @@ export default function LeaderboardScreen() {
       .filter(u => friends.includes(u.id) || u.id === user?.id)
       .map(toEntry)
       .sort(sortDesc);
-  }, [activeTab, registeredUsers, friends, user?.id]);
+    // Note: outgoingRequests / incomingRequests are intentionally part of
+    // the dep list so the +/⏳/✓ button states re-render when they change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, registeredUsers, friends, user?.id, outgoingRequests, incomingRequests]);
 
-  const handleAddFriend = (id: string) => {
+  const handleSendRequest = (id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    sendFriendRequest(id);
+  };
+
+  const handleCancelRequest = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    addFriend(id);
+    cancelFriendRequest(id);
   };
 
   const openProfile = (username: string) => {
@@ -182,13 +198,31 @@ export default function LeaderboardScreen() {
                 </TouchableOpacity>
               )}
 
-              {!entry.isMe && !entry.isFriend && (
+              {!entry.isMe && !entry.isFriend && !entry.isPending && !entry.hasIncoming && (
                 <TouchableOpacity
                   style={styles.addBtn}
-                  onPress={() => handleAddFriend(entry.id)}
+                  onPress={() => handleSendRequest(entry.id)}
                   activeOpacity={0.85}
                 >
-                  <Feather name="user-plus" size={14} color="#FFF" />
+                  <Feather name="user-plus" size={14} color="#000" />
+                </TouchableOpacity>
+              )}
+              {!entry.isMe && !entry.isFriend && entry.hasIncoming && (
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: "#7DD87D" }]}
+                  onPress={() => handleSendRequest(entry.id)}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="check" size={14} color="#000" />
+                </TouchableOpacity>
+              )}
+              {!entry.isMe && !entry.isFriend && entry.isPending && (
+                <TouchableOpacity
+                  style={styles.pendingTag}
+                  onPress={() => handleCancelRequest(entry.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.pendingTagText}>⏳ معلّق</Text>
                 </TouchableOpacity>
               )}
               {entry.isFriend && !entry.isMe && (
@@ -290,6 +324,16 @@ const styles = StyleSheet.create({
   friendTagText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: "rgba(255,255,255,0.8)",
+  },
+  pendingTag: {
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 10, backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.40)",
+    borderStyle: "dashed",
+  },
+  pendingTagText: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
+    color: "#E8B86D",
   },
   emptyWrap: { alignItems: "center", paddingTop: 80, gap: 10 },
   emptyIcon: { fontSize: 56 },
