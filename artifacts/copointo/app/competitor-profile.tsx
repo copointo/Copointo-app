@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { getRank } from "@/data/mockData";
 
-const BG = "#0F0A2E";
+const BG = "#000000";
 
 export default function CompetitorProfileScreen() {
   const router      = useRouter();

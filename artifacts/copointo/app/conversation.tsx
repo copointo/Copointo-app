@@ -16,10 +16,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatMessage } from "@/data/mockData";
 import { useMessages } from "@/context/MessagesContext";
 
-const BG      = "#0F0A2E";
+const BG      = "#000000";
 const ME_BG   = "#C67C4E";
 const THEM_BG = "rgba(255,255,255,0.08)";
-const PRIMARY = "#C67C4E";
+const PRIMARY = "#E8B86D";
 
 function now(): string {
   const d = new Date();

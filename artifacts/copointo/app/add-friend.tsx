@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 
-const BG = "#0F0A2E";
+const BG = "#000000";
 const ACCENT = "#E8B86D";
 
 export default function AddFriendScreen() {

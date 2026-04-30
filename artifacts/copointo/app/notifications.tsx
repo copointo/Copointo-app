@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const BG     = "#0F0A2E";
+const BG     = "#000000";
 const ACCENT = "#E8B86D";
 
 type FriendRequest = {

@@ -15,10 +15,10 @@ import { ProductCard } from "@/components/ProductCard";
 import { useApp } from "@/context/AppContext";
 import { CAFES, PRODUCTS } from "@/data/mockData";
 
-const BG      = "#0F0A2E";
-const CARD    = "rgba(255,255,255,0.07)";
-const BORDER  = "rgba(255,255,255,0.10)";
-const PRIMARY = "#C67C4E";
+const BG      = "#000000";
+const CARD    = "#0A0606";
+const BORDER  = "rgba(232,184,109,0.25)";
+const PRIMARY = "#E8B86D";
 
 const CATEGORY_TABS = [
   { key: "hot",     label: "مشروبات ساخنة", icon: "☕" },

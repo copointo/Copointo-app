@@ -155,7 +155,7 @@ export default function LeaderboardScreen() {
               {entry.avatar ? (
                 <Image source={{ uri: entry.avatar }} style={styles.avatarImg} />
               ) : (
-                <View style={[styles.avatar, entry.isMe && { backgroundColor: "#FDDCBA" }]}>
+                <View style={[styles.avatar, entry.isMe && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
                   <Text style={{ fontSize: 20 }}>
                     {entry.gender === "female" ? "👩" : entry.gender === "male" ? "🧑" : "👤"}
                   </Text>
@@ -163,7 +163,7 @@ export default function LeaderboardScreen() {
               )}
 
               <View style={styles.entryInfo}>
-                <Text style={[styles.entryName, entry.isMe && { color: "#C67C4E" }]}>
+                <Text style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}>
                   {entry.name}{entry.isMe ? " (أنت)" : ""}
                 </Text>
                 <Text style={styles.entryLevel}>
@@ -205,7 +205,7 @@ export default function LeaderboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1C3B1E" },
+  container: { flex: 1, backgroundColor: "#000000" },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: 42, height: 42, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "#0A0606", borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
     alignItems: "center", justifyContent: "center",
   },
   headerTitle: {
@@ -225,28 +225,28 @@ const styles = StyleSheet.create({
   tabsRow: {
     flexDirection: "row",
     marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(232,184,109,0.08)",
     borderRadius: 16, padding: 4, gap: 2,
   },
   tabBtn: {
     flex: 1, paddingVertical: 9,
     borderRadius: 12, alignItems: "center",
   },
-  tabBtnActive: { backgroundColor: "#FFF" },
+  tabBtnActive: { backgroundColor: "#E8B86D" },
   tabText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: "rgba(255,255,255,0.65)",
   },
-  tabTextActive: { color: "#C67C4E" },
+  tabTextActive: { color: "#000000" },
   list: { flex: 1 },
   entryRow: {
     flexDirection: "row", alignItems: "center",
     gap: 12, padding: 14, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "#0A0606",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
   },
   entryRowMe: {
-    backgroundColor: "rgba(198,124,78,0.2)", borderColor: "#C67C4E",
+    backgroundColor: "rgba(232,184,109,0.10)", borderColor: "#E8B86D",
   },
   entryRowFirst: {
     borderColor: "rgba(255,215,0,0.4)", backgroundColor: "rgba(255,215,0,0.08)",
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "#0A0606", borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
     alignItems: "center", justifyContent: "center",
   },
   avatarImg: {
@@ -275,17 +275,17 @@ const styles = StyleSheet.create({
   },
   addBtn: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: "#C67C4E",
+    backgroundColor: "#E8B86D",
     alignItems: "center", justifyContent: "center",
   },
   profileBtn: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "#0A0606", borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
     alignItems: "center", justifyContent: "center",
   },
   friendTag: {
     paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 10, backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 10, backgroundColor: "#0A0606", borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
   },
   friendTagText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
