@@ -321,7 +321,8 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: 42, height: 42, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: CARD,
+    borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },
@@ -368,7 +369,7 @@ const styles = StyleSheet.create({
   },
   subInfo: {
     fontSize: 12, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(232,184,109,0.55)",
   },
 
   sectionHeader: {
@@ -378,7 +379,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14, fontFamily: "Inter_700Bold",
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(232,184,109,0.75)",
   },
   addMemberBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
@@ -395,7 +396,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
     backgroundColor: CARD,
     borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: BORDER,
   },
   rowAvatar: {
     width: 44, height: 44, borderRadius: 22,
@@ -403,17 +404,18 @@ const styles = StyleSheet.create({
   },
   rowAvatarPlaceholder: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
   rowNameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   rowName: {
     fontSize: 14, fontFamily: "Inter_600SemiBold",
-    color: "#FFF",
+    color: "#F5E6CC",
   },
   rowSub: {
     fontSize: 11, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(232,184,109,0.55)",
     marginTop: 2,
   },
   creatorTag: {
@@ -445,7 +447,7 @@ const styles = StyleSheet.create({
   emptyWrap: { alignItems: "center", paddingTop: 80 },
   emptyText: {
     fontSize: 15, fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(232,184,109,0.45)",
   },
 
   checkbox: {

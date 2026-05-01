@@ -129,7 +129,7 @@ export default function CreateGroupScreen() {
         <TextInput
           style={styles.input}
           placeholder="مثلاً: أصدقاء القهوة ☕"
-          placeholderTextColor="rgba(255,255,255,0.3)"
+          placeholderTextColor="rgba(232,184,109,0.40)"
           value={name}
           onChangeText={setName}
           maxLength={40}
@@ -144,7 +144,7 @@ export default function CreateGroupScreen() {
 
         {friendList.length === 0 ? (
           <View style={styles.emptyWrap}>
-            <Feather name="users" size={36} color="rgba(255,255,255,0.25)" />
+            <Feather name="users" size={36} color="rgba(232,184,109,0.35)" />
             <Text style={styles.emptyText}>
               ليس لديك أصدقاء بعد. أضف أصدقاء أولاً ثم أنشئ المجموعة.
             </Text>
@@ -207,7 +207,8 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: 42, height: 42, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: CARD,
+    borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },
@@ -233,12 +234,12 @@ const styles = StyleSheet.create({
   },
   avatarHint: {
     fontSize: 12, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(232,184,109,0.55)",
   },
 
   label: {
     fontSize: 13, fontFamily: "Inter_700Bold",
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(232,184,109,0.75)",
     marginHorizontal: 20, marginBottom: 8,
     textAlign: "right",
   },
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
     paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 14, fontFamily: "Inter_500Medium",
-    color: "#FFF",
+    color: "#F5E6CC",
     marginBottom: 18,
   },
 
@@ -268,26 +269,27 @@ const styles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
     backgroundColor: CARD,
     borderRadius: 14, padding: 12,
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: BORDER,
   },
-  rowSel: { borderColor: ACCENT },
+  rowSel: { borderColor: ACCENT, borderWidth: 1.5 },
   rowAvatar: {
     width: 44, height: 44, borderRadius: 22,
     borderWidth: 1, borderColor: BORDER,
   },
   rowAvatarPlaceholder: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
   rowName: {
     fontSize: 14, fontFamily: "Inter_600SemiBold",
-    color: "#FFF", marginBottom: 2,
+    color: "#F5E6CC", marginBottom: 2,
     textAlign: "right",
   },
   rowSub: {
     fontSize: 11, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.45)",
+    color: "rgba(232,184,109,0.55)",
     textAlign: "right",
   },
   checkbox: {
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13, fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(232,184,109,0.50)",
     textAlign: "center",
   },
 

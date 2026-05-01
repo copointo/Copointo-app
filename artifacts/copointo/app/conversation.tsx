@@ -19,9 +19,12 @@ import { useApp } from "@/context/AppContext";
 import { useMessages } from "@/context/MessagesContext";
 
 const BG      = "#000000";
+const CARD    = "#0A0606";
 const ME_BG   = "#E8B86D";
-const THEM_BG = "rgba(232,184,109,0.10)";
+const THEM_BG = "#0A0606";
 const PRIMARY = "#E8B86D";
+const BORDER  = "rgba(232,184,109,0.30)";
+const BORDER_SOFT = "rgba(232,184,109,0.18)";
 
 function now(): string {
   const d = new Date();
@@ -168,7 +171,7 @@ export default function ConversationScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
           activeOpacity={0.8}
         >
-          <Feather name="arrow-left" size={22} color="#FFF" />
+          <Feather name="arrow-left" size={22} color={PRIMARY} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -221,7 +224,7 @@ export default function ConversationScreen() {
           value={text}
           onChangeText={setText}
           placeholder="اكتب رسالة..."
-          placeholderTextColor="rgba(255,255,255,0.30)"
+          placeholderTextColor="rgba(232,184,109,0.40)"
           multiline
           maxLength={500}
           selectionColor={PRIMARY}
@@ -247,25 +250,27 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row", alignItems: "center", gap: 12,
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.08)",
+    borderBottomWidth: 1, borderBottomColor: BORDER,
   },
   backBtn: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: CARD,
+    borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
   headerInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   headerAvatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: CARD,
+    borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
   headerAvatarImg: {
     width: 40, height: 40, borderRadius: 20,
     borderWidth: 1, borderColor: PRIMARY,
   },
-  headerName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
-  headerSub:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
+  headerName: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
+  headerSub:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.55)" },
 
   // List
   listContent: { paddingHorizontal: 12, paddingVertical: 16, gap: 8 },
@@ -273,7 +278,7 @@ const styles = StyleSheet.create({
   // Time label
   timeLabel: {
     textAlign: "center", fontSize: 11, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.30)", marginVertical: 8,
+    color: "rgba(232,184,109,0.40)", marginVertical: 8,
   },
 
   // Bubbles
@@ -282,12 +287,13 @@ const styles = StyleSheet.create({
 
   theirAvatar: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.10)",
+    backgroundColor: CARD,
+    borderWidth: 1, borderColor: BORDER_SOFT,
     alignItems: "center", justifyContent: "center",
   },
   theirAvatarImg: {
     width: 32, height: 32, borderRadius: 16,
-    borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+    borderWidth: 1, borderColor: BORDER,
   },
   senderLabel: {
     fontSize: 11, fontFamily: "Inter_700Bold",
@@ -297,15 +303,15 @@ const styles = StyleSheet.create({
   },
 
   bubble:      { maxWidth: "100%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
-  meBubble:    { backgroundColor: ME_BG, borderBottomRightRadius: 4 },
-  themBubble:  { backgroundColor: THEM_BG, borderBottomLeftRadius: 4 },
+  meBubble:    { backgroundColor: ME_BG, borderWidth: 1, borderColor: PRIMARY, borderBottomRightRadius: 4 },
+  themBubble:  { backgroundColor: THEM_BG, borderWidth: 1, borderColor: BORDER, borderBottomLeftRadius: 4 },
 
   bubbleText:     { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   bubbleTextMe:   { color: "#000" },
-  bubbleTextThem: { color: "rgba(255,255,255,0.92)" },
+  bubbleTextThem: { color: "#F5E6CC" },
 
   metaRow:    { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 3 },
-  metaTime:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", alignSelf: "flex-end" },
+  metaTime:   { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.45)", alignSelf: "flex-end" },
   metaTimeMe: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(0,0,0,0.55)", alignSelf: "flex-end" },
 
   // Ticks
@@ -316,19 +322,24 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: "row", alignItems: "flex-end", gap: 10,
     paddingHorizontal: 12, paddingTop: 10,
-    borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)",
+    borderTopWidth: 1, borderTopColor: BORDER,
     backgroundColor: BG,
   },
   inputField: {
-    flex: 1, backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 22, borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    flex: 1, backgroundColor: CARD,
+    borderRadius: 22, borderWidth: 1, borderColor: BORDER,
     paddingHorizontal: 16, paddingVertical: 10,
-    fontSize: 14, fontFamily: "Inter_400Regular", color: "#FFF",
+    fontSize: 14, fontFamily: "Inter_400Regular", color: "#F5E6CC",
     maxHeight: 120,
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
+    backgroundColor: PRIMARY,
+    borderWidth: 1, borderColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
   },
-  sendBtnDisabled: { backgroundColor: "rgba(232,184,109,0.35)" },
+  sendBtnDisabled: {
+    backgroundColor: "rgba(232,184,109,0.15)",
+    borderColor: BORDER,
+  },
 });
