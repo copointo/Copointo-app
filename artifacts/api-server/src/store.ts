@@ -68,6 +68,25 @@ export interface DiscountCode {
   usedCount: number; createdAt: string;
 }
 
+export type InvoiceType = "order" | "expense" | "daily" | "monthly" | "yearly";
+export interface InvoiceTemplate {
+  cafeId: string; type: InvoiceType;
+  logo: string;          // base64 data URL or http URL
+  cafeName: string;
+  commercialReg: string;
+  contactPhone: string;
+  promoText: string;
+  updatedAt: string;
+}
+export interface Expense {
+  id: string; cafeId: string;
+  title: string; amount: number;
+  category: string;       // e.g. "إيجار", "رواتب", "مواد خام"
+  notes?: string;
+  date: string;           // YYYY-MM-DD
+  createdAt: string;
+}
+
 export const cafes:    Cafe[]         = [];
 export const users:    AppUser[]      = [];
 export const menuItems: MenuItem[]    = [];
@@ -78,3 +97,5 @@ export const chatInfos: ChatInfo[]    = [];
 export const invoices: Invoice[]      = [];
 export const cafeViews: CafeView[]    = [];
 export const discountCodes: DiscountCode[] = [];
+export const expenses:         Expense[]         = [];
+export const invoiceTemplates: InvoiceTemplate[] = [];

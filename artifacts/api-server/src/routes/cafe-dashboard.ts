@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
-  type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode } from "../store";
+  expenses, invoiceTemplates,
+  type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
+  type Expense, type InvoiceTemplate, type InvoiceType } from "../store";
+
+const VALID_INVOICE_TYPES: InvoiceType[] = ["order", "expense", "daily", "monthly", "yearly"];
 
 const router = Router({ mergeParams: true });
 
@@ -450,6 +454,95 @@ router.post("/advanced-stats", (req: any, res): any => {
     players,
     invoices: cInv.sort((a,b) => b.createdAt.localeCompare(a.createdAt)),
   });
+});
+
+// ── Expenses ──────────────────────────────────────────────────
+router.get("/expenses", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const list = expenses
+    .filter(e => e.cafeId === cid)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  res.json({ expenses: list });
+});
+
+router.post("/expenses", (req: any, res): any => {
+  const cid  = req.params.cafeId;
+  const body = req.body ?? {};
+  const title    = String(body.title ?? "").trim();
+  const amount   = Number(body.amount);
+  const category = String(body.category ?? "").trim();
+  const notes    = body.notes ? String(body.notes).trim() : undefined;
+  const date     = String(body.date ?? new Date().toISOString().slice(0, 10)).trim();
+  if (!title || !category || !Number.isFinite(amount) || amount <= 0) {
+    return res.status(400).json({ error: "title/category/amount مطلوبة ومبلغ موجب" });
+  }
+  const exp: Expense = {
+    id: Date.now().toString(),
+    cafeId: cid, title, amount, category, notes, date,
+    createdAt: new Date().toISOString(),
+  };
+  expenses.push(exp);
+  res.json({ expense: exp });
+});
+
+router.delete("/expenses/:expenseId", (req: any, res): any => {
+  const idx = expenses.findIndex(e => e.id === req.params.expenseId && e.cafeId === req.params.cafeId);
+  if (idx < 0) return res.status(404).json({ error: "not found" });
+  expenses.splice(idx, 1);
+  res.json({ ok: true });
+});
+
+// ── Invoice templates (5 types per cafe) ─────────────────────
+function defaultTemplate(cafeId: string, type: InvoiceType, cafe: any): InvoiceTemplate {
+  return {
+    cafeId, type,
+    logo: cafe?.logo ?? "",
+    cafeName: cafe?.name ?? "",
+    commercialReg: "",
+    contactPhone: cafe?.ownerPhone ?? "",
+    promoText: "شكراً لزيارتكم",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+router.get("/invoice-templates", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const cafe = req.cafe;
+  const out: Record<InvoiceType, InvoiceTemplate> = {} as any;
+  for (const t of VALID_INVOICE_TYPES) {
+    out[t] = invoiceTemplates.find(it => it.cafeId === cid && it.type === t)
+          ?? defaultTemplate(cid, t, cafe);
+  }
+  res.json({ templates: out });
+});
+
+router.get("/invoice-templates/:type", (req: any, res): any => {
+  const cid  = req.params.cafeId;
+  const type = req.params.type as InvoiceType;
+  if (!VALID_INVOICE_TYPES.includes(type)) return res.status(400).json({ error: "نوع غير صالح" });
+  const tpl = invoiceTemplates.find(it => it.cafeId === cid && it.type === type)
+           ?? defaultTemplate(cid, type, req.cafe);
+  res.json({ template: tpl });
+});
+
+router.put("/invoice-templates/:type", (req: any, res): any => {
+  const cid  = req.params.cafeId;
+  const type = req.params.type as InvoiceType;
+  if (!VALID_INVOICE_TYPES.includes(type)) return res.status(400).json({ error: "نوع غير صالح" });
+  const body = req.body ?? {};
+  const next: InvoiceTemplate = {
+    cafeId: cid, type,
+    logo:          String(body.logo ?? ""),
+    cafeName:      String(body.cafeName ?? "").trim(),
+    commercialReg: String(body.commercialReg ?? "").trim(),
+    contactPhone:  String(body.contactPhone ?? "").trim(),
+    promoText:     String(body.promoText ?? "").trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  const idx = invoiceTemplates.findIndex(it => it.cafeId === cid && it.type === type);
+  if (idx >= 0) invoiceTemplates[idx] = next;
+  else invoiceTemplates.push(next);
+  res.json({ template: next });
 });
 
 export default router;

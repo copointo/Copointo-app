@@ -8,6 +8,7 @@ import {
   MessageCircle, Table2, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
+  Wallet, FileText, Printer, Save,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -15,17 +16,27 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices";
+type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "templates";
 
 const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
-  { id:"stats",    label:"الإحصائيات",      icon: LayoutDashboard,  emoji:"📊" },
-  { id:"orders",   label:"طلبات القهوة",     icon: ShoppingBag,      emoji:"☕" },
-  { id:"bookings", label:"حجوزات الطاولة",   icon: CalendarDays,     emoji:"📅" },
-  { id:"menu",     label:"القائمة",          icon: UtensilsCrossed,  emoji:"🍽️" },
-  { id:"chat",     label:"معلومات الشات",    icon: MessageCircle,    emoji:"💬" },
-  { id:"tables",   label:"الطاولات",         icon: Table2,           emoji:"🪑" },
-  { id:"invoices", label:"الفواتير",         icon: Receipt,          emoji:"🧾" },
+  { id:"stats",     label:"الإحصائيات",       icon: LayoutDashboard,  emoji:"📊" },
+  { id:"orders",    label:"طلبات القهوة",      icon: ShoppingBag,      emoji:"☕" },
+  { id:"bookings",  label:"حجوزات الطاولة",    icon: CalendarDays,     emoji:"📅" },
+  { id:"menu",      label:"القائمة",           icon: UtensilsCrossed,  emoji:"🍽️" },
+  { id:"chat",      label:"معلومات الشات",     icon: MessageCircle,    emoji:"💬" },
+  { id:"tables",    label:"الطاولات",          icon: Table2,           emoji:"🪑" },
+  { id:"invoices",  label:"الفواتير",          icon: Receipt,          emoji:"🧾" },
+  { id:"expenses",  label:"المصاريف",          icon: Wallet,           emoji:"💸" },
+  { id:"templates", label:"تعديل الفواتير",    icon: FileText,         emoji:"📝" },
 ];
+
+const INVOICE_TYPE_LABEL: Record<string, string> = {
+  order:   "فواتير الطلبات",
+  expense: "فواتير المصاريف",
+  daily:   "فواتير يومية",
+  monthly: "فواتير شهرية",
+  yearly:  "فواتير سنوية",
+};
 
 const COLORS = ["#C67C4E","#6C3FC5","#1A6B4A","#2563EB","#DC2626","#D97706"];
 const STATUS_COLORS: Record<string, string> = {
@@ -123,6 +134,60 @@ function StatsTab({ id }: { id: string }) {
   );
 }
 
+// ── Invoice rendering helpers (shared across tabs) ───────────
+const ITEM_CATEGORIES = [
+  { key: "حلى",            match: /حل[ىو]|حلوي|كيك|كرواس|دونات|تشيز|بسبوس/ },
+  { key: "مشروبات ساخنة",  match: /قهوة|إسبر|اسبر|لاتيه|كابو|موكا|شاي|ساخن|أمريكا|كورت/ },
+  { key: "مشروبات باردة",  match: /آيس|ايس|ميلك\s*شيك|عصير|سموذي|فرابي|مثلج|فريش|بارد/ },
+  { key: "طعام",            match: /برغر|سندوي|فطور|بيتزا|باستا|طعام|أكل|سلطة|رول|توست|جبن/ },
+] as const;
+
+function classifyItem(name: string, original?: string): string {
+  if (original) return original;
+  for (const c of ITEM_CATEGORIES) if (c.match.test(name)) return c.key;
+  return "أخرى";
+}
+
+function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
+  const logoHtml = tpl?.logo
+    ? `<img src="${tpl.logo}" style="width:64px;height:64px;border-radius:12px;object-fit:cover;margin:0 auto;display:block" alt="">`
+    : `<div style="font-size:38px;text-align:center">☕</div>`;
+  return `
+    <div style="text-align:center;margin-bottom:14px">
+      ${logoHtml}
+      <h1 style="font-size:18px;margin:8px 0 2px;color:#000">${tpl?.cafeName ?? ""}</h1>
+      ${tpl?.commercialReg ? `<div style="font-size:11px;color:#444">س.ت: ${tpl.commercialReg}</div>` : ""}
+      ${tpl?.contactPhone  ? `<div style="font-size:11px;color:#444">📞 ${tpl.contactPhone}</div>` : ""}
+    </div>
+    <div style="border-top:1px dashed #aaa;border-bottom:1px dashed #aaa;padding:8px 0;text-align:center;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:bold;color:#000">${title}</div>
+      ${subtitle ? `<div style="font-size:11px;color:#666;margin-top:2px">${subtitle}</div>` : ""}
+    </div>
+  `;
+}
+
+function tplFooterHtml(tpl: any): string {
+  return `<div style="margin-top:18px;text-align:center;font-size:11px;color:#666;font-style:italic">
+    ${(tpl?.promoText ?? "شكراً لزيارتكم").replace(/\n/g, "<br>")}
+  </div>`;
+}
+
+function openPrintWindow(title: string, body: string) {
+  const w = window.open("", "_blank", "width=460,height=700");
+  if (!w) return;
+  w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
+    <style>
+      body{font-family:'Tahoma','Arial';padding:18px;color:#000;background:#fff}
+      table{width:100%;border-collapse:collapse;font-size:12.5px}
+      td,th{border-bottom:1px dashed #ccc;padding:7px 4px;text-align:right}
+      th{background:#f4f4f4;font-weight:bold}
+      .total{margin-top:12px;padding-top:10px;border-top:2px solid #000;display:flex;justify-content:space-between;font-weight:bold;font-size:15px}
+      .row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0}
+      .sec-title{font-size:13px;font-weight:bold;margin:14px 0 6px;color:#000;border-right:3px solid #C67C4E;padding-right:8px}
+    </style></head><body>${body}<script>window.print();</script></body></html>`);
+  w.document.close();
+}
+
 // ── Orders Tab ────────────────────────────────────────────────
 function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
@@ -140,38 +205,33 @@ function OrdersTab({ id }: { id: string }) {
     await api.cafeOrderStatus(id, oid, "done");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "done" } : o));
   };
-  const printInvoice = (o: any) => {
+  const printInvoice = async (o: any) => {
     // Award points + mark order as done (idempotent on server) — fire and forget.
     api.cafeOrderPrint(id, o.id).then(() => {
       setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "done", pointsAwarded: true } : x));
     }).catch(() => { /* swallow — print still happens */ });
-    const w = window.open("", "_blank", "width=420,height=600");
-    if (!w) return;
+    let tpl: any = null;
+    try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
+
     const rows = (o.items ?? []).map((it: any) =>
       `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)} OMR</td></tr>`
     ).join("");
     const where = o.type === "dine" ? `طاولة ${o.tableNumber}` : `سيارة: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
-    w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>فاتورة #${o.id?.slice(-6)}</title>
-      <style>body{font-family:'Tahoma','Arial';padding:20px;color:#000}h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;color:#666;margin:0 0 16px;font-weight:normal}
-      .info{font-size:12px;color:#444;margin-bottom:14px;line-height:1.7}
-      table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px dashed #ccc;padding:8px 4px;text-align:right}
-      .total{margin-top:14px;padding-top:10px;border-top:2px solid #000;display:flex;justify-content:space-between;font-weight:bold;font-size:15px}
-      .footer{margin-top:24px;text-align:center;font-size:11px;color:#888}
-      </style></head><body>
-      <h1>☕ Copointo</h1>
-      <h2>فاتورة طلب #${o.id?.slice(-6)}</h2>
-      <div class="info">
+
+    const body = `
+      ${tplHeaderHtml(tpl, `فاتورة طلب #${o.id?.slice(-6)}`, "")}
+      <div style="font-size:12.5px;color:#222;line-height:1.8;margin-bottom:10px">
         <div><b>الزبون:</b> ${o.customerName}</div>
         <div><b>الهاتف:</b> ${o.customerPhone}</div>
         <div><b>المكان:</b> ${where}</div>
         <div><b>التاريخ:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
       </div>
+      <div class="sec-title">تفاصيل الطلب</div>
       <table><thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table>
       <div class="total"><span>الإجمالي</span><span>${o.total?.toFixed(3)} OMR</span></div>
-      <div class="footer">شكراً لزيارتكم — Copointo</div>
-      <script>window.print();</script>
-    </body></html>`);
-    w.document.close();
+      ${tplFooterHtml(tpl)}
+    `;
+    openPrintWindow(`فاتورة طلب #${o.id?.slice(-6)}`, body);
   };
 
   return (
@@ -911,34 +971,451 @@ function TablesTab({ id }: { id: string }) {
   );
 }
 
-// ── Invoices Tab ──────────────────────────────────────────────
-function InvoicesTab({ id }: { id: string }) {
-  const [invs, setInvs] = useState<any[]>([]);
-  useEffect(() => { api.cafeInvoices(id).then(d => setInvs(d.invoices)); }, [id]);
-  const fmtDate = (d: string) => new Date(d).toLocaleString("ar-OM", { year:"numeric", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
-  return (
-    <div className="space-y-4">
-      {invs.length === 0 && <Empty icon="🧾" text="لا توجد فواتير بعد" />}
-      {invs.map(inv => (
-        <Card key={inv.id} className="p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="font-semibold text-foreground">فاتورة #{inv.id.slice(-5)}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{inv.customerName} • {fmtDate(inv.createdAt)}</p>
-            </div>
-            <span className="text-xl font-bold text-primary">{inv.total?.toFixed(3)} OMR</span>
-          </div>
-          <div className="space-y-1 border-t border-border pt-3">
-            {inv.items?.map((item: any, i: number) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{item.name} ×{item.qty}</span>
-                <span className="text-foreground">{(item.price * item.qty).toFixed(3)} OMR</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
+// ── Aggregated invoice helpers (daily / monthly / yearly) ────
+function aggregateOrders(orderList: any[], from: Date, to: Date) {
+  const inRange = orderList.filter(o => {
+    const t = new Date(o.createdAt).getTime();
+    return t >= from.getTime() && t < to.getTime();
+  });
+  const byCat: Record<string, { qty: number; amount: number }> = {};
+  let total = 0;
+  for (const o of inRange) {
+    total += Number(o.total) || 0;
+    for (const it of (o.items ?? [])) {
+      const cat = classifyItem(String(it.name ?? ""), it.category);
+      byCat[cat] ??= { qty: 0, amount: 0 };
+      byCat[cat].qty += Number(it.qty) || 0;
+      byCat[cat].amount += (Number(it.qty) || 0) * (Number(it.price) || 0);
+    }
+  }
+  return { inRange, byCat, total };
+}
+
+function aggregateExpenses(expList: any[], from: Date, to: Date) {
+  const inRange = expList.filter(e => {
+    const t = new Date(e.date).getTime();
+    return t >= from.getTime() && t < to.getTime();
+  });
+  const total = inRange.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  return { inRange, total };
+}
+
+async function loadAggData(id: string) {
+  const [{ orders }, { expenses }] = await Promise.all([
+    api.cafeOrders(id),
+    api.expenses(id).catch(() => ({ expenses: [] })),
+  ]);
+  return { orders: orders ?? [], expenses: expenses ?? [] };
+}
+
+function fmtDateAr(d: Date) { return d.toLocaleDateString("ar-OM"); }
+function fmtDateTimeAr(d: string) {
+  return new Date(d).toLocaleString("ar-OM", { year:"numeric", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
+}
+
+async function printDailyInvoice(id: string, dateStr: string) {
+  const tpl = (await api.invoiceTemplate(id, "daily").catch(() => ({ template: null }))).template;
+  const { orders } = await loadAggData(id);
+  const from = new Date(dateStr + "T00:00:00");
+  const to   = new Date(from); to.setDate(to.getDate() + 1);
+  const { inRange, byCat, total } = aggregateOrders(orders, from, to);
+
+  const ordersRows = inRange.map(o =>
+    `<tr><td>#${o.id.slice(-5)}</td><td>${o.customerName ?? "-"}</td><td>${fmtDateTimeAr(o.createdAt)}</td><td style="text-align:left">${(Number(o.total)||0).toFixed(3)}</td></tr>`
+  ).join("");
+  const catRows = Object.entries(byCat).map(([k, v]) =>
+    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)} OMR</td></tr>`
+  ).join("");
+
+  const body = `
+    ${tplHeaderHtml(tpl, "الفاتورة اليومية", `تاريخ: ${fmtDateAr(from)}`)}
+    <div class="sec-title">جميع الطلبات (${inRange.length})</div>
+    ${inRange.length === 0
+      ? `<div style="text-align:center;color:#888;font-size:12px;padding:14px">لا توجد طلبات في هذا اليوم</div>`
+      : `<table><thead><tr><th>رقم</th><th>الزبون</th><th>التاريخ والتوقيت</th><th>المبلغ</th></tr></thead><tbody>${ordersRows}</tbody></table>`}
+    <div class="sec-title">المجموع حسب التصنيف</div>
+    ${Object.keys(byCat).length === 0
+      ? `<div style="text-align:center;color:#888;font-size:12px;padding:8px">لا يوجد</div>`
+      : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
+    <div class="total"><span>إجمالي اليوم</span><span>${total.toFixed(3)} OMR</span></div>
+    ${tplFooterHtml(tpl)}
+  `;
+  openPrintWindow(`فاتورة يومية ${dateStr}`, body);
+}
+
+async function printMonthlyInvoice(id: string, year: number, month: number) {
+  const tpl = (await api.invoiceTemplate(id, "monthly").catch(() => ({ template: null }))).template;
+  const { orders, expenses } = await loadAggData(id);
+  const from = new Date(year, month - 1, 1);
+  const to   = new Date(year, month,     1);
+  const { inRange: ordersIn, byCat, total: ordersTotal } = aggregateOrders(orders, from, to);
+  const { total: expTotal } = aggregateExpenses(expenses, from, to);
+  const net = ordersTotal - expTotal;
+  const catRows = Object.entries(byCat).map(([k, v]) =>
+    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)} OMR</td></tr>`
+  ).join("");
+  const monthName = from.toLocaleDateString("ar-OM", { month: "long", year: "numeric" });
+
+  const body = `
+    ${tplHeaderHtml(tpl, "الفاتورة الشهرية", `${monthName} • من ${fmtDateAr(from)} إلى ${fmtDateAr(new Date(to.getTime()-1))}`)}
+    <div class="row"><span>عدد الطلبات</span><b>${ordersIn.length}</b></div>
+    <div class="sec-title">عدد الطلبات والمبالغ حسب التصنيف</div>
+    ${Object.keys(byCat).length === 0
+      ? `<div style="text-align:center;color:#888;font-size:12px;padding:8px">لا يوجد</div>`
+      : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
+    <div class="row" style="margin-top:12px"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} OMR</b></div>
+    ${expTotal > 0 ? `<div class="row" style="color:#a40000"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} OMR</b></div>` : ""}
+    <div class="total"><span>الصافي</span><span>${net.toFixed(3)} OMR</span></div>
+    ${tplFooterHtml(tpl)}
+  `;
+  openPrintWindow(`فاتورة شهرية ${year}-${String(month).padStart(2,"0")}`, body);
+}
+
+async function printYearlyInvoice(id: string, year: number) {
+  const tpl = (await api.invoiceTemplate(id, "yearly").catch(() => ({ template: null }))).template;
+  const { orders, expenses } = await loadAggData(id);
+  const from = new Date(year, 0, 1);
+  const to   = new Date(year + 1, 0, 1);
+  const { inRange: ordersIn, byCat, total: ordersTotal } = aggregateOrders(orders, from, to);
+  const { total: expTotal } = aggregateExpenses(expenses, from, to);
+  const net = ordersTotal - expTotal;
+  const catRows = Object.entries(byCat).map(([k, v]) =>
+    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)} OMR</td></tr>`
+  ).join("");
+
+  const body = `
+    ${tplHeaderHtml(tpl, "الفاتورة السنوية", `سنة ${year}`)}
+    <div class="row"><span>عدد الطلبات</span><b>${ordersIn.length}</b></div>
+    <div class="sec-title">عدد الطلبات والمبالغ حسب التصنيف</div>
+    ${Object.keys(byCat).length === 0
+      ? `<div style="text-align:center;color:#888;font-size:12px;padding:8px">لا يوجد</div>`
+      : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
+    <div class="row" style="margin-top:12px"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} OMR</b></div>
+    ${expTotal > 0 ? `<div class="row" style="color:#a40000"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} OMR</b></div>` : ""}
+    <div class="total"><span>الصافي السنوي</span><span>${net.toFixed(3)} OMR</span></div>
+    ${tplFooterHtml(tpl)}
+  `;
+  openPrintWindow(`فاتورة سنوية ${year}`, body);
+}
+
+async function printExpenseInvoice(id: string, exp: any) {
+  const tpl = (await api.invoiceTemplate(id, "expense").catch(() => ({ template: null }))).template;
+  const body = `
+    ${tplHeaderHtml(tpl, `فاتورة مصروف #${exp.id?.slice(-5)}`, "")}
+    <div style="font-size:12.5px;color:#222;line-height:1.8;margin-bottom:10px">
+      <div><b>التاريخ:</b> ${exp.date}</div>
+      <div><b>التصنيف:</b> ${exp.category}</div>
     </div>
+    <div class="sec-title">تفاصيل المصروف</div>
+    <table><thead><tr><th>البيان</th><th>التصنيف</th><th>المبلغ</th></tr></thead><tbody>
+      <tr><td>${exp.title}</td><td>${exp.category}</td><td style="text-align:left">${(Number(exp.amount)||0).toFixed(3)} OMR</td></tr>
+    </tbody></table>
+    ${exp.notes ? `<div style="font-size:12px;color:#444;margin-top:8px"><b>ملاحظات:</b> ${exp.notes}</div>` : ""}
+    <div class="total"><span>المجموع</span><span>${(Number(exp.amount)||0).toFixed(3)} OMR</span></div>
+    ${tplFooterHtml(tpl)}
+  `;
+  openPrintWindow(`فاتورة مصروف #${exp.id?.slice(-5)}`, body);
+}
+
+// ── Invoices Tab (daily / monthly / yearly print) ────────────
+function InvoicesTab({ id }: { id: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date,  setDate]  = useState<string>(today);
+  const [month, setMonth] = useState<string>(today.slice(0, 7));
+  const [year,  setYear]  = useState<string>(String(new Date().getFullYear()));
+  const [recent, setRecent] = useState<any[]>([]);
+  useEffect(() => { api.cafeInvoices(id).then(d => setRecent(d.invoices ?? [])).catch(() => {}); }, [id]);
+
+  const cardRow = (icon: any, title: string, desc: string, controls: React.ReactNode) => (
+    <Card className="p-5">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">{icon}</div>
+        <div>
+          <p className="font-semibold text-foreground">{title}</p>
+          <p className="text-xs text-muted-foreground">{desc}</p>
+        </div>
+      </div>
+      {controls}
+    </Card>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="grid md:grid-cols-3 gap-4">
+        {cardRow(<CalendarDays size={18}/>, "فاتورة يومية", "كل طلبات يوم محدد", (
+          <div className="flex gap-2">
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="flex-1 bg-input border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            <button onClick={() => printDailyInvoice(id, date)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90">
+              <Printer size={14}/> طباعة
+            </button>
+          </div>
+        ))}
+        {cardRow(<CalendarRange size={18}/>, "فاتورة شهرية", "ملخص شهر كامل + خصم المصاريف", (
+          <div className="flex gap-2">
+            <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+              className="flex-1 bg-input border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            <button onClick={() => {
+              const [y, m] = month.split("-").map(Number);
+              if (y && m) printMonthlyInvoice(id, y, m);
+            }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90">
+              <Printer size={14}/> طباعة
+            </button>
+          </div>
+        ))}
+        {cardRow(<BarChart3 size={18}/>, "فاتورة سنوية", "ملخص سنة كاملة + خصم المصاريف", (
+          <div className="flex gap-2">
+            <input type="number" min={2020} max={2100} value={year} onChange={e => setYear(e.target.value)}
+              className="flex-1 bg-input border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
+            <button onClick={() => { const y = Number(year); if (y) printYearlyInvoice(id, y); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90">
+              <Printer size={14}/> طباعة
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-3">آخر الفواتير المسجلة</h3>
+        {recent.length === 0 && <Empty icon="🧾" text="لا توجد فواتير بعد" />}
+        <div className="space-y-3">
+          {recent.map(inv => (
+            <Card key={inv.id} className="p-4">
+              <div className="flex items-start justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-foreground text-sm">فاتورة #{inv.id.slice(-5)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{inv.customerName} • {fmtDateTimeAr(inv.createdAt)}</p>
+                </div>
+                <span className="text-base font-bold text-primary">{inv.total?.toFixed(3)} OMR</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Expenses Tab ─────────────────────────────────────────────
+const EXPENSE_CATS = ["إيجار", "رواتب", "مواد خام", "صيانة", "كهرباء وماء", "تسويق", "أخرى"];
+function ExpensesTab({ id }: { id: string }) {
+  const [list, setList] = useState<any[]>([]);
+  const [form, setForm] = useState({ title: "", amount: "", category: EXPENSE_CATS[0], notes: "", date: new Date().toISOString().slice(0,10) });
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => api.expenses(id).then(d => setList(d.expenses ?? [])).catch(() => {}), [id]);
+  useEffect(() => { load(); }, [load]);
+  const total = list.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+
+  const submit = async () => {
+    if (!form.title.trim() || !form.amount || Number(form.amount) <= 0) return;
+    setBusy(true);
+    try {
+      await api.addExpense(id, { ...form, amount: Number(form.amount) });
+      setForm({ title:"", amount:"", category: EXPENSE_CATS[0], notes:"", date: new Date().toISOString().slice(0,10) });
+      await load();
+    } finally { setBusy(false); }
+  };
+  const remove = async (eid: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا المصروف؟")) return;
+    await api.deleteExpense(id, eid);
+    setList(prev => prev.filter(e => e.id !== eid));
+  };
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2"><Plus size={16}/> إضافة مصروف</h3>
+        <div className="grid md:grid-cols-2 gap-3">
+          <Inp value={form.title}  onChange={(v: string) => setForm(f => ({ ...f, title: v }))}  placeholder="البيان (مثال: إيجار شهر مارس)" />
+          <Inp value={form.amount} onChange={(v: string) => setForm(f => ({ ...f, amount: v }))} placeholder="المبلغ (OMR)" type="number" />
+          <Sel value={form.category} onChange={(v: string) => setForm(f => ({ ...f, category: v }))}
+               options={EXPENSE_CATS.map(c => ({ value: c, label: c }))} />
+          <Inp value={form.date} onChange={(v: string) => setForm(f => ({ ...f, date: v }))} type="date" />
+          <Inp value={form.notes} onChange={(v: string) => setForm(f => ({ ...f, notes: v }))} placeholder="ملاحظات (اختياري)" className="md:col-span-2" />
+        </div>
+        <div className="flex justify-end mt-3">
+          <button onClick={submit} disabled={busy}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 disabled:opacity-50">
+            <Save size={14}/> {busy ? "جاري الحفظ..." : "حفظ المصروف"}
+          </button>
+        </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">إجمالي المصاريف المسجلة</span>
+          <span className="text-xl font-bold text-red-400">{total.toFixed(3)} OMR</span>
+        </div>
+      </Card>
+
+      {list.length === 0 && <Empty icon="💸" text="لا توجد مصاريف مسجلة" />}
+      <div className="space-y-3">
+        {list.map(e => (
+          <Card key={e.id} className="p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div>
+                <p className="font-semibold text-foreground text-sm">{e.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{e.category} • {e.date}</p>
+                {e.notes && <p className="text-xs text-muted-foreground mt-1">{e.notes}</p>}
+              </div>
+              <span className="text-base font-bold text-red-400">{Number(e.amount).toFixed(3)} OMR</span>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button onClick={() => printExpenseInvoice(id, e)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-muted/30">
+                <Printer size={13}/> طباعة فاتورة
+              </button>
+              <button onClick={() => remove(e.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 text-xs font-semibold hover:bg-red-500/25">
+                <Trash2 size={13}/> حذف
+              </button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Templates Tab (تعديل الفواتير) ───────────────────────────
+const TEMPLATE_TYPES: { key: "expense" | "order" | "daily" | "monthly" | "yearly"; label: string; icon: any }[] = [
+  { key: "expense", label: "فواتير المصاريف", icon: Wallet },
+  { key: "order",   label: "فواتير الطلبات",   icon: ShoppingBag },
+  { key: "daily",   label: "فواتير يومية",     icon: CalendarDays },
+  { key: "monthly", label: "فواتير شهرية",     icon: CalendarRange },
+  { key: "yearly",  label: "فواتير سنوية",     icon: BarChart3 },
+];
+
+function TemplatesTab({ id }: { id: string }) {
+  const [active, setActive] = useState<string | null>(null);
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <h3 className="font-semibold text-foreground mb-1">تعديل بيانات الفواتير</h3>
+        <p className="text-xs text-muted-foreground mb-4">
+          اختر نوع الفاتورة لتعديل البيانات التي تظهر في الترويسة (الشعار، الاسم، السجل التجاري، رقم التواصل، الكلام الترويجي).
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {TEMPLATE_TYPES.map(t => {
+            const Icon = t.icon;
+            const isActive = active === t.key;
+            return (
+              <button key={t.key}
+                onClick={() => setActive(isActive ? null : t.key)}
+                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all
+                  ${isActive
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-card text-foreground hover:border-primary/50"}`}>
+                <Icon size={22}/>
+                <span className="text-xs font-semibold text-center">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {active && <TemplateForm id={id} type={active} key={active} />}
+    </div>
+  );
+}
+
+function TemplateForm({ id, type }: { id: string; type: string }) {
+  const [form, setForm] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const fileRef = (typeof window !== "undefined") ? null : null;
+
+  useEffect(() => {
+    api.invoiceTemplate(id, type).then(d => setForm(d.template)).catch(() => setForm({
+      logo: "", cafeName: "", commercialReg: "", contactPhone: "", promoText: "شكراً لزيارتكم",
+    }));
+  }, [id, type]);
+
+  if (!form) return <Loader />;
+
+  const onLogoFile = (file: File | null) => {
+    if (!file) return;
+    if (file.size > 700_000) { alert("الصورة كبيرة جداً (الحد الأقصى ~700KB)"); return; }
+    const r = new FileReader();
+    r.onload = () => setForm((f: any) => ({ ...f, logo: String(r.result) }));
+    r.readAsDataURL(file);
+  };
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.updateInvoiceTemplate(id, type, {
+        logo: form.logo, cafeName: form.cafeName, commercialReg: form.commercialReg,
+        contactPhone: form.contactPhone, promoText: form.promoText,
+      });
+      setSavedAt(new Date().toLocaleTimeString("ar-OM"));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Card className="p-5">
+      <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+        <Pencil size={16}/> {INVOICE_TYPE_LABEL[type]}
+      </h3>
+
+      <div className="grid md:grid-cols-3 gap-5">
+        {/* Logo column */}
+        <div className="md:col-span-1 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground">شعار الكوفي</p>
+          <div className="aspect-square w-full rounded-2xl border border-border bg-muted/20 flex items-center justify-center overflow-hidden">
+            {form.logo
+              ? <img src={form.logo} className="w-full h-full object-cover" alt=""/>
+              : <ImagePlus size={42} className="text-muted-foreground"/>}
+          </div>
+          <label className="block">
+            <span className="sr-only">choose file</span>
+            <input type="file" accept="image/*" onChange={e => onLogoFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-xs text-muted-foreground file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-primary-foreground file:text-xs file:font-semibold file:cursor-pointer" />
+          </label>
+          {form.logo && (
+            <button onClick={() => setForm((f: any) => ({ ...f, logo: "" }))}
+              className="text-xs text-red-400 hover:underline">إزالة الشعار</button>
+          )}
+        </div>
+
+        {/* Fields column */}
+        <div className="md:col-span-2 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1">اسم الكوفي</label>
+            <Inp value={form.cafeName} onChange={(v: string) => setForm((f: any) => ({ ...f, cafeName: v }))} placeholder="مثال: كوفي كوبوينتو" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1">السجل التجاري</label>
+            <Inp value={form.commercialReg} onChange={(v: string) => setForm((f: any) => ({ ...f, commercialReg: v }))} placeholder="رقم السجل التجاري" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1">رقم التواصل</label>
+            <Inp value={form.contactPhone} onChange={(v: string) => setForm((f: any) => ({ ...f, contactPhone: v }))} placeholder="مثال: 99999999" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1">كلام ترويجي للكوفي</label>
+            <textarea value={form.promoText}
+              onChange={e => setForm((f: any) => ({ ...f, promoText: e.target.value }))}
+              placeholder="مثال: شكراً لزيارتكم — نتطلع لرؤيتكم مجدداً"
+              rows={3}
+              className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground resize-none" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 mt-5 pt-4 border-t border-border">
+        <span className="text-xs text-muted-foreground">
+          {savedAt ? `✅ تم الحفظ في ${savedAt}` : "غير محفوظ بعد"}
+        </span>
+        <button onClick={save} disabled={busy}
+          className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 disabled:opacity-50">
+          <Save size={14}/> {busy ? "جاري الحفظ..." : "حفظ التغييرات"}
+        </button>
+      </div>
+    </Card>
   );
 }
 
@@ -1089,7 +1566,9 @@ export default function CafeDashboardPage() {
         {tab === "menu"     && <MenuTab     id={id} />}
         {tab === "chat"     && <ChatTab     id={id} />}
         {tab === "tables"   && <TablesTab   id={id} />}
-        {tab === "invoices" && <InvoicesTab id={id} />}
+        {tab === "invoices"  && <InvoicesTab  id={id} />}
+        {tab === "expenses"  && <ExpensesTab  id={id} />}
+        {tab === "templates" && <TemplatesTab id={id} />}
       </div>
 
     </div>

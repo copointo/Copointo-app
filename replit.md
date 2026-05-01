@@ -47,6 +47,28 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 The cafe dashboard (`artifacts/admin/src/pages/CafeDashboardPage.tsx`) has a special **gold crown button** in the tab row labeled "إحصائيات المدير". Clicking it now navigates to a **dedicated full-page route** at `/cafe/:id/analytics` (`ManagerAnalyticsPage`, exported from the same file), which first asks for the `managerPassword` set when the cafe was registered (verified server-side via `POST /api/cafe/:id/auth`). Once unlocked it shows a full analytics view powered by `POST /api/cafe/:id/advanced-stats` (also password-protected): daily/monthly/yearly revenue (area chart with period switcher), top products & categories (pie + ranked list), order type pie (dine-in vs car), order source pie (direct vs chat), busiest weekday bar, booking status pie, visit→order conversion stats, complete invoice table, and a players ranking table that joins each customer's phone with their global Oman rank (sorted by `totalOrders`). Cafe-detail page views are tracked from the mobile app via `POST /api/cafe/:id/track-view` (called on mount in `artifacts/copointo/app/cafe/[id].tsx`). View records, plus a `source: "direct"|"chat"` field on `Order`, live in the in-memory store (`artifacts/api-server/src/store.ts`).
 
+## Invoice Templates & Expenses
+
+Every cafe has **5 customizable invoice templates** (one per type: `order`, `expense`, `daily`, `monthly`, `yearly`) plus a full **expense-tracking module**.
+
+**Server (`artifacts/api-server/src/store.ts` + `routes/cafe-dashboard.ts`):**
+- `InvoiceTemplate { cafeId, type, logo, cafeName, commercialReg, contactPhone, promoText, updatedAt }` — one record per (cafe, type). `GET /invoice-templates` returns all 5 (defaults derived from cafe info if not yet edited); `GET/PUT /invoice-templates/:type` for individual types; invalid types → 400.
+- `Expense { id, cafeId, title, amount, category, notes?, date, createdAt }`. CRUD: `GET /expenses`, `POST /expenses` (validates positive amount + required title/category), `DELETE /expenses/:expenseId`.
+
+**Admin Dashboard (`artifacts/admin/src/pages/CafeDashboardPage.tsx`):**
+Three new tabs added to the existing tab strip:
+1. **"الفواتير"** (rebuilt `InvoicesTab`) — date pickers for daily / month picker for monthly / year input for yearly; each has a Print button that fetches data + the matching template, aggregates orders by client-side category classification (حلى / مشروبات ساخنة / مشروبات باردة / طعام / أخرى via regex on item name), subtracts expenses for monthly/yearly, and opens a print window (`openPrintWindow`).
+2. **"المصاريف"** (`ExpensesTab`) — add/list/delete expenses, with "طباعة فاتورة" per expense using the `expense` template.
+3. **"تعديل الفواتير"** (`TemplatesTab`) — 5 buttons (one per type); selecting one renders `TemplateForm` with logo upload (base64, max ~700KB), cafe name, commercial registration, contact phone, promotional text. Saved via `PUT /invoice-templates/:type`.
+
+**Print invoice rendering** — shared helpers `tplHeaderHtml`, `tplFooterHtml`, `openPrintWindow` (top of file) ensure all invoice types share the same header/footer style. `OrdersTab.printInvoice` now fetches the `order` template before rendering instead of hardcoding "Copointo".
+
+**Layouts (per request):**
+- **Order invoice** — header (logo/name/CR/phone) → customer + table/car info → items table → total → promo footer.
+- **Daily invoice** — header → all orders table (id/customer/datetime/amount) → totals by category table → grand total → footer.
+- **Monthly/Yearly invoice** — header → order count → category breakdown → revenue total → expenses total (if any, in red) → net → footer.
+- **Expense invoice** — header → date + category info → expense detail row → notes → total → footer.
+
 ## Discount Codes
 
 Each cafe can issue **digit-only** promo codes from the new "أكواد التخفيض" tab in the cafe dashboard. Codes have a fixed percent (10/20/30/40/50), an expiry date, and a `usedCount`. Server endpoints (in `artifacts/api-server/src/routes/cafe-dashboard.ts`):
