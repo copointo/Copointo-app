@@ -7,7 +7,7 @@ import {
   ArrowLeft, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
   MessageCircle, Table2, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
-  CalendarRange, BarChart3, Tag, Percent,
+  CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -276,66 +276,208 @@ function BookingsTab({ id }: { id: string }) {
 }
 
 // ── Menu Tab ──────────────────────────────────────────────────
+const MENU_CATEGORIES = [
+  { value: "مشروب ساخن",   label: "☕ مشروب ساخن" },
+  { value: "مشروبات باردة", label: "🥤 مشروبات باردة" },
+  { value: "حلى",          label: "🍰 حلى" },
+  { value: "طعام",         label: "🍽️ طعام" },
+];
+const DEFAULT_CATEGORY = MENU_CATEGORIES[0].value;
+const MAX_IMAGE_BYTES = 600 * 1024; // 600KB cap on upload
+
+type MenuForm = { name: string; price: string; category: string; description: string; image: string };
+const emptyForm = (): MenuForm => ({ name: "", price: "", category: DEFAULT_CATEGORY, description: "", image: "" });
+
 function MenuTab({ id }: { id: string }) {
   const [items, setItems] = useState<any[]>([]);
-  const [form, setForm]   = useState({ name:"", price:"", category:"قهوة", description:"" });
+  const [form, setForm]   = useState<MenuForm>(emptyForm());
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [imgErr, setImgErr] = useState<string>("");
+
   const load = useCallback(() => api.cafeMenu(id).then(d => setItems(d.items)), [id]);
   useEffect(() => { load(); }, [load]);
-  const add = async (e: React.FormEvent) => {
+
+  const resetForm = () => { setForm(emptyForm()); setEditingId(null); setImgErr(""); };
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.price) return;
     setSaving(true);
-    await api.addMenuItem(id, { ...form, price: +form.price });
-    await load(); setForm({ name:"", price:"", category:"قهوة", description:"" }); setSaving(false);
+    try {
+      const body = {
+        name: form.name,
+        price: +form.price,
+        category: form.category,
+        description: form.description,
+        image: form.image || null,
+      };
+      if (editingId) {
+        await api.updateMenuItem(id, editingId, body);
+      } else {
+        await api.addMenuItem(id, body);
+      }
+      await load();
+      resetForm();
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const startEdit = (item: any) => {
+    setEditingId(item.id);
+    setImgErr("");
+    setForm({
+      name: item.name ?? "",
+      price: String(item.price ?? ""),
+      category: item.category ?? DEFAULT_CATEGORY,
+      description: item.description ?? "",
+      image: item.image ?? "",
+    });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const del = async (mid: string) => {
-    await api.deleteMenuItem(id, mid); setItems(prev => prev.filter(m => m.id !== mid));
+    await api.deleteMenuItem(id, mid);
+    setItems(prev => prev.filter(m => m.id !== mid));
+    if (editingId === mid) resetForm();
   };
   const toggleAvail = async (item: any) => {
     await api.updateMenuItem(id, item.id, { available: !item.available });
     setItems(prev => prev.map(m => m.id === item.id ? { ...m, available: !m.available } : m));
   };
-  const cats = [...new Set(items.map(i => i.category))];
+
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImgErr("");
+    if (!file.type.startsWith("image/")) { setImgErr("الملف ليس صورة"); return; }
+    if (file.size > MAX_IMAGE_BYTES)     { setImgErr("الصورة كبيرة جداً (الحد الأقصى 600 كيلوبايت)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result || "");
+      setForm(p => ({ ...p, image: url }));
+    };
+    reader.onerror = () => setImgErr("تعذر قراءة الصورة");
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="space-y-5">
-      {/* Add form */}
+      {/* Add / Edit form */}
       <Card className="p-5">
-        <h3 className="font-semibold text-foreground mb-4">➕ إضافة عنصر جديد للقائمة</h3>
-        <form onSubmit={add} className="grid grid-cols-2 gap-3">
+        <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          {editingId ? <><Pencil size={16} className="text-primary" /> تعديل المنتج</> : <>➕ إضافة عنصر جديد للقائمة</>}
+        </h3>
+        <form onSubmit={submit} className="grid grid-cols-2 gap-3">
           <Inp value={form.name} onChange={(v:string) => setForm(p=>({...p,name:v}))} placeholder="اسم المنتج *" />
           <Inp value={form.price} onChange={(v:string) => setForm(p=>({...p,price:v}))} placeholder="السعر (OMR) *" type="number" />
-          <Sel value={form.category} onChange={(v:string) => setForm(p=>({...p,category:v}))} options={[{value:"قهوة",label:"☕ قهوة"},{value:"حلى",label:"🍰 حلى"},{value:"مشروبات",label:"🥤 مشروبات"},{value:"أكل",label:"🍽️ أكل"}]} />
+          <Sel value={form.category} onChange={(v:string) => setForm(p=>({...p,category:v}))} options={MENU_CATEGORIES} />
           <Inp value={form.description} onChange={(v:string) => setForm(p=>({...p,description:v}))} placeholder="وصف مختصر" />
-          <button type="submit" disabled={saving} className="col-span-2 bg-primary text-primary-foreground py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2">
-            <Plus size={16}/>{saving?"جاري الإضافة...":"إضافة للقائمة"}
-          </button>
+
+          {/* Image picker */}
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">صورة المنتج (اختياري)</label>
+            <div className="flex items-center gap-3">
+              {form.image ? (
+                <img src={form.image} alt="" className="w-20 h-20 rounded-xl object-cover border border-border" />
+              ) : (
+                <div className="w-20 h-20 rounded-xl border border-dashed border-border bg-muted/20 flex items-center justify-center text-muted-foreground">
+                  <ImagePlus size={22} />
+                </div>
+              )}
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="cursor-pointer inline-flex items-center justify-center gap-2 bg-card border border-border hover:border-primary/50 rounded-xl px-3 py-2 text-sm text-foreground transition w-fit">
+                  <ImagePlus size={15}/> {form.image ? "تغيير الصورة" : "اختيار صورة"}
+                  <input type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+                </label>
+                {form.image && (
+                  <button type="button" onClick={() => setForm(p=>({...p,image:""}))} className="text-xs text-red-400 hover:text-red-300 w-fit">
+                    إزالة الصورة
+                  </button>
+                )}
+                <p className="text-[10px] text-muted-foreground">حد أقصى 600 كيلوبايت — الصورة اختيارية</p>
+                {imgErr && <p className="text-[11px] text-red-400">{imgErr}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-2 flex gap-2">
+            <button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2">
+              {editingId ? <><CheckCircle size={16}/>{saving?"جاري الحفظ...":"حفظ التعديلات"}</> : <><Plus size={16}/>{saving?"جاري الإضافة...":"إضافة للقائمة"}</>}
+            </button>
+            {editingId && (
+              <button type="button" onClick={resetForm} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40">
+                إلغاء
+              </button>
+            )}
+          </div>
         </form>
       </Card>
-      {/* Items grouped by category */}
-      {cats.length === 0 && items.length === 0 && <Empty icon="🍽️" text="القائمة فارغة — أضف منتجات!" />}
-      {cats.map(cat => (
-        <Card key={cat} className="overflow-hidden">
-          <div className="px-5 py-3 bg-muted/30 border-b border-border">
-            <span className="font-semibold text-foreground text-sm">{cat}</span>
-          </div>
-          <div className="divide-y divide-border">
-            {items.filter(i => i.category === cat).map(item => (
-              <div key={item.id} className="flex items-center gap-3 px-5 py-3.5">
-                <div className="flex-1">
-                  <p className={`font-medium text-sm ${item.available ? "text-foreground" : "text-muted-foreground line-through"}`}>{item.name}</p>
-                  {item.description && <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>}
+
+      {/* Items grouped by category (fixed order) */}
+      {items.length === 0 && <Empty icon="🍽️" text="القائمة فارغة — أضف منتجات!" />}
+      {MENU_CATEGORIES.map(({ value: cat, label }) => {
+        const list = items.filter(i => i.category === cat);
+        if (list.length === 0) return null;
+        return (
+          <Card key={cat} className="overflow-hidden">
+            <div className="px-5 py-3 bg-muted/30 border-b border-border">
+              <span className="font-semibold text-foreground text-sm">{label}</span>
+            </div>
+            <div className="divide-y divide-border">
+              {list.map(item => (
+                <div key={item.id} className={`flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`}>
+                  {item.image ? (
+                    <img src={item.image} alt="" className="w-12 h-12 rounded-lg object-cover border border-border shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-muted/30 border border-border flex items-center justify-center text-lg shrink-0">🍽️</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-medium text-sm truncate ${item.available ? "text-foreground" : "text-muted-foreground line-through"}`}>{item.name}</p>
+                    {item.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.description}</p>}
+                  </div>
+                  <span className="text-primary font-bold text-sm whitespace-nowrap">{item.price?.toFixed(3)} OMR</span>
+                  <button onClick={() => toggleAvail(item)} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${item.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                    {item.available ? "متاح" : "غير متاح"}
+                  </button>
+                  <button onClick={() => startEdit(item)} title="تعديل" className="p-1.5 rounded-lg hover:bg-primary/15 text-primary"><Pencil size={14}/></button>
+                  <button onClick={() => del(item.id)} title="حذف" className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={14}/></button>
                 </div>
-                <span className="text-primary font-bold text-sm">{item.price?.toFixed(3)} OMR</span>
-                <button onClick={() => toggleAvail(item)} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${item.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
-                  {item.available ? "متاح" : "غير متاح"}
-                </button>
-                <button onClick={() => del(item.id)} className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={14}/></button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+
+      {/* Legacy items (any category not in the 4 standard ones) */}
+      {(() => {
+        const known = new Set(MENU_CATEGORIES.map(c => c.value));
+        const legacy = items.filter(i => !known.has(i.category));
+        if (legacy.length === 0) return null;
+        return (
+          <Card className="overflow-hidden">
+            <div className="px-5 py-3 bg-muted/30 border-b border-border">
+              <span className="font-semibold text-foreground text-sm">📦 تصنيفات قديمة (عدّلها لتظهر للزبائن)</span>
+            </div>
+            <div className="divide-y divide-border">
+              {legacy.map(item => (
+                <div key={item.id} className={`flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`}>
+                  <div className="w-12 h-12 rounded-lg bg-muted/30 border border-border flex items-center justify-center text-lg shrink-0">🍽️</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate text-foreground">{item.name}</p>
+                    <p className="text-xs text-amber-400 mt-0.5">التصنيف الحالي: {item.category}</p>
+                  </div>
+                  <span className="text-primary font-bold text-sm whitespace-nowrap">{item.price?.toFixed(3)} OMR</span>
+                  <button onClick={() => startEdit(item)} title="تعديل" className="p-1.5 rounded-lg hover:bg-primary/15 text-primary"><Pencil size={14}/></button>
+                  <button onClick={() => del(item.id)} title="حذف" className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={14}/></button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
     </div>
   );
 }

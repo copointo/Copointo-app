@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -32,14 +33,20 @@ interface MenuItem {
   description: string;
   available: boolean;
   createdAt: string;
+  image?: string | null;
 }
 
-const CATEGORY_ICONS: Record<string, string> = {
-  "قهوة": "☕",
-  "حلى": "🍰",
-  "مشروبات": "🥤",
-  "أكل": "🍽️",
-};
+const CATEGORIES: { key: string; icon: string }[] = [
+  { key: "مشروب ساخن",   icon: "☕" },
+  { key: "مشروبات باردة", icon: "🥤" },
+  { key: "حلى",          icon: "🍰" },
+  { key: "طعام",         icon: "🍽️" },
+];
+
+const CATEGORY_ICONS: Record<string, string> = CATEGORIES.reduce(
+  (acc, c) => ({ ...acc, [c.key]: c.icon }),
+  {} as Record<string, string>,
+);
 
 export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,7 +60,7 @@ export default function OrderScreen() {
 
   const [items, setItems]     = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>(CATEGORIES[0].key);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,23 +70,14 @@ export default function OrderScreen() {
         if (cancelled) return;
         const available = data.items.filter((i) => i.available !== false);
         setItems(available);
-        if (available.length && !activeCategory) {
-          setActiveCategory(available[0].category);
-        }
       })
       .catch(() => { if (!cancelled) setItems([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const categories = useMemo(
-    () => Array.from(new Set(items.map((i) => i.category))),
-    [items]
-  );
-
   const visibleItems = useMemo(
-    () => activeCategory ? items.filter((i) => i.category === activeCategory) : items,
+    () => items.filter((i) => i.category === activeCategory),
     [items, activeCategory]
   );
 
@@ -118,40 +116,27 @@ export default function OrderScreen() {
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <View style={[styles.container, { paddingTop: topPad }]}>
-        {renderHeader()}
-        <View style={styles.center}>
-          <Text style={{ fontSize: 56 }}>☕</Text>
-          <Text style={styles.emptyTitle}>القائمة فارغة</Text>
-          <Text style={styles.muted}>لم يضف الكوفي أي منتجات بعد</Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       {renderHeader()}
 
-      {/* Category tabs */}
+      {/* Category tabs (always shown) */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabs}
       >
-        {categories.map((cat) => {
-          const active = activeCategory === cat;
+        {CATEGORIES.map((c) => {
+          const active = activeCategory === c.key;
           return (
             <TouchableOpacity
-              key={cat}
+              key={c.key}
               style={[styles.tab, active && styles.tabActive]}
-              onPress={() => { Haptics.selectionAsync(); setActiveCategory(cat); }}
+              onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
               activeOpacity={0.85}
             >
-              <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat] ?? "🍽️"}</Text>
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{cat}</Text>
+              <Text style={{ fontSize: 16 }}>{c.icon}</Text>
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{c.key}</Text>
             </TouchableOpacity>
           );
         })}
@@ -162,18 +147,29 @@ export default function OrderScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.list, { paddingBottom: botPad + (cartCount > 0 ? 110 : 30) }]}
       >
+        {visibleItems.length === 0 && (
+          <View style={[styles.center, { paddingTop: 60 }]}>
+            <Text style={{ fontSize: 48 }}>{CATEGORY_ICONS[activeCategory] ?? "🍽️"}</Text>
+            <Text style={styles.emptyTitle}>لا توجد منتجات في هذا التصنيف</Text>
+            <Text style={styles.muted}>جرّب تصنيفاً آخر</Text>
+          </View>
+        )}
         {visibleItems.map((item) => {
           const cartItem = cart.find((c) => c.id === item.id);
           const qty = cartItem?.quantity ?? 0;
           return (
             <View key={item.id} style={styles.card}>
-              <LinearGradient
-                colors={["rgba(232,184,109,0.16)", "rgba(232,184,109,0.04)"]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.cardIcon}
-              >
-                <Text style={{ fontSize: 36 }}>{CATEGORY_ICONS[item.category] ?? "🍽️"}</Text>
-              </LinearGradient>
+              {item.image ? (
+                <Image source={{ uri: item.image }} style={styles.cardImage} />
+              ) : (
+                <LinearGradient
+                  colors={["rgba(232,184,109,0.16)", "rgba(232,184,109,0.04)"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={styles.cardIcon}
+                >
+                  <Text style={{ fontSize: 36 }}>{CATEGORY_ICONS[item.category] ?? "🍽️"}</Text>
+                </LinearGradient>
+              )}
               <View style={styles.cardBody}>
                 <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
                 {!!item.description && (
@@ -288,6 +284,10 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 78, height: 78, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
+  },
+  cardImage: {
+    width: 78, height: 78, borderRadius: 16,
+    backgroundColor: "rgba(232,184,109,0.08)",
   },
   cardBody:   { flex: 1, gap: 4 },
   cardName:   { fontSize: 16, fontFamily: "Inter_700Bold", color: CREAM },
