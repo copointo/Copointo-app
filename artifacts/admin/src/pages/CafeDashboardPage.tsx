@@ -6,7 +6,12 @@ import {
 import {
   ArrowLeft, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
   MessageCircle, Table2, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
+  Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
+  CalendarRange, BarChart3,
 } from "lucide-react";
+import {
+  LineChart, Line, AreaChart, Area, CartesianGrid,
+} from "recharts";
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
@@ -410,6 +415,9 @@ export default function CafeDashboardPage() {
   const [cafe,    setCafe]    = useState<any>(null);
   const [tab,     setTab]     = useState<Tab>("stats");
 
+  // Manager analytics modal
+  const [mgrOpen, setMgrOpen] = useState(false);
+
   // Sequential 3D spin: each tab button rotates one after another every 5s
   const [spinIdx, setSpinIdx] = useState<number>(-1);
   useEffect(() => {
@@ -460,6 +468,29 @@ export default function CafeDashboardPage() {
           className="flex flex-wrap items-center justify-center gap-3 sm:gap-4"
           style={{ perspective: "900px" }}
         >
+          {/* Manager analytics — special king button */}
+          <button
+            onClick={() => setMgrOpen(true)}
+            className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 focus:outline-none focus:ring-2 focus:ring-[#E8B86D]/60"
+            style={{ perspective: "800px" }}
+            title="إحصائيات المدير"
+          >
+            <div
+              className="relative w-full h-full rounded-2xl flex flex-col items-center justify-center gap-1
+                bg-gradient-to-br from-[#E8B86D] via-[#C99654] to-[#7A4F1E]
+                border-2 border-[#FFE0A8] shadow-lg shadow-[#E8B86D]/40 text-black
+                hover:shadow-xl hover:shadow-[#E8B86D]/60 group-hover:scale-[1.05] transition-all duration-200"
+              style={{ transformStyle: "preserve-3d" }}
+            >
+              <div className="absolute inset-1 rounded-xl ring-1 ring-black/15 pointer-events-none" />
+              <Crown size={22} className="text-black drop-shadow" />
+              <Lock size={14} className="text-black/70" />
+              <span className="text-[10.5px] font-extrabold text-center px-1 leading-tight text-black">
+                إحصائيات المدير
+              </span>
+              <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 border-2 border-card animate-pulse" />
+            </div>
+          </button>
           {TABS.map(({ id: tid, label, icon: Icon, emoji }, i) => {
             const active     = tab === tid;
             const isSpinning = spinIdx === i;
@@ -511,6 +542,384 @@ export default function CafeDashboardPage() {
         {tab === "tables"   && <TablesTab   id={id} />}
         {tab === "invoices" && <InvoicesTab id={id} />}
       </div>
+
+      {/* Manager Analytics Modal */}
+      {mgrOpen && (
+        <ManagerAnalyticsModal
+          cafeId={id}
+          cafeName={cafe?.name ?? ""}
+          onClose={() => setMgrOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Manager Analytics Modal ───────────────────────────────────────
+function ManagerAnalyticsModal({ cafeId, cafeName, onClose }:
+  { cafeId: string; cafeName: string; onClose: () => void }) {
+  const [step, setStep]         = useState<"auth" | "view">("auth");
+  const [password, setPassword] = useState("");
+  const [error, setError]       = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [data, setData]         = useState<any>(null);
+  const [period, setPeriod]     = useState<"daily" | "monthly" | "yearly">("daily");
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!password.trim()) { setError("ادخل كلمة المرور"); return; }
+    setLoading(true);
+    try {
+      const res = await api.cafeAdvancedStats(cafeId, password.trim());
+      setData(res);
+      setStep("view");
+    } catch (err: any) {
+      const msg = err?.message || "";
+      try { setError(JSON.parse(msg).error || "فشل التحقق"); }
+      catch { setError("كلمة المرور غير صحيحة"); }
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
+      <div className="relative w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-3xl bg-card border-2 border-[#E8B86D]/40 shadow-2xl shadow-[#E8B86D]/20 flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/15 to-transparent shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center shadow-lg shadow-[#E8B86D]/30">
+              <Crown size={20} className="text-black" />
+            </div>
+            <div>
+              <h2 className="text-lg font-extrabold text-[#F5E6CC]">إحصائيات المدير</h2>
+              <p className="text-xs text-[#E8B86D]/70">{cafeName}</p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-9 h-9 rounded-full bg-muted/40 hover:bg-muted/70 flex items-center justify-center text-foreground transition">
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {step === "auth" ? (
+            <form onSubmit={submit} className="max-w-md mx-auto py-10 space-y-6">
+              <div className="text-center space-y-3">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center mx-auto shadow-xl shadow-[#E8B86D]/30">
+                  <Lock size={32} className="text-black" />
+                </div>
+                <h3 className="text-xl font-bold text-[#F5E6CC]">منطقة محمية</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  ادخل كلمة مرور المدير المسجلة عند إنشاء الكوفي للوصول إلى التقارير المتقدمة.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-[#F5E6CC]">كلمة المرور</label>
+                <input
+                  type="password" value={password} autoFocus
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-input border-2 border-[#E8B86D]/30 rounded-xl px-4 py-3 text-foreground text-base focus:outline-none focus:border-[#E8B86D] placeholder:text-muted-foreground text-center tracking-widest"
+                />
+                {error && (
+                  <p className="text-red-400 text-sm text-center bg-red-500/10 border border-red-500/30 rounded-lg py-2">
+                    {error}
+                  </p>
+                )}
+              </div>
+              <button type="submit" disabled={loading}
+                className="w-full py-3 rounded-xl bg-gradient-to-l from-[#E8B86D] to-[#C99654] text-black font-bold text-base shadow-lg shadow-[#E8B86D]/30 hover:shadow-xl hover:shadow-[#E8B86D]/40 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading ? "جارٍ التحقق..." : (<><ShieldCheck size={18} />دخول</>)}
+              </button>
+            </form>
+          ) : (
+            <ManagerAnalyticsView data={data} period={period} setPeriod={setPeriod} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoldStat({ label, value, sub, icon, accent = "#E8B86D" }:
+  { label: string; value: any; sub?: string; icon: React.ReactNode; accent?: string }) {
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-[#0A0606] via-[#070404] to-black border border-[#E8B86D]/25 p-4 hover:border-[#E8B86D]/50 transition">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold text-[#E8B86D]/70 uppercase tracking-wider">{label}</p>
+          <p className="text-2xl font-extrabold text-[#F5E6CC] mt-1 truncate">{value}</p>
+          {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
+        </div>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: `linear-gradient(135deg, ${accent}33, ${accent}11)`, color: accent }}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-[#0A0606] to-black border border-[#E8B86D]/20 p-5">
+      <h3 className="text-sm font-bold text-[#F5E6CC] mb-4 flex items-center gap-2">
+        {icon && <span className="text-[#E8B86D]">{icon}</span>}{title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+function ManagerAnalyticsView({ data, period, setPeriod }:
+  { data: any; period: "daily"|"monthly"|"yearly"; setPeriod: (p: "daily"|"monthly"|"yearly") => void }) {
+  if (!data) return null;
+  const r = data.revenue, o = data.orders, b = data.bookings, v = data.visits;
+  const PIE_COLORS = ["#E8B86D", "#C99654", "#7A4F1E", "#F5E6CC", "#A87236", "#5B3A14"];
+
+  const chartData = period === "daily" ? r.daily.map((d: any) => ({ x: d.date.slice(5), revenue: d.revenue }))
+                  : period === "monthly" ? r.monthly.map((d: any) => ({ x: d.month, revenue: d.revenue }))
+                  : r.yearly.map((d: any) => ({ x: d.year, revenue: d.revenue }));
+
+  const orderTypeData   = [{ name: "داخل الكوفي", value: o.dineIn, color: "#E8B86D" }, { name: "خارج الكوفي (سيارة)", value: o.carOut, color: "#7A4F1E" }];
+  const orderSourceData = [{ name: "طلب مباشر", value: o.direct, color: "#E8B86D" }, { name: "من الشات", value: o.viaChat, color: "#C99654" }];
+  const bookingData     = [{ name: "بانتظار", value: b.pending, color: "#D4A35A" }, { name: "مؤكدة", value: b.confirmed, color: "#10B981" }, { name: "ملغية", value: b.cancelled, color: "#EF4444" }];
+
+  return (
+    <div className="space-y-6">
+      {/* Revenue summary */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <GoldStat label="الإيرادات اليوم"    value={`${r.today.toFixed(3)} OMR`}  icon={<TrendingUp size={18} />} />
+        <GoldStat label="الإيرادات الشهرية"  value={`${r.month.toFixed(3)} OMR`}  icon={<CalendarRange size={18} />} />
+        <GoldStat label="الإيرادات السنوية"  value={`${r.year.toFixed(3)} OMR`}   icon={<BarChart3 size={18} />} />
+        <GoldStat label="الإيرادات الكلية"  value={`${r.total.toFixed(3)} OMR`}  icon={<Trophy size={18} />} accent="#FFD700" />
+      </div>
+
+      {/* Revenue chart with period switcher */}
+      <SectionCard title="📈 منحنى الإيرادات" icon={<TrendingUp size={16} />}>
+        <div className="flex gap-2 mb-4">
+          {([["daily","يومي"],["monthly","شهري"],["yearly","سنوي"]] as const).map(([k, lbl]) => (
+            <button key={k} onClick={() => setPeriod(k)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition
+                ${period === k
+                  ? "bg-gradient-to-l from-[#E8B86D] to-[#C99654] text-black shadow shadow-[#E8B86D]/30"
+                  : "bg-muted/40 text-[#E8B86D]/80 hover:bg-muted/60"}`}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+        {chartData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={chartData}>
+              <defs>
+                <linearGradient id="goldFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor="#E8B86D" stopOpacity={0.6} />
+                  <stop offset="100%" stopColor="#E8B86D" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
+              <XAxis dataKey="x" tick={{ fill: "#E8B86D", fontSize: 11 }} />
+              <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+              <Area type="monotone" dataKey="revenue" stroke="#E8B86D" strokeWidth={2.5} fill="url(#goldFill)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-center text-muted-foreground py-10 text-sm">لا توجد بيانات بعد</p>
+        )}
+      </SectionCard>
+
+      {/* Counts row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <GoldStat label="إجمالي الطلبات"    value={o.total}     icon={<ShoppingBag size={18} />} />
+        <GoldStat label="داخل الكوفي"       value={o.dineIn}    icon={<Coffee size={18} />} />
+        <GoldStat label="خارج الكوفي"       value={o.carOut}    icon={<Car size={18} />} />
+        <GoldStat label="حجوزات الطاولات"   value={b.total}     icon={<Table2 size={18} />} />
+        <GoldStat label="مشاهدات الكوفي"    value={v.total}     icon={<Eye size={18} />} />
+        <GoldStat label="زوار فريدون"        value={v.uniqueViewers} icon={<Users size={18} />} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Order type pie */}
+        <SectionCard title="نوع الطلب" icon={<Coffee size={16} />}>
+          {(o.dineIn + o.carOut) > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={orderTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                  {orderTypeData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Pie>
+                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
+                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد طلبات بعد</p>}
+        </SectionCard>
+
+        {/* Order source pie */}
+        <SectionCard title="مصدر الطلب (مباشر / شات)" icon={<MessageCircle size={16} />}>
+          {(o.direct + o.viaChat) > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={orderSourceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                  {orderSourceData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Pie>
+                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
+                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد طلبات بعد</p>}
+        </SectionCard>
+
+        {/* Weekday bar */}
+        <SectionCard title={`الأيام الأكثر طلباً ${data.busiestDay?.orders ? `(الأكثر: ${data.busiestDay.day})` : ""}`} icon={<CalendarDays size={16} />}>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={data.weekdayChart}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
+              <XAxis dataKey="day" tick={{ fill: "#E8B86D", fontSize: 11 }} />
+              <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
+              <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+              <Bar dataKey="orders" fill="#E8B86D" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </SectionCard>
+
+        {/* Bookings status */}
+        <SectionCard title="حالة الحجوزات" icon={<Table2 size={16} />}>
+          {b.total > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={bookingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                  {bookingData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                </Pie>
+                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
+                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد حجوزات بعد</p>}
+        </SectionCard>
+      </div>
+
+      {/* Visits & conversion */}
+      <SectionCard title="الزيارات والتحويل" icon={<Eye size={16} />}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <GoldStat label="إجمالي المشاهدات"     value={v.total}            icon={<Eye size={18} />} />
+          <GoldStat label="زوار مميزون"          value={v.uniqueViewers}    icon={<Users size={18} />} />
+          <GoldStat label="زوار طلبوا"            value={v.viewsThatOrdered} icon={<ShoppingBag size={18} />} />
+          <GoldStat label="نسبة التحويل"          value={`${v.conversionRate}%`} icon={<TrendingUp size={18} />} accent="#10B981" />
+        </div>
+      </SectionCard>
+
+      {/* Top products */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SectionCard title="المنتجات الأكثر طلباً" icon={<Trophy size={16} />}>
+          {data.topProducts.length > 0 ? (
+            <div className="space-y-2">
+              {data.topProducts.map((p: any, i: number) => (
+                <div key={p.name} className="flex items-center gap-3 p-2.5 rounded-xl bg-black/40 border border-[#E8B86D]/15">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-extrabold"
+                    style={{ background: i === 0 ? "#E8B86D" : i === 1 ? "#C99654" : "#7A4F1E", color: "#000" }}>
+                    {i + 1}
+                  </div>
+                  <span className="flex-1 text-[#F5E6CC] font-semibold text-sm truncate">{p.name}</span>
+                  <span className="text-[#E8B86D] text-xs font-bold">{p.qty}× </span>
+                  <span className="text-muted-foreground text-xs">{p.revenue} OMR</span>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-center text-muted-foreground py-6 text-sm">لا توجد بيانات</p>}
+        </SectionCard>
+
+        {/* Top categories */}
+        <SectionCard title="الفئة الأكثر طلباً" icon={<UtensilsCrossed size={16} />}>
+          {data.topCategories.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={data.topCategories} dataKey="qty" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                  {data.topCategories.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Pie>
+                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
+                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد بيانات</p>}
+        </SectionCard>
+      </div>
+
+      {/* Players ranking */}
+      <SectionCard title="لاعبو اللعبة وترتيبهم في عُمان" icon={<Crown size={16} />}>
+        {data.players.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-[#E8B86D]/70 border-b border-[#E8B86D]/20">
+                  <th className="text-right py-2 px-2 font-bold">#</th>
+                  <th className="text-right py-2 px-2 font-bold">الاسم</th>
+                  <th className="text-right py-2 px-2 font-bold">الرقم</th>
+                  <th className="text-right py-2 px-2 font-bold">طلبات هنا</th>
+                  <th className="text-right py-2 px-2 font-bold">إجمالي طلباته</th>
+                  <th className="text-right py-2 px-2 font-bold">المستوى</th>
+                  <th className="text-right py-2 px-2 font-bold">ترتيب عُمان</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.players.map((p: any, i: number) => (
+                  <tr key={p.phone} className="border-b border-[#E8B86D]/10 hover:bg-[#E8B86D]/5">
+                    <td className="py-2.5 px-2">
+                      <span className="inline-flex w-6 h-6 rounded-md items-center justify-center text-[11px] font-extrabold"
+                        style={{ background: i === 0 ? "#E8B86D" : i === 1 ? "#C99654" : "#3A2410", color: i < 2 ? "#000" : "#E8B86D" }}>
+                        {i + 1}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-[#F5E6CC] font-semibold">{p.username}</td>
+                    <td className="py-2.5 px-2 text-muted-foreground text-xs">{p.phone}</td>
+                    <td className="py-2.5 px-2 text-[#E8B86D] font-bold">{p.ordersHere}</td>
+                    <td className="py-2.5 px-2 text-foreground">{p.totalOrders}</td>
+                    <td className="py-2.5 px-2 text-muted-foreground">Lv {p.level}</td>
+                    <td className="py-2.5 px-2">
+                      {p.omanRank
+                        ? <span className="inline-flex items-center gap-1 text-amber-300 font-bold"><Trophy size={12} />#{p.omanRank}</span>
+                        : <span className="text-muted-foreground text-xs">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-center text-muted-foreground py-6 text-sm">لا يوجد لاعبون طلبوا من هذا الكوفي بعد</p>}
+      </SectionCard>
+
+      {/* Invoices */}
+      <SectionCard title="جميع الفواتير" icon={<Receipt size={16} />}>
+        {data.invoices.length > 0 ? (
+          <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="text-[11px] uppercase tracking-wider text-[#E8B86D]/70 border-b border-[#E8B86D]/20">
+                  <th className="text-right py-2 px-2 font-bold">رقم</th>
+                  <th className="text-right py-2 px-2 font-bold">العميل</th>
+                  <th className="text-right py-2 px-2 font-bold">عدد الأصناف</th>
+                  <th className="text-right py-2 px-2 font-bold">النوع</th>
+                  <th className="text-right py-2 px-2 font-bold">التاريخ</th>
+                  <th className="text-left py-2 px-2 font-bold">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.invoices.map((inv: any) => (
+                  <tr key={inv.id} className="border-b border-[#E8B86D]/10 hover:bg-[#E8B86D]/5">
+                    <td className="py-2 px-2 text-muted-foreground text-xs font-mono">{inv.id.slice(-8)}</td>
+                    <td className="py-2 px-2 text-[#F5E6CC]">{inv.customerName}</td>
+                    <td className="py-2 px-2 text-[#E8B86D]">{inv.items?.length ?? 0}</td>
+                    <td className="py-2 px-2 text-muted-foreground text-xs">{inv.type === "order" ? "طلب" : "حجز"}</td>
+                    <td className="py-2 px-2 text-muted-foreground text-xs">{new Date(inv.createdAt).toLocaleString("ar-EG")}</td>
+                    <td className="py-2 px-2 text-left text-[#E8B86D] font-bold">{inv.total.toFixed(3)} OMR</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="text-center text-muted-foreground py-6 text-sm">لا توجد فواتير بعد</p>}
+      </SectionCard>
     </div>
   );
 }

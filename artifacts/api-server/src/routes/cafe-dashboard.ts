@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { cafes, menuItems, tables, orders, bookings, chatInfos, invoices,
-  type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice } from "../store";
+import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews,
+  type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView } from "../store";
 
 const router = Router({ mergeParams: true });
 
@@ -129,6 +129,185 @@ router.delete("/chat/:itemId", (req, res) => {
 // ── Invoices ──────────────────────────────────────────────────
 router.get("/invoices", (req: any, res) => {
   res.json({ invoices: invoices.filter(i => i.cafeId === req.params.cafeId) });
+});
+
+// ── Public: track a cafe-detail view ─────────────────────────
+router.post("/track-view", (req: any, res) => {
+  const v: CafeView = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2,6),
+    cafeId: req.params.cafeId,
+    userId: req.body?.userId,
+    userPhone: req.body?.userPhone,
+    source: req.body?.source,
+    viewedAt: new Date().toISOString(),
+  };
+  cafeViews.push(v);
+  res.status(201).json({ ok: true });
+});
+
+// ── Manager auth (verify password) ───────────────────────────
+router.post("/auth", (req: any, res) => {
+  const { password } = req.body || {};
+  if (!password) return res.status(400).json({ error: "كلمة المرور مطلوبة" });
+  if (password !== req.cafe.managerPassword) return res.status(401).json({ error: "كلمة المرور غير صحيحة" });
+  return res.json({ ok: true });
+});
+
+// ── Advanced manager analytics (password-protected) ──────────
+router.post("/advanced-stats", (req: any, res): any => {
+  const { password } = req.body || {};
+  if (password !== req.cafe.managerPassword) return res.status(401).json({ error: "كلمة المرور غير صحيحة" });
+  const id = req.params.cafeId;
+
+  const cOrders   = orders.filter(o => o.cafeId === id);
+  const cBookings = bookings.filter(b => b.cafeId === id);
+  const cMenu     = menuItems.filter(m => m.cafeId === id);
+  const cInv      = invoices.filter(i => i.cafeId === id);
+  const cViews    = cafeViews.filter(v => v.cafeId === id);
+
+  // ── Revenue buckets ─────────────────────
+  const revByDay: Record<string, number>   = {};
+  const revByMonth: Record<string, number> = {};
+  const revByYear: Record<string, number>  = {};
+  cInv.forEach(inv => {
+    const d  = inv.createdAt.substring(0,10);     // YYYY-MM-DD
+    const m  = inv.createdAt.substring(0,7);      // YYYY-MM
+    const y  = inv.createdAt.substring(0,4);      // YYYY
+    revByDay[d]   = (revByDay[d]   || 0) + inv.total;
+    revByMonth[m] = (revByMonth[m] || 0) + inv.total;
+    revByYear[y]  = (revByYear[y]  || 0) + inv.total;
+  });
+  const dailyRevenue   = Object.entries(revByDay)  .map(([date, revenue]) => ({ date,  revenue: +revenue.toFixed(3) })).sort((a,b)=>a.date.localeCompare(b.date)).slice(-30);
+  const monthlyRevenue = Object.entries(revByMonth).map(([month,revenue]) => ({ month, revenue: +revenue.toFixed(3) })).sort((a,b)=>a.month.localeCompare(b.month)).slice(-12);
+  const yearlyRevenue  = Object.entries(revByYear) .map(([year, revenue]) => ({ year,  revenue: +revenue.toFixed(3) })).sort((a,b)=>a.year.localeCompare(b.year));
+
+  const totalRevenue   = cInv.reduce((s,i) => s + i.total, 0);
+  const todayKey       = new Date().toISOString().substring(0,10);
+  const monthKey       = new Date().toISOString().substring(0,7);
+  const yearKey        = new Date().toISOString().substring(0,4);
+  const todayRevenue   = revByDay[todayKey]   || 0;
+  const monthRevenue   = revByMonth[monthKey] || 0;
+  const yearRevenue    = revByYear[yearKey]   || 0;
+
+  // ── Order types: dine-in (داخل) vs car (خارج) ──
+  const dineCount = cOrders.filter(o => o.type === "dine").length;
+  const carCount  = cOrders.filter(o => o.type === "car").length;
+
+  // ── Source: direct vs chat ──────────────
+  const directCount = cOrders.filter(o => (o.source ?? "direct") === "direct").length;
+  const chatCount   = cOrders.filter(o => o.source === "chat").length;
+
+  // ── Busiest weekday ─────────────────────
+  const dayNamesAr = ["الأحد","الإثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت"];
+  const byWeekday: Record<string, number> = {};
+  dayNamesAr.forEach(n => byWeekday[n] = 0);
+  cOrders.forEach(o => {
+    const w = new Date(o.createdAt).getDay();
+    byWeekday[dayNamesAr[w]]++;
+  });
+  const weekdayChart = dayNamesAr.map(name => ({ day: name, orders: byWeekday[name] }));
+  const busiestDay   = weekdayChart.reduce((a,b) => b.orders > a.orders ? b : a, { day: "—", orders: 0 });
+
+  // ── Top product & category ──────────────
+  const productQty: Record<string, number> = {};
+  const productRev: Record<string, number> = {};
+  cOrders.forEach(o => o.items.forEach(it => {
+    productQty[it.name] = (productQty[it.name] || 0) + it.qty;
+    productRev[it.name] = (productRev[it.name] || 0) + it.qty * it.price;
+  }));
+  const topProducts = Object.entries(productQty)
+    .map(([name, qty]) => ({ name, qty, revenue: +(productRev[name] || 0).toFixed(3) }))
+    .sort((a,b) => b.qty - a.qty).slice(0, 10);
+
+  // category lookup from menu
+  const itemCategory: Record<string, string> = {};
+  cMenu.forEach(m => { itemCategory[m.name] = m.category || "أخرى"; });
+  const categoryQty: Record<string, number> = {};
+  cOrders.forEach(o => o.items.forEach(it => {
+    const cat = itemCategory[it.name] || "أخرى";
+    categoryQty[cat] = (categoryQty[cat] || 0) + it.qty;
+  }));
+  const topCategories = Object.entries(categoryQty)
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a,b) => b.qty - a.qty);
+
+  // ── Visits & visit→order conversion ─────
+  const totalViews     = cViews.length;
+  const uniqueViewers  = new Set(cViews.map(v => v.userId || v.userPhone || v.id)).size;
+  const orderingPhones = new Set(cOrders.map(o => o.customerPhone));
+  const viewsThatOrdered = cViews.filter(v =>
+    (v.userPhone && orderingPhones.has(v.userPhone))
+  ).length;
+  const conversionRate = totalViews > 0 ? +(viewsThatOrdered / totalViews * 100).toFixed(1) : 0;
+
+  // ── Booking status breakdown ────────────
+  const bookingPending   = cBookings.filter(b => b.status === "pending").length;
+  const bookingConfirmed = cBookings.filter(b => b.status === "confirmed").length;
+  const bookingCancelled = cBookings.filter(b => b.status === "cancelled").length;
+
+  // ── Players ranking ─────────────────────
+  // global Oman ranking — every user, sorted by totalOrders desc
+  const globalRanked = [...users].sort((a,b) => b.totalOrders - a.totalOrders);
+  const globalRank: Record<string, number> = {};
+  globalRanked.forEach((u, i) => { globalRank[u.id] = i + 1; });
+
+  // count orders per phone for this cafe
+  const cafeOrdersByPhone: Record<string, number> = {};
+  cOrders.forEach(o => {
+    cafeOrdersByPhone[o.customerPhone] = (cafeOrdersByPhone[o.customerPhone] || 0) + 1;
+  });
+  const players = Object.entries(cafeOrdersByPhone).map(([phone, ordersHere]) => {
+    const u = users.find(u => u.phone === phone);
+    return {
+      phone,
+      username:    u?.username ?? phone,
+      ordersHere,
+      totalOrders: u?.totalOrders ?? ordersHere,
+      omanRank:    u ? globalRank[u.id] : null,
+      level:       u?.level ?? 1,
+    };
+  }).sort((a,b) => b.ordersHere - a.ordersHere);
+
+  res.json({
+    revenue: {
+      total:   +totalRevenue.toFixed(3),
+      today:   +todayRevenue.toFixed(3),
+      month:   +monthRevenue.toFixed(3),
+      year:    +yearRevenue.toFixed(3),
+      daily:   dailyRevenue,
+      monthly: monthlyRevenue,
+      yearly:  yearlyRevenue,
+    },
+    orders: {
+      total:    cOrders.length,
+      pending:  cOrders.filter(o => o.status === "pending").length,
+      preparing:cOrders.filter(o => o.status === "preparing").length,
+      ready:    cOrders.filter(o => o.status === "ready").length,
+      done:     cOrders.filter(o => o.status === "done").length,
+      dineIn:   dineCount,
+      carOut:   carCount,
+      direct:   directCount,
+      viaChat:  chatCount,
+    },
+    bookings: {
+      total:     cBookings.length,
+      pending:   bookingPending,
+      confirmed: bookingConfirmed,
+      cancelled: bookingCancelled,
+    },
+    visits: {
+      total: totalViews,
+      uniqueViewers,
+      viewsThatOrdered,
+      conversionRate,
+    },
+    weekdayChart,
+    busiestDay,
+    topProducts,
+    topCategories,
+    players,
+    invoices: cInv.sort((a,b) => b.createdAt.localeCompare(a.createdAt)),
+  });
 });
 
 export default router;

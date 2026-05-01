@@ -20,7 +20,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { apiFetch } from "@/constants/api";
+import { apiFetch, apiPost } from "@/constants/api";
 
 interface ApiCafe {
   id: string; name: string; logo: string; image: string; lat?: number; lng?: number;
@@ -121,6 +121,8 @@ export default function CafeLandingScreen() {
       .then(d => { const found = d.cafes.find(c => c.id === id); if (found) setCafe(found); })
       .catch(() => {})
       .finally(() => setLoading(false));
+    // Track this view (best-effort; ignore errors)
+    if (id) apiPost(`/cafe/${id}/track-view`, { source: "cafe-detail" }).catch(() => {});
   }, [id]);
 
   if (loading) {

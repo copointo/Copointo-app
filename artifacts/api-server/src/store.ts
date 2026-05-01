@@ -24,7 +24,12 @@ export interface Order {
   items: { name: string; qty: number; price: number }[];
   total: number; status: "pending" | "preparing" | "ready" | "done";
   type: "dine" | "car"; tableNumber?: string; plateNumber?: string;
+  source?: "direct" | "chat";
   createdAt: string;
+}
+export interface CafeView {
+  id: string; cafeId: string; userId?: string; userPhone?: string;
+  source?: string; viewedAt: string;
 }
 export interface TableBooking {
   id: string; cafeId: string; customerName: string; customerPhone: string;
@@ -48,3 +53,4 @@ export const orders:   Order[]        = [];
 export const bookings: TableBooking[] = [];
 export const chatInfos: ChatInfo[]    = [];
 export const invoices: Invoice[]      = [];
+export const cafeViews: CafeView[]    = [];

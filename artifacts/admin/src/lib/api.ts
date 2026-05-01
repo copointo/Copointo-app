@@ -38,4 +38,8 @@ export const api = {
   addChatInfo:   (id: string, body: any)   => req<any>("POST",   `${C(id)}/chat`, body),
   deleteChatInfo:(id: string, cid: string) => req<any>("DELETE", `${C(id)}/chat/${cid}`),
   cafeInvoices:  (id: string)              => req<any>("GET",    `${C(id)}/invoices`),
+
+  // Manager analytics (password-protected)
+  cafeAuth:          (id: string, password: string) => req<any>("POST", `${C(id)}/auth`, { password }),
+  cafeAdvancedStats: (id: string, password: string) => req<any>("POST", `${C(id)}/advanced-stats`, { password }),
 };
