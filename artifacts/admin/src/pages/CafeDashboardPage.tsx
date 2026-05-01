@@ -124,11 +124,48 @@ function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const load = useCallback(() => api.cafeOrders(id).then(d => setOrders(d.orders)), [id]);
   useEffect(() => { load(); }, [load]);
-  const statuses = ["pending","preparing","ready","done"];
-  const changeStatus = async (oid: string, status: string) => {
-    await api.cafeOrderStatus(id, oid, status);
-    setOrders(prev => prev.map(o => o.id === oid ? { ...o, status } : o));
+  const confirmPrep = async (oid: string) => {
+    await api.cafeOrderStatus(id, oid, "preparing");
+    setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "preparing" } : o));
   };
+  const markReady = async (oid: string) => {
+    await api.cafeOrderStatus(id, oid, "ready");
+    setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "ready" } : o));
+  };
+  const markDone = async (oid: string) => {
+    await api.cafeOrderStatus(id, oid, "done");
+    setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "done" } : o));
+  };
+  const printInvoice = (o: any) => {
+    const w = window.open("", "_blank", "width=420,height=600");
+    if (!w) return;
+    const rows = (o.items ?? []).map((it: any) =>
+      `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)} OMR</td></tr>`
+    ).join("");
+    const where = o.type === "dine" ? `طاولة ${o.tableNumber}` : `سيارة: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
+    w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>فاتورة #${o.id?.slice(-6)}</title>
+      <style>body{font-family:'Tahoma','Arial';padding:20px;color:#000}h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;color:#666;margin:0 0 16px;font-weight:normal}
+      .info{font-size:12px;color:#444;margin-bottom:14px;line-height:1.7}
+      table{width:100%;border-collapse:collapse;font-size:13px}td,th{border-bottom:1px dashed #ccc;padding:8px 4px;text-align:right}
+      .total{margin-top:14px;padding-top:10px;border-top:2px solid #000;display:flex;justify-content:space-between;font-weight:bold;font-size:15px}
+      .footer{margin-top:24px;text-align:center;font-size:11px;color:#888}
+      </style></head><body>
+      <h1>☕ Copointo</h1>
+      <h2>فاتورة طلب #${o.id?.slice(-6)}</h2>
+      <div class="info">
+        <div><b>الزبون:</b> ${o.customerName}</div>
+        <div><b>الهاتف:</b> ${o.customerPhone}</div>
+        <div><b>المكان:</b> ${where}</div>
+        <div><b>التاريخ:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
+      </div>
+      <table><thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="total"><span>الإجمالي</span><span>${o.total?.toFixed(3)} OMR</span></div>
+      <div class="footer">شكراً لزيارتكم — Copointo</div>
+      <script>window.print();</script>
+    </body></html>`);
+    w.document.close();
+  };
+
   return (
     <div className="space-y-4">
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
@@ -137,7 +174,12 @@ function OrdersTab({ id }: { id: string }) {
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
               <p className="font-semibold text-foreground">{o.customerName}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{o.customerPhone} • {o.type === "dine" ? `طاولة ${o.tableNumber}` : `سيارة: ${o.plateNumber}`}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {o.customerPhone} •{" "}
+                {o.type === "dine"
+                  ? `🪑 طاولة ${o.tableNumber}`
+                  : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
+              </p>
             </div>
             <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[o.status]}`}>{STATUS_AR[o.status]}</span>
           </div>
@@ -149,15 +191,39 @@ function OrdersTab({ id }: { id: string }) {
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between border-t border-border pt-3">
+          <div className="flex items-center justify-between border-t border-border pt-3 gap-3 flex-wrap">
             <span className="font-bold text-primary">{o.total?.toFixed(3)} OMR</span>
-            <div className="flex gap-2">
-              {statuses.filter(s => s !== o.status).map(s => (
-                <button key={s} onClick={() => changeStatus(o.id, s)}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted/30 transition-colors">
-                  {STATUS_AR[s]}
+            <div className="flex gap-2 flex-wrap">
+              {o.status === "pending" && (
+                <button
+                  onClick={() => confirmPrep(o.id)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90"
+                >
+                  <CheckCircle size={14}/> تأكيد تحضير الطلب
                 </button>
-              ))}
+              )}
+              {o.status === "preparing" && (
+                <button
+                  onClick={() => markReady(o.id)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-semibold hover:bg-green-500/30"
+                >
+                  <CheckCircle size={13}/> الطلب جاهز
+                </button>
+              )}
+              {o.status === "ready" && (
+                <button
+                  onClick={() => markDone(o.id)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-semibold hover:bg-green-500/30"
+                >
+                  <CheckCircle size={13}/> تم التسليم
+                </button>
+              )}
+              <button
+                onClick={() => printInvoice(o)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-muted/30"
+              >
+                🖨️ طباعة فاتورة
+              </button>
             </div>
           </div>
         </Card>

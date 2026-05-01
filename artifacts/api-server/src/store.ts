@@ -21,10 +21,15 @@ export interface CafeTable {
 }
 export interface Order {
   id: string; cafeId: string; customerName: string; customerPhone: string;
-  items: { name: string; qty: number; price: number }[];
+  items: { name: string; qty: number; price: number; category?: string }[];
   total: number; status: "pending" | "preparing" | "ready" | "done";
-  type: "dine" | "car"; tableNumber?: string; plateNumber?: string;
+  type: "dine" | "car"; tableNumber?: string;
+  plateNumber?: string; plateSymbol?: string;
   source?: "direct" | "chat";
+  userId?: string;
+  drinkCount?: number;
+  prepMinutes?: number;
+  confirmedAt?: string;
   createdAt: string;
 }
 export interface CafeView {

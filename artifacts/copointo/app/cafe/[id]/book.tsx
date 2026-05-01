@@ -1,19 +1,26 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CAFES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch, apiPost } from "@/constants/api";
+
+interface Table {
+  id: string; cafeId: string; number: number; capacity: number; available: boolean;
+}
 
 const TIME_SLOTS = [
   "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM",
@@ -33,17 +40,57 @@ export default function BookTableScreen() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [guests, setGuests] = useState(2);
   const [isBooked, setIsBooked] = useState(false);
+  const [tables, setTables]   = useState<Table[]>([]);
+  const [loadingT, setLoadingT] = useState(true);
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [name,  setName]  = useState("");
+  const [phone, setPhone] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const handleBook = () => {
-    if (!selectedTime) {
-      Alert.alert("Select Time", "Please select a time slot.");
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingT(true);
+    apiFetch<{ tables: Table[] }>(`/cafe/${id}/tables`)
+      .then((d) => { if (!cancelled) setTables(d.tables.filter(t => t.available !== false)); })
+      .catch(() => { if (!cancelled) setTables([]); })
+      .finally(() => { if (!cancelled) setLoadingT(false); });
+    return () => { cancelled = true; };
+  }, [id]);
+
+  const handleBook = async () => {
+    if (!selectedTable) {
+      Alert.alert("تنبيه", "يرجى اختيار طاولة");
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsBooked(true);
+    if (!selectedTime) {
+      Alert.alert("تنبيه", "يرجى اختيار الوقت");
+      return;
+    }
+    if (!name.trim() || !phone.trim()) {
+      Alert.alert("تنبيه", "يرجى إدخال الاسم ورقم الهاتف");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await apiPost(`/cafe/${id}/bookings`, {
+        customerName: name.trim(),
+        customerPhone: phone.trim(),
+        tableId: selectedTable.id,
+        tableNumber: selectedTable.number,
+        date: new Date().toISOString().substring(0, 10),
+        time: selectedTime,
+        guests,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsBooked(true);
+    } catch (e: any) {
+      Alert.alert("تعذّر الحجز", e?.message ?? "حاول مرة أخرى");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (isBooked) {
@@ -118,6 +165,75 @@ export default function BookTableScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: bottomPadding + 80 }]}
       >
+        {/* ── Tables ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            🪑  اختر الطاولة
+          </Text>
+          {loadingT ? (
+            <View style={{ paddingVertical: 24, alignItems: "center" }}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : tables.length === 0 ? (
+            <View style={[styles.emptyTables, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 32 }}>🪑</Text>
+              <Text style={{ fontSize: 13, color: colors.mutedForeground, textAlign: "center", marginTop: 6 }}>
+                لم يضف الكوفي أي طاولات بعد
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.timesGrid}>
+              {tables.map((t) => {
+                const active = selectedTable?.id === t.id;
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={[
+                      styles.tableCard,
+                      {
+                        backgroundColor: active ? colors.primary : colors.card,
+                        borderColor:     active ? colors.primary : colors.border,
+                      },
+                    ]}
+                    onPress={() => { Haptics.selectionAsync(); setSelectedTable(t); }}
+                  >
+                    <Text style={[styles.tableNum, { color: active ? colors.primaryForeground : colors.primary }]}>
+                      {t.number}
+                    </Text>
+                    <Text style={[styles.tableCap, { color: active ? colors.primaryForeground : colors.mutedForeground }]}>
+                      👥 {t.capacity}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        {/* ── Customer info ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            👤  بياناتك
+          </Text>
+          <View style={{ gap: 10 }}>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="الاسم الكامل"
+              placeholderTextColor={colors.mutedForeground}
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+            />
+            <TextInput
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="رقم الهاتف"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="phone-pad"
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+            />
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
             Number of Guests
@@ -188,26 +304,28 @@ export default function BookTableScreen() {
           style={[
             styles.bookBtn,
             {
-              backgroundColor: selectedTime ? colors.primary : colors.muted,
+              backgroundColor: (selectedTime && selectedTable && !submitting) ? colors.primary : colors.muted,
             },
           ]}
           onPress={handleBook}
-          disabled={!selectedTime}
+          disabled={!selectedTime || !selectedTable || submitting}
         >
           <Feather
             name="calendar"
             size={20}
-            color={selectedTime ? colors.primaryForeground : colors.mutedForeground}
+            color={(selectedTime && selectedTable) ? colors.primaryForeground : colors.mutedForeground}
           />
           <Text
             style={[
               styles.bookBtnText,
               {
-                color: selectedTime ? colors.primaryForeground : colors.mutedForeground,
+                color: (selectedTime && selectedTable) ? colors.primaryForeground : colors.mutedForeground,
               },
             ]}
           >
-            Confirm Booking {selectedTime ? `• ${selectedTime}` : ""}
+            {submitting
+              ? "جاري الحجز..."
+              : `تأكيد الحجز ${selectedTable ? `• طاولة ${selectedTable.number}` : ""} ${selectedTime ? `• ${selectedTime}` : ""}`}
           </Text>
         </TouchableOpacity>
       </View>
@@ -261,6 +379,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timeText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  tableCard: {
+    width: "30%", paddingVertical: 14, borderRadius: 14, borderWidth: 1,
+    alignItems: "center", gap: 4,
+  },
+  tableNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  tableCap: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  emptyTables: {
+    paddingVertical: 28, paddingHorizontal: 16,
+    borderRadius: 14, borderWidth: 1, alignItems: "center",
+  },
+  input: {
+    borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, fontFamily: "Inter_500Medium",
+    textAlign: "right",
+  },
   footer: {
     paddingHorizontal: 20,
     paddingTop: 12,

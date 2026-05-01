@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,103 +13,229 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ProductCard } from "@/components/ProductCard";
 import { useApp } from "@/context/AppContext";
-import { CAFES, PRODUCTS } from "@/data/mockData";
+import { CAFES } from "@/data/mockData";
+import { apiFetch } from "@/constants/api";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
 const BORDER  = "rgba(232,184,109,0.25)";
 const PRIMARY = "#E8B86D";
+const CREAM   = "#F5E6CC";
 
-const CATEGORY_TABS = [
-  { key: "hot",     label: "مشروبات ساخنة", icon: "☕" },
-  { key: "cold",    label: "مشروبات باردة",  icon: "🧊" },
-  { key: "dessert", label: "حلويات",         icon: "🍰" },
-];
+interface MenuItem {
+  id: string;
+  cafeId: string;
+  name: string;
+  price: number;
+  category: string;
+  description: string;
+  available: boolean;
+  createdAt: string;
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+  "قهوة": "☕",
+  "حلى": "🍰",
+  "مشروبات": "🥤",
+  "أكل": "🍽️",
+};
 
 export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cartCount, cartTotal } = useApp();
+  const { cartCount, cartTotal, addToCart, cart, updateQuantity } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const cafe = CAFES.find((c) => c.id === id) ?? CAFES[0];
-  const [activeCategory, setActiveCategory] = useState<"hot" | "cold" | "dessert">("hot");
 
-  const products = PRODUCTS.filter(
-    (p) => p.cafeId === "cafe_1" && p.category === activeCategory
+  const [items, setItems]     = useState<MenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    apiFetch<{ items: MenuItem[] }>(`/cafe/${id}/menu`)
+      .then((data) => {
+        if (cancelled) return;
+        const available = data.items.filter((i) => i.available !== false);
+        setItems(available);
+        if (available.length && !activeCategory) {
+          setActiveCategory(available[0].category);
+        }
+      })
+      .catch(() => { if (!cancelled) setItems([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const categories = useMemo(
+    () => Array.from(new Set(items.map((i) => i.category))),
+    [items]
   );
+
+  const visibleItems = useMemo(
+    () => activeCategory ? items.filter((i) => i.category === activeCategory) : items,
+    [items, activeCategory]
+  );
+
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.85}>
+        <Feather name="arrow-left" size={20} color="#FFF" />
+      </TouchableOpacity>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.headerTitle}>{cafe.name}</Text>
+        <Text style={styles.headerSub}>قائمة الكوفي</Text>
+      </View>
+    </View>
+  );
+
+  const handleAdd = (item: MenuItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    addToCart({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      cafeId: cafe.id,
+      cafeName: cafe.name,
+    });
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { paddingTop: topPad }]}>
+        {renderHeader()}
+        <View style={styles.center}>
+          <ActivityIndicator color={PRIMARY} size="large" />
+          <Text style={styles.muted}>جاري تحميل القائمة...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <View style={[styles.container, { paddingTop: topPad }]}>
+        {renderHeader()}
+        <View style={styles.center}>
+          <Text style={{ fontSize: 56 }}>☕</Text>
+          <Text style={styles.emptyTitle}>القائمة فارغة</Text>
+          <Text style={styles.muted}>لم يضف الكوفي أي منتجات بعد</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          activeOpacity={0.85}
-        >
-          <Feather name="arrow-left" size={20} color="#FFF" />
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>{cafe.name}</Text>
-          <Text style={styles.headerSub}>اختر مشروبك</Text>
-        </View>
-      </View>
+      {renderHeader()}
 
       {/* Category tabs */}
-      <View style={styles.tabs}>
-        {CATEGORY_TABS.map((tab) => {
-          const active = activeCategory === tab.key;
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabs}
+      >
+        {categories.map((cat) => {
+          const active = activeCategory === cat;
           return (
             <TouchableOpacity
-              key={tab.key}
+              key={cat}
               style={[styles.tab, active && styles.tabActive]}
-              onPress={() => { Haptics.selectionAsync(); setActiveCategory(tab.key as any); }}
+              onPress={() => { Haptics.selectionAsync(); setActiveCategory(cat); }}
               activeOpacity={0.85}
             >
-              <Text style={{ fontSize: 16 }}>{tab.icon}</Text>
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                {tab.label}
-              </Text>
+              <Text style={{ fontSize: 16 }}>{CATEGORY_ICONS[cat] ?? "🍽️"}</Text>
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{cat}</Text>
             </TouchableOpacity>
           );
         })}
-      </View>
-
-      {/* Products */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.list, { paddingBottom: botPad + (cartCount > 0 ? 90 : 30) }]}
-      >
-        {products.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>☕</Text>
-            <Text style={styles.emptyText}>لا توجد منتجات في هذه الفئة</Text>
-          </View>
-        ) : (
-          products.map((p) => (
-            <ProductCard key={p.id} product={p} cafeName={cafe.name} />
-          ))
-        )}
       </ScrollView>
 
-      {/* Cart floating button */}
+      {/* Items list */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.list, { paddingBottom: botPad + (cartCount > 0 ? 110 : 30) }]}
+      >
+        {visibleItems.map((item) => {
+          const cartItem = cart.find((c) => c.id === item.id);
+          const qty = cartItem?.quantity ?? 0;
+          return (
+            <View key={item.id} style={styles.card}>
+              <LinearGradient
+                colors={["rgba(232,184,109,0.16)", "rgba(232,184,109,0.04)"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.cardIcon}
+              >
+                <Text style={{ fontSize: 36 }}>{CATEGORY_ICONS[item.category] ?? "🍽️"}</Text>
+              </LinearGradient>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+                {!!item.description && (
+                  <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+                )}
+                <View style={styles.cardBottom}>
+                  <Text style={styles.cardPrice}>{item.price.toFixed(3)} OMR</Text>
+                  {qty > 0 ? (
+                    <View style={styles.qtyRow}>
+                      <TouchableOpacity
+                        style={styles.qtyBtn}
+                        onPress={() => { Haptics.selectionAsync(); updateQuantity(item.id, qty - 1); }}
+                      >
+                        <Feather name="minus" size={14} color="#FFF" />
+                      </TouchableOpacity>
+                      <Text style={styles.qtyText}>{qty}</Text>
+                      <TouchableOpacity
+                        style={[styles.qtyBtn, { backgroundColor: PRIMARY }]}
+                        onPress={() => handleAdd(item)}
+                      >
+                        <Feather name="plus" size={14} color="#000" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity style={styles.addBtn} onPress={() => handleAdd(item)} activeOpacity={0.85}>
+                      <LinearGradient
+                        colors={[PRIMARY, "#C9985A"]}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                        style={styles.addBtnGrad}
+                      >
+                        <Feather name="plus" size={18} color="#000" />
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      {/* Cart bar */}
       {cartCount > 0 && (
-        <TouchableOpacity
-          style={[styles.cartBtn, { bottom: botPad + 16 }]}
-          onPress={() => router.push("/cart")}
-          activeOpacity={0.9}
-        >
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{cartCount}</Text>
-          </View>
-          <Text style={styles.cartLabel}>عرض السلة</Text>
-          <Text style={styles.cartPrice}>{cartTotal.toFixed(3)} OMR</Text>
-        </TouchableOpacity>
+        <View style={[styles.cartBarWrap, { paddingBottom: botPad + 12 }]}>
+          <TouchableOpacity
+            style={styles.cartBar}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/cart"); }}
+            activeOpacity={0.88}
+          >
+            <LinearGradient
+              colors={[PRIMARY, "#C9985A"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.cartBarGrad}
+            >
+              <View style={styles.cartCountBadge}>
+                <Text style={styles.cartCountText}>{cartCount}</Text>
+              </View>
+              <Text style={styles.cartBarText}>متابعة الطلب</Text>
+              <Text style={styles.cartBarPrice}>{cartTotal.toFixed(3)} OMR</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -116,45 +244,77 @@ export default function OrderScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
 
+  // Header
   header: {
-    flexDirection: "row", alignItems: "center", gap: 14,
+    flexDirection: "row", alignItems: "center", gap: 12,
     paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: BORDER,
   },
   backBtn: {
-    width: 42, height: 42, borderRadius: 13,
+    width: 40, height: 40, borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center", justifyContent: "center",
   },
-  headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
-  headerSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
+  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
+  headerSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.6)", marginTop: 2 },
 
-  tabs: {
-    flexDirection: "row", gap: 8,
-    paddingHorizontal: 16, paddingVertical: 14,
-  },
+  // States
+  center:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: CREAM, marginTop: 8 },
+  muted:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
+
+  // Tabs
+  tabs: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   tab: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 10, borderRadius: 14,
-    backgroundColor: CARD, borderWidth: 1, borderColor: BORDER,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 14, borderWidth: 1, borderColor: BORDER,
+    backgroundColor: CARD,
   },
-  tabActive: { backgroundColor: PRIMARY, borderColor: PRIMARY },
-  tabLabel:  { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.60)" },
-  tabLabelActive: { color: "#FFF" },
+  tabActive: { backgroundColor: "rgba(232,184,109,0.18)", borderColor: PRIMARY },
+  tabLabel:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.7)" },
+  tabLabelActive:  { color: PRIMARY },
 
-  list:  { paddingHorizontal: 16, paddingTop: 4 },
-  empty: { alignItems: "center", paddingVertical: 60, gap: 12 },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)" },
+  // List
+  list: { paddingHorizontal: 16, paddingTop: 6, gap: 12 },
 
-  cartBtn: {
-    position: "absolute", left: 16, right: 16,
-    height: 58, borderRadius: 18, backgroundColor: PRIMARY,
-    flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 12,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 16, elevation: 8,
+  // Card
+  card: {
+    flexDirection: "row", gap: 12, padding: 12,
+    backgroundColor: CARD, borderRadius: 18,
+    borderWidth: 1, borderColor: BORDER,
+    marginBottom: 12,
   },
-  cartBadge:     { width: 28, height: 28, borderRadius: 14, backgroundColor: "rgba(0,0,0,0.25)", alignItems: "center", justifyContent: "center" },
-  cartBadgeText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" },
-  cartLabel:     { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  cartPrice:     { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF" },
+  cardIcon: {
+    width: 78, height: 78, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+  },
+  cardBody:   { flex: 1, gap: 4 },
+  cardName:   { fontSize: 16, fontFamily: "Inter_700Bold", color: CREAM },
+  cardDesc:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.55)", lineHeight: 16 },
+  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },
+  cardPrice:  { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Add controls
+  addBtn:     { borderRadius: 12, overflow: "hidden" },
+  addBtnGrad: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
+  qtyRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
+  qtyBtn:     { width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" },
+  qtyText:    { fontSize: 15, fontFamily: "Inter_700Bold", color: CREAM, minWidth: 18, textAlign: "center" },
+
+  // Cart bar
+  cartBarWrap:  { position: "absolute", left: 16, right: 16, bottom: 0 },
+  cartBar:      { borderRadius: 18, overflow: "hidden" },
+  cartBarGrad:  {
+    height: 60, paddingHorizontal: 18,
+    flexDirection: "row", alignItems: "center", gap: 12,
+  },
+  cartCountBadge: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.18)",
+    alignItems: "center", justifyContent: "center",
+  },
+  cartCountText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
+  cartBarText:   { flex: 1, fontSize: 16, fontFamily: "Inter_700Bold", color: "#000" },
+  cartBarPrice:  { fontSize: 16, fontFamily: "Inter_700Bold", color: "#000" },
 });

@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { apiPost } from "@/constants/api";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -112,7 +113,9 @@ export default function CartScreen() {
 
   const orderSummary = cart.map(i => `${i.name} ×${i.quantity}`).join("، ");
 
-  const submitOrder = () => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submitOrder = async () => {
     const isDine = orderType === "dine";
     if (isDine) {
       if (!dineName.trim() || !dinePhone.trim() || !dineTable.trim()) {
@@ -123,18 +126,54 @@ export default function CartScreen() {
         Alert.alert("تنبيه", "يرجى تعبئة جميع الحقول"); return;
       }
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    addOrder({
-      id: Date.now().toString(),
-      cafeId: cart[0].cafeId,
-      cafeName: cart[0].cafeName,
-      items: cart,
-      total: cartTotal,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    });
-    clearCart();
-    setStep("done");
+    setSubmitting(true);
+    try {
+      const cafeId   = cart[0].cafeId;
+      const cafeName = cart[0].cafeName;
+      const totalQty = cart.reduce((s, i) => s + i.quantity, 0);
+      const prepMin  = totalQty * 3; // 3 minutes per item
+      const customerName  = isDine ? dineName.trim() : carName.trim();
+      const customerPhone = isDine ? dinePhone.trim() : carPhone.trim();
+      const payload: any = {
+        customerName, customerPhone,
+        items: cart.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
+        total: cartTotal,
+        type: isDine ? "dine" : "car",
+        source: "direct",
+        prepMinutes: prepMin,
+      };
+      if (isDine) {
+        payload.tableNumber = dineTable.trim();
+      } else {
+        payload.plateNumber = carPlateNum.trim();
+        payload.plateSymbol = carPlateChar.trim();
+      }
+      const res = await apiPost<{ order: { id: string } }>(`/cafe/${cafeId}/orders`, payload);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      addOrder({
+        id: res.order.id,
+        cafeId,
+        cafeName,
+        items: cart,
+        total: cartTotal,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+      clearCart();
+      router.replace({
+        pathname: "/order-timer",
+        params: {
+          orderId: res.order.id,
+          cafeId,
+          minutes: String(prepMin),
+          drinks: String(totalQty),
+        },
+      });
+    } catch (e: any) {
+      Alert.alert("تعذّر إرسال الطلب", e?.message ?? "حاول مرة أخرى");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ── Empty cart ──
@@ -307,14 +346,16 @@ export default function CartScreen() {
           </View>
 
           {/* Submit */}
-          <TouchableOpacity style={styles.submitBtn} onPress={submitOrder} activeOpacity={0.88}>
+          <TouchableOpacity style={styles.submitBtn} onPress={submitOrder} activeOpacity={0.88} disabled={submitting}>
             <LinearGradient
-              colors={["#C67C4E", "#8B4513"]}
+              colors={submitting ? ["#555", "#333"] : [PRIMARY, "#C9985A"]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.submitGrad}
             >
-              <Text style={styles.submitText}>اطلب الان  •  {cartTotal.toFixed(3)} OMR</Text>
-              <Feather name="send" size={18} color="#FFF" />
+              <Text style={[styles.submitText, { color: "#000" }]}>
+                {submitting ? "جاري الإرسال..." : `تأكيد الطلب  •  ${cartTotal.toFixed(3)} OMR`}
+              </Text>
+              {!submitting && <Feather name="check-circle" size={18} color="#000" />}
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>

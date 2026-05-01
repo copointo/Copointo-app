@@ -44,16 +44,47 @@ router.get("/orders", (req: any, res) => {
 router.post("/orders", (req: any, res) => {
   const o: Order = { id: Date.now().toString(), cafeId: req.params.cafeId, status: "pending", createdAt: new Date().toISOString(), ...req.body };
   orders.push(o);
-  // auto-create invoice
-  const inv: Invoice = { id: `inv-${Date.now()}`, cafeId: o.cafeId, orderId: o.id, customerName: o.customerName, items: o.items, total: o.total, type: "order", createdAt: o.createdAt };
-  invoices.push(inv);
+  // Invoice is created only when the manager confirms preparation.
   res.status(201).json({ order: o });
 });
-router.patch("/orders/:orderId/status", (req, res) => {
+router.get("/orders/:orderId", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
-  order.status = req.body.status;
-  res.json({ order });
+  return res.json({ order });
+});
+router.patch("/orders/:orderId/status", (req, res): any => {
+  const order = orders.find(o => o.id === req.params.orderId);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  const prevStatus = order.status;
+  const next = req.body.status;
+  order.status = next;
+  // First time the order leaves "pending" → finalise invoice + game progress.
+  if (prevStatus === "pending" && next !== "pending") {
+    order.confirmedAt = new Date().toISOString();
+    // Avoid duplicate invoice if one already exists for this order.
+    if (!invoices.some(i => i.orderId === order.id)) {
+      const inv: Invoice = {
+        id: `inv-${Date.now()}`,
+        cafeId: order.cafeId,
+        orderId: order.id,
+        customerName: order.customerName,
+        items: order.items,
+        total: order.total,
+        type: "order",
+        createdAt: order.confirmedAt,
+      };
+      invoices.push(inv);
+    }
+    // Award drink-only points to the matching user (no desserts).
+    const drinks = (order.drinkCount != null)
+      ? order.drinkCount
+      : order.items.reduce((s, it) => s + (it.category === "حلى" ? 0 : it.qty), 0);
+    if (drinks > 0) {
+      const u = users.find(u => u.phone === order.customerPhone);
+      if (u) u.totalOrders += drinks;
+    }
+  }
+  return res.json({ order });
 });
 
 // ── Bookings ──────────────────────────────────────────────────
