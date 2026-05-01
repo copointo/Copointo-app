@@ -73,7 +73,11 @@ function Sel({ value, onChange, options }: { value: string; onChange: (v: string
 // ── Stats Tab ─────────────────────────────────────────────────
 function StatsTab({ id }: { id: string }) {
   const [data, setData] = useState<any>(null);
-  useEffect(() => { api.cafeStats(id).then(setData); }, [id]);
+  const [err, setErr] = useState<string>("");
+  useEffect(() => {
+    api.cafeStats(id).then(setData).catch((e: any) => setErr(String(e?.message ?? e)));
+  }, [id]);
+  if (err) return <div className="p-8 text-center text-muted-foreground text-sm">تعذّر تحميل الإحصائيات.</div>;
   if (!data) return <Loader />;
   const topItems = Object.entries(data.topItems || {}).map(([name, qty]) => ({ name, qty }));
   return (
@@ -500,9 +504,14 @@ export default function CafeDashboardPage() {
   useEffect(() => {
     fetch("/api/admin/cafes").then(r => r.json()).then(d => {
       const found = d.cafes?.find((c: any) => c.id === id);
-      if (found) setCafe(found);
-    });
-  }, [id]);
+      if (found) {
+        setCafe(found);
+      } else {
+        alert("هذا الكوفي لم يعد موجوداً (ربما حُذف أو تم إعادة تشغيل الخادم).");
+        navigate("/cafes");
+      }
+    }).catch(() => {});
+  }, [id, navigate]);
 
   return (
     <div className="flex flex-col h-screen bg-background" dir="rtl">
