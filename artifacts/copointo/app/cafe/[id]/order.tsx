@@ -346,17 +346,18 @@ const styles = StyleSheet.create({
   muted:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
 
   // Tabs
-  tabs: { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
+  tabs: { paddingHorizontal: 14, paddingVertical: 6, gap: 6 },
   tab: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 3,
-    borderRadius: 6, borderWidth: 1, borderColor: BORDER,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 9, paddingVertical: 0,
+    height: 22,
+    borderRadius: 5, borderWidth: 1, borderColor: BORDER,
     backgroundColor: CARD,
     overflow: "hidden",
   },
   tabActive: { backgroundColor: "rgba(232,184,109,0.14)", borderColor: PRIMARY },
-  tabIcon:         { fontSize: 11 },
-  tabLabel:        { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.65)", lineHeight: 14 },
+  tabIcon:         { fontSize: 10 },
+  tabLabel:        { fontSize: 10.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.65)", lineHeight: 12, includeFontPadding: false },
   tabLabelActive:  { color: PRIMARY },
   tabShine: {
     position: "absolute",
