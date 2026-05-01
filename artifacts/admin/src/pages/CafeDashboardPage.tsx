@@ -15,17 +15,16 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "discounts";
+type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices";
 
 const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
-  { id:"stats",     label:"الإحصائيات",      icon: LayoutDashboard,  emoji:"📊" },
-  { id:"orders",    label:"طلبات القهوة",     icon: ShoppingBag,      emoji:"☕" },
-  { id:"bookings",  label:"حجوزات الطاولة",   icon: CalendarDays,     emoji:"📅" },
-  { id:"menu",      label:"القائمة",          icon: UtensilsCrossed,  emoji:"🍽️" },
-  { id:"chat",      label:"معلومات الشات",    icon: MessageCircle,    emoji:"💬" },
-  { id:"tables",    label:"الطاولات",         icon: Table2,           emoji:"🪑" },
-  { id:"invoices",  label:"الفواتير",         icon: Receipt,          emoji:"🧾" },
-  { id:"discounts", label:"أكواد التخفيض",    icon: Tag,              emoji:"🏷️" },
+  { id:"stats",    label:"الإحصائيات",      icon: LayoutDashboard,  emoji:"📊" },
+  { id:"orders",   label:"طلبات القهوة",     icon: ShoppingBag,      emoji:"☕" },
+  { id:"bookings", label:"حجوزات الطاولة",   icon: CalendarDays,     emoji:"📅" },
+  { id:"menu",     label:"القائمة",          icon: UtensilsCrossed,  emoji:"🍽️" },
+  { id:"chat",     label:"معلومات الشات",    icon: MessageCircle,    emoji:"💬" },
+  { id:"tables",   label:"الطاولات",         icon: Table2,           emoji:"🪑" },
+  { id:"invoices", label:"الفواتير",         icon: Receipt,          emoji:"🧾" },
 ];
 
 const COLORS = ["#C67C4E","#6C3FC5","#1A6B4A","#2563EB","#DC2626","#D97706"];
@@ -607,14 +606,13 @@ export default function CafeDashboardPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {tab === "stats"     && <StatsTab        id={id} />}
-        {tab === "orders"    && <OrdersTab       id={id} />}
-        {tab === "bookings"  && <BookingsTab     id={id} />}
-        {tab === "menu"      && <MenuTab         id={id} />}
-        {tab === "chat"      && <ChatTab         id={id} />}
-        {tab === "tables"    && <TablesTab       id={id} />}
-        {tab === "invoices"  && <InvoicesTab     id={id} />}
-        {tab === "discounts" && <DiscountCodesTab id={id} />}
+        {tab === "stats"    && <StatsTab    id={id} />}
+        {tab === "orders"   && <OrdersTab   id={id} />}
+        {tab === "bookings" && <BookingsTab id={id} />}
+        {tab === "menu"     && <MenuTab     id={id} />}
+        {tab === "chat"     && <ChatTab     id={id} />}
+        {tab === "tables"   && <TablesTab   id={id} />}
+        {tab === "invoices" && <InvoicesTab id={id} />}
       </div>
 
     </div>
@@ -864,8 +862,27 @@ export function ManagerAnalyticsPage() {
             </button>
           </form>
         ) : (
-          <div className="max-w-7xl mx-auto">
-            <ManagerAnalyticsView data={data} period={period} setPeriod={setPeriod} />
+          <div className="max-w-7xl mx-auto space-y-8">
+            {/* Manager-only: Discount Codes */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Tag size={18} className="text-[#E8B86D]" />
+                <h3 className="text-base font-extrabold text-[#F5E6CC]">أكواد التخفيض</h3>
+              </div>
+              <DiscountCodesTab id={cafeId} />
+            </section>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-l from-transparent via-[#E8B86D]/30 to-transparent" />
+
+            {/* Analytics view */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 size={18} className="text-[#E8B86D]" />
+                <h3 className="text-base font-extrabold text-[#F5E6CC]">التقارير المتقدمة</h3>
+              </div>
+              <ManagerAnalyticsView data={data} period={period} setPeriod={setPeriod} />
+            </section>
           </div>
         )}
       </div>
