@@ -346,22 +346,22 @@ const styles = StyleSheet.create({
   muted:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
 
   // Tabs
-  tabs: { paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
+  tabs: { paddingHorizontal: 14, paddingVertical: 8, gap: 6 },
   tab: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 999, borderWidth: 1, borderColor: BORDER,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 6, borderWidth: 1, borderColor: BORDER,
     backgroundColor: CARD,
     overflow: "hidden",
   },
   tabActive: { backgroundColor: "rgba(232,184,109,0.14)", borderColor: PRIMARY },
-  tabIcon:         { fontSize: 13 },
-  tabLabel:        { fontSize: 11.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.65)" },
+  tabIcon:         { fontSize: 11 },
+  tabLabel:        { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.65)", lineHeight: 14 },
   tabLabelActive:  { color: PRIMARY },
   tabShine: {
     position: "absolute",
     top: 0, bottom: 0,
-    width: 36,
+    width: 28,
     transform: [{ skewX: "-20deg" }],
   },
 
