@@ -40,6 +40,8 @@ export interface Order {
   drinkCount?: number;
   prepMinutes?: number;
   confirmedAt?: string;
+  pointsAwarded?: boolean;
+  printedAt?: string;
   createdAt: string;
 }
 export interface CafeView {

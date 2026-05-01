@@ -25,6 +25,7 @@ export const api = {
   cafeStats:     (id: string)              => req<any>("GET",    `${C(id)}/stats`),
   cafeOrders:    (id: string)              => req<any>("GET",    `${C(id)}/orders`),
   cafeOrderStatus:(id:string,oid:string,status:string) => req<any>("PATCH", `${C(id)}/orders/${oid}/status`, { status }),
+  cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
   cafeBookings:  (id: string)              => req<any>("GET",    `${C(id)}/bookings`),
   cafeBookingStatus:(id:string,bid:string,status:string) => req<any>("PATCH", `${C(id)}/bookings/${bid}/status`, { status }),
   cafeMenu:      (id: string)              => req<any>("GET",    `${C(id)}/menu`),

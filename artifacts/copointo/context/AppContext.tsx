@@ -70,6 +70,17 @@ interface AppContextType {
   toggleLikeVideo: (videoId: string) => void;
   orderHistory: Order[];
   addOrder: (order: Order) => void;
+  activeOrder: ActiveOrder | null;
+  setActiveOrder: (o: ActiveOrder | null) => void;
+}
+
+export interface ActiveOrder {
+  orderId: string;
+  cafeId: string;
+  cafeName: string;
+  prepMinutes: number;
+  drinkQty: number;
+  startedAt: number; // epoch ms
 }
 
 export interface Order {
@@ -94,6 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [likedVideos, setLikedVideos] = useState<string[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
+  const [activeOrder, setActiveOrderState] = useState<ActiveOrder | null>(null);
 
   useEffect(() => {
     loadData();
@@ -447,6 +459,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setActiveOrder = useCallback((o: ActiveOrder | null) => {
+    setActiveOrderState(o);
+  }, []);
+
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
@@ -480,6 +496,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleLikeVideo,
         orderHistory,
         addOrder,
+        activeOrder,
+        setActiveOrder,
       }}
     >
       {children}

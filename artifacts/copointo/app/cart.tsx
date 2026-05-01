@@ -92,7 +92,7 @@ function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { cart, cartTotal, cartCount, updateQuantity, removeFromCart, clearCart, addOrder } = useApp();
+  const { cart, cartTotal, cartCount, updateQuantity, removeFromCart, clearCart, addOrder, setActiveOrder } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -198,6 +198,14 @@ export default function CartScreen() {
         total: res.order.total ?? finalTotal,
         status: "pending",
         createdAt: new Date().toISOString(),
+      });
+      setActiveOrder({
+        orderId: res.order.id,
+        cafeId,
+        cafeName,
+        prepMinutes: prepMin,
+        drinkQty: totalQty,
+        startedAt: Date.now(),
       });
       clearCart();
       router.replace({
@@ -452,7 +460,7 @@ export default function CartScreen() {
               style={styles.submitGrad}
             >
               <Text style={[styles.submitText, { color: "#000" }]}>
-                {submitting ? "جاري الإرسال..." : `تأكيد الطلب  •  ${finalTotal.toFixed(3)} OMR`}
+                {submitting ? "جاري الإرسال..." : `الانتهاء من الطلب  •  ${finalTotal.toFixed(3)} OMR`}
               </Text>
               {!submitting && <Feather name="check-circle" size={18} color="#000" />}
             </LinearGradient>

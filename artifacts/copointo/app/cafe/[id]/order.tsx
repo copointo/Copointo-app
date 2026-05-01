@@ -63,7 +63,7 @@ export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cartCount, cartTotal, addToCart, cart, updateQuantity } = useApp();
+  const { cartCount, cartTotal, addToCart, cart, updateQuantity, activeOrder } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -137,9 +137,28 @@ export default function OrderScreen() {
     );
   }
 
+  const showActiveOrderBanner = !!activeOrder && activeOrder.cafeId === id;
+
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       {renderHeader()}
+
+      {showActiveOrderBanner && (
+        <ActiveOrderBanner
+          minutes={activeOrder!.prepMinutes}
+          startedAt={activeOrder!.startedAt}
+          drinks={activeOrder!.drinkQty}
+          onPress={() => router.push({
+            pathname: "/order-timer",
+            params: {
+              orderId: activeOrder!.orderId,
+              cafeId:  activeOrder!.cafeId,
+              minutes: String(activeOrder!.prepMinutes),
+              drinks:  String(activeOrder!.drinkQty),
+            },
+          })}
+        />
+      )}
 
       {/* Category tabs (always shown) */}
       <ScrollView
@@ -272,6 +291,47 @@ export default function OrderScreen() {
   );
 }
 
+// ── Persistent active-order banner (shown on top of menu) ──────
+function ActiveOrderBanner({
+  minutes, startedAt, drinks, onPress,
+}: { minutes: number; startedAt: number; drinks: number; onPress: () => void }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const totalMs   = Math.max(60_000, minutes * 60 * 1000);
+  const elapsedMs = Math.max(0, now - startedAt);
+  const remainMs  = Math.max(0, totalMs - elapsedMs);
+  const pct       = Math.max(0, Math.min(100, (1 - elapsedMs / totalMs) * 100));
+  const mm = Math.floor(remainMs / 60000);
+  const ss = Math.floor((remainMs % 60000) / 1000);
+
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.activeBannerWrap}>
+      <LinearGradient
+        colors={["rgba(232,184,109,0.18)", "rgba(232,184,109,0.05)"]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={styles.activeBanner}
+      >
+        <View style={styles.activeBannerIcon}>
+          <Feather name="clock" size={16} color={PRIMARY} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.activeBannerTitle}>طلبك قيد التحضير</Text>
+          <Text style={styles.activeBannerSub}>
+            {drinks} مشروب • متبقي {String(mm).padStart(2,"0")}:{String(ss).padStart(2,"0")}
+          </Text>
+          <View style={styles.activeBannerBar}>
+            <View style={[styles.activeBannerBarFill, { width: `${pct}%` }]} />
+          </View>
+        </View>
+        <Feather name="chevron-left" size={18} color={PRIMARY} />
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
 // ── Animated category tab with diagonal shimmer sweep ──────────
 function CategoryTab({
   label, icon, active, onPress,
@@ -344,6 +404,26 @@ const styles = StyleSheet.create({
   center:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: CREAM, marginTop: 8 },
   muted:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
+
+  // Active order banner
+  activeBannerWrap: { paddingHorizontal: 14, paddingTop: 8 },
+  activeBanner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 14, borderWidth: 1, borderColor: PRIMARY,
+  },
+  activeBannerIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(232,184,109,0.2)",
+    alignItems: "center", justifyContent: "center",
+  },
+  activeBannerTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  activeBannerSub:   { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.7)", marginTop: 1 },
+  activeBannerBar: {
+    height: 3, marginTop: 6, borderRadius: 2,
+    backgroundColor: "rgba(232,184,109,0.15)", overflow: "hidden",
+  },
+  activeBannerBarFill: { height: "100%", backgroundColor: PRIMARY },
 
   // Tabs
   tabs: { paddingHorizontal: 14, paddingVertical: 6, gap: 6 },

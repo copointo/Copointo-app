@@ -141,6 +141,10 @@ function OrdersTab({ id }: { id: string }) {
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "done" } : o));
   };
   const printInvoice = (o: any) => {
+    // Award points + mark order as done (idempotent on server) — fire and forget.
+    api.cafeOrderPrint(id, o.id).then(() => {
+      setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "done", pointsAwarded: true } : x));
+    }).catch(() => { /* swallow — print still happens */ });
     const w = window.open("", "_blank", "width=420,height=600");
     if (!w) return;
     const rows = (o.items ?? []).map((it: any) =>

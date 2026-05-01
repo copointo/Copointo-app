@@ -31,12 +31,13 @@ interface ServerOrder {
   tableNumber?: string;
   plateNumber?: string;
   plateSymbol?: string;
+  pointsAwarded?: boolean;
 }
 
 export default function OrderTimerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, setUser } = useApp();
+  const { user, setUser, setActiveOrder } = useApp();
   const params = useLocalSearchParams<{
     orderId: string; cafeId: string; minutes: string; drinks: string;
   }>();
@@ -51,7 +52,8 @@ export default function OrderTimerScreen() {
   // 100.0 → 0.0 in 0.1 decrements over (totalMin × 60s)
   const [progress, setProgress] = useState(100.0);
   const [order,    setOrder]    = useState<ServerOrder | null>(null);
-  const [confirmed,setConfirmed]= useState(false);
+  const [confirmed,setConfirmed]= useState(false); // manager moved out of pending
+  const [completed,setCompleted]= useState(false); // manager pressed print → final
   const [pointsAwarded, setPointsAwarded] = useState(0);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -68,7 +70,7 @@ export default function OrderTimerScreen() {
 
   // Countdown ticker — totalMin*60s split into 1000 ticks of 0.1
   useEffect(() => {
-    if (confirmed) return;
+    if (completed) return;
     const tickMs = (totalMin * 60 * 1000) / 1000; // ms per 0.1 step
     const id = setInterval(() => {
       setProgress((p) => {
@@ -77,20 +79,24 @@ export default function OrderTimerScreen() {
       });
     }, tickMs);
     return () => clearInterval(id);
-  }, [totalMin, confirmed]);
+  }, [totalMin, completed]);
 
-  // Poll server every 4s for status
+  // Poll server every 4s for status + pointsAwarded
   useEffect(() => {
-    if (confirmed || !orderId || !cafeId) return;
+    if (completed || !orderId || !cafeId) return;
     let cancelled = false;
     const poll = async () => {
       try {
         const data = await apiFetch<{ order: ServerOrder }>(`/cafe/${cafeId}/orders/${orderId}`);
         if (cancelled) return;
         setOrder(data.order);
-        if (data.order.status !== "pending") {
-          // Manager confirmed → award game progress now.
+        if (data.order.status !== "pending" && !confirmed) {
           setConfirmed(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        if (data.order.pointsAwarded) {
+          // Manager printed invoice → award points + show final screen.
+          setCompleted(true);
           setPointsAwarded(drinkQty);
           if (user) {
             const updated = {
@@ -108,25 +114,25 @@ export default function OrderTimerScreen() {
     const id = setInterval(poll, 4000);
     return () => { cancelled = true; clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId, cafeId, confirmed, drinkQty]);
+  }, [orderId, cafeId, completed, confirmed, drinkQty]);
 
   const ringScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
   const ringOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
 
-  // ── Confirmed (success) view ──
-  if (confirmed) {
+  // ── Completed (final) view — shown after manager prints invoice ──
+  if (completed) {
     return (
       <View style={[styles.container, { paddingTop: topPad }]}>
         <View style={styles.center}>
           <View style={styles.successIcon}>
             <Text style={{ fontSize: 64 }}>✅</Text>
           </View>
-          <Text style={styles.successTitle}>تم تأكيد طلبك!</Text>
+          <Text style={styles.successTitle}>انتهاء تحضير طلبك</Text>
           <Text style={styles.successSub}>
-            الكوفي بدأ بتحضير طلبك الآن{"\n"}
+            سوف تستلمه الآن{"\n"}
             {order?.type === "dine"
-              ? `سيصلك على الطاولة رقم ${order.tableNumber}`
-              : `سنحضر الطلب إلى سيارتك (${order?.plateNumber} ${order?.plateSymbol})`}
+              ? `على الطاولة رقم ${order.tableNumber}`
+              : `إلى سيارتك (${order?.plateNumber} ${order?.plateSymbol})`}
           </Text>
 
           <LinearGradient
@@ -143,7 +149,7 @@ export default function OrderTimerScreen() {
 
           <TouchableOpacity
             style={[styles.btn, { marginTop: 8 }]}
-            onPress={() => router.replace("/(tabs)")}
+            onPress={() => { setActiveOrder(null); router.replace("/(tabs)"); }}
             activeOpacity={0.85}
           >
             <Text style={styles.btnText}>العودة للرئيسية</Text>
@@ -154,12 +160,21 @@ export default function OrderTimerScreen() {
   }
 
   // ── Countdown view ──
+  const goBackToMenu = () => {
+    if (cafeId) router.replace({ pathname: "/cafe/[id]/order", params: { id: cafeId } });
+    else router.back();
+  };
+
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
       <View style={styles.headerRow}>
+        <TouchableOpacity onPress={goBackToMenu} style={styles.backBtn} activeOpacity={0.85}>
+          <Feather name="arrow-right" size={18} color={CREAM} />
+          <Text style={styles.backBtnText}>القائمة</Text>
+        </TouchableOpacity>
         <View style={styles.statusPill}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>قيد الانتظار</Text>
+          <View style={[styles.statusDot, confirmed && { backgroundColor: SUCCESS }]} />
+          <Text style={styles.statusText}>{confirmed ? "قيد التحضير" : "قيد الانتظار"}</Text>
         </View>
       </View>
 
@@ -226,7 +241,14 @@ export default function OrderTimerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
 
-  headerRow: { paddingHorizontal: 16, paddingVertical: 14, alignItems: "flex-start" },
+  headerRow: { paddingHorizontal: 16, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  backBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1, borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  backBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: CREAM },
   statusPill: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 14, paddingVertical: 8,
