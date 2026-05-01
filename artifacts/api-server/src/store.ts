@@ -15,6 +15,9 @@ export interface MenuItem {
   id: string; cafeId: string; name: string; price: number;
   category: string; description: string; available: boolean; createdAt: string;
   image?: string | null;
+  originalPrice?: number | null;
+  promoBuyQty?: number | null;
+  promoGetQty?: number | null;
 }
 export interface CafeTable {
   id: string; cafeId: string; number: number; capacity: number;

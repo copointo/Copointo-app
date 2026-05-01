@@ -34,6 +34,9 @@ interface MenuItem {
   available: boolean;
   createdAt: string;
   image?: string | null;
+  originalPrice?: number | null;
+  promoBuyQty?: number | null;
+  promoGetQty?: number | null;
 }
 
 const CATEGORIES: { key: string; icon: string }[] = [
@@ -175,8 +178,27 @@ export default function OrderScreen() {
                 {!!item.description && (
                   <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
                 )}
+                {!!(item.promoBuyQty && item.promoGetQty) && (
+                  <View style={styles.bundleBadge}>
+                    <Text style={styles.bundleBadgeText}>
+                      🎁 اشترِ {item.promoBuyQty} واحصل على {item.promoGetQty} مجاناً
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.cardBottom}>
-                  <Text style={styles.cardPrice}>{item.price.toFixed(3)} OMR</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {!!(item.originalPrice && item.originalPrice > item.price) && (
+                      <Text style={styles.oldPrice}>{item.originalPrice.toFixed(3)}</Text>
+                    )}
+                    <Text style={styles.cardPrice}>{item.price.toFixed(3)} OMR</Text>
+                    {!!(item.originalPrice && item.originalPrice > item.price) && (
+                      <View style={styles.discountChip}>
+                        <Text style={styles.discountChipText}>
+                          -{Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   {qty > 0 ? (
                     <View style={styles.qtyRow}>
                       <TouchableOpacity
@@ -294,6 +316,28 @@ const styles = StyleSheet.create({
   cardDesc:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.55)", lineHeight: 16 },
   cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },
   cardPrice:  { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  oldPrice:   {
+    fontSize: 12, fontFamily: "Inter_600SemiBold",
+    color: "rgba(245,230,204,0.5)",
+    textDecorationLine: "line-through",
+  },
+  discountChip: {
+    backgroundColor: "rgba(239,68,68,0.18)",
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+  },
+  discountChipText: {
+    fontSize: 10, fontFamily: "Inter_700Bold", color: "#FCA5A5",
+  },
+  bundleBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(232,184,109,0.15)",
+    borderColor: "rgba(232,184,109,0.4)", borderWidth: 1,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+    marginTop: 4,
+  },
+  bundleBadgeText: {
+    fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY,
+  },
 
   // Add controls
   addBtn:     { borderRadius: 12, overflow: "hidden" },

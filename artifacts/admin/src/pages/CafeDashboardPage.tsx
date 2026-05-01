@@ -285,8 +285,18 @@ const MENU_CATEGORIES = [
 const DEFAULT_CATEGORY = MENU_CATEGORIES[0].value;
 const MAX_IMAGE_BYTES = 600 * 1024; // 600KB cap on upload
 
-type MenuForm = { name: string; price: string; category: string; description: string; image: string };
-const emptyForm = (): MenuForm => ({ name: "", price: "", category: DEFAULT_CATEGORY, description: "", image: "" });
+type PromoMode = "none" | "discount" | "bundle";
+type MenuForm = {
+  name: string; price: string; category: string; description: string; image: string;
+  promoMode: PromoMode;
+  originalPrice: string;
+  promoBuyQty: string;
+  promoGetQty: string;
+};
+const emptyForm = (): MenuForm => ({
+  name: "", price: "", category: DEFAULT_CATEGORY, description: "", image: "",
+  promoMode: "none", originalPrice: "", promoBuyQty: "", promoGetQty: "",
+});
 
 function MenuTab({ id }: { id: string }) {
   const [items, setItems] = useState<any[]>([]);
@@ -298,19 +308,48 @@ function MenuTab({ id }: { id: string }) {
   const load = useCallback(() => api.cafeMenu(id).then(d => setItems(d.items)), [id]);
   useEffect(() => { load(); }, [load]);
 
-  const resetForm = () => { setForm(emptyForm()); setEditingId(null); setImgErr(""); };
+  const resetForm = () => { setForm(emptyForm()); setEditingId(null); setImgErr(""); setFormErr(""); };
+
+  const [formErr, setFormErr] = useState<string>("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormErr("");
     if (!form.name || !form.price) return;
+    const price = +form.price;
+
+    let originalPrice: number | null = null;
+    let promoBuyQty:   number | null = null;
+    let promoGetQty:   number | null = null;
+
+    if (form.promoMode === "discount") {
+      const op = +form.originalPrice;
+      if (!form.originalPrice || isNaN(op) || op <= price) {
+        setFormErr("السعر قبل الخصم يجب أن يكون أكبر من السعر الحالي");
+        return;
+      }
+      originalPrice = op;
+    } else if (form.promoMode === "bundle") {
+      const b = +form.promoBuyQty, g = +form.promoGetQty;
+      if (!form.promoBuyQty || !form.promoGetQty || b < 1 || g < 1) {
+        setFormErr("أدخل قيم صحيحة لـ (اشترِ) و (احصل على)");
+        return;
+      }
+      promoBuyQty = Math.floor(b);
+      promoGetQty = Math.floor(g);
+    }
+
     setSaving(true);
     try {
       const body = {
         name: form.name,
-        price: +form.price,
+        price,
         category: form.category,
         description: form.description,
         image: form.image || null,
+        originalPrice,
+        promoBuyQty,
+        promoGetQty,
       };
       if (editingId) {
         await api.updateMenuItem(id, editingId, body);
@@ -327,12 +366,21 @@ function MenuTab({ id }: { id: string }) {
   const startEdit = (item: any) => {
     setEditingId(item.id);
     setImgErr("");
+    setFormErr("");
+    const promoMode: PromoMode =
+      item.originalPrice ? "discount"
+      : (item.promoBuyQty && item.promoGetQty) ? "bundle"
+      : "none";
     setForm({
       name: item.name ?? "",
       price: String(item.price ?? ""),
       category: item.category ?? DEFAULT_CATEGORY,
       description: item.description ?? "",
       image: item.image ?? "",
+      promoMode,
+      originalPrice: item.originalPrice ? String(item.originalPrice) : "",
+      promoBuyQty: item.promoBuyQty ? String(item.promoBuyQty) : "",
+      promoGetQty: item.promoGetQty ? String(item.promoGetQty) : "",
     });
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -403,6 +451,86 @@ function MenuTab({ id }: { id: string }) {
             </div>
           </div>
 
+          {/* Promo / offer */}
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">العرض على المنتج (اختياري)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { v: "none",     label: "بدون عرض",         emoji: "—" },
+                { v: "discount", label: "تخفيض (سعر قديم)",  emoji: "🏷️" },
+                { v: "bundle",   label: "اشترِ X احصل على Y", emoji: "🎁" },
+              ] as { v: PromoMode; label: string; emoji: string }[]).map(opt => {
+                const active = form.promoMode === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, promoMode: opt.v }))}
+                    className={`py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                      active
+                        ? "bg-primary text-primary-foreground border-primary shadow shadow-primary/30"
+                        : "bg-card text-muted-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    <span>{opt.emoji}</span> {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {form.promoMode === "discount" && (
+              <div className="mt-3 grid grid-cols-2 gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20">
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">السعر قبل الخصم (OMR)</label>
+                  <Inp
+                    value={form.originalPrice}
+                    onChange={(v: string) => setForm(p => ({ ...p, originalPrice: v }))}
+                    placeholder="مثال: 2.5"
+                    type="number"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <p className="text-[11px] text-muted-foreground">
+                    سيظهر في التطبيق: <span className="line-through text-red-400">{form.originalPrice || "0.000"}</span>{" "}
+                    <span className="text-primary font-bold">{form.price || "0.000"} OMR</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {form.promoMode === "bundle" && (
+              <div className="mt-3 grid grid-cols-2 gap-3 p-3 rounded-xl bg-primary/5 border border-primary/20">
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">اشترِ (عدد)</label>
+                  <Inp
+                    value={form.promoBuyQty}
+                    onChange={(v: string) => setForm(p => ({ ...p, promoBuyQty: v.replace(/\D/g, "") }))}
+                    placeholder="مثال: 3"
+                    type="number"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-muted-foreground mb-1">احصل على (مجاناً)</label>
+                  <Inp
+                    value={form.promoGetQty}
+                    onChange={(v: string) => setForm(p => ({ ...p, promoGetQty: v.replace(/\D/g, "") }))}
+                    placeholder="مثال: 1"
+                    type="number"
+                  />
+                </div>
+                {form.promoBuyQty && form.promoGetQty && (
+                  <p className="col-span-2 text-[11px] text-primary font-semibold">
+                    🎁 سيظهر: اشترِ {form.promoBuyQty} واحصل على {form.promoGetQty} مجاناً
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {formErr && (
+            <p className="col-span-2 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-lg py-2 px-3">{formErr}</p>
+          )}
+
           <div className="col-span-2 flex gap-2">
             <button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2">
               {editingId ? <><CheckCircle size={16}/>{saving?"جاري الحفظ...":"حفظ التعديلات"}</> : <><Plus size={16}/>{saving?"جاري الإضافة...":"إضافة للقائمة"}</>}
@@ -436,7 +564,19 @@ function MenuTab({ id }: { id: string }) {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className={`font-medium text-sm truncate ${item.available ? "text-foreground" : "text-muted-foreground line-through"}`}>{item.name}</p>
-                    {item.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.description}</p>}
+                    <div className="flex flex-wrap gap-1.5 mt-0.5 items-center">
+                      {item.description && <p className="text-xs text-muted-foreground truncate">{item.description}</p>}
+                      {item.originalPrice && (
+                        <span className="text-[10px] bg-red-500/15 text-red-300 px-1.5 py-0.5 rounded">
+                          🏷️ خصم من {item.originalPrice.toFixed(3)} OMR
+                        </span>
+                      )}
+                      {item.promoBuyQty && item.promoGetQty && (
+                        <span className="text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded font-semibold">
+                          🎁 اشترِ {item.promoBuyQty} احصل على {item.promoGetQty}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span className="text-primary font-bold text-sm whitespace-nowrap">{item.price?.toFixed(3)} OMR</span>
                   <button onClick={() => toggleAvail(item)} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${item.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
