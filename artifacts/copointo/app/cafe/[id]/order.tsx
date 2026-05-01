@@ -13,6 +13,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  Easing,
+  interpolate,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { CAFES } from "@/data/mockData";
@@ -139,20 +147,15 @@ export default function OrderScreen() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tabs}
       >
-        {CATEGORIES.map((c) => {
-          const active = activeCategory === c.key;
-          return (
-            <TouchableOpacity
-              key={c.key}
-              style={[styles.tab, active && styles.tabActive]}
-              onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
-              activeOpacity={0.85}
-            >
-              <Text style={{ fontSize: 16 }}>{c.icon}</Text>
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{c.key}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        {CATEGORIES.map((c) => (
+          <CategoryTab
+            key={c.key}
+            label={c.key}
+            icon={c.icon}
+            active={activeCategory === c.key}
+            onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
+          />
+        ))}
       </ScrollView>
 
       {/* Items list */}
@@ -269,6 +272,57 @@ export default function OrderScreen() {
   );
 }
 
+// ── Animated category tab with diagonal shimmer sweep ──────────
+function CategoryTab({
+  label, icon, active, onPress,
+}: { label: string; icon: string; active: boolean; onPress: () => void }) {
+  const [width, setWidth] = useState(0);
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (!active || width === 0) {
+      progress.value = 0;
+      return;
+    }
+    progress.value = 0;
+    progress.value = withRepeat(
+      withTiming(1, { duration: 1800, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      false,
+    );
+  }, [active, width, progress]);
+
+  const shineStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: interpolate(progress.value, [0, 1], [-50, width + 20]) },
+      { skewX: "-20deg" },
+    ],
+    opacity: interpolate(progress.value, [0, 0.15, 0.85, 1], [0, 0.85, 0.85, 0]),
+  }));
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.85}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={[styles.tab, active && styles.tabActive]}
+    >
+      <Text style={styles.tabIcon}>{icon}</Text>
+      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+      {active && width > 0 && (
+        <Animated.View pointerEvents="none" style={[styles.tabShine, shineStyle]}>
+          <LinearGradient
+            colors={["transparent", "rgba(255,232,180,0.55)", "transparent"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
 
@@ -292,16 +346,24 @@ const styles = StyleSheet.create({
   muted:      { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
 
   // Tabs
-  tabs: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  tabs: { paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
   tab: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 14, borderWidth: 1, borderColor: BORDER,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 999, borderWidth: 1, borderColor: BORDER,
     backgroundColor: CARD,
+    overflow: "hidden",
   },
-  tabActive: { backgroundColor: "rgba(232,184,109,0.18)", borderColor: PRIMARY },
-  tabLabel:        { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.7)" },
+  tabActive: { backgroundColor: "rgba(232,184,109,0.14)", borderColor: PRIMARY },
+  tabIcon:         { fontSize: 13 },
+  tabLabel:        { fontSize: 11.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.65)" },
   tabLabelActive:  { color: PRIMARY },
+  tabShine: {
+    position: "absolute",
+    top: 0, bottom: 0,
+    width: 36,
+    transform: [{ skewX: "-20deg" }],
+  },
 
   // List
   list: { paddingHorizontal: 16, paddingTop: 6, gap: 12 },
