@@ -18,8 +18,8 @@ function HomePage() {
       emoji:   "📊",
       label:   "لوحة التحكم",
       sub:     "الإيرادات والإحصائيات العامة",
-      grad:    "from-amber-800 to-amber-600",
-      border:  "border-amber-700/40",
+      grad:    "from-[#0A0606] via-[#050303] to-black",
+      border:  "border-[#E8B86D]/40",
     },
     {
       href:    "/cafes",
@@ -27,8 +27,8 @@ function HomePage() {
       emoji:   "☕",
       label:   "الكوفيهات",
       sub:     "إدارة وإضافة الكوفيهات",
-      grad:    "from-violet-900 to-violet-700",
-      border:  "border-violet-700/40",
+      grad:    "from-[#0A0606] via-[#050303] to-black",
+      border:  "border-[#E8B86D]/40",
     },
     {
       href:    "/users",
@@ -36,8 +36,8 @@ function HomePage() {
       emoji:   "👥",
       label:   "المستخدمون",
       sub:     "عرض وحظر المستخدمين",
-      grad:    "from-slate-800 to-slate-600",
-      border:  "border-slate-600/40",
+      grad:    "from-[#0A0606] via-[#050303] to-black",
+      border:  "border-[#E8B86D]/40",
     },
   ];
 
@@ -54,14 +54,14 @@ function HomePage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full max-w-2xl">
         {cards.map(({ href, emoji, label, sub, grad, border }) => (
           <Link key={href} href={href}
-            className={`group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl`}>
+            className={`group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
             <span className="text-5xl">{emoji}</span>
             <div className="text-center">
-              <p className="text-white font-bold text-lg">{label}</p>
-              <p className="text-white/60 text-xs mt-1">{sub}</p>
+              <p className="text-[#E8B86D] font-bold text-lg">{label}</p>
+              <p className="text-[#F5E6CC]/60 text-xs mt-1">{sub}</p>
             </div>
-            <div className="absolute bottom-4 left-4 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-              <ArrowRight size={14} className="text-white" />
+            <div className="absolute bottom-4 left-4 w-7 h-7 rounded-full bg-[#E8B86D]/10 flex items-center justify-center group-hover:bg-[#E8B86D]/20 transition-colors">
+              <ArrowRight size={14} className="text-[#E8B86D]" />
             </div>
           </Link>
         ))}
