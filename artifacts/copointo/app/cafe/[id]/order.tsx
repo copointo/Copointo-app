@@ -348,9 +348,9 @@ const styles = StyleSheet.create({
   // Tabs
   tabs: { paddingHorizontal: 14, paddingVertical: 6, gap: 6 },
   tab: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 9, paddingVertical: 0,
-    height: 22,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
+    paddingHorizontal: 16, paddingVertical: 0,
+    height: 22, minWidth: 88,
     borderRadius: 5, borderWidth: 1, borderColor: BORDER,
     backgroundColor: CARD,
     overflow: "hidden",
