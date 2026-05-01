@@ -22,6 +22,8 @@ export interface MenuItem {
 export interface CafeTable {
   id: string; cafeId: string; number: number; capacity: number;
   available: boolean; createdAt: string;
+  image?: string | null;
+  hourlyPricing?: { hours: number; price: number }[];
 }
 export interface Order {
   id: string; cafeId: string; customerName: string; customerPhone: string;

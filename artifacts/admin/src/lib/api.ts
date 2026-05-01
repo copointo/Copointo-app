@@ -33,6 +33,7 @@ export const api = {
   deleteMenuItem:(id: string, mid: string) => req<any>("DELETE", `${C(id)}/menu/${mid}`),
   cafeTables:    (id: string)              => req<any>("GET",    `${C(id)}/tables`),
   addTable:      (id: string, body: any)   => req<any>("POST",   `${C(id)}/tables`, body),
+  updateTable:   (id: string, tid: string, body: any) => req<any>("PATCH", `${C(id)}/tables/${tid}`, body),
   deleteTable:   (id: string, tid: string) => req<any>("DELETE", `${C(id)}/tables/${tid}`),
   cafeChat:      (id: string)              => req<any>("GET",    `${C(id)}/chat`),
   addChatInfo:   (id: string, body: any)   => req<any>("POST",   `${C(id)}/chat`, body),

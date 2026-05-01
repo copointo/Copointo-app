@@ -670,45 +670,236 @@ function ChatTab({ id }: { id: string }) {
 }
 
 // ── Tables Tab ────────────────────────────────────────────────
+type PriceTier = { hours: string; price: string };
+type TableForm = {
+  number: string; capacity: string; image: string;
+  hourlyPricing: PriceTier[];
+};
+const emptyTableForm = (): TableForm => ({ number: "", capacity: "", image: "", hourlyPricing: [] });
+
 function TablesTab({ id }: { id: string }) {
   const [tbls, setTbls]   = useState<any[]>([]);
-  const [form, setForm]   = useState({ number:"", capacity:"" });
+  const [form, setForm]   = useState<TableForm>(emptyTableForm());
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [imgErr, setImgErr] = useState<string>("");
+  const [formErr, setFormErr] = useState<string>("");
+
   const load = useCallback(() => api.cafeTables(id).then(d => setTbls(d.tables)), [id]);
   useEffect(() => { load(); }, [load]);
-  const add = async (e: React.FormEvent) => {
+
+  const resetForm = () => {
+    setForm(emptyTableForm()); setEditingId(null);
+    setImgErr(""); setFormErr("");
+  };
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormErr("");
     if (!form.number || !form.capacity) return;
+
+    // Validate hourly pricing tiers (only non-empty rows count)
+    const tiers: { hours: number; price: number }[] = [];
+    for (const t of form.hourlyPricing) {
+      if (!t.hours && !t.price) continue;
+      const h = +t.hours, p = +t.price;
+      if (!h || !p || h < 1 || p < 0) {
+        setFormErr("تأكد من إدخال الساعات والسعر بشكل صحيح في كل صف");
+        return;
+      }
+      tiers.push({ hours: Math.floor(h), price: p });
+    }
+    tiers.sort((a, b) => a.hours - b.hours);
+
     setSaving(true);
-    await api.addTable(id, { number: +form.number, capacity: +form.capacity });
-    await load(); setForm({ number:"", capacity:"" }); setSaving(false);
+    try {
+      const body: any = {
+        number: +form.number,
+        capacity: +form.capacity,
+        image: form.image || null,
+        hourlyPricing: tiers,
+      };
+      if (editingId) {
+        await api.updateTable(id, editingId, body);
+      } else {
+        await api.addTable(id, body);
+      }
+      await load();
+      resetForm();
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const startEdit = (t: any) => {
+    setEditingId(t.id);
+    setImgErr(""); setFormErr("");
+    setForm({
+      number: String(t.number ?? ""),
+      capacity: String(t.capacity ?? ""),
+      image: t.image ?? "",
+      hourlyPricing: (t.hourlyPricing ?? []).map((tier: any) => ({
+        hours: String(tier.hours), price: String(tier.price),
+      })),
+    });
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const del = async (tid: string) => {
-    await api.deleteTable(id, tid); setTbls(prev => prev.filter(t => t.id !== tid));
+    await api.deleteTable(id, tid);
+    setTbls(prev => prev.filter(t => t.id !== tid));
+    if (editingId === tid) resetForm();
   };
+
+  const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImgErr("");
+    if (!file.type.startsWith("image/")) { setImgErr("الملف ليس صورة"); return; }
+    if (file.size > MAX_IMAGE_BYTES)     { setImgErr("الصورة كبيرة جداً (الحد الأقصى 600 كيلوبايت)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => setForm(p => ({ ...p, image: String(reader.result || "") }));
+    reader.onerror = () => setImgErr("تعذر قراءة الصورة");
+    reader.readAsDataURL(file);
+  };
+
+  const addTier = () => setForm(p => ({ ...p, hourlyPricing: [...p.hourlyPricing, { hours: "", price: "" }] }));
+  const updateTier = (idx: number, key: keyof PriceTier, val: string) =>
+    setForm(p => ({
+      ...p,
+      hourlyPricing: p.hourlyPricing.map((t, i) => i === idx ? { ...t, [key]: val.replace(/[^\d.]/g, "") } : t),
+    }));
+  const removeTier = (idx: number) =>
+    setForm(p => ({ ...p, hourlyPricing: p.hourlyPricing.filter((_, i) => i !== idx) }));
+
   return (
     <div className="space-y-5">
+      {/* Add / Edit form */}
       <Card className="p-5">
-        <h3 className="font-semibold text-foreground mb-4">➕ إضافة طاولة جديدة</h3>
-        <form onSubmit={add} className="flex gap-3">
-          <Inp value={form.number} onChange={(v:string) => setForm(p=>({...p,number:v}))} placeholder="رقم الطاولة *" type="number" className="flex-1" />
-          <Inp value={form.capacity} onChange={(v:string) => setForm(p=>({...p,capacity:v}))} placeholder="السعة (أشخاص) *" type="number" className="flex-1" />
-          <button type="submit" disabled={saving} className="bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center gap-2 whitespace-nowrap">
-            <Plus size={16}/>{saving?"...":"إضافة"}
-          </button>
+        <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+          {editingId ? <><Pencil size={16} className="text-primary" /> تعديل الطاولة</> : <>➕ إضافة طاولة جديدة</>}
+        </h3>
+        <form onSubmit={submit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Inp value={form.number} onChange={(v:string) => setForm(p=>({...p,number:v}))} placeholder="رقم الطاولة *" type="number" />
+            <Inp value={form.capacity} onChange={(v:string) => setForm(p=>({...p,capacity:v}))} placeholder="السعة (أشخاص) *" type="number" />
+          </div>
+
+          {/* Image picker */}
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">صورة الطاولة (اختياري)</label>
+            <div className="flex items-center gap-3">
+              {form.image ? (
+                <img src={form.image} alt="" className="w-20 h-20 rounded-xl object-cover border border-border" />
+              ) : (
+                <div className="w-20 h-20 rounded-xl border border-dashed border-border bg-muted/20 flex items-center justify-center text-muted-foreground">
+                  <ImagePlus size={22} />
+                </div>
+              )}
+              <div className="flex-1 flex flex-col gap-2">
+                <label className="cursor-pointer inline-flex items-center justify-center gap-2 bg-card border border-border hover:border-primary/50 rounded-xl px-3 py-2 text-sm text-foreground transition w-fit">
+                  <ImagePlus size={15}/> {form.image ? "تغيير الصورة" : "اختيار صورة"}
+                  <input type="file" accept="image/*" className="hidden" onChange={onPickImage} />
+                </label>
+                {form.image && (
+                  <button type="button" onClick={() => setForm(p=>({...p,image:""}))} className="text-xs text-red-400 hover:text-red-300 w-fit">
+                    إزالة الصورة
+                  </button>
+                )}
+                <p className="text-[10px] text-muted-foreground">حد أقصى 600 كيلوبايت — الصورة اختيارية</p>
+                {imgErr && <p className="text-[11px] text-red-400">{imgErr}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Hourly pricing tiers */}
+          <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <label className="block text-xs font-semibold text-foreground">⏱️ أسعار التواقيت (اختياري)</label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">عدد الساعات والسعر المقابل لها</p>
+              </div>
+              <button
+                type="button"
+                onClick={addTier}
+                className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary hover:bg-primary/25 font-semibold"
+              >
+                <Plus size={13}/> إضافة سعر
+              </button>
+            </div>
+            {form.hourlyPricing.length === 0 && (
+              <p className="text-[11px] text-muted-foreground text-center py-2">لا توجد أسعار تواقيت — اضغط "إضافة سعر" لبدء التسعير</p>
+            )}
+            <div className="space-y-2">
+              {form.hourlyPricing.map((tier, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Inp value={tier.hours} onChange={(v:string) => updateTier(idx,"hours",v)} placeholder="عدد الساعات (مثال: 1)" type="number" />
+                  </div>
+                  <span className="text-muted-foreground text-xs">→</span>
+                  <div className="flex-1">
+                    <Inp value={tier.price} onChange={(v:string) => updateTier(idx,"price",v)} placeholder="السعر (OMR)" type="number" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeTier(idx)}
+                    className="p-2 rounded-lg text-red-400 hover:bg-red-500/10"
+                    title="حذف"
+                  >
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {formErr && (
+            <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-lg py-2 px-3">{formErr}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving} className="flex-1 bg-primary text-primary-foreground py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2">
+              {editingId ? <><CheckCircle size={16}/>{saving?"جاري الحفظ...":"حفظ التعديلات"}</> : <><Plus size={16}/>{saving?"جاري الإضافة...":"إضافة طاولة"}</>}
+            </button>
+            {editingId && (
+              <button type="button" onClick={resetForm} className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-border text-muted-foreground hover:text-foreground hover:border-primary/40">
+                إلغاء
+              </button>
+            )}
+          </div>
         </form>
       </Card>
+
+      {/* Tables list */}
       {tbls.length === 0 && <Empty icon="🪑" text="لا توجد طاولات مضافة بعد" />}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
         {tbls.map(t => (
-          <Card key={t.id} className="p-4 flex flex-col items-center gap-2 relative">
-            <button onClick={() => del(t.id)} className="absolute top-2 left-2 p-1 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={13}/></button>
-            <div className="text-4xl">🪑</div>
+          <Card key={t.id} className={`p-4 flex flex-col items-center gap-2 relative ${editingId === t.id ? "ring-2 ring-primary/40" : ""}`}>
+            <div className="absolute top-2 left-2 flex gap-1">
+              <button onClick={() => startEdit(t)} title="تعديل" className="p-1 rounded-lg hover:bg-primary/15 text-primary"><Pencil size={13}/></button>
+              <button onClick={() => del(t.id)} title="حذف" className="p-1 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={13}/></button>
+            </div>
+            {t.image ? (
+              <img src={t.image} alt="" className="w-20 h-20 rounded-xl object-cover border border-border" />
+            ) : (
+              <div className="text-4xl">🪑</div>
+            )}
             <p className="font-bold text-foreground text-lg">طاولة {t.number}</p>
             <p className="text-xs text-muted-foreground">{t.capacity} أشخاص</p>
             <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${t.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
               {t.available ? "متاحة" : "محجوزة"}
             </span>
+            {Array.isArray(t.hourlyPricing) && t.hourlyPricing.length > 0 && (
+              <div className="w-full mt-1 pt-2 border-t border-border space-y-1">
+                {t.hourlyPricing.map((tier: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground">⏱️ {tier.hours} ساعة</span>
+                    <span className="text-primary font-bold">{tier.price?.toFixed(3)} OMR</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         ))}
       </div>

@@ -168,6 +168,12 @@ router.post("/tables", (req: any, res) => {
   tables.push(t);
   res.status(201).json({ table: t });
 });
+router.patch("/tables/:tableId", (req, res) => {
+  const t = tables.find(x => x.id === req.params.tableId);
+  if (!t) return res.status(404).json({ error: "Not found" });
+  Object.assign(t, req.body);
+  res.json({ table: t });
+});
 router.delete("/tables/:tableId", (req, res) => {
   const idx = tables.findIndex(t => t.id === req.params.tableId);
   if (idx === -1) return res.status(404).json({ error: "Not found" });
