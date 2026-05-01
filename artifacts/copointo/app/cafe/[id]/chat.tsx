@@ -12,8 +12,15 @@ import {
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CAFES, PRODUCTS } from "@/data/mockData";
-import { useColors } from "@/hooks/useColors";
+import { CAFES } from "@/data/mockData";
+
+const BG          = "#000000";
+const CARD        = "#0A0606";
+const PRIMARY     = "#E8B86D";
+const BORDER      = "rgba(232,184,109,0.30)";
+const BORDER_SOFT = "rgba(232,184,109,0.18)";
+const MUTED       = "#9A8B72";
+const ON_PRIMARY  = "#0A0606";
 
 interface ChatMessage {
   id: string;
@@ -43,7 +50,6 @@ function getBotReply(text: string): string {
 
 export default function CafeChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const cafe = CAFES.find((c) => c.id === id) ?? CAFES[0];
@@ -83,25 +89,21 @@ export default function CafeChatScreen() {
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPadding + 8 }]}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
+          <Feather name="arrow-left" size={22} color={PRIMARY} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <View style={[styles.botAvatar, { backgroundColor: colors.primary + "20" }]}>
+          <View style={styles.botAvatar}>
             <Text style={{ fontSize: 20 }}>🤖</Text>
           </View>
           <View>
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-              Copointo AI
-            </Text>
-            <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
-              {cafe.name}
-            </Text>
+            <Text style={styles.headerTitle}>Copointo AI</Text>
+            <Text style={styles.headerSubtitle}>{cafe.name}</Text>
           </View>
         </View>
-        <View style={[styles.onlineIndicator, { backgroundColor: "#4CAF50" }]} />
+        <View style={styles.onlineIndicator} />
       </View>
 
       <FlatList
@@ -116,22 +118,20 @@ export default function CafeChatScreen() {
             ]}
           >
             {item.role === "bot" && (
-              <View style={[styles.botBubbleAvatar, { backgroundColor: colors.primary + "15" }]}>
+              <View style={styles.botBubbleAvatar}>
                 <Text style={{ fontSize: 14 }}>🤖</Text>
               </View>
             )}
             <View
               style={[
                 styles.bubble,
-                item.role === "user"
-                  ? { backgroundColor: colors.primary, borderBottomRightRadius: 4 }
-                  : { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, borderBottomLeftRadius: 4 },
+                item.role === "user" ? styles.userBubble : styles.botBubble,
               ]}
             >
               <Text
                 style={[
                   styles.bubbleText,
-                  { color: item.role === "user" ? colors.primaryForeground : colors.foreground },
+                  { color: item.role === "user" ? ON_PRIMARY : "#F5E6CC" },
                 ]}
               >
                 {item.text}
@@ -142,11 +142,11 @@ export default function CafeChatScreen() {
         ListFooterComponent={
           isTyping ? (
             <View style={[styles.messageRow, styles.botRow]}>
-              <View style={[styles.botBubbleAvatar, { backgroundColor: colors.primary + "15" }]}>
+              <View style={styles.botBubbleAvatar}>
                 <Text style={{ fontSize: 14 }}>🤖</Text>
               </View>
-              <View style={[styles.bubble, { backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1 }]}>
-                <Text style={[styles.bubbleText, { color: colors.mutedForeground }]}>typing...</Text>
+              <View style={[styles.bubble, styles.botBubble]}>
+                <Text style={[styles.bubbleText, { color: MUTED }]}>typing...</Text>
               </View>
             </View>
           ) : null
@@ -161,21 +161,21 @@ export default function CafeChatScreen() {
       <KeyboardAvoidingView
         behavior="padding"
         keyboardVerticalOffset={0}
-        style={[styles.inputArea, { paddingBottom: bottomPadding + 8, borderTopColor: colors.border, backgroundColor: colors.background }]}
+        style={[styles.inputArea, { paddingBottom: bottomPadding + 8 }]}
       >
         <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground }]}
+          style={styles.input}
           value={input}
           onChangeText={setInput}
           placeholder="Ask me anything..."
-          placeholderTextColor={colors.mutedForeground}
+          placeholderTextColor={MUTED}
           multiline
           maxLength={500}
         />
         <TouchableOpacity
           style={[
             styles.sendBtn,
-            { backgroundColor: input.trim() ? colors.primary : colors.muted },
+            { backgroundColor: input.trim() ? PRIMARY : "rgba(232,184,109,0.15)" },
           ]}
           onPress={sendMessage}
           disabled={!input.trim()}
@@ -183,7 +183,7 @@ export default function CafeChatScreen() {
           <Feather
             name="send"
             size={18}
-            color={input.trim() ? colors.primaryForeground : colors.mutedForeground}
+            color={input.trim() ? ON_PRIMARY : MUTED}
           />
         </TouchableOpacity>
       </KeyboardAvoidingView>
@@ -192,13 +192,16 @@ export default function CafeChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingBottom: 12,
     gap: 12,
+    backgroundColor: BG,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
   },
   headerInfo: { flexDirection: "row", alignItems: "center", flex: 1, gap: 10 },
   botAvatar: {
@@ -207,10 +210,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
-  headerTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
-  headerSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  onlineIndicator: { width: 10, height: 10, borderRadius: 5 },
+  headerTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+  headerSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: MUTED },
+  onlineIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#4CAF50",
+  },
   messageRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -229,11 +240,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER_SOFT,
   },
   bubble: {
     borderRadius: 18,
     padding: 12,
     maxWidth: "85%",
+    borderWidth: 1,
+  },
+  userBubble: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+    borderBottomRightRadius: 4,
+  },
+  botBubble: {
+    backgroundColor: CARD,
+    borderColor: BORDER,
+    borderBottomLeftRadius: 4,
   },
   bubbleText: {
     fontSize: 14,
@@ -244,7 +269,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 16,
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    backgroundColor: BG,
     gap: 10,
     alignItems: "flex-end",
   },
@@ -252,6 +279,9 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 20,
     borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+    color: "#F5E6CC",
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
@@ -264,5 +294,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: BORDER,
   },
 });
