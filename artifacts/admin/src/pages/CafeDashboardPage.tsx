@@ -662,7 +662,42 @@ function DiscountCodesTab({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Create card */}
+      {/* List (top) */}
+      <div className="space-y-3">
+        {codes.length === 0 && <Empty icon="🏷️" text="لا توجد أكواد تخفيض حتى الآن" />}
+        {codes.map(c => {
+          const expired = !!c.expiresAt && new Date(c.expiresAt).getTime() < Date.now();
+          const expiryLabel = c.expiresAt
+            ? `ينتهي: ${new Date(c.expiresAt).toLocaleDateString("ar-OM")}`
+            : "ساري دائماً";
+          return (
+            <Card key={c.id} className={`p-4 flex items-center justify-between gap-4 ${expired ? "opacity-60" : ""}`}>
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-amber-700 flex flex-col items-center justify-center text-primary-foreground shrink-0 shadow-md shadow-primary/20">
+                  <Percent size={14} />
+                  <span className="text-base font-extrabold leading-none">{c.percent}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-foreground font-mono font-bold text-lg tracking-widest truncate">{c.code}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {expiryLabel} • مرات الاستخدام: {c.usedCount}
+                    {expired && <span className="mr-2 text-red-400 font-semibold">(منتهي)</span>}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => remove(c.id)}
+                className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition"
+                title="حذف"
+              >
+                <Trash2 size={16} />
+              </button>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Create card (bottom) */}
       <Card className="p-5">
         <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
           <Plus size={18} className="text-primary" /> إنشاء كود تخفيض
@@ -735,41 +770,6 @@ function DiscountCodesTab({ id }: { id: string }) {
           <p className="mt-3 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-lg py-2 px-3">{err}</p>
         )}
       </Card>
-
-      {/* List */}
-      <div className="space-y-3">
-        {codes.length === 0 && <Empty icon="🏷️" text="لا توجد أكواد تخفيض حتى الآن" />}
-        {codes.map(c => {
-          const expired = !!c.expiresAt && new Date(c.expiresAt).getTime() < Date.now();
-          const expiryLabel = c.expiresAt
-            ? `ينتهي: ${new Date(c.expiresAt).toLocaleDateString("ar-OM")}`
-            : "ساري دائماً";
-          return (
-            <Card key={c.id} className={`p-4 flex items-center justify-between gap-4 ${expired ? "opacity-60" : ""}`}>
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-amber-700 flex flex-col items-center justify-center text-primary-foreground shrink-0 shadow-md shadow-primary/20">
-                  <Percent size={14} />
-                  <span className="text-base font-extrabold leading-none">{c.percent}</span>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-foreground font-mono font-bold text-lg tracking-widest truncate">{c.code}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {expiryLabel} • مرات الاستخدام: {c.usedCount}
-                    {expired && <span className="mr-2 text-red-400 font-semibold">(منتهي)</span>}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => remove(c.id)}
-                className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition"
-                title="حذف"
-              >
-                <Trash2 size={16} />
-              </button>
-            </Card>
-          );
-        })}
-      </div>
     </div>
   );
 }
