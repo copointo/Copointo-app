@@ -59,11 +59,15 @@ export default function OrderScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const cafe = CAFES.find((c) => c.id === id) ?? CAFES[0];
+  const mockCafe = CAFES.find((c) => c.id === id);
 
   const [items, setItems]     = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cafeName, setCafeName] = useState<string>(mockCafe?.name ?? "");
   const [activeCategory, setActiveCategory] = useState<string>(CATEGORIES[0].key);
+
+  const cafe = mockCafe ?? CAFES[0];
+  const displayName = cafeName || cafe.name;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +80,12 @@ export default function OrderScreen() {
       })
       .catch(() => { if (!cancelled) setItems([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
+
+    // Fetch real cafe name from API (so admin-created cafes show their actual name)
+    apiFetch<{ cafe: { name: string } }>(`/cafes/${id}`)
+      .then((data) => { if (!cancelled && data?.cafe?.name) setCafeName(data.cafe.name); })
+      .catch(() => { /* keep mock fallback */ });
+
     return () => { cancelled = true; };
   }, [id]);
 
@@ -90,7 +100,7 @@ export default function OrderScreen() {
         <Feather name="arrow-left" size={20} color="#FFF" />
       </TouchableOpacity>
       <View style={{ flex: 1 }}>
-        <Text style={styles.headerTitle}>{cafe.name}</Text>
+        <Text style={styles.headerTitle}>{displayName}</Text>
         <Text style={styles.headerSub}>قائمة الكوفي</Text>
       </View>
     </View>
@@ -102,8 +112,8 @@ export default function OrderScreen() {
       id: item.id,
       name: item.name,
       price: item.price,
-      cafeId: cafe.id,
-      cafeName: cafe.name,
+      cafeId: id,
+      cafeName: displayName,
     });
   };
 

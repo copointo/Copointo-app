@@ -33,4 +33,19 @@ router.get("/cafes", async (_req, res) => {
   res.json({ cafes: publicCafes });
 });
 
+// Public single-cafe endpoint
+router.get("/cafes/:id", (req, res) => {
+  const c = cafes.find(x => x.id === req.params.id);
+  if (!c) { res.status(404).json({ error: "Cafe not found" }); return; }
+  res.json({
+    cafe: {
+      id: c.id, name: c.name, logo: c.logo, image: c.image,
+      openTime: c.openTime, closeTime: c.closeTime,
+      rating: c.rating, tags: c.tags, address: c.address,
+      active: c.active,
+      lat: c.lat, lng: c.lng,
+    }
+  });
+});
+
 export default router;
