@@ -53,7 +53,8 @@ router.post("/orders", (req: any, res): any => {
   if (body.discountCode) {
     const code = String(body.discountCode).trim();
     const dc = discountCodes.find(d =>
-      d.cafeId === cafeId && d.code === code && d.active && new Date(d.expiresAt).getTime() > Date.now()
+      d.cafeId === cafeId && d.code === code && d.active &&
+      (!d.expiresAt || new Date(d.expiresAt).getTime() > Date.now())
     );
     if (!dc) {
       return res.status(400).json({ error: "كود التخفيض غير صالح أو منتهي" });
@@ -213,8 +214,14 @@ router.post("/discount-codes", (req: any, res): any => {
   if (![10, 20, 30, 40, 50].includes(pct)) {
     return res.status(400).json({ error: "النسبة يجب أن تكون 10 أو 20 أو 30 أو 40 أو 50" });
   }
-  if (!expiresAt || isNaN(new Date(expiresAt).getTime())) {
-    return res.status(400).json({ error: "تاريخ الانتهاء غير صالح" });
+  // expiresAt is optional. If provided it must be a valid date.
+  let expiresAtIso: string | null = null;
+  if (expiresAt !== undefined && expiresAt !== null && expiresAt !== "") {
+    const t = new Date(expiresAt).getTime();
+    if (isNaN(t)) {
+      return res.status(400).json({ error: "تاريخ الانتهاء غير صالح" });
+    }
+    expiresAtIso = new Date(expiresAt).toISOString();
   }
   if (discountCodes.some(d => d.cafeId === cafeId && d.code === codeStr && d.active)) {
     return res.status(400).json({ error: "هذا الكود مستخدم بالفعل" });
@@ -224,7 +231,7 @@ router.post("/discount-codes", (req: any, res): any => {
     cafeId,
     code: codeStr,
     percent: pct as 10 | 20 | 30 | 40 | 50,
-    expiresAt: new Date(expiresAt).toISOString(),
+    expiresAt: expiresAtIso,
     active: true,
     usedCount: 0,
     createdAt: new Date().toISOString(),
@@ -243,7 +250,8 @@ router.post("/discount-codes/validate", (req: any, res): any => {
   const code = String(req.body?.code ?? "").trim();
   if (!code) return res.status(400).json({ valid: false, error: "أدخل الكود" });
   const dc = discountCodes.find(d =>
-    d.cafeId === cafeId && d.code === code && d.active && new Date(d.expiresAt).getTime() > Date.now()
+    d.cafeId === cafeId && d.code === code && d.active &&
+    (!d.expiresAt || new Date(d.expiresAt).getTime() > Date.now())
   );
   if (!dc) return res.status(404).json({ valid: false, error: "كود غير صالح أو منتهي" });
   return res.json({ valid: true, percent: dc.percent, codeId: dc.id });

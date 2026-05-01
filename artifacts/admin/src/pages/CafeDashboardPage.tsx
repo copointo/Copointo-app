@@ -625,8 +625,7 @@ function DiscountCodesTab({ id }: { id: string }) {
   const [loading, setLoading] = useState(false);
   const [code, setCode] = useState("");
   const [percent, setPercent] = useState<10 | 20 | 30 | 40 | 50>(10);
-  const tomorrow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const [expiresAt, setExpiresAt] = useState<string>(tomorrow);
+  const [expiresAt, setExpiresAt] = useState<string>("");
   const [err, setErr] = useState("");
 
   const load = useCallback(() => {
@@ -638,14 +637,14 @@ function DiscountCodesTab({ id }: { id: string }) {
     setErr("");
     const trimmed = code.trim();
     if (!/^\d+$/.test(trimmed)) { setErr("الكود يجب أن يكون أرقام فقط"); return; }
-    if (!expiresAt) { setErr("اختر تاريخ الانتهاء"); return; }
     setLoading(true);
     try {
-      // expiresAt input is YYYY-MM-DD; treat as end-of-day local.
-      const expiry = new Date(expiresAt + "T23:59:59").toISOString();
+      // expiresAt input is YYYY-MM-DD; treat as end-of-day local. Optional.
+      const expiry = expiresAt ? new Date(expiresAt + "T23:59:59").toISOString() : null;
       await api.addDiscountCode(id, { code: trimmed, percent, expiresAt: expiry });
       setCode("");
       setPercent(10);
+      setExpiresAt("");
       load();
     } catch (e: any) {
       try { setErr(JSON.parse(e?.message || "{}").error || "فشل الإنشاء"); }
@@ -700,14 +699,27 @@ function DiscountCodesTab({ id }: { id: string }) {
             </div>
           </div>
           <div className="md:col-span-1">
-            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">ينتهي في</label>
-            <input
-              type="date"
-              value={expiresAt}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={e => setExpiresAt(e.target.value)}
-              className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">ينتهي في (اختياري)</label>
+            <div className="flex gap-1.5">
+              <input
+                type="date"
+                value={expiresAt}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={e => setExpiresAt(e.target.value)}
+                className="flex-1 bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {expiresAt && (
+                <button
+                  type="button"
+                  onClick={() => setExpiresAt("")}
+                  className="px-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 text-xs"
+                  title="إزالة التاريخ"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">اتركه فارغاً ليبقى الكود ساري دائماً</p>
           </div>
           <div className="md:col-span-1 flex items-end">
             <button
@@ -728,7 +740,10 @@ function DiscountCodesTab({ id }: { id: string }) {
       <div className="space-y-3">
         {codes.length === 0 && <Empty icon="🏷️" text="لا توجد أكواد تخفيض حتى الآن" />}
         {codes.map(c => {
-          const expired = new Date(c.expiresAt).getTime() < Date.now();
+          const expired = !!c.expiresAt && new Date(c.expiresAt).getTime() < Date.now();
+          const expiryLabel = c.expiresAt
+            ? `ينتهي: ${new Date(c.expiresAt).toLocaleDateString("ar-OM")}`
+            : "ساري دائماً";
           return (
             <Card key={c.id} className={`p-4 flex items-center justify-between gap-4 ${expired ? "opacity-60" : ""}`}>
               <div className="flex items-center gap-4 min-w-0">
@@ -739,7 +754,7 @@ function DiscountCodesTab({ id }: { id: string }) {
                 <div className="min-w-0">
                   <p className="text-foreground font-mono font-bold text-lg tracking-widest truncate">{c.code}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    ينتهي: {new Date(c.expiresAt).toLocaleDateString("ar-OM")} • مرات الاستخدام: {c.usedCount}
+                    {expiryLabel} • مرات الاستخدام: {c.usedCount}
                     {expired && <span className="mr-2 text-red-400 font-semibold">(منتهي)</span>}
                   </p>
                 </div>

@@ -41,7 +41,7 @@ export const api = {
 
   // Discount codes
   discountCodes:       (id: string)            => req<any>("GET",    `${C(id)}/discount-codes`),
-  addDiscountCode:     (id: string, body: { code: string; percent: number; expiresAt: string }) =>
+  addDiscountCode:     (id: string, body: { code: string; percent: number; expiresAt?: string | null }) =>
                                                   req<any>("POST",   `${C(id)}/discount-codes`, body),
   deleteDiscountCode:  (id: string, did: string) => req<any>("DELETE", `${C(id)}/discount-codes/${did}`),
 

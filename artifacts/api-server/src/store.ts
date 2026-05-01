@@ -56,7 +56,7 @@ export interface Invoice {
 export interface DiscountCode {
   id: string; cafeId: string; code: string;
   percent: 10 | 20 | 30 | 40 | 50;
-  expiresAt: string; active: boolean;
+  expiresAt: string | null; active: boolean;
   usedCount: number; createdAt: string;
 }
 
