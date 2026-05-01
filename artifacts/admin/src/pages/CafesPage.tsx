@@ -218,14 +218,35 @@ export default function CafesPage() {
   };
 
   const toggle = async (id: string) => {
-    await api.toggleCafe(id);
-    setCafes(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
+    try {
+      await api.toggleCafe(id);
+      setCafes(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (msg.includes("not found") || msg.includes("Cafe not found")) {
+        const res = await api.getCafes();
+        setCafes(res.cafes);
+        alert("هذا الكوفي لم يعد موجوداً، تم تحديث القائمة.");
+      } else {
+        alert("تعذّر تغيير الحالة: " + msg.substring(0, 200));
+      }
+    }
   };
 
   const remove = async (id: string) => {
     if (!confirm("هل تريد حذف هذا الكوفي؟")) return;
-    await api.deleteCafe(id);
-    setCafes(prev => prev.filter(c => c.id !== id));
+    try {
+      await api.deleteCafe(id);
+      setCafes(prev => prev.filter(c => c.id !== id));
+    } catch (e: any) {
+      const msg = String(e?.message ?? "");
+      if (msg.includes("not found") || msg.includes("Cafe not found")) {
+        // Already gone on the server (e.g. server restarted) — just drop it locally.
+        setCafes(prev => prev.filter(c => c.id !== id));
+      } else {
+        alert("تعذّر الحذف: " + msg.substring(0, 200));
+      }
+    }
   };
 
   const copyManagerLink = () => {
