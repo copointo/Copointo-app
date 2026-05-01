@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews,
-  type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView } from "../store";
+import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
+  type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode } from "../store";
 
 const router = Router({ mergeParams: true });
 
@@ -41,11 +41,44 @@ router.get("/stats", (req: any, res) => {
 router.get("/orders", (req: any, res) => {
   res.json({ orders: orders.filter(o => o.cafeId === req.params.cafeId) });
 });
-router.post("/orders", (req: any, res) => {
-  const o: Order = { id: Date.now().toString(), cafeId: req.params.cafeId, status: "pending", createdAt: new Date().toISOString(), ...req.body };
+router.post("/orders", (req: any, res): any => {
+  const body = req.body ?? {};
+  const cafeId = req.params.cafeId;
+  // Optional discount code: validate, apply, increment usage.
+  let discountPercent: number | undefined;
+  let discountCode: string | undefined;
+  let discountAmount: number | undefined;
+  let subtotal: number = Number(body.total) || 0;
+  let total = subtotal;
+  if (body.discountCode) {
+    const code = String(body.discountCode).trim();
+    const dc = discountCodes.find(d =>
+      d.cafeId === cafeId && d.code === code && d.active && new Date(d.expiresAt).getTime() > Date.now()
+    );
+    if (!dc) {
+      return res.status(400).json({ error: "كود التخفيض غير صالح أو منتهي" });
+    }
+    discountCode = dc.code;
+    discountPercent = dc.percent;
+    discountAmount = +(subtotal * dc.percent / 100).toFixed(3);
+    total = +(subtotal - discountAmount).toFixed(3);
+    dc.usedCount++;
+  }
+  const o: Order = {
+    id: Date.now().toString(),
+    cafeId,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    ...body,
+    subtotal,
+    discountCode,
+    discountPercent,
+    discountAmount,
+    total,
+  };
   orders.push(o);
   // Invoice is created only when the manager confirms preparation.
-  res.status(201).json({ order: o });
+  return res.status(201).json({ order: o });
 });
 router.get("/orders/:orderId", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
@@ -160,6 +193,60 @@ router.delete("/chat/:itemId", (req, res) => {
 // ── Invoices ──────────────────────────────────────────────────
 router.get("/invoices", (req: any, res) => {
   res.json({ invoices: invoices.filter(i => i.cafeId === req.params.cafeId) });
+});
+
+// ── Discount codes ───────────────────────────────────────────
+router.get("/discount-codes", (req: any, res) => {
+  const list = discountCodes
+    .filter(d => d.cafeId === req.params.cafeId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json({ codes: list });
+});
+router.post("/discount-codes", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const { code, percent, expiresAt } = req.body ?? {};
+  const codeStr = String(code ?? "").trim();
+  const pct = Number(percent);
+  if (!codeStr || !/^\d+$/.test(codeStr)) {
+    return res.status(400).json({ error: "الكود يجب أن يكون أرقام فقط" });
+  }
+  if (![10, 20, 30, 40, 50].includes(pct)) {
+    return res.status(400).json({ error: "النسبة يجب أن تكون 10 أو 20 أو 30 أو 40 أو 50" });
+  }
+  if (!expiresAt || isNaN(new Date(expiresAt).getTime())) {
+    return res.status(400).json({ error: "تاريخ الانتهاء غير صالح" });
+  }
+  if (discountCodes.some(d => d.cafeId === cafeId && d.code === codeStr && d.active)) {
+    return res.status(400).json({ error: "هذا الكود مستخدم بالفعل" });
+  }
+  const dc: DiscountCode = {
+    id: Date.now().toString(),
+    cafeId,
+    code: codeStr,
+    percent: pct as 10 | 20 | 30 | 40 | 50,
+    expiresAt: new Date(expiresAt).toISOString(),
+    active: true,
+    usedCount: 0,
+    createdAt: new Date().toISOString(),
+  };
+  discountCodes.push(dc);
+  return res.status(201).json({ code: dc });
+});
+router.delete("/discount-codes/:codeId", (req, res): any => {
+  const idx = discountCodes.findIndex(d => d.id === req.params.codeId);
+  if (idx === -1) return res.status(404).json({ error: "Not found" });
+  discountCodes.splice(idx, 1);
+  return res.json({ success: true });
+});
+router.post("/discount-codes/validate", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const code = String(req.body?.code ?? "").trim();
+  if (!code) return res.status(400).json({ valid: false, error: "أدخل الكود" });
+  const dc = discountCodes.find(d =>
+    d.cafeId === cafeId && d.code === code && d.active && new Date(d.expiresAt).getTime() > Date.now()
+  );
+  if (!dc) return res.status(404).json({ valid: false, error: "كود غير صالح أو منتهي" });
+  return res.json({ valid: true, percent: dc.percent, codeId: dc.id });
 });
 
 // ── Public: track a cafe-detail view ─────────────────────────

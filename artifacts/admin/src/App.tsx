@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import DashboardPage     from "@/pages/DashboardPage";
 import CafesPage         from "@/pages/CafesPage";
 import UsersPage         from "@/pages/UsersPage";
-import CafeDashboardPage from "@/pages/CafeDashboardPage";
+import CafeDashboardPage, { ManagerAnalyticsPage } from "@/pages/CafeDashboardPage";
 import { LayoutDashboard, Coffee, Users, ArrowRight } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -112,7 +112,8 @@ function AdminApp() {
       <Route path="/dashboard"  component={DashboardWrapped}/>
       <Route path="/cafes"      component={CafesWrapped}    />
       <Route path="/users"      component={UsersWrapped}    />
-      <Route path="/cafe/:id"   component={CafeDashboardPage}/>
+      <Route path="/cafe/:id/analytics"  component={ManagerAnalyticsPage}/>
+      <Route path="/cafe/:id"            component={CafeDashboardPage}/>
     </Switch>
   );
 }

@@ -7,7 +7,7 @@ import {
   ArrowLeft, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
   MessageCircle, Table2, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
-  CalendarRange, BarChart3,
+  CalendarRange, BarChart3, Tag, Percent,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -15,16 +15,17 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices";
+type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "discounts";
 
 const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
-  { id:"stats",    label:"الإحصائيات",      icon: LayoutDashboard,  emoji:"📊" },
-  { id:"orders",   label:"طلبات القهوة",     icon: ShoppingBag,      emoji:"☕" },
-  { id:"bookings", label:"حجوزات الطاولة",   icon: CalendarDays,     emoji:"📅" },
-  { id:"menu",     label:"القائمة",          icon: UtensilsCrossed,  emoji:"🍽️" },
-  { id:"chat",     label:"معلومات الشات",    icon: MessageCircle,    emoji:"💬" },
-  { id:"tables",   label:"الطاولات",         icon: Table2,           emoji:"🪑" },
-  { id:"invoices", label:"الفواتير",         icon: Receipt,          emoji:"🧾" },
+  { id:"stats",     label:"الإحصائيات",      icon: LayoutDashboard,  emoji:"📊" },
+  { id:"orders",    label:"طلبات القهوة",     icon: ShoppingBag,      emoji:"☕" },
+  { id:"bookings",  label:"حجوزات الطاولة",   icon: CalendarDays,     emoji:"📅" },
+  { id:"menu",      label:"القائمة",          icon: UtensilsCrossed,  emoji:"🍽️" },
+  { id:"chat",      label:"معلومات الشات",    icon: MessageCircle,    emoji:"💬" },
+  { id:"tables",    label:"الطاولات",         icon: Table2,           emoji:"🪑" },
+  { id:"invoices",  label:"الفواتير",         icon: Receipt,          emoji:"🧾" },
+  { id:"discounts", label:"أكواد التخفيض",    icon: Tag,              emoji:"🏷️" },
 ];
 
 const COLORS = ["#C67C4E","#6C3FC5","#1A6B4A","#2563EB","#DC2626","#D97706"];
@@ -485,9 +486,6 @@ export default function CafeDashboardPage() {
   const [cafe,    setCafe]    = useState<any>(null);
   const [tab,     setTab]     = useState<Tab>("stats");
 
-  // Manager analytics modal
-  const [mgrOpen, setMgrOpen] = useState(false);
-
   // Sequential 3D spin: each tab button rotates one after another every 5s
   const [spinIdx, setSpinIdx] = useState<number>(-1);
   useEffect(() => {
@@ -543,9 +541,9 @@ export default function CafeDashboardPage() {
           className="flex flex-wrap items-center justify-center gap-3 sm:gap-4"
           style={{ perspective: "900px" }}
         >
-          {/* Manager analytics — special king button */}
-          <button
-            onClick={() => setMgrOpen(true)}
+          {/* Manager analytics — special king button (now opens full page) */}
+          <Link
+            href={`/cafe/${id}/analytics`}
             className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 focus:outline-none focus:ring-2 focus:ring-[#E8B86D]/60"
             style={{ perspective: "800px" }}
             title="إحصائيات المدير"
@@ -565,7 +563,7 @@ export default function CafeDashboardPage() {
               </span>
               <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 border-2 border-card animate-pulse" />
             </div>
-          </button>
+          </Link>
           {TABS.map(({ id: tid, label, icon: Icon, emoji }, i) => {
             const active     = tab === tid;
             const isSpinning = spinIdx === i;
@@ -609,36 +607,183 @@ export default function CafeDashboardPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
-        {tab === "stats"    && <StatsTab    id={id} />}
-        {tab === "orders"   && <OrdersTab   id={id} />}
-        {tab === "bookings" && <BookingsTab id={id} />}
-        {tab === "menu"     && <MenuTab     id={id} />}
-        {tab === "chat"     && <ChatTab     id={id} />}
-        {tab === "tables"   && <TablesTab   id={id} />}
-        {tab === "invoices" && <InvoicesTab id={id} />}
+        {tab === "stats"     && <StatsTab        id={id} />}
+        {tab === "orders"    && <OrdersTab       id={id} />}
+        {tab === "bookings"  && <BookingsTab     id={id} />}
+        {tab === "menu"      && <MenuTab         id={id} />}
+        {tab === "chat"      && <ChatTab         id={id} />}
+        {tab === "tables"    && <TablesTab       id={id} />}
+        {tab === "invoices"  && <InvoicesTab     id={id} />}
+        {tab === "discounts" && <DiscountCodesTab id={id} />}
       </div>
 
-      {/* Manager Analytics Modal */}
-      {mgrOpen && (
-        <ManagerAnalyticsModal
-          cafeId={id}
-          cafeName={cafe?.name ?? ""}
-          onClose={() => setMgrOpen(false)}
-        />
-      )}
     </div>
   );
 }
 
-// ─── Manager Analytics Modal ───────────────────────────────────────
-function ManagerAnalyticsModal({ cafeId, cafeName, onClose }:
-  { cafeId: string; cafeName: string; onClose: () => void }) {
+// ─── Discount Codes Tab ────────────────────────────────────────────
+function DiscountCodesTab({ id }: { id: string }) {
+  const [codes, setCodes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [code, setCode] = useState("");
+  const [percent, setPercent] = useState<10 | 20 | 30 | 40 | 50>(10);
+  const tomorrow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [expiresAt, setExpiresAt] = useState<string>(tomorrow);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(() => {
+    api.discountCodes(id).then(d => setCodes(d.codes ?? [])).catch(() => setCodes([]));
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    setErr("");
+    const trimmed = code.trim();
+    if (!/^\d+$/.test(trimmed)) { setErr("الكود يجب أن يكون أرقام فقط"); return; }
+    if (!expiresAt) { setErr("اختر تاريخ الانتهاء"); return; }
+    setLoading(true);
+    try {
+      // expiresAt input is YYYY-MM-DD; treat as end-of-day local.
+      const expiry = new Date(expiresAt + "T23:59:59").toISOString();
+      await api.addDiscountCode(id, { code: trimmed, percent, expiresAt: expiry });
+      setCode("");
+      setPercent(10);
+      load();
+    } catch (e: any) {
+      try { setErr(JSON.parse(e?.message || "{}").error || "فشل الإنشاء"); }
+      catch { setErr("فشل الإنشاء"); }
+    } finally { setLoading(false); }
+  };
+
+  const remove = async (did: string) => {
+    if (!confirm("هل تريد حذف هذا الكود؟")) return;
+    try {
+      await api.deleteDiscountCode(id, did);
+      setCodes(prev => prev.filter(c => c.id !== did));
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Create card */}
+      <Card className="p-5">
+        <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
+          <Plus size={18} className="text-primary" /> إنشاء كود تخفيض
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-1">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">رمز الكود (أرقام فقط)</label>
+            <input
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="مثال: 12345"
+              className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary tracking-widest text-center"
+            />
+          </div>
+          <div className="md:col-span-1">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">نسبة التخفيض</label>
+            <div className="grid grid-cols-5 gap-1.5">
+              {[10, 20, 30, 40, 50].map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPercent(p as 10 | 20 | 30 | 40 | 50)}
+                  className={`py-2 rounded-lg text-xs font-bold border transition ${
+                    percent === p
+                      ? "bg-primary text-primary-foreground border-primary shadow shadow-primary/30"
+                      : "bg-card text-muted-foreground border-border hover:border-primary/40"
+                  }`}
+                >
+                  {p}%
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="md:col-span-1">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">ينتهي في</label>
+            <input
+              type="date"
+              value={expiresAt}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={e => setExpiresAt(e.target.value)}
+              className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="md:col-span-1 flex items-end">
+            <button
+              onClick={create}
+              disabled={loading || !code.trim()}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 transition disabled:opacity-50"
+            >
+              <Tag size={15}/> {loading ? "جارٍ الإصدار..." : "إصدار الكود"}
+            </button>
+          </div>
+        </div>
+        {err && (
+          <p className="mt-3 text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-lg py-2 px-3">{err}</p>
+        )}
+      </Card>
+
+      {/* List */}
+      <div className="space-y-3">
+        {codes.length === 0 && <Empty icon="🏷️" text="لا توجد أكواد تخفيض حتى الآن" />}
+        {codes.map(c => {
+          const expired = new Date(c.expiresAt).getTime() < Date.now();
+          return (
+            <Card key={c.id} className={`p-4 flex items-center justify-between gap-4 ${expired ? "opacity-60" : ""}`}>
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-amber-700 flex flex-col items-center justify-center text-primary-foreground shrink-0 shadow-md shadow-primary/20">
+                  <Percent size={14} />
+                  <span className="text-base font-extrabold leading-none">{c.percent}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-foreground font-mono font-bold text-lg tracking-widest truncate">{c.code}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ينتهي: {new Date(c.expiresAt).toLocaleDateString("ar-OM")} • مرات الاستخدام: {c.usedCount}
+                    {expired && <span className="mr-2 text-red-400 font-semibold">(منتهي)</span>}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => remove(c.id)}
+                className="p-2 rounded-lg text-red-400 hover:bg-red-500/10 transition"
+                title="حذف"
+              >
+                <Trash2 size={16} />
+              </button>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Manager Analytics Page (full screen) ──────────────────────────
+export function ManagerAnalyticsPage() {
+  const params = useParams<{ id: string }>();
+  const cafeId = params.id;
+  const [, navigate] = useLocation();
+  const [cafe, setCafe] = useState<any>(null);
   const [step, setStep]         = useState<"auth" | "view">("auth");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [data, setData]         = useState<any>(null);
   const [period, setPeriod]     = useState<"daily" | "monthly" | "yearly">("daily");
+
+  useEffect(() => {
+    fetch("/api/admin/cafes")
+      .then(r => r.json())
+      .then(d => {
+        const found = d.cafes?.find((c: any) => c.id === cafeId);
+        if (found) setCafe(found);
+        else { alert("هذا الكوفي لم يعد موجوداً."); navigate(`/cafes`); }
+      })
+      .catch(() => {});
+  }, [cafeId, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -657,61 +802,72 @@ function ManagerAnalyticsModal({ cafeId, cafeName, onClose }:
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" dir="rtl">
-      <div className="relative w-full max-w-6xl max-h-[92vh] overflow-hidden rounded-3xl bg-card border-2 border-[#E8B86D]/40 shadow-2xl shadow-[#E8B86D]/20 flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/15 to-transparent shrink-0">
+    <div className="flex flex-col h-screen bg-background" dir="rtl">
+      {/* Top bar */}
+      <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/10 to-card shrink-0">
+        <div className="flex items-center gap-4">
+          <Link href={`/cafe/${cafeId}`}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm">
+            <ArrowLeft size={18}/> العودة للوحة الكوفي
+          </Link>
+          <div className="w-px h-5 bg-border" />
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center shadow-lg shadow-[#E8B86D]/30">
               <Crown size={20} className="text-black" />
             </div>
             <div>
               <h2 className="text-lg font-extrabold text-[#F5E6CC]">إحصائيات المدير</h2>
-              <p className="text-xs text-[#E8B86D]/70">{cafeName}</p>
+              <p className="text-xs text-[#E8B86D]/70">{cafe?.name ?? "..."}</p>
             </div>
           </div>
-          <button onClick={onClose}
-            className="w-9 h-9 rounded-full bg-muted/40 hover:bg-muted/70 flex items-center justify-center text-foreground transition">
-            <X size={16} />
+        </div>
+        {step === "view" && (
+          <button
+            onClick={() => { setStep("auth"); setData(null); setPassword(""); }}
+            className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-3 py-1.5"
+          >
+            إغلاق التقرير
           </button>
-        </div>
+        )}
+      </header>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {step === "auth" ? (
-            <form onSubmit={submit} className="max-w-md mx-auto py-10 space-y-6">
-              <div className="text-center space-y-3">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center mx-auto shadow-xl shadow-[#E8B86D]/30">
-                  <Lock size={32} className="text-black" />
-                </div>
-                <h3 className="text-xl font-bold text-[#F5E6CC]">منطقة محمية</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  ادخل كلمة مرور المدير المسجلة عند إنشاء الكوفي للوصول إلى التقارير المتقدمة.
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {step === "auth" ? (
+          <form onSubmit={submit} className="max-w-md mx-auto py-16 space-y-6">
+            <div className="text-center space-y-3">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center mx-auto shadow-xl shadow-[#E8B86D]/30">
+                <Lock size={32} className="text-black" />
+              </div>
+              <h3 className="text-xl font-bold text-[#F5E6CC]">منطقة محمية</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                ادخل كلمة مرور المدير المسجلة عند إنشاء الكوفي للوصول إلى التقارير المتقدمة.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-[#F5E6CC]">كلمة المرور</label>
+              <input
+                type="password" value={password} autoFocus
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-input border-2 border-[#E8B86D]/30 rounded-xl px-4 py-3 text-foreground text-base focus:outline-none focus:border-[#E8B86D] placeholder:text-muted-foreground text-center tracking-widest"
+              />
+              {error && (
+                <p className="text-red-400 text-sm text-center bg-red-500/10 border border-red-500/30 rounded-lg py-2">
+                  {error}
                 </p>
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-[#F5E6CC]">كلمة المرور</label>
-                <input
-                  type="password" value={password} autoFocus
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-input border-2 border-[#E8B86D]/30 rounded-xl px-4 py-3 text-foreground text-base focus:outline-none focus:border-[#E8B86D] placeholder:text-muted-foreground text-center tracking-widest"
-                />
-                {error && (
-                  <p className="text-red-400 text-sm text-center bg-red-500/10 border border-red-500/30 rounded-lg py-2">
-                    {error}
-                  </p>
-                )}
-              </div>
-              <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl bg-gradient-to-l from-[#E8B86D] to-[#C99654] text-black font-bold text-base shadow-lg shadow-[#E8B86D]/30 hover:shadow-xl hover:shadow-[#E8B86D]/40 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-                {loading ? "جارٍ التحقق..." : (<><ShieldCheck size={18} />دخول</>)}
-              </button>
-            </form>
-          ) : (
+              )}
+            </div>
+            <button type="submit" disabled={loading}
+              className="w-full py-3 rounded-xl bg-gradient-to-l from-[#E8B86D] to-[#C99654] text-black font-bold text-base shadow-lg shadow-[#E8B86D]/30 hover:shadow-xl hover:shadow-[#E8B86D]/40 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {loading ? "جارٍ التحقق..." : (<><ShieldCheck size={18} />دخول</>)}
+            </button>
+          </form>
+        ) : (
+          <div className="max-w-7xl mx-auto">
             <ManagerAnalyticsView data={data} period={period} setPeriod={setPeriod} />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

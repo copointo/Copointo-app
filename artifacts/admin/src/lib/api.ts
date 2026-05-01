@@ -39,6 +39,12 @@ export const api = {
   deleteChatInfo:(id: string, cid: string) => req<any>("DELETE", `${C(id)}/chat/${cid}`),
   cafeInvoices:  (id: string)              => req<any>("GET",    `${C(id)}/invoices`),
 
+  // Discount codes
+  discountCodes:       (id: string)            => req<any>("GET",    `${C(id)}/discount-codes`),
+  addDiscountCode:     (id: string, body: { code: string; percent: number; expiresAt: string }) =>
+                                                  req<any>("POST",   `${C(id)}/discount-codes`, body),
+  deleteDiscountCode:  (id: string, did: string) => req<any>("DELETE", `${C(id)}/discount-codes/${did}`),
+
   // Manager analytics (password-protected)
   cafeAuth:          (id: string, password: string) => req<any>("POST", `${C(id)}/auth`, { password }),
   cafeAdvancedStats: (id: string, password: string) => req<any>("POST", `${C(id)}/advanced-stats`, { password }),

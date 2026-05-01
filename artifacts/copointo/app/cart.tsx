@@ -115,6 +115,43 @@ export default function CartScreen() {
 
   const [submitting, setSubmitting] = useState(false);
 
+  // Discount code (optional)
+  const [discountCode,    setDiscountCode]    = useState("");
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [discountErr,     setDiscountErr]     = useState("");
+  const [discountChecking,setDiscountChecking]= useState(false);
+
+  const discountAmount = +(cartTotal * discountPercent / 100).toFixed(3);
+  const finalTotal     = +(cartTotal - discountAmount).toFixed(3);
+
+  const applyCode = async () => {
+    setDiscountErr("");
+    const trimmed = discountCode.trim();
+    if (!/^\d+$/.test(trimmed)) { setDiscountErr("الكود يجب أن يكون أرقام فقط"); return; }
+    setDiscountChecking(true);
+    try {
+      const cafeId = cart[0].cafeId;
+      const r = await apiPost<{ valid: boolean; percent: number }>(
+        `/cafe/${cafeId}/discount-codes/validate`,
+        { code: trimmed },
+      );
+      if (r.valid) {
+        setDiscountPercent(r.percent);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        setDiscountPercent(0);
+        setDiscountErr("كود التخفيض غير صالح أو منتهي");
+      }
+    } catch (e: any) {
+      setDiscountPercent(0);
+      const msg = e?.message ?? "";
+      try { setDiscountErr(JSON.parse(msg).error || "كود التخفيض غير صالح"); }
+      catch { setDiscountErr("كود التخفيض غير صالح"); }
+    } finally { setDiscountChecking(false); }
+  };
+
+  const clearDiscount = () => { setDiscountCode(""); setDiscountPercent(0); setDiscountErr(""); };
+
   const submitOrder = async () => {
     const isDine = orderType === "dine";
     if (isDine) {
@@ -142,20 +179,23 @@ export default function CartScreen() {
         source: "direct",
         prepMinutes: prepMin,
       };
+      if (discountPercent > 0 && discountCode.trim()) {
+        payload.discountCode = discountCode.trim();
+      }
       if (isDine) {
         payload.tableNumber = dineTable.trim();
       } else {
         payload.plateNumber = carPlateNum.trim();
         payload.plateSymbol = carPlateChar.trim();
       }
-      const res = await apiPost<{ order: { id: string } }>(`/cafe/${cafeId}/orders`, payload);
+      const res = await apiPost<{ order: { id: string; total: number } }>(`/cafe/${cafeId}/orders`, payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       addOrder({
         id: res.order.id,
         cafeId,
         cafeName,
         items: cart,
-        total: cartTotal,
+        total: res.order.total ?? finalTotal,
         status: "pending",
         createdAt: new Date().toISOString(),
       });
@@ -325,6 +365,55 @@ export default function CartScreen() {
               </View>
             )}
 
+            {/* Discount code (optional) */}
+            <View style={styles.discountWrap}>
+              <Text style={fStyles.label}>🏷️  كود التخفيض (اختياري)</Text>
+              <View style={styles.discountRow}>
+                <TextInput
+                  style={[fStyles.input, { flex: 1, textAlign: "center", letterSpacing: 3 }]}
+                  value={discountCode}
+                  onChangeText={t => { setDiscountCode(t.replace(/\D/g, "")); if (discountPercent>0) setDiscountPercent(0); setDiscountErr(""); }}
+                  placeholder="أدخل الكود"
+                  placeholderTextColor="rgba(255,255,255,0.28)"
+                  keyboardType="number-pad"
+                  maxLength={20}
+                  selectionColor={PRIMARY}
+                  editable={discountPercent === 0}
+                />
+                {discountPercent === 0 ? (
+                  <TouchableOpacity
+                    style={[styles.discountBtn, (!discountCode.trim() || discountChecking) && { opacity: 0.5 }]}
+                    onPress={applyCode}
+                    disabled={!discountCode.trim() || discountChecking}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.discountBtnText}>
+                      {discountChecking ? "..." : "تطبيق"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.discountBtn, { backgroundColor: "rgba(239,83,80,0.15)", borderColor: "rgba(239,83,80,0.4)" }]}
+                    onPress={clearDiscount}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.discountBtnText, { color: "#EF5350" }]}>إزالة</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {discountPercent > 0 && (
+                <View style={styles.discountApplied}>
+                  <Feather name="check-circle" size={14} color={SUCCESS} />
+                  <Text style={styles.discountAppliedText}>
+                    تم تطبيق خصم {discountPercent}%  •  وفّرت {discountAmount.toFixed(3)} OMR
+                  </Text>
+                </View>
+              )}
+              {discountErr !== "" && (
+                <Text style={styles.discountErrText}>{discountErr}</Text>
+              )}
+            </View>
+
             {/* Order summary */}
             <View style={styles.summaryBox}>
               <Text style={styles.summaryBoxTitle}>📋  تفاصيل الطلب</Text>
@@ -337,9 +426,19 @@ export default function CartScreen() {
               ))}
               <View style={styles.summaryDivider} />
               <View style={styles.summaryRow}>
+                <Text style={styles.summaryItem}>المجموع الفرعي</Text>
+                <Text style={styles.summaryPrice}>{cartTotal.toFixed(3)} OMR</Text>
+              </View>
+              {discountPercent > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryItem, { color: SUCCESS }]}>خصم ({discountPercent}%)</Text>
+                  <Text style={[styles.summaryPrice, { color: SUCCESS }]}>− {discountAmount.toFixed(3)} OMR</Text>
+                </View>
+              )}
+              <View style={styles.summaryRow}>
                 <Text style={[styles.summaryItem, { color: "#FFF", fontFamily: "Inter_700Bold" }]}>الإجمالي</Text>
                 <Text style={[styles.summaryPrice, { color: PRIMARY, fontFamily: "Inter_700Bold", fontSize: 15 }]}>
-                  {cartTotal.toFixed(3)} OMR
+                  {finalTotal.toFixed(3)} OMR
                 </Text>
               </View>
             </View>
@@ -353,7 +452,7 @@ export default function CartScreen() {
               style={styles.submitGrad}
             >
               <Text style={[styles.submitText, { color: "#000" }]}>
-                {submitting ? "جاري الإرسال..." : `تأكيد الطلب  •  ${cartTotal.toFixed(3)} OMR`}
+                {submitting ? "جاري الإرسال..." : `تأكيد الطلب  •  ${finalTotal.toFixed(3)} OMR`}
               </Text>
               {!submitting && <Feather name="check-circle" size={18} color="#000" />}
             </LinearGradient>
@@ -520,6 +619,15 @@ const styles = StyleSheet.create({
   qtyBtn:    { width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.10)", alignItems: "center", justifyContent: "center" },
   qtyText:   { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF", minWidth: 20, textAlign: "center" },
   itemTotal: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", minWidth: 50, textAlign: "right" },
+
+  // Discount code
+  discountWrap:        { gap: 6, marginTop: 4 },
+  discountRow:         { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  discountBtn:         { paddingHorizontal: 18, justifyContent: "center", alignItems: "center", borderRadius: 14, borderWidth: 1, borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.12)", minWidth: 80 },
+  discountBtnText:     { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
+  discountApplied:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(46,125,50,0.12)", borderWidth: 1, borderColor: "rgba(46,125,50,0.4)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4 },
+  discountAppliedText: { flex: 1, fontSize: 12, fontFamily: "Inter_600SemiBold", color: SUCCESS },
+  discountErrText:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF5350", marginTop: 4, textAlign: "center" },
 
   // Total card
   totalCard:  { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, marginTop: 8 },

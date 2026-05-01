@@ -22,6 +22,10 @@ export interface CafeTable {
 export interface Order {
   id: string; cafeId: string; customerName: string; customerPhone: string;
   items: { name: string; qty: number; price: number; category?: string }[];
+  subtotal?: number;
+  discountCode?: string;
+  discountPercent?: number;
+  discountAmount?: number;
   total: number; status: "pending" | "preparing" | "ready" | "done";
   type: "dine" | "car"; tableNumber?: string;
   plateNumber?: string; plateSymbol?: string;
@@ -49,6 +53,12 @@ export interface Invoice {
   items: { name: string; qty: number; price: number }[];
   total: number; type: "order" | "booking"; createdAt: string;
 }
+export interface DiscountCode {
+  id: string; cafeId: string; code: string;
+  percent: 10 | 20 | 30 | 40 | 50;
+  expiresAt: string; active: boolean;
+  usedCount: number; createdAt: string;
+}
 
 export const cafes:    Cafe[]         = [];
 export const users:    AppUser[]      = [];
@@ -59,3 +69,4 @@ export const bookings: TableBooking[] = [];
 export const chatInfos: ChatInfo[]    = [];
 export const invoices: Invoice[]      = [];
 export const cafeViews: CafeView[]    = [];
+export const discountCodes: DiscountCode[] = [];
