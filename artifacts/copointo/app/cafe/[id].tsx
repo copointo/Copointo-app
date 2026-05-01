@@ -170,8 +170,8 @@ export default function CafeLandingScreen() {
       label:   `شات ${cafe.name}`,
       sub:     "احصل على توصية ذكية تناسبك",
       bg:      "",
-      solidColors: ["#7C3AED", "#5B21B6", "#3B0764"] as const,
-      deep:    "#1A0845",
+      solidColors: ["#0A0606", "#050303", "#000000"] as const,
+      deep:    "#000000",
       onPress: () => go(`/cafe/${id}/chat`),
     },
   ];
@@ -383,7 +383,7 @@ export default function CafeLandingScreen() {
                   style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "20deg" }] }]}
                 >
                   <LinearGradient
-                    colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.20)", "rgba(255,255,255,0)"]}
+                    colors={["rgba(232,184,109,0)", "rgba(232,184,109,0.25)", "rgba(232,184,109,0)"]}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={{ flex: 1 }}
                   />
@@ -596,17 +596,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 32, paddingHorizontal: 24,
     borderRadius: 22, overflow: "hidden",
-    borderTopWidth: 1.5, borderLeftWidth: 1,
-    borderRightWidth: 1, borderBottomWidth: 0,
-    borderColor: "rgba(255,255,255,0.40)",
-    shadowColor: "#000",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.45)",
+    shadowColor: "#E8B86D",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     elevation: 10,
   },
   actionWideLabel: {
-    fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFF",
+    fontSize: 26, fontFamily: "Inter_700Bold", color: "#E8B86D",
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
