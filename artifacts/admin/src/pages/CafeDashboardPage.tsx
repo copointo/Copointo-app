@@ -12,14 +12,14 @@ import { Link } from "wouter";
 
 type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices";
 
-const TABS: { id: Tab; label: string; icon: any }[] = [
-  { id:"stats",    label:"الإحصائيات",   icon: LayoutDashboard },
-  { id:"orders",   label:"طلبات القهوة", icon: ShoppingBag },
-  { id:"bookings", label:"حجوزات الطاولة",icon: CalendarDays },
-  { id:"menu",     label:"القائمة",      icon: UtensilsCrossed },
-  { id:"chat",     label:"معلومات الشات",icon: MessageCircle },
-  { id:"tables",   label:"الطاولات",     icon: Table2 },
-  { id:"invoices", label:"الفواتير",     icon: Receipt },
+const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
+  { id:"stats",    label:"الإحصائيات",      icon: LayoutDashboard,  emoji:"📊" },
+  { id:"orders",   label:"طلبات القهوة",     icon: ShoppingBag,      emoji:"☕" },
+  { id:"bookings", label:"حجوزات الطاولة",   icon: CalendarDays,     emoji:"📅" },
+  { id:"menu",     label:"القائمة",          icon: UtensilsCrossed,  emoji:"🍽️" },
+  { id:"chat",     label:"معلومات الشات",    icon: MessageCircle,    emoji:"💬" },
+  { id:"tables",   label:"الطاولات",         icon: Table2,           emoji:"🪑" },
+  { id:"invoices", label:"الفواتير",         icon: Receipt,          emoji:"🧾" },
 ];
 
 const COLORS = ["#C67C4E","#6C3FC5","#1A6B4A","#2563EB","#DC2626","#D97706"];
@@ -410,6 +410,19 @@ export default function CafeDashboardPage() {
   const [cafe,    setCafe]    = useState<any>(null);
   const [tab,     setTab]     = useState<Tab>("stats");
 
+  // Sequential 3D spin: each tab button rotates one after another every 5s
+  const [spinIdx, setSpinIdx] = useState<number>(-1);
+  useEffect(() => {
+    let i = 0;
+    const tick = () => {
+      setSpinIdx(i);
+      i = (i + 1) % TABS.length;
+    };
+    const timer = setTimeout(tick, 800); // first spin ~0.8s after mount
+    const interval = setInterval(tick, 5000);
+    return () => { clearTimeout(timer); clearInterval(interval); };
+  }, []);
+
   useEffect(() => {
     fetch("/api/admin/cafes").then(r => r.json()).then(d => {
       const found = d.cafes?.find((c: any) => c.id === id);
@@ -441,15 +454,51 @@ export default function CafeDashboardPage() {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-1 px-6 py-3 border-b border-border bg-card shrink-0 overflow-x-auto">
-        {TABS.map(({ id: tid, label, icon: Icon }) => (
-          <button key={tid} onClick={() => setTab(tid)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all
-              ${tab === tid ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:bg-muted/30"}`}>
-            <Icon size={15}/>{label}
-          </button>
-        ))}
+      {/* Tabs — square 3D-rotating buttons */}
+      <div className="px-6 py-5 border-b border-border bg-card shrink-0">
+        <div
+          className="flex flex-wrap items-center justify-center gap-3 sm:gap-4"
+          style={{ perspective: "900px" }}
+        >
+          {TABS.map(({ id: tid, label, icon: Icon, emoji }, i) => {
+            const active     = tab === tid;
+            const isSpinning = spinIdx === i;
+            return (
+              <button
+                key={tid}
+                onClick={() => setTab(tid)}
+                className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                style={{ perspective: "800px" }}
+                title={label}
+              >
+                <div
+                  key={isSpinning ? `spin-${spinIdx}` : "idle"}
+                  className={`relative w-full h-full rounded-2xl flex flex-col items-center justify-center gap-1.5
+                    border transition-all duration-200
+                    ${active
+                      ? "bg-gradient-to-br from-[#E8B86D] via-[#D4A35A] to-[#B8884A] border-[#E8B86D] shadow-lg shadow-[#E8B86D]/30 text-black"
+                      : "bg-gradient-to-br from-[#0A0606] via-[#050303] to-black border-[#E8B86D]/30 text-[#E8B86D] hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/15 group-hover:scale-[1.04]"}
+                    ${isSpinning ? "animate-spinY" : ""}`}
+                  style={{ transformStyle: "preserve-3d" }}
+                >
+                  {/* Inner gold accent ring */}
+                  <div className={`absolute inset-1 rounded-xl pointer-events-none ${active ? "ring-1 ring-black/20" : "ring-1 ring-[#E8B86D]/15"}`} />
+
+                  <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>{emoji}</span>
+                  <Icon size={18} className={active ? "text-black/80" : "text-[#E8B86D]/80"} />
+                  <span className={`text-[11px] font-bold leading-tight text-center px-1 ${active ? "text-black" : "text-[#F5E6CC]"}`}>
+                    {label}
+                  </span>
+
+                  {/* Active indicator dot */}
+                  {active && (
+                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#E8B86D] shadow shadow-[#E8B86D]/60" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Content */}
