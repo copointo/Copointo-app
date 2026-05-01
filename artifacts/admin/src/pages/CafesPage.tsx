@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, CalendarDays, Globe, Download, LocateFixed, Loader2 } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, Globe, Download } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -151,34 +151,53 @@ export default function CafesPage() {
 
   const f = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoMsg,     setGeoMsg]     = useState("");
-  const useMyLocation = () => {
-    if (!navigator.geolocation) { setGeoMsg("المتصفح لا يدعم تحديد الموقع"); return; }
-    setGeoLoading(true); setGeoMsg("");
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        setForm(p => ({ ...p, lat: pos.coords.latitude.toFixed(6), lng: pos.coords.longitude.toFixed(6) }));
-        setGeoMsg("تم تحديد موقعك بدقة ✓");
-        setGeoLoading(false);
-      },
-      err => {
-        setGeoMsg(err.code === 1 ? "تم رفض إذن الموقع" : "تعذّر تحديد الموقع");
-        setGeoLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  // Wizard step state (1=basics, 2=location, 3=branding)
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Try to extract lat/lng from a pasted Google Maps URL.
+  // Supports patterns like ".../@23.5880,58.4080,17z" and "?q=23.58,58.40".
+  const parseLatLng = (url: string): { lat: string; lng: string } | null => {
+    if (!url) return null;
+    const at = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (at) return { lat: at[1], lng: at[2] };
+    const q = url.match(/[?&!]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (q) return { lat: q[1], lng: q[2] };
+    const ll = url.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (ll) return { lat: ll[1], lng: ll[2] };
+    return null;
   };
+
+  const goNext = () => {
+    setErr("");
+    if (step === 1) {
+      if (!form.name || !form.ownerName || !form.ownerPhone || !form.managerPassword) {
+        setErr("يرجى تعبئة جميع الحقول المطلوبة"); return;
+      }
+      setStep(2); return;
+    }
+    if (step === 2) {
+      if (!form.openTime || !form.closeTime) {
+        setErr("يرجى تحديد وقت الفتح ووقت الإغلاق"); return;
+      }
+      setStep(3); return;
+    }
+  };
+  const goBack = () => { setErr(""); setStep(s => (s === 3 ? 2 : 1)); };
+  const resetWizard = () => { setStep(1); setErr(""); setForm({ ...EMPTY }); resetLogo(); resetCover(); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.ownerPhone || !form.openTime || !form.closeTime || !form.managerPassword) {
+    if (!form.name || !form.ownerName || !form.ownerPhone || !form.openTime || !form.closeTime || !form.managerPassword) {
       setErr("يرجى تعبئة جميع الحقول المطلوبة"); return;
     }
     setSaving(true);
     try {
       console.log("[submit] form.image length:", form.image?.length ?? 0, "form.logo length:", form.logo?.length ?? 0);
-      await api.addCafe({ ...form, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd });
+      // Auto-extract coordinates from the Google Maps link if user hasn't typed them manually
+      const coords = (!form.lat || !form.lng) ? parseLatLng(form.website) : null;
+      const lat = coords?.lat ?? form.lat;
+      const lng = coords?.lng ?? form.lng;
+      await api.addCafe({ ...form, lat, lng, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd });
       const res = await api.getCafes();
       setCafes(res.cafes);
       // Find the newly created cafe (last one with matching name)
@@ -188,6 +207,7 @@ export default function CafesPage() {
       setForm({ ...EMPTY });
       setLogoPreview("");
       setCoverPreview("");
+      setStep(1);
       setErr("");
     } catch (e: any) {
       const msg = e?.message ? `خطأ: ${e.message.substring(0, 200)}` : "حدث خطأ أثناء الإضافة";
@@ -243,7 +263,7 @@ export default function CafesPage() {
           <p className="text-muted-foreground mt-1">{cafes.length} كوفي مسجل</p>
         </div>
         <button
-          onClick={() => setModal(true)}
+          onClick={() => { resetWizard(); setModal(true); }}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity"
         >
           <Plus size={18} />
@@ -364,169 +384,208 @@ export default function CafesPage() {
         </div>
       </div>
 
-      {/* ── Add Cafe Modal ── */}
+      {/* ── Add Cafe Modal — 3-step wizard ── */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setModal(false); resetLogo(); resetCover(); }} />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setModal(false); resetWizard(); }} />
           <div className="relative bg-card border border-border rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl z-10" dir="rtl">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-border">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">إضافة كوفي جديد</h2>
-                <p className="text-sm text-muted-foreground mt-0.5">اشتراك سنوي: <span className="text-primary font-bold">300 OMR</span></p>
-              </div>
-              <button onClick={() => { setModal(false); resetLogo(); resetCover(); }} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={submit} className="px-6 py-5 space-y-4">
-              <Field label="اسم الكوفي *" icon={<span className="text-base">☕</span>}>
-                <input value={form.name} onChange={f("name")} placeholder="مثال: روست آند كو" className={inp} />
-              </Field>
-              <Field label="اسم صاحب الكوفي" icon={<span className="text-base">👤</span>}>
-                <input value={form.ownerName} onChange={f("ownerName")} placeholder="محمد العبري" className={inp} />
-              </Field>
-              <Field label="رقم هاتف الصاحب *" icon={<Phone size={15} />}>
-                <input value={form.ownerPhone} onChange={f("ownerPhone")} placeholder="9XXXXXXXX" className={inp} dir="ltr" />
-              </Field>
-              {/* Logo file upload */}
-              <div>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
-                  <ImageIcon size={15} /> شعار الكوفي
-                </label>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoFile}
-                  className="hidden"
-                  id="logo-upload"
-                />
-                {logoPreview ? (
-                  <div className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/20">
-                    <img src={logoPreview} alt="preview" className="w-14 h-14 rounded-xl object-cover border border-border" />
-                    <div className="flex-1">
-                      <p className="text-sm text-foreground font-medium">تم اختيار الصورة</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">اضغط للتغيير أو احذف</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <label htmlFor="logo-upload" className="cursor-pointer p-2 rounded-lg hover:bg-muted/40 text-muted-foreground transition-colors">
-                        <Upload size={15} />
-                      </label>
-                      <button type="button" onClick={resetLogo} className="p-2 rounded-lg hover:bg-red-500/15 text-red-400 transition-colors">
-                        <X size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label
-                    htmlFor="logo-upload"
-                    className="flex flex-col items-center justify-center gap-2 w-full py-6 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
-                  >
-                    <Upload size={22} className="text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">اضغط لاختيار صورة الشعار</span>
-                    <span className="text-xs text-muted-foreground/60">PNG, JPG, WEBP</span>
-                  </label>
-                )}
-              </div>
-              {/* Cover / Banner image upload */}
-              <div>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
-                  <ImageIcon size={15} /> صورة الغلاف (البانر)
-                </label>
-                <input
-                  ref={coverInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCoverFile}
-                  className="hidden"
-                  id="cover-upload"
-                />
-                {coverPreview ? (
-                  <div className="relative rounded-xl overflow-hidden border border-border h-32">
-                    <img src={coverPreview} alt="cover" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-3 opacity-0 hover:opacity-100 transition-opacity">
-                      <label htmlFor="cover-upload" className="cursor-pointer p-2 bg-white/20 rounded-lg hover:bg-white/30 text-white transition-colors">
-                        <Upload size={15} />
-                      </label>
-                      <button type="button" onClick={resetCover} className="p-2 bg-red-500/60 rounded-lg hover:bg-red-500/80 text-white transition-colors">
-                        <X size={15} />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label
-                    htmlFor="cover-upload"
-                    className="flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
-                  >
-                    <Upload size={22} className="text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">اضغط لاختيار صورة الغلاف</span>
-                    <span className="text-xs text-muted-foreground/60">صورة عريضة — PNG, JPG, WEBP</span>
-                  </label>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="وقت الفتح *" icon={<Clock size={15} />}>
-                  <input type="time" value={form.openTime} onChange={f("openTime")} className={inp} />
-                </Field>
-                <Field label="وقت الإغلاق *" icon={<Clock size={15} />}>
-                  <input type="time" value={form.closeTime} onChange={f("closeTime")} className={inp} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="تاريخ بداية الاشتراك" icon={<CalendarDays size={15} />}>
-                  <input type="date" value={form.subscriptionStart} onChange={f("subscriptionStart")} className={inp} />
-                </Field>
-                <Field label="تاريخ انتهاء الاشتراك" icon={<CalendarDays size={15} />}>
-                  <input type="date" value={form.subscriptionEnd} onChange={f("subscriptionEnd")} className={inp} />
-                </Field>
-              </div>
-              <Field label="العنوان" icon={<MapPin size={15} />}>
-                <input value={form.address} onChange={f("address")} placeholder="مسقط، شارع الروي" className={inp} />
-              </Field>
-              <div>
-                <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
-                  <MapPin size={15} /> إحداثيات الموقع <span className="text-xs text-muted-foreground/60">(يُحدَّد تلقائياً من العنوان — أو حدّده يدوياً للدقة)</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={useMyLocation}
-                  disabled={geoLoading}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 mb-2 rounded-xl bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-sm font-medium transition disabled:opacity-60"
-                >
-                  {geoLoading ? <Loader2 size={15} className="animate-spin" /> : <LocateFixed size={15} />}
-                  {geoLoading ? "...جاري تحديد الموقع" : "📍 استخدم موقعي الحالي (إن كنت في الكوفي)"}
-                </button>
-                {geoMsg && <div className={`text-xs mb-2 ${geoMsg.includes("✓") ? "text-green-500" : "text-amber-500"}`}>{geoMsg}</div>}
-                <div className="grid grid-cols-2 gap-3">
-                  <input type="number" step="any" value={form.lat} onChange={f("lat")} placeholder="خط العرض  23.58" className={inp} dir="ltr" />
-                  <input type="number" step="any" value={form.lng} onChange={f("lng")} placeholder="خط الطول  58.40" className={inp} dir="ltr" />
+            <div className="px-6 py-5 border-b border-border">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">إضافة كوفي جديد</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {step === 1 && "الخطوة 1 من 3 — معلومات الكوفي والمالك"}
+                    {step === 2 && "الخطوة 2 من 3 — الموقع وتواقيت العمل"}
+                    {step === 3 && "الخطوة 3 من 3 — التصنيفات والصور"}
+                  </p>
                 </div>
-                <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1">
-                  <ExternalLink size={11} /> أو ابحث في Google Maps ← انقر بالزر الأيمن ← نسخ الإحداثيات
-                </a>
+                <button onClick={() => { setModal(false); resetWizard(); }} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
+                </button>
               </div>
-              <Field label="رابط موقع الكوفي" icon={<Globe size={15} />}>
-                <input value={form.website} onChange={f("website")} placeholder="https://mycafe.com" className={inp} dir="ltr" />
-              </Field>
-              <Field label="التصنيفات (مفصولة بفاصلة عربية)" icon={<Tag size={15} />}>
-                <input value={form.tags} onChange={f("tags")} placeholder="قهوة مختصة، كيك، هادئ" className={inp} />
-              </Field>
-              <Field label="باسورد مدير الكوفي *" icon={<Lock size={15} />}>
-                <input type="password" value={form.managerPassword} onChange={f("managerPassword")} placeholder="••••••••" className={inp} dir="ltr" />
-              </Field>
-              <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-foreground">
-                <p className="font-semibold text-primary mb-1">💳 قيمة الاشتراك السنوي</p>
-                <p className="text-muted-foreground">سيتم إضافة هذا الكوفي بعد سداد رسوم الاشتراك السنوية البالغة <span className="font-bold text-primary">300 ريال عماني</span>.</p>
+              {/* Stepper */}
+              <div className="flex items-center gap-2 mt-4">
+                {[1, 2, 3].map((s) => (
+                  <div key={s} className="flex-1 flex items-center gap-2">
+                    <div className={`h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
+                      step >= s
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card text-muted-foreground border-border"
+                    }`}>
+                      {s}
+                    </div>
+                    {s < 3 && <div className={`flex-1 h-0.5 ${step > s ? "bg-primary" : "bg-border"}`} />}
+                  </div>
+                ))}
               </div>
+            </div>
+
+            <form onSubmit={submit} className="px-6 py-5 space-y-4">
+              {/* ─── STEP 1 — basics ─── */}
+              {step === 1 && (
+                <>
+                  <Field label="اسم الكوفي *" icon={<span className="text-base">☕</span>}>
+                    <input value={form.name} onChange={f("name")} placeholder="مثال: روست آند كو" className={inp} />
+                  </Field>
+                  <Field label="اسم صاحب الكوفي *" icon={<span className="text-base">👤</span>}>
+                    <input value={form.ownerName} onChange={f("ownerName")} placeholder="محمد العبري" className={inp} />
+                  </Field>
+                  <Field label="رقم هاتف الصاحب *" icon={<Phone size={15} />}>
+                    <input value={form.ownerPhone} onChange={f("ownerPhone")} placeholder="9XXXXXXXX" className={inp} dir="ltr" />
+                  </Field>
+                  <Field label="باسورد مدير الكوفي *" icon={<Lock size={15} />}>
+                    <input type="password" value={form.managerPassword} onChange={f("managerPassword")} placeholder="••••••••" className={inp} dir="ltr" />
+                  </Field>
+                </>
+              )}
+
+              {/* ─── STEP 2 — location ─── */}
+              {step === 2 && (
+                <>
+                  <Field label="رابط الموقع من Google Maps" icon={<Globe size={15} />}>
+                    <input
+                      value={form.website}
+                      onChange={f("website")}
+                      placeholder="https://maps.app.goo.gl/..."
+                      className={inp}
+                      dir="ltr"
+                    />
+                  </Field>
+                  <p className="-mt-2 text-xs text-muted-foreground/80 inline-flex items-center gap-1">
+                    <ExternalLink size={11} /> افتح Google Maps ← شارك ← انسخ الرابط والصقه هنا
+                  </p>
+
+                  <Field label="العنوان" icon={<MapPin size={15} />}>
+                    <input value={form.address} onChange={f("address")} placeholder="مسقط، شارع الروي" className={inp} />
+                  </Field>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="وقت الفتح *" icon={<Clock size={15} />}>
+                      <input type="time" value={form.openTime} onChange={f("openTime")} className={inp} />
+                    </Field>
+                    <Field label="وقت الإغلاق *" icon={<Clock size={15} />}>
+                      <input type="time" value={form.closeTime} onChange={f("closeTime")} className={inp} />
+                    </Field>
+                  </div>
+                </>
+              )}
+
+              {/* ─── STEP 3 — categories & images ─── */}
+              {step === 3 && (
+                <>
+                  <Field label="التصنيفات (مفصولة بفاصلة عربية)" icon={<Tag size={15} />}>
+                    <input value={form.tags} onChange={f("tags")} placeholder="قهوة مختصة، كيك، هادئ" className={inp} />
+                  </Field>
+
+                  {/* Cover / Banner image upload */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
+                      <ImageIcon size={15} /> صورة الغلاف (البانر)
+                    </label>
+                    <input
+                      ref={coverInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCoverFile}
+                      className="hidden"
+                      id="cover-upload"
+                    />
+                    {coverPreview ? (
+                      <div className="relative rounded-xl overflow-hidden border border-border h-32">
+                        <img src={coverPreview} alt="cover" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-3 opacity-0 hover:opacity-100 transition-opacity">
+                          <label htmlFor="cover-upload" className="cursor-pointer p-2 bg-white/20 rounded-lg hover:bg-white/30 text-white transition-colors">
+                            <Upload size={15} />
+                          </label>
+                          <button type="button" onClick={resetCover} className="p-2 bg-red-500/60 rounded-lg hover:bg-red-500/80 text-white transition-colors">
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label
+                        htmlFor="cover-upload"
+                        className="flex flex-col items-center justify-center gap-2 w-full h-28 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                      >
+                        <Upload size={22} className="text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">اضغط لاختيار صورة الغلاف</span>
+                        <span className="text-xs text-muted-foreground/60">صورة عريضة — PNG, JPG, WEBP</span>
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Logo file upload */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
+                      <ImageIcon size={15} /> شعار الكوفي
+                    </label>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoFile}
+                      className="hidden"
+                      id="logo-upload"
+                    />
+                    {logoPreview ? (
+                      <div className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/20">
+                        <img src={logoPreview} alt="preview" className="w-14 h-14 rounded-xl object-cover border border-border" />
+                        <div className="flex-1">
+                          <p className="text-sm text-foreground font-medium">تم اختيار الصورة</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">اضغط للتغيير أو احذف</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <label htmlFor="logo-upload" className="cursor-pointer p-2 rounded-lg hover:bg-muted/40 text-muted-foreground transition-colors">
+                            <Upload size={15} />
+                          </label>
+                          <button type="button" onClick={resetLogo} className="p-2 rounded-lg hover:bg-red-500/15 text-red-400 transition-colors">
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label
+                        htmlFor="logo-upload"
+                        className="flex flex-col items-center justify-center gap-2 w-full py-6 border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+                      >
+                        <Upload size={22} className="text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">اضغط لاختيار صورة الشعار</span>
+                        <span className="text-xs text-muted-foreground/60">PNG, JPG, WEBP</span>
+                      </label>
+                    )}
+                  </div>
+
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-foreground">
+                    <p className="font-semibold text-primary mb-1">💳 قيمة الاشتراك السنوي</p>
+                    <p className="text-muted-foreground">سيتم إضافة هذا الكوفي بعد سداد رسوم الاشتراك السنوية البالغة <span className="font-bold text-primary">300 ريال عماني</span>.</p>
+                  </div>
+                </>
+              )}
+
               {err && <p className="text-destructive text-sm">{err}</p>}
+
+              {/* Navigation buttons */}
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={saving || coverProcessing} className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:opacity-90">
-                  {saving ? "جاري الإضافة..." : coverProcessing ? "جاري تحميل الصورة..." : "إضافة الكوفي"}
-                </button>
-                <button type="button" onClick={() => setModal(false)} className="px-5 py-3 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted/30">
-                  إلغاء
-                </button>
+                {step > 1 && (
+                  <button type="button" onClick={goBack} className="px-5 py-3 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted/30">
+                    رجوع
+                  </button>
+                )}
+                {step < 3 && (
+                  <button type="button" onClick={goNext} className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm hover:opacity-90">
+                    التالي
+                  </button>
+                )}
+                {step === 3 && (
+                  <button type="submit" disabled={saving || coverProcessing} className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:opacity-90">
+                    {saving ? "جاري الإضافة..." : coverProcessing ? "جاري تحميل الصورة..." : "إضافة الكوفي"}
+                  </button>
+                )}
+                {step === 1 && (
+                  <button type="button" onClick={() => { setModal(false); resetWizard(); }} className="px-5 py-3 rounded-xl border border-border text-muted-foreground text-sm hover:bg-muted/30">
+                    إلغاء
+                  </button>
+                )}
               </div>
             </form>
           </div>
