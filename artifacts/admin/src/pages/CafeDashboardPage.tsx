@@ -159,7 +159,7 @@ function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
 <tr><td class="cell" style="text-align:center;font-size:17px;font-weight:bold;padding:2mm 0 0">
   ${tpl?.cafeName ?? ""}
 </td></tr>
-${tpl?.commercialReg ? `<tr><td class="cell" style="text-align:center;font-size:11px;padding:1mm 0 0">س.ت • ${tpl.commercialReg}</td></tr>` : ""}
+${tpl?.commercialReg ? `<tr><td class="cell" style="text-align:center;font-size:11px;padding:1mm 0 0">س.ت / CR • ${tpl.commercialReg}</td></tr>` : ""}
 ${tpl?.contactPhone  ? `<tr><td class="cell" style="text-align:center;font-size:11px;padding:0">${tpl.contactPhone}</td></tr>` : ""}
 <tr><td class="cell" style="text-align:center;font-size:11px;padding:2mm 0;letter-spacing:1px">— — — — ✦ — — — —</td></tr>
 <tr><td class="cell" style="text-align:center;font-size:15px;font-weight:bold;padding:1mm 0">${title}</td></tr>
@@ -169,14 +169,15 @@ ${subtitle ? `<tr><td class="cell" style="text-align:center;font-size:12px;paddi
 }
 
 function tplFooterHtml(tpl: any): string {
-  const promo = (tpl?.promoText ?? "شكراً لزيارتكم").replace(/\n/g, "<br>");
+  const rawPromo = (tpl?.promoText ?? "شكراً لزيارتكم / Thank you for visiting");
+  const promo = rawPromo.replace(/\n/g, "<br>");
   const stamp = new Date().toLocaleString("ar-OM", {
     year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit",
   });
   return `
 <tr><td class="cell" style="text-align:center;font-size:11px;padding:2mm 0 1mm;letter-spacing:1px">— — — — ✦ — — — —</td></tr>
 <tr><td class="cell" style="text-align:center;font-size:12px;font-style:italic;padding:1mm 0;line-height:1.5">${promo}</td></tr>
-<tr><td class="cell" style="text-align:center;font-size:10px;padding:1mm 0 0">طُبعت في: ${stamp}</td></tr>
+<tr><td class="cell" style="text-align:center;font-size:10px;padding:1mm 0 0">طُبعت في / Printed: ${stamp}</td></tr>
 <tr><td class="cell" style="text-align:center;font-size:11px;padding:2mm 0 1mm;letter-spacing:1px">✂ — — — — — — — — — — ✂</td></tr>
   `;
 }
@@ -405,22 +406,24 @@ function OrdersTab({ id }: { id: string }) {
     const rows = (o.items ?? []).map((it: any) =>
       `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`
     ).join("");
-    const where = o.type === "dine" ? `طاولة ${o.tableNumber}` : `سيارة: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
+    const where = o.type === "dine"
+      ? `طاولة / Table ${o.tableNumber}`
+      : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
 
     const body = `
-${tplHeaderHtml(tpl, `فاتورة طلب #${o.id?.slice(-6)}`, "")}
+${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 <tr><td class="cell info-cell">
-  <div><b>الزبون:</b> ${o.customerName}</div>
-  <div><b>الهاتف:</b> ${o.customerPhone}</div>
-  <div><b>المكان:</b> ${where}</div>
-  <div><b>التاريخ:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
+  <div><b>الزبون / Customer:</b> ${o.customerName}</div>
+  <div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
+  <div><b>المكان / Location:</b> ${where}</div>
+  <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
 </td></tr>
-<tr><td class="cell sec-title-cell">تفاصيل الطلب</td></tr>
-<tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف</th><th>كمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
-<tr><td class="cell total-cell"><span class="lbl">الإجمالي</span><span class="val">${o.total?.toFixed(3)} ر.ع</span></td></tr>
+<tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
+<tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
+<tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${o.total?.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
     `;
-    openPrintWindow(`فاتورة طلب #${o.id?.slice(-6)}`, body);
+    openPrintWindow(`فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
   };
 
   return (
@@ -1217,22 +1220,22 @@ async function printDailyInvoice(id: string, dateStr: string) {
   ).join("");
 
   const body = `
-${tplHeaderHtml(tpl, "الفاتورة اليومية", `${fmtDateAr(from)}`)}
+${tplHeaderHtml(tpl, "الفاتورة اليومية / Daily Invoice", `${fmtDateAr(from)}`)}
 <tr><td class="cell info-cell">
-  <div><b>عدد الطلبات:</b> ${inRange.length}</div>
+  <div><b>عدد الطلبات / Orders:</b> ${inRange.length}</div>
 </td></tr>
-<tr><td class="cell sec-title-cell">جميع الطلبات</td></tr>
+<tr><td class="cell sec-title-cell">جميع الطلبات / All Orders</td></tr>
 <tr><td class="cell items-cell">${inRange.length === 0
-  ? `<div class="empty-inner">لا توجد طلبات في هذا اليوم</div>`
-  : `<table class="items"><thead><tr><th>رقم</th><th>الزبون</th><th>الوقت</th><th>المبلغ</th></tr></thead><tbody>${ordersRows}</tbody></table>`}</td></tr>
-<tr><td class="cell sec-title-cell">المجموع حسب التصنيف</td></tr>
+  ? `<div class="empty-inner">لا توجد طلبات / No orders</div>`
+  : `<table class="items"><thead><tr><th>رقم<br>No.</th><th>الزبون<br>Customer</th><th>الوقت<br>Time</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${ordersRows}</tbody></table>`}</td></tr>
+<tr><td class="cell sec-title-cell">المجموع حسب التصنيف / Totals by Category</td></tr>
 <tr><td class="cell items-cell">${Object.keys(byCat).length === 0
-  ? `<div class="empty-inner">لا يوجد</div>`
-  : `<table class="items"><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
-<tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم</span><span class="val">${total.toFixed(3)} ر.ع</span></td></tr>
+  ? `<div class="empty-inner">لا يوجد / None</div>`
+  : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+<tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم / Daily Total</span><span class="val">${total.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
-  openPrintWindow(`فاتورة يومية ${dateStr}`, body);
+  openPrintWindow(`فاتورة يومية / Daily ${dateStr}`, body);
 }
 
 async function printMonthlyInvoice(id: string, year: number, month: number) {
@@ -1249,21 +1252,21 @@ async function printMonthlyInvoice(id: string, year: number, month: number) {
   const monthName = from.toLocaleDateString("ar-OM", { month: "long", year: "numeric" });
 
   const body = `
-${tplHeaderHtml(tpl, "الفاتورة الشهرية", `${monthName}`)}
+${tplHeaderHtml(tpl, "الفاتورة الشهرية / Monthly Invoice", `${monthName}`)}
 <tr><td class="cell info-cell">
-  <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
-  <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
+  <div><b>الفترة / Period:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
+  <div><b>عدد الطلبات / Orders:</b> ${ordersIn.length}</div>
 </td></tr>
-<tr><td class="cell sec-title-cell">المبالغ حسب التصنيف</td></tr>
+<tr><td class="cell sec-title-cell">المبالغ حسب التصنيف / Amounts by Category</td></tr>
 <tr><td class="cell items-cell">${Object.keys(byCat).length === 0
-  ? `<div class="empty-inner">لا يوجد</div>`
-  : `<table class="items"><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
-<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات</span><span class="val">${ordersTotal.toFixed(3)} ر.ع</span></td></tr>
-${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف</span><span class="val">− ${expTotal.toFixed(3)} ر.ع</span></td></tr>` : ""}
-<tr><td class="cell total-cell"><span class="lbl">الصافي</span><span class="val">${net.toFixed(3)} ر.ع</span></td></tr>
+  ? `<div class="empty-inner">لا يوجد / None</div>`
+  : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات / Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
+<tr><td class="cell total-cell"><span class="lbl">الصافي / Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
-  openPrintWindow(`فاتورة شهرية ${year}-${String(month).padStart(2,"0")}`, body);
+  openPrintWindow(`فاتورة شهرية / Monthly ${year}-${String(month).padStart(2,"0")}`, body);
 }
 
 async function printYearlyInvoice(id: string, year: number) {
@@ -1279,40 +1282,40 @@ async function printYearlyInvoice(id: string, year: number) {
   ).join("");
 
   const body = `
-${tplHeaderHtml(tpl, "الفاتورة السنوية", `سنة ${year}`)}
+${tplHeaderHtml(tpl, "الفاتورة السنوية / Yearly Invoice", `سنة / Year ${year}`)}
 <tr><td class="cell info-cell">
-  <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
-  <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
+  <div><b>الفترة / Period:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
+  <div><b>عدد الطلبات / Orders:</b> ${ordersIn.length}</div>
 </td></tr>
-<tr><td class="cell sec-title-cell">المبالغ حسب التصنيف</td></tr>
+<tr><td class="cell sec-title-cell">المبالغ حسب التصنيف / Amounts by Category</td></tr>
 <tr><td class="cell items-cell">${Object.keys(byCat).length === 0
-  ? `<div class="empty-inner">لا يوجد</div>`
-  : `<table class="items"><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
-<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات</span><span class="val">${ordersTotal.toFixed(3)} ر.ع</span></td></tr>
-${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف</span><span class="val">− ${expTotal.toFixed(3)} ر.ع</span></td></tr>` : ""}
-<tr><td class="cell total-cell"><span class="lbl">الصافي السنوي</span><span class="val">${net.toFixed(3)} ر.ع</span></td></tr>
+  ? `<div class="empty-inner">لا يوجد / None</div>`
+  : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات / Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
+<tr><td class="cell total-cell"><span class="lbl">الصافي السنوي / Yearly Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
-  openPrintWindow(`فاتورة سنوية ${year}`, body);
+  openPrintWindow(`فاتورة سنوية / Yearly ${year}`, body);
 }
 
 async function printExpenseInvoice(id: string, exp: any) {
   const tpl = (await api.invoiceTemplate(id, "expense").catch(() => ({ template: null }))).template;
   const body = `
-${tplHeaderHtml(tpl, `فاتورة مصروف #${exp.id?.slice(-5)}`, "")}
+${tplHeaderHtml(tpl, `فاتورة مصروف / Expense #${exp.id?.slice(-5)}`, "")}
 <tr><td class="cell info-cell">
-  <div><b>التاريخ:</b> ${exp.date}</div>
-  <div><b>التصنيف:</b> ${exp.category}</div>
+  <div><b>التاريخ / Date:</b> ${exp.date}</div>
+  <div><b>التصنيف / Category:</b> ${exp.category}</div>
 </td></tr>
-<tr><td class="cell sec-title-cell">تفاصيل المصروف</td></tr>
-<tr><td class="cell items-cell"><table class="items"><thead><tr><th>البيان</th><th>التصنيف</th><th>المبلغ</th></tr></thead><tbody>
+<tr><td class="cell sec-title-cell">تفاصيل المصروف / Expense Details</td></tr>
+<tr><td class="cell items-cell"><table class="items"><thead><tr><th>البيان<br>Item</th><th>التصنيف<br>Category</th><th>المبلغ<br>Amount</th></tr></thead><tbody>
   <tr><td>${exp.title}</td><td>${exp.category}</td><td style="text-align:left">${(Number(exp.amount)||0).toFixed(3)}</td></tr>
 </tbody></table></td></tr>
-${exp.notes ? `<tr><td class="cell info-cell"><b>ملاحظات:</b> ${exp.notes}</td></tr>` : ""}
-<tr><td class="cell total-cell"><span class="lbl">المجموع</span><span class="val">${(Number(exp.amount)||0).toFixed(3)} ر.ع</span></td></tr>
+${exp.notes ? `<tr><td class="cell info-cell"><b>ملاحظات / Notes:</b> ${exp.notes}</td></tr>` : ""}
+<tr><td class="cell total-cell"><span class="lbl">المجموع / Total</span><span class="val">${(Number(exp.amount)||0).toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
-  openPrintWindow(`فاتورة مصروف #${exp.id?.slice(-5)}`, body);
+  openPrintWindow(`فاتورة مصروف / Expense #${exp.id?.slice(-5)}`, body);
 }
 
 // ── Invoices Tab (daily / monthly / yearly print) ────────────
