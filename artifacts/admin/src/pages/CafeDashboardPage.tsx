@@ -150,11 +150,11 @@ function classifyItem(name: string, original?: string): string {
 
 function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
   const logoHtml = tpl?.logo
-    ? `<img src="${tpl.logo}" style="display:block;margin:0 auto;width:56mm;height:auto;max-width:56mm;max-height:60mm;object-fit:contain;filter:grayscale(100%) contrast(1.8) brightness(0.75);-webkit-filter:grayscale(100%) contrast(1.8) brightness(0.75)" alt="">`
-    : `<div style="width:56mm;height:56mm;font-size:140px;line-height:56mm;text-align:center;margin:0 auto;color:#000">☕</div>`;
+    ? `<img src="${tpl.logo}" style="display:block;margin-left:auto;margin-right:auto;width:52mm;height:auto;max-width:52mm;max-height:55mm;object-fit:contain;filter:grayscale(100%) contrast(1.8) brightness(0.75);-webkit-filter:grayscale(100%) contrast(1.8) brightness(0.75)" alt="">`
+    : `<div style="width:52mm;height:52mm;font-size:130px;line-height:52mm;text-align:center;margin-left:auto;margin-right:auto;color:#000">☕</div>`;
   return `
-<tr><td class="cell" style="text-align:center;padding:2mm 0 1mm">
-  ${logoHtml}
+<tr><td class="cell" style="text-align:center;padding:2mm 0 1mm 0 !important;width:58mm">
+  <div style="display:block;width:100%;text-align:center">${logoHtml}</div>
 </td></tr>
 <tr><td class="cell" style="text-align:center;font-size:17px;font-weight:bold;padding:2mm 0 0">
   ${tpl?.cafeName ?? ""}
