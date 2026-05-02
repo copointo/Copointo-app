@@ -200,119 +200,119 @@ function openPrintWindow(title: string, body: string) {
 
       /* ── Receipt wrapper (always centered) ─────────────── */
       .receipt {
-        width: 72mm;            /* effective content width inside 80mm paper */
+        width: 78mm;            /* nearly full 80mm paper width */
         margin: 6mm auto;       /* horizontally centered in any page size */
-        padding: 4mm 4mm;
+        padding: 4mm 3mm;
         background: #fdfbf6;
         text-align: right;      /* RTL natural alignment inside */
         direction: rtl;
-        font-size: 12px;
+        font-size: 13.5px;
       }
 
       /* ── Header ─────────────────────────────────────────── */
       .header { text-align: center; margin-bottom: 6px; }
       .logo {
-        width: 56px; height: 56px; border-radius: 14px;
-        object-fit: cover; margin: 0 auto 6px;
-        display: block; border: 1.5px solid #C67C4E;
+        width: 90px; height: 90px; border-radius: 20px;
+        object-fit: cover;
+        margin-left: auto; margin-right: auto; margin-bottom: 8px;
+        display: block; border: 2px solid #C67C4E;
       }
       .logo-fallback {
-        font-size: 32px; line-height: 56px; padding: 0;
+        font-size: 50px; line-height: 90px; padding: 0;
         background: #f6ecd8; color: #6b4119; text-align: center;
       }
       .brand {
-        font-size: 17px; font-weight: bold; color: #4a2c14;
-        margin-top: 4px; letter-spacing: 0;
+        font-size: 20px; font-weight: bold; color: #4a2c14;
+        margin-top: 4px; text-align: center;
       }
-      .meta { font-size: 11px; color: #6b513b; margin-top: 2px; }
+      .meta { font-size: 12px; color: #6b513b; margin-top: 2px; text-align: center; }
 
-      /* ── Decorative divider with center glyph ──────────── */
+      /* ── Decorative divider (flex-based, no absolute pos) ── */
       .divider {
-        position: relative; text-align: center;
-        margin: 9px 0; height: 14px; line-height: 14px;
+        display: flex; align-items: center;
+        margin: 10px 0; color: #C67C4E;
       }
-      .divider::before {
-        content: ""; position: absolute; top: 50%; left: 0; right: 0;
-        height: 0; border-top: 1px dashed #b07b4c;
+      .divider::before, .divider::after {
+        content: ""; flex: 1 1 auto;
+        border-top: 1px dashed #b07b4c;
       }
       .divider span {
-        position: relative; display: inline-block;
-        background: #fdfbf6; padding: 0 8px;
-        font-size: 11px; color: #C67C4E;
+        padding: 0 10px; font-size: 13px; color: #C67C4E;
+        line-height: 1;
       }
 
       /* ── Title block ───────────────────────────────────── */
-      .title-block { text-align: center; padding: 3px 0; }
+      .title-block { text-align: center; padding: 4px 0; }
       .title {
-        font-size: 14px; font-weight: bold; color: #4a2c14;
+        font-size: 16px; font-weight: bold; color: #4a2c14;
       }
-      .subtitle { font-size: 11px; color: #6b513b; margin-top: 2px; }
+      .subtitle { font-size: 12.5px; color: #6b513b; margin-top: 3px; }
 
       /* ── Info rows ─────────────────────────────────────── */
       .info-block {
         background: #faf3e6; border-radius: 6px;
-        padding: 7px 9px; margin: 8px 0;
-        font-size: 11.5px; line-height: 1.9;
+        padding: 8px 10px; margin: 9px 0;
+        font-size: 13px; line-height: 1.9;
       }
       .info-block b { color: #4a2c14; font-weight: bold; }
 
       /* ── Section title ─────────────────────────────────── */
       .sec-title {
-        font-size: 12px; font-weight: bold; margin: 10px 0 5px;
-        color: #4a2c14; padding: 4px 8px;
+        font-size: 13.5px; font-weight: bold; margin: 11px 0 6px;
+        color: #4a2c14; padding: 5px 9px;
         background: #f6ecd8;
-        border-right: 3px solid #C67C4E; border-radius: 4px;
+        border-right: 4px solid #C67C4E; border-radius: 4px;
       }
 
       /* ── Tables ────────────────────────────────────────── */
       table {
-        width: 100%; border-collapse: collapse; font-size: 11px;
-        table-layout: fixed; word-wrap: break-word;
+        width: 100%; border-collapse: collapse; font-size: 12.5px;
       }
       thead th {
         background: #4a2c14; color: #fdfbf6;
-        padding: 5px 3px; font-weight: bold; font-size: 11px;
+        padding: 6px 4px; font-weight: bold; font-size: 12px;
         text-align: center;
       }
       tbody td {
-        padding: 5px 3px; border-bottom: 1px dashed #d4b896;
-        text-align: right; font-size: 11px;
+        padding: 6px 4px; border-bottom: 1px dashed #d4b896;
+        text-align: right; font-size: 12.5px;
+        word-wrap: break-word; overflow-wrap: break-word;
       }
       tbody tr:last-child td { border-bottom: none; }
 
       /* ── Rows / total ──────────────────────────────────── */
       .row {
         display: flex; justify-content: space-between; align-items: center;
-        font-size: 11.5px; padding: 3px 0;
+        font-size: 13px; padding: 3px 0;
       }
       .total {
-        margin-top: 10px; padding: 10px 12px;
+        margin-top: 11px; padding: 11px 13px;
         background: #4a2c14;
         color: #fdfbf6; border-radius: 6px;
         display: flex; justify-content: space-between; align-items: center;
-        font-weight: bold; font-size: 14px;
+        font-weight: bold; font-size: 16px;
       }
-      .total span:last-child { color: #f5d59a; font-size: 15px; }
+      .total span:last-child { color: #f5d59a; font-size: 17px; }
 
       /* ── Footer ────────────────────────────────────────── */
       .promo {
-        text-align: center; font-size: 11.5px;
+        text-align: center; font-size: 13px;
         color: #6b4119; font-style: italic; line-height: 1.7;
         padding: 4px 6px;
       }
       .stamp {
-        text-align: center; font-size: 10px;
+        text-align: center; font-size: 11px;
         color: #9a7656; margin-top: 6px;
       }
       .cut {
-        text-align: center; color: #b07b4c; font-size: 10px;
+        text-align: center; color: #b07b4c; font-size: 11px;
         letter-spacing: 1px; margin-top: 8px;
       }
 
       /* ── Empty state ───────────────────────────────────── */
       .empty {
         text-align: center; color: #9a7656;
-        font-size: 11px; padding: 10px 0; font-style: italic;
+        font-size: 12.5px; padding: 10px 0; font-style: italic;
       }
 
       /* ── Print mode: white page background ─────────────── */
