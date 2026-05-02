@@ -150,7 +150,7 @@ function classifyItem(name: string, original?: string): string {
 
 function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
   const logoHtml = tpl?.logo
-    ? `<img src="${tpl.logo}" class="logo" alt="">`
+    ? `<img src="${tpl.logo}" width="80" height="80" class="logo" alt="">`
     : `<div class="logo logo-fallback">☕</div>`;
   return `
     <div class="header">
@@ -159,12 +159,12 @@ function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
       ${tpl?.commercialReg ? `<div class="meta">س.ت • ${tpl.commercialReg}</div>` : ""}
       ${tpl?.contactPhone  ? `<div class="meta">${tpl.contactPhone}</div>` : ""}
     </div>
-    <div class="divider"><span>✦</span></div>
+    <div class="divider">— — — — ✦ — — — —</div>
     <div class="title-block">
       <div class="title">${title}</div>
       ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
     </div>
-    <div class="divider"><span>✦</span></div>
+    <div class="divider">— — — — ✦ — — — —</div>
   `;
 }
 
@@ -174,167 +174,328 @@ function tplFooterHtml(tpl: any): string {
     year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit",
   });
   return `
-    <div class="divider"><span>✦</span></div>
+    <div class="divider">— — — — ✦ — — — —</div>
     <div class="promo">${promo}</div>
     <div class="stamp">طُبعت في: ${stamp}</div>
-    <div class="cut">✂ ─────────────────────────── ✂</div>
+    <div class="cut">✂ — — — — — — — — — — ✂</div>
   `;
 }
 
 function openPrintWindow(title: string, body: string) {
-  const w = window.open("", "_blank", "width=420,height=760");
-  if (!w) return;
-  w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
-    <style>
-      /* ── Tuned for MHT-POS58 (58mm thermal, 48mm printable) ── */
-      @page { size: 58mm auto; margin: 0; }
+  const w = window.open("", "_blank", "width=380,height=760");
+  if (!w) {
+    alert("الرجاء السماح بفتح النوافذ المنبثقة لعرض الفاتورة");
+    return;
+  }
+  w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <style>
+    /* ── MHT-POS58 thermal printer (58mm wide, ~48mm printable) ── */
+    @page { size: 58mm auto; margin: 0; }
 
-      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      html, body {
-        margin: 0; padding: 0;
-        background: #efe9df;
-        font-family: 'Tahoma','Segoe UI','Arial Unicode MS','Geeza Pro','Noto Sans Arabic','Arial', sans-serif;
-        color: #1a0f06; line-height: 1.5;
-        text-align: center;     /* keep centered even if browser uses A4 */
-      }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
 
-      /* ── Receipt wrapper sized to MHT-POS58 printable area ── */
+    html, body {
+      background: #f0f0f0;
+      color: #000;
+      font-family: 'Tahoma', 'Arial', 'Segoe UI', sans-serif;
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: center;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Receipt wrapper: tightly fits 58mm paper ── */
+    .receipt {
+      width: 54mm;             /* fits inside the printable area with safe edges */
+      max-width: 54mm;
+      margin: 0 auto;          /* centered horizontally on any page size */
+      padding: 3mm 2mm;
+      background: #fff;
+      color: #000;
+      direction: rtl;
+      text-align: right;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    /* ── Header (logo + brand) ── */
+    .header {
+      text-align: center;
+      margin-bottom: 4px;
+      page-break-inside: avoid;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto 4px;
+    }
+    .logo-fallback {
+      width: 80px;
+      height: 80px;
+      font-size: 56px;
+      line-height: 80px;
+      text-align: center;
+      margin: 0 auto 4px;
+      display: block;
+    }
+    .brand {
+      font-size: 15px;
+      font-weight: bold;
+      text-align: center;
+      margin: 4px 0 0;
+      color: #000;
+    }
+    .meta {
+      font-size: 10px;
+      text-align: center;
+      margin-top: 1px;
+      color: #000;
+    }
+
+    /* ── Divider: pure text, no positioning tricks ── */
+    .divider {
+      text-align: center;
+      font-size: 10px;
+      color: #000;
+      margin: 6px 0;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    /* ── Title block ── */
+    .title-block {
+      text-align: center;
+      margin: 4px 0;
+    }
+    .title {
+      font-size: 14px;
+      font-weight: bold;
+      text-align: center;
+      color: #000;
+    }
+    .subtitle {
+      font-size: 11px;
+      text-align: center;
+      margin-top: 2px;
+      color: #000;
+    }
+
+    /* ── Info block (customer/date) ── */
+    .info-block {
+      font-size: 11px;
+      line-height: 1.7;
+      margin: 6px 0;
+      text-align: right;
+      color: #000;
+      padding: 3px 0;
+    }
+    .info-block div { margin: 1px 0; }
+    .info-block b {
+      font-weight: bold;
+      color: #000;
+    }
+
+    /* ── Section title ── */
+    .sec-title {
+      font-size: 12px;
+      font-weight: bold;
+      text-align: center;
+      border-top: 1px solid #000;
+      border-bottom: 1px solid #000;
+      padding: 3px 0;
+      margin: 6px 0 4px;
+      color: #000;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin: 0;
+    }
+    thead th {
+      font-weight: bold;
+      border-bottom: 1px solid #000;
+      padding: 3px 1px;
+      text-align: center;
+      font-size: 10.5px;
+      color: #000;
+      background: #fff;
+    }
+    tbody td {
+      padding: 3px 1px;
+      vertical-align: top;
+      font-size: 10.5px;
+      color: #000;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+    tbody tr {
+      border-bottom: 1px dashed #999;
+    }
+    tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    /* ── Row (label + value) — table-based for max compatibility ── */
+    .row {
+      display: table;
+      width: 100%;
+      font-size: 11px;
+      padding: 2px 0;
+    }
+    .row > span {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .row > span:first-child { text-align: right; }
+    .row > span:last-child  { text-align: left; }
+
+    /* ── Total — pure black border, no colored bg ── */
+    .total {
+      display: table;
+      width: 100%;
+      border-top: 2px solid #000;
+      border-bottom: 2px solid #000;
+      padding: 6px 2px;
+      margin-top: 8px;
+      font-weight: bold;
+      font-size: 13px;
+      color: #000;
+    }
+    .total > span {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .total > span:first-child { text-align: right; }
+    .total > span:last-child  { text-align: left; font-size: 14px; }
+
+    /* ── Footer ── */
+    .promo {
+      text-align: center;
+      font-size: 11px;
+      margin-top: 6px;
+      line-height: 1.5;
+      font-style: italic;
+      color: #000;
+      page-break-inside: avoid;
+    }
+    .stamp {
+      text-align: center;
+      font-size: 9px;
+      margin-top: 4px;
+      color: #000;
+    }
+    .cut {
+      text-align: center;
+      font-size: 10px;
+      margin-top: 6px;
+      letter-spacing: 1px;
+      color: #000;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    /* ── Empty state ── */
+    .empty {
+      text-align: center;
+      font-size: 10.5px;
+      padding: 6px 0;
+      font-style: italic;
+      color: #000;
+    }
+
+    /* ── Print: white page, no extra margins ── */
+    @media print {
+      html, body { background: #fff !important; }
       .receipt {
-        width: 56mm;            /* slightly under 58mm paper, fits inside printable 48mm + safe edges */
-        margin: 4mm auto;
-        padding: 2mm 2mm;
-        background: #fdfbf6;
-        text-align: right;
-        direction: rtl;
-        font-size: 11px;
+        margin: 0 auto !important;
+        padding: 1mm 1mm !important;
+        width: 56mm !important;
+        max-width: 56mm !important;
       }
+      /* Prevent breaking critical sections across pages */
+      .header, .total, .info-block { page-break-inside: avoid; }
+    }
 
-      /* ── Header ─────────────────────────────────────────── */
-      .header { text-align: center; margin-bottom: 4px; }
-      .logo {
-        width: 60px; height: 60px; border-radius: 14px;
-        object-fit: cover;
-        margin-left: auto; margin-right: auto; margin-bottom: 5px;
-        display: block; border: 1.5px solid #C67C4E;
-      }
-      .logo-fallback {
-        font-size: 34px; line-height: 60px; padding: 0;
-        background: #f6ecd8; color: #6b4119; text-align: center;
-      }
-      .brand {
-        font-size: 15px; font-weight: bold; color: #4a2c14;
-        margin-top: 3px; text-align: center;
-      }
-      .meta { font-size: 10px; color: #6b513b; margin-top: 1px; text-align: center; }
+    /* ── Loading overlay shown until everything is ready ── */
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      font-family: 'Tahoma', sans-serif;
+      font-size: 14px;
+      color: #4a2c14;
+    }
+    .loading-overlay.hidden { display: none; }
+  </style></head><body>
+    <div class="receipt" id="receipt">${body}</div>
+    <div class="loading-overlay" id="loader">جاري تحضير الفاتورة...</div>
+    <script>
+      (function() {
+        var printed = false;
+        function doPrint() {
+          if (printed) return;
+          printed = true;
+          var loader = document.getElementById('loader');
+          if (loader) loader.classList.add('hidden');
+          try { window.focus(); } catch(e) {}
+          // Give browser one more tick to remove overlay before opening dialog
+          setTimeout(function() {
+            try { window.print(); } catch(e) {}
+          }, 50);
+        }
 
-      /* ── Decorative divider (flex-based) ───────────────── */
-      .divider {
-        display: flex; align-items: center;
-        margin: 6px 0; color: #C67C4E;
-      }
-      .divider::before, .divider::after {
-        content: ""; flex: 1 1 auto;
-        border-top: 1px dashed #b07b4c;
-      }
-      .divider span {
-        padding: 0 6px; font-size: 11px; color: #C67C4E;
-        line-height: 1;
-      }
+        function whenReady() {
+          var fontsP  = (document.fonts && document.fonts.ready)
+                          ? document.fonts.ready : Promise.resolve();
+          var imgs    = Array.prototype.slice.call(document.images || []);
+          var imgsP   = imgs.map(function(img) {
+            if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+            return new Promise(function(resolve) {
+              var done = false;
+              function finish() { if (!done) { done = true; resolve(); } }
+              img.addEventListener('load',  finish, { once: true });
+              img.addEventListener('error', finish, { once: true });
+              // hard timeout after 4s in case the image never resolves
+              setTimeout(finish, 4000);
+            });
+          });
+          Promise.all([fontsP].concat(imgsP)).then(function() {
+            // Two animation frames + 600ms safety delay so layout fully settles
+            requestAnimationFrame(function() {
+              requestAnimationFrame(function() {
+                setTimeout(doPrint, 600);
+              });
+            });
+          });
+        }
 
-      /* ── Title block ───────────────────────────────────── */
-      .title-block { text-align: center; padding: 2px 0; }
-      .title {
-        font-size: 13px; font-weight: bold; color: #4a2c14;
-      }
-      .subtitle { font-size: 10px; color: #6b513b; margin-top: 2px; }
-
-      /* ── Info rows ─────────────────────────────────────── */
-      .info-block {
-        background: #faf3e6; border-radius: 4px;
-        padding: 5px 7px; margin: 6px 0;
-        font-size: 10.5px; line-height: 1.7;
-      }
-      .info-block b { color: #4a2c14; font-weight: bold; }
-
-      /* ── Section title ─────────────────────────────────── */
-      .sec-title {
-        font-size: 11px; font-weight: bold; margin: 8px 0 4px;
-        color: #4a2c14; padding: 3px 6px;
-        background: #f6ecd8;
-        border-right: 3px solid #C67C4E; border-radius: 3px;
-      }
-
-      /* ── Tables ────────────────────────────────────────── */
-      table {
-        width: 100%; border-collapse: collapse; font-size: 10px;
-      }
-      thead th {
-        background: #4a2c14; color: #fdfbf6;
-        padding: 3px 2px; font-weight: bold; font-size: 9.5px;
-        text-align: center;
-      }
-      tbody td {
-        padding: 4px 2px; border-bottom: 1px dashed #d4b896;
-        text-align: right; font-size: 10px;
-        word-wrap: break-word; overflow-wrap: break-word;
-      }
-      tbody tr:last-child td { border-bottom: none; }
-
-      /* ── Rows / total ──────────────────────────────────── */
-      .row {
-        display: flex; justify-content: space-between; align-items: center;
-        font-size: 10.5px; padding: 2px 0;
-      }
-      .total {
-        margin-top: 8px; padding: 7px 9px;
-        background: #4a2c14;
-        color: #fdfbf6; border-radius: 4px;
-        display: flex; justify-content: space-between; align-items: center;
-        font-weight: bold; font-size: 12px;
-      }
-      .total span:last-child { color: #f5d59a; font-size: 13px; }
-
-      /* ── Footer ────────────────────────────────────────── */
-      .promo {
-        text-align: center; font-size: 10.5px;
-        color: #6b4119; font-style: italic; line-height: 1.6;
-        padding: 3px 4px;
-      }
-      .stamp {
-        text-align: center; font-size: 9px;
-        color: #9a7656; margin-top: 4px;
-      }
-      .cut {
-        text-align: center; color: #b07b4c; font-size: 9px;
-        letter-spacing: 1px; margin-top: 6px;
-      }
-
-      /* ── Empty state ───────────────────────────────────── */
-      .empty {
-        text-align: center; color: #9a7656;
-        font-size: 10px; padding: 8px 0; font-style: italic;
-      }
-
-      /* ── Print mode: white page background, tighter margins ── */
-      @media print {
-        html, body { background: #fff !important; }
-        .receipt { margin: 1mm auto !important; padding: 1mm 1mm !important; }
-      }
-    </style></head><body>
-      <div class="receipt">${body}</div>
-      <script>
-        // Wait for fonts + images to load before printing so PDF render is clean.
-        function go(){ try { window.focus(); window.print(); } catch(e) {} }
-        var imgs = Array.from(document.images);
-        Promise.all([
-          (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve(),
-          ...imgs.map(function(i){
-            return i.complete ? Promise.resolve()
-              : new Promise(function(r){ i.onload = i.onerror = r; });
-          })
-        ]).then(function(){ setTimeout(go, 120); });
-      </script>
-    </body></html>`);
+        if (document.readyState === 'complete') {
+          whenReady();
+        } else {
+          window.addEventListener('load', whenReady);
+        }
+      })();
+    </script>
+  </body></html>`);
   w.document.close();
 }
 
