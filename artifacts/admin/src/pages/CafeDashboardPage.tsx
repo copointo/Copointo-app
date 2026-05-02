@@ -182,22 +182,31 @@ function tplFooterHtml(tpl: any): string {
 }
 
 function openPrintWindow(title: string, body: string) {
-  const w = window.open("", "_blank", "width=360,height=720");
+  const w = window.open("", "_blank", "width=420,height=760");
   if (!w) return;
   w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-      /* ── 80mm thermal receipt paper ─────────────────────── */
+      /* ── Page size: receipt paper, but content stays centered on any size ── */
       @page { size: 80mm auto; margin: 0; }
-      * { box-sizing: border-box; }
-      html, body { background: #efe9df; }
-      body {
-        font-family: 'Cairo','Tahoma','Arial', sans-serif;
-        width: 80mm; margin: 0 auto; padding: 6mm 5mm;
-        color: #2a1a0e; font-size: 11.5px; line-height: 1.55;
+
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body {
+        margin: 0; padding: 0;
+        background: #efe9df;
+        font-family: 'Tahoma','Segoe UI','Arial Unicode MS','Geeza Pro','Noto Sans Arabic','Arial', sans-serif;
+        color: #2a1a0e; line-height: 1.6;
+        text-align: center;     /* ⭐ ensure centering even if browser uses A4 */
+      }
+
+      /* ── Receipt wrapper (always centered) ─────────────── */
+      .receipt {
+        width: 72mm;            /* effective content width inside 80mm paper */
+        margin: 6mm auto;       /* horizontally centered in any page size */
+        padding: 4mm 4mm;
         background: #fdfbf6;
+        text-align: right;      /* RTL natural alignment inside */
+        direction: rtl;
+        font-size: 12px;
       }
 
       /* ── Header ─────────────────────────────────────────── */
@@ -206,119 +215,126 @@ function openPrintWindow(title: string, body: string) {
         width: 56px; height: 56px; border-radius: 14px;
         object-fit: cover; margin: 0 auto 6px;
         display: block; border: 1.5px solid #C67C4E;
-        box-shadow: 0 2px 6px rgba(198,124,78,0.25);
       }
       .logo-fallback {
         font-size: 32px; line-height: 56px; padding: 0;
-        background: #f6ecd8; color: #6b4119;
+        background: #f6ecd8; color: #6b4119; text-align: center;
       }
       .brand {
-        font-size: 16px; font-weight: 800; letter-spacing: 0.3px;
-        color: #4a2c14; margin-top: 4px;
+        font-size: 17px; font-weight: bold; color: #4a2c14;
+        margin-top: 4px; letter-spacing: 0;
       }
-      .meta { font-size: 10px; color: #6b513b; margin-top: 1px; }
+      .meta { font-size: 11px; color: #6b513b; margin-top: 2px; }
 
-      /* ── Decorative dividers ───────────────────────────── */
+      /* ── Decorative divider with center glyph ──────────── */
       .divider {
         position: relative; text-align: center;
-        margin: 9px 0; height: 12px;
-        background-image: linear-gradient(90deg, transparent 0, transparent 50%, transparent 50%);
+        margin: 9px 0; height: 14px; line-height: 14px;
       }
       .divider::before {
         content: ""; position: absolute; top: 50%; left: 0; right: 0;
-        height: 1px;
-        background: repeating-linear-gradient(90deg,
-          #b07b4c 0, #b07b4c 3px, transparent 3px, transparent 7px);
+        height: 0; border-top: 1px dashed #b07b4c;
       }
       .divider span {
         position: relative; display: inline-block;
         background: #fdfbf6; padding: 0 8px;
-        font-size: 10px; color: #C67C4E; line-height: 12px;
+        font-size: 11px; color: #C67C4E;
       }
 
       /* ── Title block ───────────────────────────────────── */
-      .title-block { text-align: center; padding: 4px 0; }
+      .title-block { text-align: center; padding: 3px 0; }
       .title {
-        font-size: 13px; font-weight: 800; color: #4a2c14;
-        letter-spacing: 0.3px;
+        font-size: 14px; font-weight: bold; color: #4a2c14;
       }
-      .subtitle { font-size: 10.5px; color: #6b513b; margin-top: 2px; }
+      .subtitle { font-size: 11px; color: #6b513b; margin-top: 2px; }
 
       /* ── Info rows ─────────────────────────────────────── */
       .info-block {
-        background: #faf3e6; border-radius: 8px;
+        background: #faf3e6; border-radius: 6px;
         padding: 7px 9px; margin: 8px 0;
-        font-size: 11px; line-height: 1.85;
+        font-size: 11.5px; line-height: 1.9;
       }
-      .info-block b { color: #4a2c14; font-weight: 700; }
+      .info-block b { color: #4a2c14; font-weight: bold; }
 
       /* ── Section title ─────────────────────────────────── */
       .sec-title {
-        font-size: 11.5px; font-weight: 700; margin: 10px 0 5px;
+        font-size: 12px; font-weight: bold; margin: 10px 0 5px;
         color: #4a2c14; padding: 4px 8px;
-        background: linear-gradient(90deg, rgba(198,124,78,0.15), transparent);
+        background: #f6ecd8;
         border-right: 3px solid #C67C4E; border-radius: 4px;
       }
 
       /* ── Tables ────────────────────────────────────────── */
-      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      table {
+        width: 100%; border-collapse: collapse; font-size: 11px;
+        table-layout: fixed; word-wrap: break-word;
+      }
       thead th {
         background: #4a2c14; color: #fdfbf6;
-        padding: 5px 4px; font-weight: 700; font-size: 10px;
+        padding: 5px 3px; font-weight: bold; font-size: 11px;
+        text-align: center;
       }
-      thead th:first-child { border-radius: 0 6px 6px 0; }
-      thead th:last-child  { border-radius: 6px 0 0 6px; }
       tbody td {
-        padding: 5px 4px; border-bottom: 1px dashed #d4b896;
-        text-align: right; font-size: 10.5px;
+        padding: 5px 3px; border-bottom: 1px dashed #d4b896;
+        text-align: right; font-size: 11px;
       }
       tbody tr:last-child td { border-bottom: none; }
 
       /* ── Rows / total ──────────────────────────────────── */
       .row {
-        display: flex; justify-content: space-between;
-        font-size: 11px; padding: 3px 0;
+        display: flex; justify-content: space-between; align-items: center;
+        font-size: 11.5px; padding: 3px 0;
       }
       .total {
-        margin-top: 8px; padding: 9px 10px;
-        background: linear-gradient(135deg, #4a2c14 0%, #6b4119 100%);
-        color: #f5d59a; border-radius: 8px;
+        margin-top: 10px; padding: 10px 12px;
+        background: #4a2c14;
+        color: #fdfbf6; border-radius: 6px;
         display: flex; justify-content: space-between; align-items: center;
-        font-weight: 800; font-size: 13px;
-        box-shadow: 0 2px 5px rgba(74,44,20,0.3);
+        font-weight: bold; font-size: 14px;
       }
-      .total span:last-child { color: #fdfbf6; font-size: 14px; }
+      .total span:last-child { color: #f5d59a; font-size: 15px; }
 
       /* ── Footer ────────────────────────────────────────── */
       .promo {
-        text-align: center; font-size: 11px;
-        color: #6b4119; font-style: italic; line-height: 1.6;
+        text-align: center; font-size: 11.5px;
+        color: #6b4119; font-style: italic; line-height: 1.7;
         padding: 4px 6px;
       }
       .stamp {
-        text-align: center; font-size: 9px;
+        text-align: center; font-size: 10px;
         color: #9a7656; margin-top: 6px;
       }
       .cut {
         text-align: center; color: #b07b4c; font-size: 10px;
-        letter-spacing: 1.5px; margin-top: 8px;
+        letter-spacing: 1px; margin-top: 8px;
       }
 
       /* ── Empty state ───────────────────────────────────── */
       .empty {
         text-align: center; color: #9a7656;
-        font-size: 10.5px; padding: 10px 0; font-style: italic;
+        font-size: 11px; padding: 10px 0; font-style: italic;
       }
 
-      /* ── Print mode: pure white background, no shadow ─── */
+      /* ── Print mode: white page background ─────────────── */
       @media print {
         html, body { background: #fff !important; }
-        body { padding: 4mm 4mm; }
-        .total { box-shadow: none !important;
-          -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .receipt { margin: 2mm auto !important; }
       }
-    </style></head><body>${body}<script>setTimeout(()=>window.print(),250);</script></body></html>`);
+    </style></head><body>
+      <div class="receipt">${body}</div>
+      <script>
+        // Wait for fonts + images to load before printing so PDF render is clean.
+        function go(){ try { window.focus(); window.print(); } catch(e) {} }
+        var imgs = Array.from(document.images);
+        Promise.all([
+          (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve(),
+          ...imgs.map(function(i){
+            return i.complete ? Promise.resolve()
+              : new Promise(function(r){ i.onload = i.onerror = r; });
+          })
+        ]).then(function(){ setTimeout(go, 120); });
+      </script>
+    </body></html>`);
   w.document.close();
 }
 
