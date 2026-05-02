@@ -150,8 +150,8 @@ function classifyItem(name: string, original?: string): string {
 
 function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
   const logoHtml = tpl?.logo
-    ? `<img src="${tpl.logo}" style="display:inline-block;width:52mm;height:auto;max-width:52mm;max-height:55mm;object-fit:contain;filter:brightness(0) saturate(100%);-webkit-filter:brightness(0) saturate(100%);vertical-align:top" alt="">`
-    : `<div style="display:inline-block;width:52mm;height:52mm;font-size:130px;line-height:52mm;text-align:center;color:#000;vertical-align:top">☕</div>`;
+    ? `<img src="${tpl.logo}" style="display:inline-block;width:38mm;height:auto;max-width:38mm;max-height:40mm;object-fit:contain;filter:brightness(0) saturate(100%);-webkit-filter:brightness(0) saturate(100%);vertical-align:top" alt="">`
+    : `<div style="display:inline-block;width:38mm;height:38mm;font-size:96px;line-height:38mm;text-align:center;color:#000;vertical-align:top">☕</div>`;
   return `
 <tr><td class="cell" style="text-align:center;padding:2mm 0 1mm 0 !important;width:58mm;direction:ltr">
   <div style="display:block;width:100%;text-align:center;direction:ltr;padding-right:3mm">${logoHtml}</div>
