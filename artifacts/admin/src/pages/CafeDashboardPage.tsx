@@ -182,56 +182,69 @@ function tplFooterHtml(tpl: any): string {
 }
 
 function openPrintWindow(title: string, body: string) {
-  const w = window.open("", "_blank", "width=380,height=760");
+  const w = window.open("", "_blank", "width=360,height=760");
   if (!w) {
     alert("الرجاء السماح بفتح النوافذ المنبثقة لعرض الفاتورة");
     return;
   }
   w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${title}</title>
   <style>
-    /* ── MHT-POS58 thermal printer (58mm wide, ~48mm printable) ── */
+    /* ── MHT-POS58 thermal (58mm paper) ── */
     @page { size: 58mm auto; margin: 0; }
 
+    /* Strict reset: no positioning, no floats anywhere */
     * {
-      box-sizing: border-box;
+      box-sizing: border-box !important;
       margin: 0;
       padding: 0;
+      position: static !important;
+      float: none !important;
+      clear: both !important;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
 
     html, body {
-      background: #f0f0f0;
+      background: #fff;
       color: #000;
       font-family: 'Tahoma', 'Arial', 'Segoe UI', sans-serif;
       font-size: 12px;
       line-height: 1.45;
-      text-align: center;
-      -webkit-font-smoothing: antialiased;
+      width: 100%;
+      visibility: hidden;          /* hide until ready, no overlay needed */
     }
+    body.ready { visibility: visible; }
 
-    /* ── Receipt wrapper: tightly fits 58mm paper ── */
+    /* ── Receipt: matches 58mm paper exactly, centered horizontally ── */
     .receipt {
-      width: 54mm;             /* fits inside the printable area with safe edges */
-      max-width: 54mm;
-      margin: 0 auto;          /* centered horizontally on any page size */
-      padding: 3mm 2mm;
+      display: block;
+      width: 58mm;
+      margin: 0 auto;              /* center on any page size */
+      padding: 2mm 1.5mm;
       background: #fff;
       color: #000;
       direction: rtl;
       text-align: right;
-      font-size: 12px;
-      line-height: 1.45;
     }
 
-    /* ── Header (logo + brand) ── */
+    /* Force every direct child of receipt to be a simple block */
+    .receipt > * {
+      display: block;
+      width: 100%;
+      clear: both !important;
+    }
+
+    /* ── Header ── */
     .header {
       text-align: center;
       margin-bottom: 4px;
-      page-break-inside: avoid;
+    }
+    .header > * {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
     }
     .logo {
       width: 80px;
@@ -247,30 +260,25 @@ function openPrintWindow(title: string, body: string) {
       line-height: 80px;
       text-align: center;
       margin: 0 auto 4px;
-      display: block;
     }
     .brand {
       font-size: 15px;
       font-weight: bold;
       text-align: center;
       margin: 4px 0 0;
-      color: #000;
     }
     .meta {
       font-size: 10px;
       text-align: center;
       margin-top: 1px;
-      color: #000;
     }
 
-    /* ── Divider: pure text, no positioning tricks ── */
+    /* ── Divider: pure text ── */
     .divider {
       text-align: center;
       font-size: 10px;
-      color: #000;
-      margin: 6px 0;
+      margin: 5px 0;
       letter-spacing: 1px;
-      white-space: nowrap;
       overflow: hidden;
     }
 
@@ -279,33 +287,33 @@ function openPrintWindow(title: string, body: string) {
       text-align: center;
       margin: 4px 0;
     }
+    .title-block > * {
+      text-align: center;
+      display: block;
+    }
     .title {
       font-size: 14px;
       font-weight: bold;
-      text-align: center;
-      color: #000;
     }
     .subtitle {
       font-size: 11px;
-      text-align: center;
       margin-top: 2px;
-      color: #000;
     }
 
     /* ── Info block (customer/date) ── */
     .info-block {
       font-size: 11px;
-      line-height: 1.7;
-      margin: 6px 0;
+      line-height: 1.65;
+      margin: 5px 0;
       text-align: right;
-      color: #000;
-      padding: 3px 0;
+      padding: 2px 0;
     }
-    .info-block div { margin: 1px 0; }
-    .info-block b {
-      font-weight: bold;
-      color: #000;
+    .info-block > div {
+      display: block;
+      margin: 1px 0;
+      text-align: right;
     }
+    .info-block b { font-weight: bold; }
 
     /* ── Section title ── */
     .sec-title {
@@ -315,8 +323,7 @@ function openPrintWindow(title: string, body: string) {
       border-top: 1px solid #000;
       border-bottom: 1px solid #000;
       padding: 3px 0;
-      margin: 6px 0 4px;
-      color: #000;
+      margin: 6px 0 3px;
     }
 
     /* ── Tables ── */
@@ -324,60 +331,56 @@ function openPrintWindow(title: string, body: string) {
       width: 100%;
       border-collapse: collapse;
       font-size: 11px;
-      margin: 0;
+      table-layout: fixed;
     }
     thead th {
       font-weight: bold;
       border-bottom: 1px solid #000;
       padding: 3px 1px;
       text-align: center;
-      font-size: 10.5px;
-      color: #000;
-      background: #fff;
+      font-size: 10px;
     }
     tbody td {
       padding: 3px 1px;
       vertical-align: top;
       font-size: 10.5px;
-      color: #000;
       word-wrap: break-word;
       overflow-wrap: break-word;
     }
     tbody tr {
-      border-bottom: 1px dashed #999;
+      border-bottom: 1px dashed #777;
     }
-    tbody tr:last-child {
-      border-bottom: none;
-    }
+    tbody tr:last-child { border-bottom: none; }
 
-    /* ── Row (label + value) — table-based for max compatibility ── */
+    /* ── Row (label + value) ── */
     .row {
-      display: table;
+      display: table !important;
       width: 100%;
       font-size: 11px;
       padding: 2px 0;
+      table-layout: fixed;
     }
     .row > span {
-      display: table-cell;
+      display: table-cell !important;
       vertical-align: middle;
     }
     .row > span:first-child { text-align: right; }
     .row > span:last-child  { text-align: left; }
 
-    /* ── Total — pure black border, no colored bg ── */
+    /* ── Total ── */
     .total {
-      display: table;
+      display: table !important;
       width: 100%;
       border-top: 2px solid #000;
       border-bottom: 2px solid #000;
       padding: 6px 2px;
-      margin-top: 8px;
+      margin-top: 6px;
       font-weight: bold;
       font-size: 13px;
-      color: #000;
+      table-layout: fixed;
     }
     .total > span {
-      display: table-cell;
+      display: table-cell !important;
       vertical-align: middle;
     }
     .total > span:first-child { text-align: right; }
@@ -387,25 +390,20 @@ function openPrintWindow(title: string, body: string) {
     .promo {
       text-align: center;
       font-size: 11px;
-      margin-top: 6px;
+      margin-top: 5px;
       line-height: 1.5;
       font-style: italic;
-      color: #000;
-      page-break-inside: avoid;
     }
     .stamp {
       text-align: center;
       font-size: 9px;
-      margin-top: 4px;
-      color: #000;
+      margin-top: 3px;
     }
     .cut {
       text-align: center;
       font-size: 10px;
-      margin-top: 6px;
+      margin-top: 5px;
       letter-spacing: 1px;
-      color: #000;
-      white-space: nowrap;
       overflow: hidden;
     }
 
@@ -413,86 +411,52 @@ function openPrintWindow(title: string, body: string) {
     .empty {
       text-align: center;
       font-size: 10.5px;
-      padding: 6px 0;
+      padding: 5px 0;
       font-style: italic;
-      color: #000;
     }
 
-    /* ── Print: white page, no extra margins ── */
     @media print {
-      html, body { background: #fff !important; }
-      .receipt {
-        margin: 0 auto !important;
-        padding: 1mm 1mm !important;
-        width: 56mm !important;
-        max-width: 56mm !important;
-      }
-      /* Prevent breaking critical sections across pages */
-      .header, .total, .info-block { page-break-inside: avoid; }
+      body { visibility: visible !important; }
+      .receipt { width: 58mm !important; padding: 1.5mm 1mm !important; }
     }
-
-    /* ── Loading overlay shown until everything is ready ── */
-    .loading-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      font-family: 'Tahoma', sans-serif;
-      font-size: 14px;
-      color: #4a2c14;
-    }
-    .loading-overlay.hidden { display: none; }
   </style></head><body>
-    <div class="receipt" id="receipt">${body}</div>
-    <div class="loading-overlay" id="loader">جاري تحضير الفاتورة...</div>
+    <div class="receipt">${body}</div>
     <script>
       (function() {
         var printed = false;
         function doPrint() {
           if (printed) return;
           printed = true;
-          var loader = document.getElementById('loader');
-          if (loader) loader.classList.add('hidden');
+          document.body.classList.add('ready');
           try { window.focus(); } catch(e) {}
-          // Give browser one more tick to remove overlay before opening dialog
           setTimeout(function() {
             try { window.print(); } catch(e) {}
-          }, 50);
+          }, 80);
         }
-
         function whenReady() {
-          var fontsP  = (document.fonts && document.fonts.ready)
-                          ? document.fonts.ready : Promise.resolve();
-          var imgs    = Array.prototype.slice.call(document.images || []);
-          var imgsP   = imgs.map(function(img) {
+          var fontsP = (document.fonts && document.fonts.ready)
+                        ? document.fonts.ready : Promise.resolve();
+          var imgs   = Array.prototype.slice.call(document.images || []);
+          var imgsP  = imgs.map(function(img) {
             if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
             return new Promise(function(resolve) {
               var done = false;
-              function finish() { if (!done) { done = true; resolve(); } }
-              img.addEventListener('load',  finish, { once: true });
-              img.addEventListener('error', finish, { once: true });
-              // hard timeout after 4s in case the image never resolves
-              setTimeout(finish, 4000);
+              function fin() { if (!done) { done = true; resolve(); } }
+              img.addEventListener('load',  fin, { once: true });
+              img.addEventListener('error', fin, { once: true });
+              setTimeout(fin, 4000);
             });
           });
           Promise.all([fontsP].concat(imgsP)).then(function() {
-            // Two animation frames + 600ms safety delay so layout fully settles
             requestAnimationFrame(function() {
               requestAnimationFrame(function() {
-                setTimeout(doPrint, 600);
+                setTimeout(doPrint, 800);
               });
             });
           });
         }
-
-        if (document.readyState === 'complete') {
-          whenReady();
-        } else {
-          window.addEventListener('load', whenReady);
-        }
+        if (document.readyState === 'complete') whenReady();
+        else window.addEventListener('load', whenReady);
       })();
     </script>
   </body></html>`);
