@@ -150,41 +150,175 @@ function classifyItem(name: string, original?: string): string {
 
 function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
   const logoHtml = tpl?.logo
-    ? `<img src="${tpl.logo}" style="width:64px;height:64px;border-radius:12px;object-fit:cover;margin:0 auto;display:block" alt="">`
-    : `<div style="font-size:38px;text-align:center">☕</div>`;
+    ? `<img src="${tpl.logo}" class="logo" alt="">`
+    : `<div class="logo logo-fallback">☕</div>`;
   return `
-    <div style="text-align:center;margin-bottom:14px">
+    <div class="header">
       ${logoHtml}
-      <h1 style="font-size:18px;margin:8px 0 2px;color:#000">${tpl?.cafeName ?? ""}</h1>
-      ${tpl?.commercialReg ? `<div style="font-size:11px;color:#444">س.ت: ${tpl.commercialReg}</div>` : ""}
-      ${tpl?.contactPhone  ? `<div style="font-size:11px;color:#444">📞 ${tpl.contactPhone}</div>` : ""}
+      <div class="brand">${tpl?.cafeName ?? ""}</div>
+      ${tpl?.commercialReg ? `<div class="meta">س.ت • ${tpl.commercialReg}</div>` : ""}
+      ${tpl?.contactPhone  ? `<div class="meta">${tpl.contactPhone}</div>` : ""}
     </div>
-    <div style="border-top:1px dashed #aaa;border-bottom:1px dashed #aaa;padding:8px 0;text-align:center;margin-bottom:12px">
-      <div style="font-size:14px;font-weight:bold;color:#000">${title}</div>
-      ${subtitle ? `<div style="font-size:11px;color:#666;margin-top:2px">${subtitle}</div>` : ""}
+    <div class="divider"><span>✦</span></div>
+    <div class="title-block">
+      <div class="title">${title}</div>
+      ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
     </div>
+    <div class="divider"><span>✦</span></div>
   `;
 }
 
 function tplFooterHtml(tpl: any): string {
-  return `<div style="margin-top:18px;text-align:center;font-size:11px;color:#666;font-style:italic">
-    ${(tpl?.promoText ?? "شكراً لزيارتكم").replace(/\n/g, "<br>")}
-  </div>`;
+  const promo = (tpl?.promoText ?? "شكراً لزيارتكم").replace(/\n/g, "<br>");
+  const stamp = new Date().toLocaleString("ar-OM", {
+    year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit",
+  });
+  return `
+    <div class="divider"><span>✦</span></div>
+    <div class="promo">${promo}</div>
+    <div class="stamp">طُبعت في: ${stamp}</div>
+    <div class="cut">✂ ─────────────────────────── ✂</div>
+  `;
 }
 
 function openPrintWindow(title: string, body: string) {
-  const w = window.open("", "_blank", "width=460,height=700");
+  const w = window.open("", "_blank", "width=360,height=720");
   if (!w) return;
   w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-      body{font-family:'Tahoma','Arial';padding:18px;color:#000;background:#fff}
-      table{width:100%;border-collapse:collapse;font-size:12.5px}
-      td,th{border-bottom:1px dashed #ccc;padding:7px 4px;text-align:right}
-      th{background:#f4f4f4;font-weight:bold}
-      .total{margin-top:12px;padding-top:10px;border-top:2px solid #000;display:flex;justify-content:space-between;font-weight:bold;font-size:15px}
-      .row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0}
-      .sec-title{font-size:13px;font-weight:bold;margin:14px 0 6px;color:#000;border-right:3px solid #C67C4E;padding-right:8px}
-    </style></head><body>${body}<script>window.print();</script></body></html>`);
+      /* ── 80mm thermal receipt paper ─────────────────────── */
+      @page { size: 80mm auto; margin: 0; }
+      * { box-sizing: border-box; }
+      html, body { background: #efe9df; }
+      body {
+        font-family: 'Cairo','Tahoma','Arial', sans-serif;
+        width: 80mm; margin: 0 auto; padding: 6mm 5mm;
+        color: #2a1a0e; font-size: 11.5px; line-height: 1.55;
+        background: #fdfbf6;
+      }
+
+      /* ── Header ─────────────────────────────────────────── */
+      .header { text-align: center; margin-bottom: 6px; }
+      .logo {
+        width: 56px; height: 56px; border-radius: 14px;
+        object-fit: cover; margin: 0 auto 6px;
+        display: block; border: 1.5px solid #C67C4E;
+        box-shadow: 0 2px 6px rgba(198,124,78,0.25);
+      }
+      .logo-fallback {
+        font-size: 32px; line-height: 56px; padding: 0;
+        background: #f6ecd8; color: #6b4119;
+      }
+      .brand {
+        font-size: 16px; font-weight: 800; letter-spacing: 0.3px;
+        color: #4a2c14; margin-top: 4px;
+      }
+      .meta { font-size: 10px; color: #6b513b; margin-top: 1px; }
+
+      /* ── Decorative dividers ───────────────────────────── */
+      .divider {
+        position: relative; text-align: center;
+        margin: 9px 0; height: 12px;
+        background-image: linear-gradient(90deg, transparent 0, transparent 50%, transparent 50%);
+      }
+      .divider::before {
+        content: ""; position: absolute; top: 50%; left: 0; right: 0;
+        height: 1px;
+        background: repeating-linear-gradient(90deg,
+          #b07b4c 0, #b07b4c 3px, transparent 3px, transparent 7px);
+      }
+      .divider span {
+        position: relative; display: inline-block;
+        background: #fdfbf6; padding: 0 8px;
+        font-size: 10px; color: #C67C4E; line-height: 12px;
+      }
+
+      /* ── Title block ───────────────────────────────────── */
+      .title-block { text-align: center; padding: 4px 0; }
+      .title {
+        font-size: 13px; font-weight: 800; color: #4a2c14;
+        letter-spacing: 0.3px;
+      }
+      .subtitle { font-size: 10.5px; color: #6b513b; margin-top: 2px; }
+
+      /* ── Info rows ─────────────────────────────────────── */
+      .info-block {
+        background: #faf3e6; border-radius: 8px;
+        padding: 7px 9px; margin: 8px 0;
+        font-size: 11px; line-height: 1.85;
+      }
+      .info-block b { color: #4a2c14; font-weight: 700; }
+
+      /* ── Section title ─────────────────────────────────── */
+      .sec-title {
+        font-size: 11.5px; font-weight: 700; margin: 10px 0 5px;
+        color: #4a2c14; padding: 4px 8px;
+        background: linear-gradient(90deg, rgba(198,124,78,0.15), transparent);
+        border-right: 3px solid #C67C4E; border-radius: 4px;
+      }
+
+      /* ── Tables ────────────────────────────────────────── */
+      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      thead th {
+        background: #4a2c14; color: #fdfbf6;
+        padding: 5px 4px; font-weight: 700; font-size: 10px;
+      }
+      thead th:first-child { border-radius: 0 6px 6px 0; }
+      thead th:last-child  { border-radius: 6px 0 0 6px; }
+      tbody td {
+        padding: 5px 4px; border-bottom: 1px dashed #d4b896;
+        text-align: right; font-size: 10.5px;
+      }
+      tbody tr:last-child td { border-bottom: none; }
+
+      /* ── Rows / total ──────────────────────────────────── */
+      .row {
+        display: flex; justify-content: space-between;
+        font-size: 11px; padding: 3px 0;
+      }
+      .total {
+        margin-top: 8px; padding: 9px 10px;
+        background: linear-gradient(135deg, #4a2c14 0%, #6b4119 100%);
+        color: #f5d59a; border-radius: 8px;
+        display: flex; justify-content: space-between; align-items: center;
+        font-weight: 800; font-size: 13px;
+        box-shadow: 0 2px 5px rgba(74,44,20,0.3);
+      }
+      .total span:last-child { color: #fdfbf6; font-size: 14px; }
+
+      /* ── Footer ────────────────────────────────────────── */
+      .promo {
+        text-align: center; font-size: 11px;
+        color: #6b4119; font-style: italic; line-height: 1.6;
+        padding: 4px 6px;
+      }
+      .stamp {
+        text-align: center; font-size: 9px;
+        color: #9a7656; margin-top: 6px;
+      }
+      .cut {
+        text-align: center; color: #b07b4c; font-size: 10px;
+        letter-spacing: 1.5px; margin-top: 8px;
+      }
+
+      /* ── Empty state ───────────────────────────────────── */
+      .empty {
+        text-align: center; color: #9a7656;
+        font-size: 10.5px; padding: 10px 0; font-style: italic;
+      }
+
+      /* ── Print mode: pure white background, no shadow ─── */
+      @media print {
+        html, body { background: #fff !important; }
+        body { padding: 4mm 4mm; }
+        .total { box-shadow: none !important;
+          -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
+    </style></head><body>${body}<script>setTimeout(()=>window.print(),250);</script></body></html>`);
   w.document.close();
 }
 
@@ -214,21 +348,21 @@ function OrdersTab({ id }: { id: string }) {
     try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
 
     const rows = (o.items ?? []).map((it: any) =>
-      `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)} OMR</td></tr>`
+      `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`
     ).join("");
     const where = o.type === "dine" ? `طاولة ${o.tableNumber}` : `سيارة: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
 
     const body = `
       ${tplHeaderHtml(tpl, `فاتورة طلب #${o.id?.slice(-6)}`, "")}
-      <div style="font-size:12.5px;color:#222;line-height:1.8;margin-bottom:10px">
+      <div class="info-block">
         <div><b>الزبون:</b> ${o.customerName}</div>
         <div><b>الهاتف:</b> ${o.customerPhone}</div>
         <div><b>المكان:</b> ${where}</div>
         <div><b>التاريخ:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
       </div>
       <div class="sec-title">تفاصيل الطلب</div>
-      <table><thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="total"><span>الإجمالي</span><span>${o.total?.toFixed(3)} OMR</span></div>
+      <table><thead><tr><th>الصنف</th><th>كمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="total"><span>الإجمالي</span><span>${o.total?.toFixed(3)} ر.ع</span></div>
       ${tplFooterHtml(tpl)}
     `;
     openPrintWindow(`فاتورة طلب #${o.id?.slice(-6)}`, body);
@@ -1021,23 +1155,26 @@ async function printDailyInvoice(id: string, dateStr: string) {
   const { inRange, byCat, total } = aggregateOrders(orders, from, to);
 
   const ordersRows = inRange.map(o =>
-    `<tr><td>#${o.id.slice(-5)}</td><td>${o.customerName ?? "-"}</td><td>${fmtDateTimeAr(o.createdAt)}</td><td style="text-align:left">${(Number(o.total)||0).toFixed(3)}</td></tr>`
+    `<tr><td>#${o.id.slice(-5)}</td><td>${o.customerName ?? "-"}</td><td style="font-size:9.5px">${fmtDateTimeAr(o.createdAt)}</td><td style="text-align:left">${(Number(o.total)||0).toFixed(3)}</td></tr>`
   ).join("");
   const catRows = Object.entries(byCat).map(([k, v]) =>
-    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)} OMR</td></tr>`
+    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
   ).join("");
 
   const body = `
-    ${tplHeaderHtml(tpl, "الفاتورة اليومية", `تاريخ: ${fmtDateAr(from)}`)}
-    <div class="sec-title">جميع الطلبات (${inRange.length})</div>
+    ${tplHeaderHtml(tpl, "الفاتورة اليومية", `${fmtDateAr(from)}`)}
+    <div class="info-block">
+      <div><b>عدد الطلبات:</b> ${inRange.length}</div>
+    </div>
+    <div class="sec-title">جميع الطلبات</div>
     ${inRange.length === 0
-      ? `<div style="text-align:center;color:#888;font-size:12px;padding:14px">لا توجد طلبات في هذا اليوم</div>`
-      : `<table><thead><tr><th>رقم</th><th>الزبون</th><th>التاريخ والتوقيت</th><th>المبلغ</th></tr></thead><tbody>${ordersRows}</tbody></table>`}
+      ? `<div class="empty">لا توجد طلبات في هذا اليوم</div>`
+      : `<table><thead><tr><th>رقم</th><th>الزبون</th><th>الوقت</th><th>المبلغ</th></tr></thead><tbody>${ordersRows}</tbody></table>`}
     <div class="sec-title">المجموع حسب التصنيف</div>
     ${Object.keys(byCat).length === 0
-      ? `<div style="text-align:center;color:#888;font-size:12px;padding:8px">لا يوجد</div>`
+      ? `<div class="empty">لا يوجد</div>`
       : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
-    <div class="total"><span>إجمالي اليوم</span><span>${total.toFixed(3)} OMR</span></div>
+    <div class="total"><span>إجمالي اليوم</span><span>${total.toFixed(3)} ر.ع</span></div>
     ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة يومية ${dateStr}`, body);
@@ -1052,20 +1189,23 @@ async function printMonthlyInvoice(id: string, year: number, month: number) {
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
   const net = ordersTotal - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
-    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)} OMR</td></tr>`
+    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
   ).join("");
   const monthName = from.toLocaleDateString("ar-OM", { month: "long", year: "numeric" });
 
   const body = `
-    ${tplHeaderHtml(tpl, "الفاتورة الشهرية", `${monthName} • من ${fmtDateAr(from)} إلى ${fmtDateAr(new Date(to.getTime()-1))}`)}
-    <div class="row"><span>عدد الطلبات</span><b>${ordersIn.length}</b></div>
-    <div class="sec-title">عدد الطلبات والمبالغ حسب التصنيف</div>
+    ${tplHeaderHtml(tpl, "الفاتورة الشهرية", `${monthName}`)}
+    <div class="info-block">
+      <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
+      <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
+    </div>
+    <div class="sec-title">المبالغ حسب التصنيف</div>
     ${Object.keys(byCat).length === 0
-      ? `<div style="text-align:center;color:#888;font-size:12px;padding:8px">لا يوجد</div>`
+      ? `<div class="empty">لا يوجد</div>`
       : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
-    <div class="row" style="margin-top:12px"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} OMR</b></div>
-    ${expTotal > 0 ? `<div class="row" style="color:#a40000"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} OMR</b></div>` : ""}
-    <div class="total"><span>الصافي</span><span>${net.toFixed(3)} OMR</span></div>
+    <div class="row" style="margin-top:10px;font-weight:600"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} ر.ع</b></div>
+    ${expTotal > 0 ? `<div class="row" style="color:#a40000;font-weight:600"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} ر.ع</b></div>` : ""}
+    <div class="total"><span>الصافي</span><span>${net.toFixed(3)} ر.ع</span></div>
     ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة شهرية ${year}-${String(month).padStart(2,"0")}`, body);
@@ -1080,19 +1220,22 @@ async function printYearlyInvoice(id: string, year: number) {
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
   const net = ordersTotal - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
-    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)} OMR</td></tr>`
+    `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
   ).join("");
 
   const body = `
     ${tplHeaderHtml(tpl, "الفاتورة السنوية", `سنة ${year}`)}
-    <div class="row"><span>عدد الطلبات</span><b>${ordersIn.length}</b></div>
-    <div class="sec-title">عدد الطلبات والمبالغ حسب التصنيف</div>
+    <div class="info-block">
+      <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
+      <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
+    </div>
+    <div class="sec-title">المبالغ حسب التصنيف</div>
     ${Object.keys(byCat).length === 0
-      ? `<div style="text-align:center;color:#888;font-size:12px;padding:8px">لا يوجد</div>`
+      ? `<div class="empty">لا يوجد</div>`
       : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
-    <div class="row" style="margin-top:12px"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} OMR</b></div>
-    ${expTotal > 0 ? `<div class="row" style="color:#a40000"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} OMR</b></div>` : ""}
-    <div class="total"><span>الصافي السنوي</span><span>${net.toFixed(3)} OMR</span></div>
+    <div class="row" style="margin-top:10px;font-weight:600"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} ر.ع</b></div>
+    ${expTotal > 0 ? `<div class="row" style="color:#a40000;font-weight:600"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} ر.ع</b></div>` : ""}
+    <div class="total"><span>الصافي السنوي</span><span>${net.toFixed(3)} ر.ع</span></div>
     ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة سنوية ${year}`, body);
@@ -1102,16 +1245,16 @@ async function printExpenseInvoice(id: string, exp: any) {
   const tpl = (await api.invoiceTemplate(id, "expense").catch(() => ({ template: null }))).template;
   const body = `
     ${tplHeaderHtml(tpl, `فاتورة مصروف #${exp.id?.slice(-5)}`, "")}
-    <div style="font-size:12.5px;color:#222;line-height:1.8;margin-bottom:10px">
+    <div class="info-block">
       <div><b>التاريخ:</b> ${exp.date}</div>
       <div><b>التصنيف:</b> ${exp.category}</div>
     </div>
     <div class="sec-title">تفاصيل المصروف</div>
     <table><thead><tr><th>البيان</th><th>التصنيف</th><th>المبلغ</th></tr></thead><tbody>
-      <tr><td>${exp.title}</td><td>${exp.category}</td><td style="text-align:left">${(Number(exp.amount)||0).toFixed(3)} OMR</td></tr>
+      <tr><td>${exp.title}</td><td>${exp.category}</td><td style="text-align:left">${(Number(exp.amount)||0).toFixed(3)}</td></tr>
     </tbody></table>
-    ${exp.notes ? `<div style="font-size:12px;color:#444;margin-top:8px"><b>ملاحظات:</b> ${exp.notes}</div>` : ""}
-    <div class="total"><span>المجموع</span><span>${(Number(exp.amount)||0).toFixed(3)} OMR</span></div>
+    ${exp.notes ? `<div class="info-block" style="margin-top:8px"><b>ملاحظات:</b> ${exp.notes}</div>` : ""}
+    <div class="total"><span>المجموع</span><span>${(Number(exp.amount)||0).toFixed(3)} ر.ع</span></div>
     ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة مصروف #${exp.id?.slice(-5)}`, body);
