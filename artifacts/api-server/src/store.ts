@@ -26,7 +26,7 @@ export interface CafeTable {
   hourlyPricing?: { hours: number; price: number }[];
 }
 export interface Order {
-  id: string; cafeId: string; customerName: string; customerPhone: string;
+  id: string; cafeId: string; customerName: string; customerNameEn?: string; customerPhone: string;
   items: { name: string; qty: number; price: number; category?: string }[];
   subtotal?: number;
   discountCode?: string;

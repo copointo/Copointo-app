@@ -413,7 +413,7 @@ function OrdersTab({ id }: { id: string }) {
     const body = `
 ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 <tr><td class="cell info-cell">
-  <div><b>الزبون / Customer:</b> ${o.customerName}</div>
+  <div><b>الزبون / Customer:</b> ${o.customerName}${o.customerNameEn ? ` <span style="direction:ltr;display:inline-block">(${o.customerNameEn})</span>` : ""}</div>
   <div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
   <div><b>المكان / Location:</b> ${where}</div>
   <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>

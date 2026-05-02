@@ -101,12 +101,14 @@ export default function CartScreen() {
   const [typeModal, setTypeModal] = useState(false);
 
   // Dine-in form
-  const [dineName,  setDineName]  = useState("");
-  const [dinePhone, setDinePhone] = useState("");
+  const [dineName,   setDineName]   = useState("");
+  const [dineNameEn, setDineNameEn] = useState("");
+  const [dinePhone,  setDinePhone]  = useState("");
   const [dineTable, setDineTable] = useState("");
 
   // Car form
   const [carName,      setCarName]      = useState("");
+  const [carNameEn,    setCarNameEn]    = useState("");
   const [carPhone,     setCarPhone]     = useState("");
   const [carPlateNum,  setCarPlateNum]  = useState("");
   const [carPlateChar, setCarPlateChar] = useState("");
@@ -169,10 +171,13 @@ export default function CartScreen() {
       const cafeName = cart[0].cafeName;
       const totalQty = cart.reduce((s, i) => s + i.quantity, 0);
       const prepMin  = totalQty * 3; // 3 minutes per item
-      const customerName  = isDine ? dineName.trim() : carName.trim();
-      const customerPhone = isDine ? dinePhone.trim() : carPhone.trim();
+      const customerName   = isDine ? dineName.trim() : carName.trim();
+      const customerNameEn = isDine ? dineNameEn.trim() : carNameEn.trim();
+      const customerPhone  = isDine ? dinePhone.trim() : carPhone.trim();
       const payload: any = {
-        customerName, customerPhone,
+        customerName,
+        ...(customerNameEn ? { customerNameEn } : {}),
+        customerPhone,
         items: cart.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
         total: cartTotal,
         type: isDine ? "dine" : "car",
@@ -313,6 +318,12 @@ export default function CartScreen() {
               value={isDine ? dineName : carName}
               onChange={isDine ? setDineName : setCarName}
               placeholder="أدخل اسمك الكامل"
+            />
+            <Field
+              label="Full Name (English)" icon="🔤"
+              value={isDine ? dineNameEn : carNameEn}
+              onChange={isDine ? setDineNameEn : setCarNameEn}
+              placeholder="Enter your name in English"
             />
             <Field
               label="رقم الهاتف" icon="📞"
