@@ -433,7 +433,12 @@ ${tplFooterHtml(tpl)}
         <Card key={o.id} className="p-5">
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
-              <p className="font-semibold text-foreground">{o.customerName}</p>
+              <p className="font-semibold text-foreground">
+                {o.customerName}
+                {o.customerNameEn ? (
+                  <span className="ml-2 text-xs text-muted-foreground" dir="ltr">({o.customerNameEn})</span>
+                ) : null}
+              </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {o.customerPhone} •{" "}
                 {o.type === "dine"
