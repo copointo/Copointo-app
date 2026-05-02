@@ -150,21 +150,21 @@ function classifyItem(name: string, original?: string): string {
 
 function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
   const logoHtml = tpl?.logo
-    ? `<img src="${tpl.logo}" width="80" height="80" class="logo" alt="">`
-    : `<div class="logo logo-fallback">☕</div>`;
+    ? `<img src="${tpl.logo}" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;max-width:50mm;max-height:50mm;object-fit:contain" alt="">`
+    : `<div style="width:160px;height:160px;font-size:96px;line-height:160px;text-align:center;margin:0 auto">☕</div>`;
   return `
-    <div class="header">
-      ${logoHtml}
-      <div class="brand">${tpl?.cafeName ?? ""}</div>
-      ${tpl?.commercialReg ? `<div class="meta">س.ت • ${tpl.commercialReg}</div>` : ""}
-      ${tpl?.contactPhone  ? `<div class="meta">${tpl.contactPhone}</div>` : ""}
-    </div>
-    <div class="divider">— — — — ✦ — — — —</div>
-    <div class="title-block">
-      <div class="title">${title}</div>
-      ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
-    </div>
-    <div class="divider">— — — — ✦ — — — —</div>
+<tr><td class="cell" style="text-align:center;padding:2mm 0 1mm">
+  ${logoHtml}
+</td></tr>
+<tr><td class="cell" style="text-align:center;font-size:17px;font-weight:bold;padding:2mm 0 0">
+  ${tpl?.cafeName ?? ""}
+</td></tr>
+${tpl?.commercialReg ? `<tr><td class="cell" style="text-align:center;font-size:11px;padding:1mm 0 0">س.ت • ${tpl.commercialReg}</td></tr>` : ""}
+${tpl?.contactPhone  ? `<tr><td class="cell" style="text-align:center;font-size:11px;padding:0">${tpl.contactPhone}</td></tr>` : ""}
+<tr><td class="cell" style="text-align:center;font-size:11px;padding:2mm 0;letter-spacing:1px">— — — — ✦ — — — —</td></tr>
+<tr><td class="cell" style="text-align:center;font-size:15px;font-weight:bold;padding:1mm 0">${title}</td></tr>
+${subtitle ? `<tr><td class="cell" style="text-align:center;font-size:12px;padding:0 0 1mm">${subtitle}</td></tr>` : ""}
+<tr><td class="cell" style="text-align:center;font-size:11px;padding:1mm 0 2mm;letter-spacing:1px">— — — — ✦ — — — —</td></tr>
   `;
 }
 
@@ -174,10 +174,10 @@ function tplFooterHtml(tpl: any): string {
     year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit",
   });
   return `
-    <div class="divider">— — — — ✦ — — — —</div>
-    <div class="promo">${promo}</div>
-    <div class="stamp">طُبعت في: ${stamp}</div>
-    <div class="cut">✂ — — — — — — — — — — ✂</div>
+<tr><td class="cell" style="text-align:center;font-size:11px;padding:2mm 0 1mm;letter-spacing:1px">— — — — ✦ — — — —</td></tr>
+<tr><td class="cell" style="text-align:center;font-size:12px;font-style:italic;padding:1mm 0;line-height:1.5">${promo}</td></tr>
+<tr><td class="cell" style="text-align:center;font-size:10px;padding:1mm 0 0">طُبعت في: ${stamp}</td></tr>
+<tr><td class="cell" style="text-align:center;font-size:11px;padding:2mm 0 1mm;letter-spacing:1px">✂ — — — — — — — — — — ✂</td></tr>
   `;
 }
 
@@ -191,236 +191,138 @@ function openPrintWindow(title: string, body: string) {
   <meta charset="utf-8">
   <title>${title}</title>
   <style>
-    /* ── MHT-POS58 thermal (58mm paper) ── */
+    /* ── MHT-POS58 thermal printer: 58mm wide paper ── */
     @page { size: 58mm auto; margin: 0; }
 
-    /* Strict reset: no positioning, no floats anywhere */
-    * {
-      box-sizing: border-box !important;
-      margin: 0;
-      padding: 0;
-      position: static !important;
-      float: none !important;
-      clear: both !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
       background: #fff;
       color: #000;
-      font-family: 'Tahoma', 'Arial', 'Segoe UI', sans-serif;
-      font-size: 12px;
-      line-height: 1.45;
-      width: 100%;
-      visibility: hidden;          /* hide until ready, no overlay needed */
+      font-family: 'Tahoma','Arial','Segoe UI',sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      visibility: hidden;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     body.ready { visibility: visible; }
 
-    /* ── Receipt: matches 58mm paper exactly, centered horizontally ── */
-    .receipt {
-      display: block;
+    /* ── Receipt is a TABLE: rows render top→bottom, period. ── */
+    table.receipt {
       width: 58mm;
-      margin: 0 auto;              /* center on any page size */
-      padding: 2mm 1.5mm;
+      max-width: 58mm;
+      margin: 0 auto;          /* horizontal centering on any page */
+      border-collapse: collapse;
+      border-spacing: 0;
+      table-layout: fixed;
+      direction: rtl;
       background: #fff;
       color: #000;
-      direction: rtl;
-      text-align: right;
     }
-
-    /* Force every direct child of receipt to be a simple block */
-    .receipt > * {
-      display: block;
+    table.receipt > tbody > tr > td.cell {
       width: 100%;
-      clear: both !important;
+      padding: 0 1.5mm;
+      vertical-align: top;
+      color: #000;
+      background: #fff;
     }
 
-    /* ── Header ── */
-    .header {
-      text-align: center;
-      margin-bottom: 4px;
-    }
-    .header > * {
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    .logo {
-      width: 80px;
-      height: 80px;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto 4px;
-    }
-    .logo-fallback {
-      width: 80px;
-      height: 80px;
-      font-size: 56px;
-      line-height: 80px;
-      text-align: center;
-      margin: 0 auto 4px;
-    }
-    .brand {
-      font-size: 15px;
-      font-weight: bold;
-      text-align: center;
-      margin: 4px 0 0;
-    }
-    .meta {
-      font-size: 10px;
-      text-align: center;
-      margin-top: 1px;
-    }
-
-    /* ── Divider: pure text ── */
-    .divider {
-      text-align: center;
-      font-size: 10px;
-      margin: 5px 0;
-      letter-spacing: 1px;
-      overflow: hidden;
-    }
-
-    /* ── Title block ── */
-    .title-block {
-      text-align: center;
-      margin: 4px 0;
-    }
-    .title-block > * {
-      text-align: center;
-      display: block;
-    }
-    .title {
-      font-size: 14px;
-      font-weight: bold;
-    }
-    .subtitle {
-      font-size: 11px;
-      margin-top: 2px;
-    }
-
-    /* ── Info block (customer/date) ── */
-    .info-block {
-      font-size: 11px;
-      line-height: 1.65;
-      margin: 5px 0;
-      text-align: right;
-      padding: 2px 0;
-    }
-    .info-block > div {
-      display: block;
-      margin: 1px 0;
-      text-align: right;
-    }
-    .info-block b { font-weight: bold; }
-
-    /* ── Section title ── */
-    .sec-title {
+    /* ── Section cells ── */
+    .info-cell {
       font-size: 12px;
+      line-height: 1.7;
+      text-align: right;
+      padding: 2mm 1.5mm !important;
+    }
+    .info-cell > div { margin: 0.3mm 0; text-align: right; }
+    .info-cell b { font-weight: bold; }
+
+    .sec-title-cell {
+      font-size: 13px;
       font-weight: bold;
       text-align: center;
       border-top: 1px solid #000;
       border-bottom: 1px solid #000;
-      padding: 3px 0;
-      margin: 6px 0 3px;
+      padding: 1.5mm 1.5mm !important;
+      margin: 0;
     }
 
-    /* ── Tables ── */
-    table {
+    .items-cell {
+      padding: 1mm 1mm !important;
+    }
+
+    /* ── Inner items table (full receipt width) ── */
+    table.items {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11px;
       table-layout: fixed;
+      font-size: 11px;
     }
-    thead th {
+    table.items thead th {
       font-weight: bold;
       border-bottom: 1px solid #000;
-      padding: 3px 1px;
+      padding: 2px 1px;
       text-align: center;
-      font-size: 10px;
+      font-size: 11px;
+      color: #000;
     }
-    tbody td {
-      padding: 3px 1px;
+    table.items tbody td {
+      padding: 2px 1px;
       vertical-align: top;
-      font-size: 10.5px;
+      font-size: 11px;
+      color: #000;
       word-wrap: break-word;
       overflow-wrap: break-word;
     }
-    tbody tr {
-      border-bottom: 1px dashed #777;
+    table.items tbody tr {
+      border-bottom: 1px dashed #888;
     }
-    tbody tr:last-child { border-bottom: none; }
+    table.items tbody tr:last-child { border-bottom: none; }
 
-    /* ── Row (label + value) ── */
-    .row {
-      display: table !important;
-      width: 100%;
+    .empty-inner {
+      text-align: center;
       font-size: 11px;
-      padding: 2px 0;
-      table-layout: fixed;
+      padding: 3mm 0;
+      font-style: italic;
     }
-    .row > span {
-      display: table-cell !important;
+
+    /* ── Row cell: label + value (sub-table for guaranteed two-column) ── */
+    .row-cell {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 1mm 1.5mm !important;
+    }
+    .row-cell .lbl, .row-cell .val {
+      display: inline-block;
+      width: 49%;
       vertical-align: middle;
     }
-    .row > span:first-child { text-align: right; }
-    .row > span:last-child  { text-align: left; }
+    .row-cell .lbl { text-align: right; }
+    .row-cell .val { text-align: left; }
 
-    /* ── Total ── */
-    .total {
-      display: table !important;
-      width: 100%;
+    /* ── Total cell ── */
+    .total-cell {
+      font-size: 14px;
+      font-weight: bold;
       border-top: 2px solid #000;
       border-bottom: 2px solid #000;
-      padding: 6px 2px;
-      margin-top: 6px;
-      font-weight: bold;
-      font-size: 13px;
-      table-layout: fixed;
+      padding: 2.5mm 1.5mm !important;
     }
-    .total > span {
-      display: table-cell !important;
+    .total-cell .lbl, .total-cell .val {
+      display: inline-block;
+      width: 49%;
       vertical-align: middle;
     }
-    .total > span:first-child { text-align: right; }
-    .total > span:last-child  { text-align: left; font-size: 14px; }
-
-    /* ── Footer ── */
-    .promo {
-      text-align: center;
-      font-size: 11px;
-      margin-top: 5px;
-      line-height: 1.5;
-      font-style: italic;
-    }
-    .stamp {
-      text-align: center;
-      font-size: 9px;
-      margin-top: 3px;
-    }
-    .cut {
-      text-align: center;
-      font-size: 10px;
-      margin-top: 5px;
-      letter-spacing: 1px;
-      overflow: hidden;
-    }
-
-    /* ── Empty state ── */
-    .empty {
-      text-align: center;
-      font-size: 10.5px;
-      padding: 5px 0;
-      font-style: italic;
-    }
+    .total-cell .lbl { text-align: right; }
+    .total-cell .val { text-align: left; font-size: 15px; }
 
     @media print {
       body { visibility: visible !important; }
-      .receipt { width: 58mm !important; padding: 1.5mm 1mm !important; }
+      table.receipt { width: 58mm !important; }
     }
   </style></head><body>
-    <div class="receipt">${body}</div>
+    <table class="receipt"><tbody>${body}</tbody></table>
     <script>
       (function() {
         var printed = false;
@@ -431,7 +333,7 @@ function openPrintWindow(title: string, body: string) {
           try { window.focus(); } catch(e) {}
           setTimeout(function() {
             try { window.print(); } catch(e) {}
-          }, 80);
+          }, 100);
         }
         function whenReady() {
           var fontsP = (document.fonts && document.fonts.ready)
@@ -494,17 +396,17 @@ function OrdersTab({ id }: { id: string }) {
     const where = o.type === "dine" ? `طاولة ${o.tableNumber}` : `سيارة: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
 
     const body = `
-      ${tplHeaderHtml(tpl, `فاتورة طلب #${o.id?.slice(-6)}`, "")}
-      <div class="info-block">
-        <div><b>الزبون:</b> ${o.customerName}</div>
-        <div><b>الهاتف:</b> ${o.customerPhone}</div>
-        <div><b>المكان:</b> ${where}</div>
-        <div><b>التاريخ:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
-      </div>
-      <div class="sec-title">تفاصيل الطلب</div>
-      <table><thead><tr><th>الصنف</th><th>كمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="total"><span>الإجمالي</span><span>${o.total?.toFixed(3)} ر.ع</span></div>
-      ${tplFooterHtml(tpl)}
+${tplHeaderHtml(tpl, `فاتورة طلب #${o.id?.slice(-6)}`, "")}
+<tr><td class="cell info-cell">
+  <div><b>الزبون:</b> ${o.customerName}</div>
+  <div><b>الهاتف:</b> ${o.customerPhone}</div>
+  <div><b>المكان:</b> ${where}</div>
+  <div><b>التاريخ:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">تفاصيل الطلب</td></tr>
+<tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف</th><th>كمية</th><th>السعر</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
+<tr><td class="cell total-cell"><span class="lbl">الإجمالي</span><span class="val">${o.total?.toFixed(3)} ر.ع</span></td></tr>
+${tplFooterHtml(tpl)}
     `;
     openPrintWindow(`فاتورة طلب #${o.id?.slice(-6)}`, body);
   };
@@ -1303,20 +1205,20 @@ async function printDailyInvoice(id: string, dateStr: string) {
   ).join("");
 
   const body = `
-    ${tplHeaderHtml(tpl, "الفاتورة اليومية", `${fmtDateAr(from)}`)}
-    <div class="info-block">
-      <div><b>عدد الطلبات:</b> ${inRange.length}</div>
-    </div>
-    <div class="sec-title">جميع الطلبات</div>
-    ${inRange.length === 0
-      ? `<div class="empty">لا توجد طلبات في هذا اليوم</div>`
-      : `<table><thead><tr><th>رقم</th><th>الزبون</th><th>الوقت</th><th>المبلغ</th></tr></thead><tbody>${ordersRows}</tbody></table>`}
-    <div class="sec-title">المجموع حسب التصنيف</div>
-    ${Object.keys(byCat).length === 0
-      ? `<div class="empty">لا يوجد</div>`
-      : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
-    <div class="total"><span>إجمالي اليوم</span><span>${total.toFixed(3)} ر.ع</span></div>
-    ${tplFooterHtml(tpl)}
+${tplHeaderHtml(tpl, "الفاتورة اليومية", `${fmtDateAr(from)}`)}
+<tr><td class="cell info-cell">
+  <div><b>عدد الطلبات:</b> ${inRange.length}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">جميع الطلبات</td></tr>
+<tr><td class="cell items-cell">${inRange.length === 0
+  ? `<div class="empty-inner">لا توجد طلبات في هذا اليوم</div>`
+  : `<table class="items"><thead><tr><th>رقم</th><th>الزبون</th><th>الوقت</th><th>المبلغ</th></tr></thead><tbody>${ordersRows}</tbody></table>`}</td></tr>
+<tr><td class="cell sec-title-cell">المجموع حسب التصنيف</td></tr>
+<tr><td class="cell items-cell">${Object.keys(byCat).length === 0
+  ? `<div class="empty-inner">لا يوجد</div>`
+  : `<table class="items"><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+<tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم</span><span class="val">${total.toFixed(3)} ر.ع</span></td></tr>
+${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة يومية ${dateStr}`, body);
 }
@@ -1335,19 +1237,19 @@ async function printMonthlyInvoice(id: string, year: number, month: number) {
   const monthName = from.toLocaleDateString("ar-OM", { month: "long", year: "numeric" });
 
   const body = `
-    ${tplHeaderHtml(tpl, "الفاتورة الشهرية", `${monthName}`)}
-    <div class="info-block">
-      <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
-      <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
-    </div>
-    <div class="sec-title">المبالغ حسب التصنيف</div>
-    ${Object.keys(byCat).length === 0
-      ? `<div class="empty">لا يوجد</div>`
-      : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
-    <div class="row" style="margin-top:10px;font-weight:600"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} ر.ع</b></div>
-    ${expTotal > 0 ? `<div class="row" style="color:#a40000;font-weight:600"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} ر.ع</b></div>` : ""}
-    <div class="total"><span>الصافي</span><span>${net.toFixed(3)} ر.ع</span></div>
-    ${tplFooterHtml(tpl)}
+${tplHeaderHtml(tpl, "الفاتورة الشهرية", `${monthName}`)}
+<tr><td class="cell info-cell">
+  <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
+  <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">المبالغ حسب التصنيف</td></tr>
+<tr><td class="cell items-cell">${Object.keys(byCat).length === 0
+  ? `<div class="empty-inner">لا يوجد</div>`
+  : `<table class="items"><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات</span><span class="val">${ordersTotal.toFixed(3)} ر.ع</span></td></tr>
+${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف</span><span class="val">− ${expTotal.toFixed(3)} ر.ع</span></td></tr>` : ""}
+<tr><td class="cell total-cell"><span class="lbl">الصافي</span><span class="val">${net.toFixed(3)} ر.ع</span></td></tr>
+${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة شهرية ${year}-${String(month).padStart(2,"0")}`, body);
 }
@@ -1365,19 +1267,19 @@ async function printYearlyInvoice(id: string, year: number) {
   ).join("");
 
   const body = `
-    ${tplHeaderHtml(tpl, "الفاتورة السنوية", `سنة ${year}`)}
-    <div class="info-block">
-      <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
-      <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
-    </div>
-    <div class="sec-title">المبالغ حسب التصنيف</div>
-    ${Object.keys(byCat).length === 0
-      ? `<div class="empty">لا يوجد</div>`
-      : `<table><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}
-    <div class="row" style="margin-top:10px;font-weight:600"><span>مجموع الإيرادات</span><b>${ordersTotal.toFixed(3)} ر.ع</b></div>
-    ${expTotal > 0 ? `<div class="row" style="color:#a40000;font-weight:600"><span>إجمالي المصاريف</span><b>− ${expTotal.toFixed(3)} ر.ع</b></div>` : ""}
-    <div class="total"><span>الصافي السنوي</span><span>${net.toFixed(3)} ر.ع</span></div>
-    ${tplFooterHtml(tpl)}
+${tplHeaderHtml(tpl, "الفاتورة السنوية", `سنة ${year}`)}
+<tr><td class="cell info-cell">
+  <div><b>الفترة:</b> ${fmtDateAr(from)} — ${fmtDateAr(new Date(to.getTime()-1))}</div>
+  <div><b>عدد الطلبات:</b> ${ordersIn.length}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">المبالغ حسب التصنيف</td></tr>
+<tr><td class="cell items-cell">${Object.keys(byCat).length === 0
+  ? `<div class="empty-inner">لا يوجد</div>`
+  : `<table class="items"><thead><tr><th>التصنيف</th><th>الكمية</th><th>المبلغ</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات</span><span class="val">${ordersTotal.toFixed(3)} ر.ع</span></td></tr>
+${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف</span><span class="val">− ${expTotal.toFixed(3)} ر.ع</span></td></tr>` : ""}
+<tr><td class="cell total-cell"><span class="lbl">الصافي السنوي</span><span class="val">${net.toFixed(3)} ر.ع</span></td></tr>
+${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة سنوية ${year}`, body);
 }
@@ -1385,18 +1287,18 @@ async function printYearlyInvoice(id: string, year: number) {
 async function printExpenseInvoice(id: string, exp: any) {
   const tpl = (await api.invoiceTemplate(id, "expense").catch(() => ({ template: null }))).template;
   const body = `
-    ${tplHeaderHtml(tpl, `فاتورة مصروف #${exp.id?.slice(-5)}`, "")}
-    <div class="info-block">
-      <div><b>التاريخ:</b> ${exp.date}</div>
-      <div><b>التصنيف:</b> ${exp.category}</div>
-    </div>
-    <div class="sec-title">تفاصيل المصروف</div>
-    <table><thead><tr><th>البيان</th><th>التصنيف</th><th>المبلغ</th></tr></thead><tbody>
-      <tr><td>${exp.title}</td><td>${exp.category}</td><td style="text-align:left">${(Number(exp.amount)||0).toFixed(3)}</td></tr>
-    </tbody></table>
-    ${exp.notes ? `<div class="info-block" style="margin-top:8px"><b>ملاحظات:</b> ${exp.notes}</div>` : ""}
-    <div class="total"><span>المجموع</span><span>${(Number(exp.amount)||0).toFixed(3)} ر.ع</span></div>
-    ${tplFooterHtml(tpl)}
+${tplHeaderHtml(tpl, `فاتورة مصروف #${exp.id?.slice(-5)}`, "")}
+<tr><td class="cell info-cell">
+  <div><b>التاريخ:</b> ${exp.date}</div>
+  <div><b>التصنيف:</b> ${exp.category}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">تفاصيل المصروف</td></tr>
+<tr><td class="cell items-cell"><table class="items"><thead><tr><th>البيان</th><th>التصنيف</th><th>المبلغ</th></tr></thead><tbody>
+  <tr><td>${exp.title}</td><td>${exp.category}</td><td style="text-align:left">${(Number(exp.amount)||0).toFixed(3)}</td></tr>
+</tbody></table></td></tr>
+${exp.notes ? `<tr><td class="cell info-cell"><b>ملاحظات:</b> ${exp.notes}</td></tr>` : ""}
+<tr><td class="cell total-cell"><span class="lbl">المجموع</span><span class="val">${(Number(exp.amount)||0).toFixed(3)} ر.ع</span></td></tr>
+${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة مصروف #${exp.id?.slice(-5)}`, body);
 }
