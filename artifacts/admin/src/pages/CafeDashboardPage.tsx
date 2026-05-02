@@ -191,8 +191,8 @@ function openPrintWindow(title: string, body: string) {
   <meta charset="utf-8">
   <title>${title}</title>
   <style>
-    /* ── MHT-POS58 thermal printer: 58mm wide paper, very tall page to prevent any split ── */
-    @page { size: 58mm 600mm; margin: 0; }
+    /* ── MHT-POS58 thermal printer: 58mm wide paper, auto height = exact content size ── */
+    @page { size: 58mm auto; margin: 0; }
 
     * {
       box-sizing: border-box;
