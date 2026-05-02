@@ -150,8 +150,8 @@ function classifyItem(name: string, original?: string): string {
 
 function tplHeaderHtml(tpl: any, title: string, subtitle: string): string {
   const logoHtml = tpl?.logo
-    ? `<img src="${tpl.logo}" width="160" height="160" style="display:block;margin:0 auto;width:160px;height:160px;max-width:50mm;max-height:50mm;object-fit:contain" alt="">`
-    : `<div style="width:160px;height:160px;font-size:96px;line-height:160px;text-align:center;margin:0 auto">☕</div>`;
+    ? `<img src="${tpl.logo}" width="180" height="180" style="display:block;margin:0 auto;width:180px;height:180px;max-width:54mm;max-height:54mm;object-fit:contain;filter:grayscale(100%) contrast(1.8) brightness(0.75);-webkit-filter:grayscale(100%) contrast(1.8) brightness(0.75)" alt="">`
+    : `<div style="width:180px;height:180px;font-size:108px;line-height:180px;text-align:center;margin:0 auto;color:#000">☕</div>`;
   return `
 <tr><td class="cell" style="text-align:center;padding:2mm 0 1mm">
   ${logoHtml}
@@ -191,10 +191,16 @@ function openPrintWindow(title: string, body: string) {
   <meta charset="utf-8">
   <title>${title}</title>
   <style>
-    /* ── MHT-POS58 thermal printer: 58mm wide paper ── */
-    @page { size: 58mm auto; margin: 0; }
+    /* ── MHT-POS58 thermal printer: 58mm wide paper, very tall page to prevent any split ── */
+    @page { size: 58mm 600mm; margin: 0; }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
 
     html, body {
       background: #fff;
@@ -219,6 +225,10 @@ function openPrintWindow(title: string, body: string) {
       direction: rtl;
       background: #fff;
       color: #000;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      page-break-after: avoid !important;
+      break-after: avoid !important;
     }
     table.receipt > tbody > tr > td.cell {
       width: 100%;
@@ -226,6 +236,8 @@ function openPrintWindow(title: string, body: string) {
       vertical-align: top;
       color: #000;
       background: #fff;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
     }
 
     /* ── Section cells ── */
