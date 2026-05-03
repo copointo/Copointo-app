@@ -71,7 +71,20 @@ const PRIMARY = "#E8B86D";
 // ── Native-safe video element. On web we use <video>, on native a placeholder
 // thumbnail (full Expo video integration is out of scope for this slice;
 // the user is testing in the web preview iframe).
-function ReelVideo({ src, isActive }: { src: string; isActive: boolean }) {
+function ReelVideo({ src, isActive, muted }: { src: string; isActive: boolean; muted: boolean }) {
+  const videoRef = useRef<any>(null);
+  // Imperatively sync the muted property so the user can unmute mid-playback
+  // without React tearing down the <video> element.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = muted;
+    if (isActive) {
+      const p = el.play?.();
+      if (p && typeof p.catch === "function") p.catch(() => { /* autoplay may be blocked when unmuted */ });
+    }
+  }, [muted, isActive]);
+
   if (Platform.OS === "web") {
     // Relative API paths (e.g. "/api/reels/123/video") must be resolved
     // against the API origin — the Expo web app is served from a different
@@ -80,10 +93,11 @@ function ReelVideo({ src, isActive }: { src: string; isActive: boolean }) {
       ? src
       : `${API_BASE}${src.replace(/^\/api/, "")}`;
     return React.createElement("video" as any, {
+      ref: videoRef,
       src: resolved,
       autoPlay: isActive,
       loop: true,
-      muted: true,
+      muted,
       playsInline: true,
       // Instagram-like: only the active reel pre-buffers, neighbours lazy-load
       // metadata. The browser's native HTTP Range buffering will pause/stall
@@ -108,6 +122,8 @@ function ReelVideo({ src, isActive }: { src: string; isActive: boolean }) {
 function ReelCard({
   reel,
   isActive,
+  muted,
+  onToggleMute,
   onLike,
   onOpenComments,
   onOrder,
@@ -116,6 +132,8 @@ function ReelCard({
 }: {
   reel: Reel;
   isActive: boolean;
+  muted: boolean;
+  onToggleMute: () => void;
   onLike: () => void;
   onOpenComments: () => void;
   onOrder: () => void;
@@ -139,7 +157,7 @@ function ReelCard({
   return (
     <View style={[styles.card, { height: VIDEO_HEIGHT }]}>
       <View style={styles.videoLayer}>
-        <ReelVideo src={reel.videoUrl} isActive={isActive} />
+        <ReelVideo src={reel.videoUrl} isActive={isActive} muted={muted} />
         <View style={styles.scrim} />
       </View>
 
@@ -187,9 +205,19 @@ function ReelCard({
             <Text style={styles.detailsBtnText}>اقرأ التفاصيل</Text>
           </TouchableOpacity>
         )}
-        <View style={styles.viewsChip}>
-          <Feather name="eye" size={12} color="#fff" />
-          <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
+        <View style={styles.bottomRow}>
+          <TouchableOpacity
+            onPress={onToggleMute}
+            style={styles.muteBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name={muted ? "volume-x" : "volume-2"} size={14} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.viewsChip}>
+            <Feather name="eye" size={12} color="#fff" />
+            <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
+          </View>
         </View>
       </View>
 
@@ -237,6 +265,10 @@ export default function VideosScreen() {
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Reels start muted (browsers block autoplay-with-sound). The user can
+  // unmute via the small speaker button at the bottom-left of any reel; the
+  // state is shared across all reels so they keep the same audio preference.
+  const [muted, setMuted] = useState(true);
   const [commentsOpenFor, setCommentsOpenFor] = useState<Reel | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -367,6 +399,8 @@ export default function VideosScreen() {
           <ReelCard
             reel={item}
             isActive={index === activeIndex}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
             onLike={() => handleLike(item)}
             onOpenComments={() => openComments(item)}
             onOrder={() => handleOrder(item)}
@@ -454,9 +488,16 @@ const styles = StyleSheet.create({
   },
   railIconLabel: { color: "#000", fontSize: 9, fontWeight: "700", marginTop: 1 },
   viewsChip: {
-    flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
+    flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
-    backgroundColor: "rgba(0,0,0,0.5)", marginTop: 8,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  bottomRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  muteBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center", justifyContent: "center",
   },
   viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
   bottomInfo: { position: "absolute", left: 0, right: 80, bottom: 0, padding: 16 },
