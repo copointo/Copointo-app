@@ -19,6 +19,138 @@ import { Link } from "wouter";
 
 type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates";
 
+// ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
+function playNotificationBell() {
+  try {
+    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const start = ctx.currentTime;
+    // 6 short bell-like tones over 3 seconds (every 0.5s).
+    for (let i = 0; i < 6; i++) {
+      const t = start + i * 0.5;
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.exponentialRampToValueAtTime(660, t + 0.35);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.45);
+    }
+    setTimeout(() => { ctx.close().catch(() => {}); }, 3500);
+  } catch { /* ignore — sound is best-effort */ }
+}
+
+// ── Tab notifications hook ───────────────────────────────────
+// Polls orders + bookings every 5s. Whenever new IDs appear, increments the
+// badge for that tab and plays the bell. Marks them seen when the user opens
+// the tab. Persists seen-IDs in localStorage so badges don't re-trigger after
+// a refresh.
+function useTabNotifications(cafeId: string, activeTab: Tab) {
+  const [counts, setCounts] = useState<Record<string, number>>({ orders: 0, bookings: 0 });
+  const seenRef = useRef<Record<string, Set<string>>>({ orders: new Set(), bookings: new Set() });
+  const initedRef = useRef<Record<string, boolean>>({ orders: false, bookings: false });
+
+  // Hydrate seen IDs from localStorage on mount / cafe change.
+  useEffect(() => {
+    const load = (k: string): Set<string> => {
+      try {
+        const raw = localStorage.getItem(`notif_seen:${cafeId}:${k}`);
+        return new Set(raw ? JSON.parse(raw) : []);
+      } catch { return new Set(); }
+    };
+    seenRef.current = { orders: load("orders"), bookings: load("bookings") };
+    initedRef.current = { orders: false, bookings: false };
+    setCounts({ orders: 0, bookings: 0 });
+  }, [cafeId]);
+
+  const persist = (k: string) => {
+    try {
+      localStorage.setItem(
+        `notif_seen:${cafeId}:${k}`,
+        JSON.stringify(Array.from(seenRef.current[k] ?? new Set())),
+      );
+    } catch { /* ignore */ }
+  };
+
+  // Poll loop.
+  useEffect(() => {
+    if (!cafeId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const [oRes, bRes] = await Promise.all([
+          api.cafeOrders(cafeId).catch(() => ({ orders: [] })),
+          api.cafeBookings(cafeId).catch(() => ({ bookings: [] })),
+        ]);
+        if (cancelled) return;
+        const buckets: Record<string, any[]> = {
+          orders:   oRes.orders   ?? [],
+          bookings: bRes.bookings ?? [],
+        };
+        let newCount = 0;
+        const next = { ...counts };
+        for (const k of ["orders", "bookings"] as const) {
+          const seen = seenRef.current[k];
+          const ids: string[] = buckets[k].map((x: any) => String(x.id));
+          if (!initedRef.current[k]) {
+            // First poll after mount: treat everything as already seen so we
+            // don't spam a bell for pre-existing items.
+            ids.forEach((id) => seen.add(id));
+            initedRef.current[k] = true;
+            persist(k);
+            continue;
+          }
+          let added = 0;
+          for (const id of ids) {
+            if (!seen.has(id)) {
+              // Auto-clear if user is currently looking at this tab.
+              if (activeTab === k) {
+                seen.add(id);
+              } else {
+                added += 1;
+              }
+            }
+          }
+          if (added > 0) {
+            next[k] = (next[k] ?? 0) + added;
+            newCount += added;
+          }
+        }
+        if (newCount > 0) {
+          setCounts(next);
+          playNotificationBell();
+        }
+      } catch { /* ignore */ }
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cafeId, activeTab]);
+
+  // When the user opens a tab, mark all current items as seen + clear badge.
+  const markSeen = (k: string) => {
+    if (counts[k]) setCounts((p) => ({ ...p, [k]: 0 }));
+    api.cafeOrders(cafeId).catch(() => null).then((d) => {
+      if (k !== "orders" || !d) return;
+      d.orders?.forEach((o: any) => seenRef.current.orders.add(String(o.id)));
+      persist("orders");
+    });
+    api.cafeBookings(cafeId).catch(() => null).then((d) => {
+      if (k !== "bookings" || !d) return;
+      d.bookings?.forEach((b: any) => seenRef.current.bookings.add(String(b.id)));
+      persist("bookings");
+    });
+  };
+
+  return { counts, markSeen };
+}
+
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"stats",     label:"الإحصائيات",       icon: LayoutDashboard  },
   { id:"orders",    label:"طلبات القهوة",      icon: ShoppingBag      },
@@ -2401,6 +2533,7 @@ export default function CafeDashboardPage() {
   const [_, navigate] = useLocation();
   const [cafe,    setCafe]    = useState<any>(null);
   const [tab,     setTab]     = useState<Tab>("stats");
+  const { counts: notifCounts, markSeen: markTabSeen } = useTabNotifications(id, tab);
 
   // Sequential 3D spin: each tab button rotates one after another every 5s
   const [spinIdx, setSpinIdx] = useState<number>(-1);
@@ -2483,14 +2616,20 @@ export default function CafeDashboardPage() {
           {TABS.map(({ id: tid, label, icon: Icon }, i) => {
             const active     = tab === tid;
             const isSpinning = spinIdx === i;
+            const notifCount = notifCounts[tid] ?? 0;
             return (
               <button
                 key={tid}
-                onClick={() => setTab(tid)}
+                onClick={() => { setTab(tid); markTabSeen(tid); }}
                 className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
                 style={{ perspective: "800px" }}
                 title={label}
               >
+                {notifCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 z-10 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-card shadow shadow-red-500/40 animate-pulse">
+                    {notifCount > 9 ? "9+" : notifCount}
+                  </span>
+                )}
                 <div
                   key={isSpinning ? `spin-${spinIdx}` : "idle"}
                   className={`relative w-full h-full rounded-2xl flex flex-col items-center justify-center gap-1.5
