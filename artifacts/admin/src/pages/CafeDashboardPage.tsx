@@ -55,10 +55,10 @@ const STATUS_AR: Record<string, string> = {
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`bg-card border border-border rounded-2xl ${className}`}>{children}</div>;
 }
-function StatBox({ label, value, icon, color }: { label:string; value:any; icon:string; color:string }) {
+function StatBox({ label, value, icon }: { label:string; value:any; icon:string; color?:string }) {
   return (
     <Card className="p-5 flex items-start gap-4">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${color}`}>{icon}</div>
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 bg-primary/15 border border-primary/30">{icon}</div>
       <div><p className="text-muted-foreground text-sm">{label}</p><p className="text-2xl font-bold text-foreground mt-0.5">{value}</p></div>
     </Card>
   );
