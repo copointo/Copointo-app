@@ -77,6 +77,35 @@ router.get("/orders", (req: any, res) => {
 router.post("/orders", (req: any, res): any => {
   const body = req.body ?? {};
   const cafeId = req.params.cafeId;
+
+  // ── Stock check & decrement ────────────────────────────────
+  // Aggregate requested qty per item name (cart may include duplicates).
+  const requested = new Map<string, number>();
+  for (const it of (body.items ?? [])) {
+    const n = String(it?.name ?? "").trim();
+    const q = Number(it?.qty) || 0;
+    if (!n || q <= 0) continue;
+    requested.set(n, (requested.get(n) ?? 0) + q);
+  }
+  // For each requested name, find the matching tracked menu item in this cafe.
+  // Untracked items (stockQty == null) are unlimited.
+  const decrements: { item: typeof menuItems[number]; qty: number }[] = [];
+  for (const [name, qty] of requested) {
+    const item = menuItems.find(m => m.cafeId === cafeId && m.name === name);
+    if (!item) continue;
+    if (item.stockQty == null) continue; // untracked → unlimited
+    if (item.stockQty < qty) {
+      return res.status(409).json({
+        error: `نفدت كمية "${item.name}" — المتبقّي: ${item.stockQty}`,
+      });
+    }
+    decrements.push({ item, qty });
+  }
+  // All checks passed → apply decrements.
+  for (const { item, qty } of decrements) {
+    item.stockQty = (item.stockQty as number) - qty;
+  }
+
   // Optional discount code: validate, apply, increment usage.
   let discountPercent: number | undefined;
   let discountCode: string | undefined;
