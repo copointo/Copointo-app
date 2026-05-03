@@ -116,6 +116,16 @@ Super-admin can push system messages to every Copointo player from the **Copoint
 
 **Mobile** — `notifications.tsx` fetches `/api/broadcasts` on mount + focus, renders a gold-bordered card per broadcast with 📣 badge, "Copointo • رسمي" sender, relative time (الآن / قبل N د/س/يوم), and the message body. On open it writes the newest `createdAt` to AsyncStorage key `copointo_broadcast_last_seen_v1`. Game tab bell badge (`game.tsx`) polls broadcasts every 30s and on focus, adding `unread = broadcasts.filter(b => b.createdAt > lastSeen).length` to the existing friend-request count so users see the badge clear after viewing.
 
+## Reel upload — any source quality, capped at 1080p
+
+Cafes can upload videos of **any resolution and any size** (no MB cap). The admin form (`CafeDashboardPage.tsx ReelsTab`) shows the source `WIDTH×HEIGHT · SIZE MB` immediately after pick.
+
+**Client-side downscale to 1080p** — when user clicks "نشر الريل":
+1. Phase `processing`: if source height > 1080, the file is played through a hidden `<video>` element and re-encoded via canvas `captureStream(30)` + `MediaRecorder` (vp9/vp8/webm with audio track copied from the source) at the largest 1080p-bound size (height=1080, width preserved & rounded to even). Files already ≤1080p pass through untouched.
+2. Phase `uploading`: encoded blob → data URL → XHR POST `/api/cafe/:cafeId/reels` with `xhr.upload.onprogress` driving a real percentage bar.
+
+UI shows a single gold progress bar with the current phase label ("جارٍ معالجة الفيديو وتقليص الجودة…" / "جارٍ رفع الفيديو…") and a percent counter. Server JSON limit raised to 300mb in `app.ts` to accommodate longer 1080p reels.
+
 ## Auto-derived reel links
 
 When a cafe publishes a reel, both `orderLink` and `locationUrl` are filled automatically by the server (`POST /api/cafe/:cafeId/reels`):

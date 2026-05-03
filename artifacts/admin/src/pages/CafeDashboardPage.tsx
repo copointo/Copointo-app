@@ -3297,6 +3297,10 @@ function ReelsTab({ id }: { id: string }) {
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
   const [commentsByReel, setCommentsByReel] = useState<Record<string, any[]>>({});
   const [notifs, setNotifs] = useState<any[]>([]);
+  // Upload phases: idle | processing (downscale) | uploading
+  const [phase, setPhase] = useState<"idle" | "processing" | "uploading">("idle");
+  const [progress, setProgress] = useState(0); // 0..1
+  const [origInfo, setOrigInfo] = useState<{ w: number; h: number; sizeMB: number } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -3322,31 +3326,132 @@ function ReelsTab({ id }: { id: string }) {
 
   const handleFile = (f: File | null) => {
     setError("");
+    setOrigInfo(null);
     if (!f) { setVideoFile(null); setVideoDataUrl(""); return; }
     if (!f.type.startsWith("video/")) { setError("يرجى اختيار ملف فيديو"); return; }
-    if (f.size > 50 * 1024 * 1024) { setError("الحجم الأقصى 50 ميجابايت"); return; }
     setVideoFile(f);
-    const reader = new FileReader();
-    reader.onload = () => setVideoDataUrl(String(reader.result ?? ""));
-    reader.readAsDataURL(f);
+    setVideoDataUrl(URL.createObjectURL(f));
+    // Probe dimensions for the user-facing info card.
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+    probe.src = URL.createObjectURL(f);
+    probe.onloadedmetadata = () => {
+      setOrigInfo({ w: probe.videoWidth, h: probe.videoHeight, sizeMB: f.size / (1024 * 1024) });
+      URL.revokeObjectURL(probe.src);
+    };
   };
+
+  // Downscale a video to <=1080p using canvas + MediaRecorder. Returns the original
+  // file untouched if it's already within the cap, so we don't waste CPU/quality.
+  const processVideo = async (f: File, onP: (p: number) => void): Promise<Blob> => {
+    const MAX_H = 1080;
+    const url = URL.createObjectURL(f);
+    const v = document.createElement("video");
+    v.src = url; v.muted = true; (v as any).playsInline = true; v.preload = "auto";
+    await new Promise<void>((res, rej) => {
+      v.onloadedmetadata = () => res();
+      v.onerror = () => rej(new Error("تعذّر قراءة الفيديو"));
+    });
+    const sH = v.videoHeight, sW = v.videoWidth;
+    if (sH <= MAX_H) { URL.revokeObjectURL(url); onP(1); return f; }
+
+    const dH = MAX_H;
+    const dW = Math.max(2, Math.round((sW * MAX_H / sH) / 2) * 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = dW; canvas.height = dH;
+    const ctx = canvas.getContext("2d")!;
+    const cStream = (canvas as any).captureStream(30) as MediaStream;
+    // Try to also include the source's audio.
+    try {
+      const vAny = v as any;
+      if (typeof vAny.captureStream === "function") {
+        const vs = vAny.captureStream() as MediaStream;
+        vs.getAudioTracks().forEach(t => cStream.addTrack(t));
+      }
+    } catch { /* ignore */ }
+
+    const candidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+    let mime = "video/webm";
+    for (const c of candidates) {
+      if ((window as any).MediaRecorder?.isTypeSupported?.(c)) { mime = c; break; }
+    }
+    const rec = new MediaRecorder(cStream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    const stopped = new Promise<Blob>((res) => { rec.onstop = () => res(new Blob(chunks, { type: mime })); });
+
+    rec.start();
+    v.currentTime = 0;
+    await v.play();
+    const dur = v.duration || 0;
+    let raf = 0;
+    const tick = () => {
+      ctx.drawImage(v, 0, 0, dW, dH);
+      if (dur > 0) onP(Math.min(0.99, v.currentTime / dur));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    await new Promise<void>((res) => { v.onended = () => res(); });
+    cancelAnimationFrame(raf);
+    rec.stop();
+    const out = await stopped;
+    URL.revokeObjectURL(url);
+    onP(1);
+    return out;
+  };
+
+  const blobToDataUrl = (b: Blob): Promise<string> =>
+    new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result ?? ""));
+      r.onerror = () => rej(r.error ?? new Error("read error"));
+      r.readAsDataURL(b);
+    });
+
+  const xhrUpload = (path: string, body: any, onP: (p: number) => void) =>
+    new Promise<any>((res, rej) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", path);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onP(e.loaded / e.total); };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { res(JSON.parse(xhr.responseText)); } catch { res({}); }
+        } else {
+          let msg = "فشل الرفع";
+          try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch { /* ignore */ }
+          rej(new Error(msg));
+        }
+      };
+      xhr.onerror = () => rej(new Error("خطأ في الشبكة"));
+      xhr.send(JSON.stringify(body));
+    });
 
   const submit = async () => {
     setError("");
-    if (!videoDataUrl) { setError("يرجى رفع فيديو"); return; }
+    if (!videoFile) { setError("يرجى رفع فيديو"); return; }
     if (!description.trim()) { setError("الوصف مطلوب"); return; }
     setSubmitting(true);
     try {
-      await api.addReel(id, {
-        videoUrl: videoDataUrl,
+      setPhase("processing");
+      setProgress(0);
+      const blob = await processVideo(videoFile, setProgress);
+      const dataUrl = await blobToDataUrl(blob);
+      setPhase("uploading");
+      setProgress(0);
+      await xhrUpload(`/api/cafe/${id}/reels`, {
+        videoUrl: dataUrl,
         description: description.trim(),
-      });
+      }, setProgress);
       setShowForm(false);
       setVideoFile(null); setVideoDataUrl("");
       setDescription("");
+      setOrigInfo(null);
+      setPhase("idle"); setProgress(0);
       await refresh();
     } catch (e: any) {
       setError(e?.message ?? "حدث خطأ أثناء الرفع");
+      setPhase("idle"); setProgress(0);
     }
     setSubmitting(false);
   };
@@ -3420,13 +3525,21 @@ function ReelsTab({ id }: { id: string }) {
         <div className="rounded-2xl border border-[#E8B86D]/30 bg-[#0A0606] p-5 space-y-4">
           <h3 className="font-semibold">ريل جديد</h3>
           <div>
-            <label className="block text-sm mb-2 text-white/70">ملف الفيديو (عمودي، أقل من 50MB)</label>
+            <label className="block text-sm mb-2 text-white/70">ملف الفيديو (عمودي، أي جودة)</label>
             <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-black/30 cursor-pointer hover:border-[#E8B86D]/50">
               <Upload className="w-4 h-4 text-[#E8B86D]" />
               <span className="text-sm text-white/70">{videoFile ? videoFile.name : "اختيار ملف…"}</span>
               <input type="file" accept="video/*" className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
             </label>
+            {origInfo && (
+              <div className="mt-2 text-xs text-white/60">
+                {origInfo.w}×{origInfo.h} · {origInfo.sizeMB.toFixed(1)} MB
+                {origInfo.h > 1080 && (
+                  <span className="text-[#E8B86D]"> · سيتم تقليص الجودة إلى 1080p عند النشر</span>
+                )}
+              </div>
+            )}
             {videoDataUrl && (
               <video src={videoDataUrl} controls className="mt-3 w-48 rounded-xl border border-white/10" />
             )}
@@ -3448,10 +3561,25 @@ function ReelsTab({ id }: { id: string }) {
             </div>
           </div>
           {error && <div className="text-sm text-rose-400">{error}</div>}
+          {phase !== "idle" && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-white/70">
+                <span>
+                  {phase === "processing" ? "جارٍ معالجة الفيديو وتقليص الجودة…" : "جارٍ رفع الفيديو…"}
+                </span>
+                <span>{Math.round(progress * 100)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-full bg-[#E8B86D] transition-all" style={{ width: `${progress * 100}%` }} />
+              </div>
+            </div>
+          )}
           <div className="flex gap-2">
             <button onClick={submit} disabled={submitting}
               className="px-5 py-2 rounded-xl bg-[#E8B86D] text-black font-semibold disabled:opacity-50">
-              {submitting ? "جارٍ الرفع…" : "نشر الريل"}
+              {submitting
+                ? (phase === "processing" ? "جارٍ المعالجة…" : "جارٍ الرفع…")
+                : "نشر الريل"}
             </button>
             <button onClick={() => setShowForm(false)}
               className="px-5 py-2 rounded-xl border border-white/10 text-white/70">
