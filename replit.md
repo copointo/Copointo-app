@@ -124,6 +124,12 @@ Super-admin can push system messages to every Copointo player from the **Copoint
 - **Comments sheet**: `rgba(0,0,0,0.55)` background + `backdropFilter: blur(18px)` (web) so the reel shows through. New comments are inserted at the **top** of the list immediately after submit (optimistic), reel comment-count bumps too.
 - All numbers have a subtle black text-shadow so they remain legible over any frame.
 
+## Reel video streaming
+
+Reels are stored on the server as base64 data URLs but **never** sent that way to clients. The list endpoints (`GET /api/reels` and `GET /api/cafe/:cafeId/reels`) replace `videoUrl` with a path to `GET /api/reels/:rid/video`, which decodes the base64 once and streams the binary with the correct `Content-Type`, `Content-Length`, and full **HTTP Range** support (206 Partial Content). This lets `<video>` start playing immediately instead of waiting for a multi-megabyte data URL to fully buffer (which manifested as a black screen).
+
+Admin video preview thumbnail in the upload form is `w-28` (small) so the form stays compact.
+
 ## Reel upload — any source quality, capped at 1080p
 
 Cafes can upload videos of **any resolution and any size** (no MB cap). The admin form (`CafeDashboardPage.tsx ReelsTab`) shows the source `WIDTH×HEIGHT · SIZE MB` immediately after pick.

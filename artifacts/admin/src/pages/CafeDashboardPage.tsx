@@ -3546,7 +3546,7 @@ function ReelsTab({ id }: { id: string }) {
               </div>
             )}
             {videoDataUrl && (
-              <video src={videoDataUrl} controls className="mt-3 w-48 rounded-xl border border-white/10" />
+              <video src={videoDataUrl} controls className="mt-3 w-28 rounded-xl border border-white/10" />
             )}
           </div>
           <div>

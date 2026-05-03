@@ -769,6 +769,8 @@ router.get("/reels", (req: any, res) => {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(r => ({
       ...r,
+      // Use the streaming endpoint instead of the heavy data:// URL.
+      videoUrl: `/api/reels/${r.id}/video`,
       likes:    reelLikes.filter(l => l.reelId === r.id).length,
       comments: reelComments.filter(c => c.reelId === r.id).length,
     }));

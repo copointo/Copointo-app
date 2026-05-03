@@ -104,10 +104,47 @@ router.get("/reels", (req, res) => {
     const likedByMe = userId
       ? reelLikes.some(l => l.reelId === r.id && l.userId === userId)
       : false;
-    return { ...r, likes, comments, likedByMe, score };
+    // Replace the heavy data:// URL with a streaming endpoint so <video> can
+    // start playback before the full payload is buffered (avoids black screen
+    // for large/long reels).
+    const videoUrl = `/api/reels/${r.id}/video`;
+    return { ...r, videoUrl, likes, comments, likedByMe, score };
   });
   enriched.sort((a, b) => b.score - a.score);
   res.json({ reels: enriched.map(({ score: _s, ...rest }) => rest) });
+});
+
+// Stream a reel's video binary with proper Content-Type and Range support so
+// the browser/native player can seek and start playback immediately.
+router.get("/reels/:rid/video", (req, res): any => {
+  const r = reels.find(x => x.id === req.params.rid);
+  if (!r || !r.videoUrl) return res.status(404).end();
+  const m = /^data:([^;]+);base64,(.*)$/s.exec(r.videoUrl);
+  if (!m) return res.status(415).end();
+  const mime = m[1];
+  const buf = Buffer.from(m[2], "base64");
+  const total = buf.length;
+  res.setHeader("Content-Type", mime);
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+  const range = req.headers.range;
+  if (range) {
+    const parts = /bytes=(\d*)-(\d*)/.exec(String(range));
+    if (parts) {
+      const start = parts[1] ? parseInt(parts[1], 10) : 0;
+      const end   = parts[2] ? parseInt(parts[2], 10) : total - 1;
+      if (start >= total || end >= total) {
+        res.status(416).setHeader("Content-Range", `bytes */${total}`);
+        return res.end();
+      }
+      res.status(206);
+      res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+      res.setHeader("Content-Length", String(end - start + 1));
+      return res.end(buf.subarray(start, end + 1));
+    }
+  }
+  res.setHeader("Content-Length", String(total));
+  res.end(buf);
 });
 
 router.post("/reels/:rid/like", (req, res): any => {
