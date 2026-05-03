@@ -2602,12 +2602,6 @@ export default function CafeDashboardPage() {
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
       <header className="flex items-center gap-4 px-6 py-4 border-b border-border bg-card shrink-0">
-        <Link href="/cafes">
-          <a className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm">
-            <ArrowLeft size={18}/> العودة
-          </a>
-        </Link>
-        <div className="w-px h-5 bg-border" />
         {cafe?.logo
           ? <img src={cafe.logo} className="w-9 h-9 rounded-xl object-cover" alt="" />
           : <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-xl">☕</div>}
