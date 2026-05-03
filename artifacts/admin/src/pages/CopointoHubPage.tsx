@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Ban, Clock, ShieldOff, ShieldCheck, X, AlertTriangle } from "lucide-react";
+import { Search, Ban, Clock, ShieldOff, ShieldCheck, X, AlertTriangle, Users as UsersIcon, CheckCircle as CheckIcon, Hourglass } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface HubUser {
@@ -135,12 +135,13 @@ export default function CopointoHubPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {([
-          { key: "all",       label: "إجمالي اللاعبين",  icon: "👥", value: counts.all       },
-          { key: "active",    label: "نشطون في اللعبة",  icon: "✅", value: counts.active    },
-          { key: "suspended", label: "موقوفون مؤقتاً",   icon: "⏳", value: counts.suspended },
-          { key: "banned",    label: "محظورون نهائياً",   icon: "🚫", value: counts.banned    },
+          { key: "all",       label: "إجمالي اللاعبين",  Icon: UsersIcon, value: counts.all       },
+          { key: "active",    label: "نشطون في اللعبة",  Icon: CheckIcon, value: counts.active    },
+          { key: "suspended", label: "موقوفون مؤقتاً",   Icon: Hourglass, value: counts.suspended },
+          { key: "banned",    label: "محظورون نهائياً",   Icon: Ban,       value: counts.banned    },
         ] as const).map(c => {
           const active = tab === c.key;
+          const Icon = c.Icon;
           return (
             <button
               key={c.key}
@@ -151,8 +152,8 @@ export default function CopointoHubPage() {
                   : "bg-card border-border hover:border-primary/30"}`}
             >
               <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 bg-primary/15 border border-primary/30">
-                  {c.icon}
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-primary/15 border border-primary/30">
+                  <Icon size={22} className="text-primary" />
                 </div>
                 <div>
                   <p className="text-muted-foreground text-sm">{c.label}</p>

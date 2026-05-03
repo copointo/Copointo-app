@@ -12,7 +12,9 @@ export default function Sidebar({ active }: { active: string }) {
     <aside className="w-60 flex flex-col bg-sidebar border-r border-sidebar-border shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-        <span className="text-3xl">☕</span>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-primary/15 border border-primary/40 shrink-0">
+          <Coffee size={22} className="text-primary" />
+        </div>
         <div>
           <p className="font-bold text-foreground text-lg leading-tight">Copointo</p>
           <p className="text-xs text-muted-foreground">لوحة المدير</p>

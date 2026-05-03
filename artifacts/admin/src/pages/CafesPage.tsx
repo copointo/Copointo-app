@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, Globe, Download } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, Globe, Download, Coffee, User as UserIcon } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -445,10 +445,10 @@ export default function CafesPage() {
               {/* ─── STEP 1 — basics ─── */}
               {step === 1 && (
                 <>
-                  <Field label="اسم الكوفي *" icon={<span className="text-base">☕</span>}>
+                  <Field label="اسم الكوفي *" icon={<Coffee size={15} />}>
                     <input value={form.name} onChange={f("name")} placeholder="مثال: روست آند كو" className={inp} />
                   </Field>
-                  <Field label="اسم صاحب الكوفي *" icon={<span className="text-base">👤</span>}>
+                  <Field label="اسم صاحب الكوفي *" icon={<UserIcon size={15} />}>
                     <input value={form.ownerName} onChange={f("ownerName")} placeholder="محمد العبري" className={inp} />
                   </Field>
                   <Field label="رقم هاتف الصاحب *" icon={<Phone size={15} />}>
@@ -725,7 +725,7 @@ function Field({ label, icon, children }: { label: string; icon: React.ReactNode
   return (
     <div>
       <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground mb-1.5">
-        {icon} {label}
+        <span className="text-primary inline-flex items-center">{icon}</span> {label}
       </label>
       {children}
     </div>
