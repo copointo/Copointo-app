@@ -196,3 +196,72 @@ export interface Broadcast {
   createdAt: string;
 }
 export const broadcasts: Broadcast[] = [];
+
+// ─── Disk persistence ────────────────────────────────────────────────────
+// In-memory state is great for fast prototyping, but every server restart
+// (hot reload during development, deploy, crash) wiped all cafés/reels and
+// frustrated the user. We now snapshot the full store to a single JSON file
+// on a debounced timer and restore it on boot.
+import fs from "node:fs";
+import path from "node:path";
+const STORE_FILE = path.join(process.cwd(), ".store.json");
+
+const COLLECTIONS: Record<string, any[]> = {
+  cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
+  cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
+  inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
+};
+
+function loadFromDisk() {
+  try {
+    if (!fs.existsSync(STORE_FILE)) return;
+    const raw = fs.readFileSync(STORE_FILE, "utf-8");
+    if (!raw.trim()) return;
+    const data = JSON.parse(raw) as Record<string, any[]>;
+    for (const [k, arr] of Object.entries(COLLECTIONS)) {
+      const incoming = data[k];
+      if (Array.isArray(incoming)) {
+        arr.length = 0;
+        for (const item of incoming) arr.push(item);
+      }
+    }
+    // eslint-disable-next-line no-console
+    console.log(`[store] restored from ${STORE_FILE}`);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[store] failed to load: ${(e as Error).message}`);
+  }
+}
+
+let saveTimer: NodeJS.Timeout | null = null;
+let saving = false;
+function flush() {
+  if (saving) return;
+  saving = true;
+  try {
+    const snapshot: Record<string, any[]> = {};
+    for (const [k, arr] of Object.entries(COLLECTIONS)) snapshot[k] = arr;
+    fs.writeFileSync(STORE_FILE + ".tmp", JSON.stringify(snapshot));
+    fs.renameSync(STORE_FILE + ".tmp", STORE_FILE);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[store] failed to save: ${(e as Error).message}`);
+  } finally {
+    saving = false;
+  }
+}
+
+/** Debounced save — call from any mutating handler. Coalesces bursts. */
+export function persistStore() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => { saveTimer = null; flush(); }, 400);
+}
+
+loadFromDisk();
+// Best-effort flush on graceful shutdown.
+process.on("SIGTERM", flush);
+process.on("SIGINT",  flush);
+process.on("beforeExit", flush);
+// Safety net: even if a route forgot to call persistStore(), snapshot every
+// 5 seconds so we never lose more than a few seconds of activity.
+setInterval(() => { if (!saveTimer) flush(); }, 5000).unref();
