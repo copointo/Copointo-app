@@ -104,7 +104,7 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
             </View>
             {!!cafe.distance && (
               <View style={styles.metaItem}>
-                <Feather name="navigation" size={11} color="#4CAF50" />
+                <Feather name="navigation" size={11} color="#E8B86D" />
                 <Text style={[styles.compactMetaText, { color: "#4CAF50", fontFamily: "Inter_600SemiBold" }]}>
                   {cafe.distance}
                 </Text>
@@ -168,7 +168,7 @@ export function CafeCard({ cafe, compact = false, onPress }: CafeCardProps) {
           </View>
           {!!cafe.distance && (
             <View style={styles.metaItem}>
-              <Feather name="navigation" size={13} color="#4CAF50" />
+              <Feather name="navigation" size={13} color="#E8B86D" />
               <Text style={[styles.metaText, { color: "#4CAF50", fontFamily: "Inter_600SemiBold" }]}>
                 {cafe.distance}
               </Text>

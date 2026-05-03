@@ -138,7 +138,7 @@ export default function NotificationsScreen() {
                   onPress={() => handleDecline(r.id)}
                   activeOpacity={0.85}
                 >
-                  <Feather name="x" size={15} color="#E55353" />
+                  <Feather name="x" size={15} color="#E8B86D" />
                   <Text style={styles.rejectBtnText}>رفض</Text>
                 </TouchableOpacity>
               </View>

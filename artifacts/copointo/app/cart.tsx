@@ -82,7 +82,7 @@ function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
       </View>
       <Text style={styles.itemTotal}>{(item.price * item.quantity).toFixed(3)}</Text>
       <TouchableOpacity onPress={onRemove} style={{ padding: 4 }}>
-        <Feather name="trash-2" size={15} color="#EF5350" />
+        <Feather name="trash-2" size={15} color="#E8B86D" />
       </TouchableOpacity>
     </View>
   );

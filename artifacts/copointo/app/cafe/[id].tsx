@@ -261,7 +261,7 @@ export default function CafeLandingScreen() {
         {/* ── Meta chips ── */}
         <View style={styles.metaRow}>
           <View style={styles.chip}>
-            <Feather name="star" size={13} color="#F9C74F" />
+            <Feather name="star" size={13} color="#E8B86D" />
             <Text style={styles.chipText}>{cafe.rating.toFixed(1)}</Text>
           </View>
           <View style={styles.chip}>
@@ -297,7 +297,7 @@ export default function CafeLandingScreen() {
                 </View>
                 {distStr !== null && (
                   <View style={styles.locationRow}>
-                    <Feather name="navigation" size={13} color="#66BB6A" />
+                    <Feather name="navigation" size={13} color="#E8B86D" />
                     <Text style={styles.distInlineText}>
                       يبعد عنك <Text style={styles.distInlineValue}>{distStr}</Text>
                     </Text>

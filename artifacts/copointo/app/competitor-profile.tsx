@@ -176,7 +176,7 @@ export default function CompetitorProfileScreen() {
               )}
               {!isFriend && !hasIncoming && !isPending && (
                 <TouchableOpacity style={styles.addFriendBtn} onPress={handleSend} activeOpacity={0.85}>
-                  <Feather name="user-plus" size={16} color="#0F0A2E" />
+                  <Feather name="user-plus" size={16} color="#000" />
                   <Text style={styles.addFriendText}>إضافة صديق</Text>
                 </TouchableOpacity>
               )}

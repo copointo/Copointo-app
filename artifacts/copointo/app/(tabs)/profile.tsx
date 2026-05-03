@@ -422,7 +422,7 @@ function RanksModal({
                   <View style={styles.rankRowStatus}>
                     {isPast ? (
                       <View style={styles.checkPill}>
-                        <Feather name="check" size={14} color="#7DD87D" />
+                        <Feather name="check" size={14} color="#E8B86D" />
                       </View>
                     ) : isCurrent ? (
                       <View style={styles.cupsRemainingCol}>

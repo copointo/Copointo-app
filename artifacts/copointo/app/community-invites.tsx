@@ -108,7 +108,7 @@ export default function CommunityInvitesScreen() {
                   activeOpacity={0.85}
                   disabled={busyId === inv.communityId}
                 >
-                  <Feather name="x" size={14} color="#FF6B6B" />
+                  <Feather name="x" size={14} color="#E8B86D" />
                   <Text style={styles.declineText}>رفض</Text>
                 </TouchableOpacity>
               </View>

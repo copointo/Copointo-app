@@ -127,7 +127,7 @@ export function CafeSheet({ cafe, onClose }: Props) {
         {/* Meta chips */}
         <View style={styles.metaRow}>
           <View style={styles.chip}>
-            <Feather name="star" size={12} color="#F9C74F" />
+            <Feather name="star" size={12} color="#E8B86D" />
             <Text style={styles.chipText}>{cafe.rating} ({cafe.reviewCount})</Text>
           </View>
           <View style={styles.chip}>

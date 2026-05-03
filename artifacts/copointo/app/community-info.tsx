@@ -292,7 +292,7 @@ export default function CommunityInfoScreen() {
                     onPress={() => handleRemove(m.id)}
                     activeOpacity={0.8}
                   >
-                    <Feather name="user-minus" size={14} color="#FF6B6B" />
+                    <Feather name="user-minus" size={14} color="#E8B86D" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -300,7 +300,7 @@ export default function CommunityInfoScreen() {
           })}
 
         <TouchableOpacity style={styles.leaveBtn} onPress={handleLeave} activeOpacity={0.85}>
-          <Feather name="log-out" size={14} color="#FF6B6B" />
+          <Feather name="log-out" size={14} color="#E8B86D" />
           <Text style={styles.leaveText}>مغادرة المجتمع</Text>
         </TouchableOpacity>
       </ScrollView>
