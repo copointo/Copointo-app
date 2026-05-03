@@ -241,7 +241,7 @@ export default function CommunityInfoScreen() {
         {/* Members */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>الأعضاء</Text>
-          {invitableFriends.length > 0 && community.members.length < COMMUNITY_MAX_MEMBERS && (
+          {isCreator && invitableFriends.length > 0 && community.members.length < COMMUNITY_MAX_MEMBERS && (
             <TouchableOpacity
               style={styles.addMemberBtn}
               onPress={() => {

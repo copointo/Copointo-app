@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
-import { cafes, users } from "../store";
+import { cafes, users, freeCoffees } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 const router: IRouter = Router();
@@ -66,6 +66,16 @@ router.get("/user-status", (req, res) => {
     gameSuspendReason:  (u.gameBanned || isSuspended) ? (u.gameSuspendReason ?? null) : null,
     gameSuspendedAt:    (u.gameBanned || isSuspended) ? (u.gameSuspendedAt ?? null) : null,
   });
+});
+
+// Public — list free coffees a user has earned (mobile notifications screen).
+router.get("/free-coffees", (req, res) => {
+  const phone = String(req.query.phone ?? "").trim();
+  if (!phone) { res.json({ coffees: [] }); return; }
+  const list = freeCoffees
+    .filter(f => f.userPhone === phone)
+    .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
+  res.json({ coffees: list });
 });
 
 export default router;

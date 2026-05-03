@@ -29,6 +29,10 @@ export const api = {
   cafeOrders:    (id: string)              => req<any>("GET",    `${C(id)}/orders`),
   cafeOrderStatus:(id:string,oid:string,status:string) => req<any>("PATCH", `${C(id)}/orders/${oid}/status`, { status }),
   cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
+  validateFreeCoffee: (id: string, code: string) =>
+    req<any>("POST", `${C(id)}/free-coffees/validate`, { code }),
+  redeemFreeCoffee:   (id: string, code: string, orderId: string) =>
+    req<any>("POST", `${C(id)}/free-coffees/redeem`,   { code, orderId }),
   cafeBookings:  (id: string)              => req<any>("GET",    `${C(id)}/bookings`),
   cafeBookingStatus:(id:string,bid:string,status:string) => req<any>("PATCH", `${C(id)}/bookings/${bid}/status`, { status }),
   cafeMenu:      (id: string)              => req<any>("GET",    `${C(id)}/menu`),

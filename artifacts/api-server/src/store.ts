@@ -50,6 +50,10 @@ export interface Order {
   confirmedAt?: string;
   pointsAwarded?: boolean;
   printedAt?: string;
+  /** Free-coffee redemption code applied to this order, if any. */
+  freeCoffeeCode?: string;
+  /** Snapshot of the level milestone the redeemed code was earned at. */
+  freeCoffeeLevel?: number;
   createdAt: string;
 }
 export interface CafeView {
@@ -107,3 +111,16 @@ export const cafeViews: CafeView[]    = [];
 export const discountCodes: DiscountCode[] = [];
 export const expenses:         Expense[]         = [];
 export const invoiceTemplates: InvoiceTemplate[] = [];
+
+export interface FreeCoffee {
+  id: string;
+  code: string;             // unique 6-char uppercase code
+  userPhone: string;        // owner (the player who earned it)
+  userName: string;         // snapshot
+  earnedAtLevel: number;    // milestone level (multiple of 7) that earned it
+  earnedAt: string;         // ISO
+  redeemedAt: string | null;
+  redeemedAtCafeId: string | null;
+  redeemedOrderId: string | null;
+}
+export const freeCoffees: FreeCoffee[] = [];

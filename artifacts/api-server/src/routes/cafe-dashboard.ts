@@ -1,8 +1,37 @@
 import { Router } from "express";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
-  expenses, invoiceTemplates,
+  expenses, invoiceTemplates, freeCoffees,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
-  type Expense, type InvoiceTemplate, type InvoiceType } from "../store";
+  type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee } from "../store";
+
+// ── Free-coffee code helpers ─────────────────────────────────
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
+function generateUniqueCode(): string {
+  for (let attempt = 0; attempt < 25; attempt++) {
+    let c = "";
+    for (let i = 0; i < 6; i++) c += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    if (!freeCoffees.some(f => f.code === c)) return c;
+  }
+  return `FC${Date.now().toString(36).toUpperCase()}`;
+}
+/** Issues one FreeCoffee per multiple-of-7 milestone the user has crossed but not yet been awarded for. */
+function awardMilestoneCoffees(userPhone: string, userName: string, totalOrders: number) {
+  const milestonesEarned = Math.floor(totalOrders / 7);
+  const alreadyAwarded   = freeCoffees.filter(f => f.userPhone === userPhone).length;
+  for (let i = alreadyAwarded; i < milestonesEarned; i++) {
+    freeCoffees.push({
+      id:               Date.now().toString() + "-" + i,
+      code:             generateUniqueCode(),
+      userPhone,
+      userName,
+      earnedAtLevel:    (i + 1) * 7,
+      earnedAt:         new Date().toISOString(),
+      redeemedAt:       null,
+      redeemedAtCafeId: null,
+      redeemedOrderId:  null,
+    });
+  }
+}
 
 const VALID_INVOICE_TYPES: InvoiceType[] = ["order", "expense", "daily", "monthly", "yearly"];
 
@@ -117,6 +146,7 @@ router.patch("/orders/:orderId/status", (req, res): any => {
 });
 
 // Mark invoice printed → awards drink points to the user (idempotent) + completes order.
+// Also issues a free-coffee code for every newly-crossed multiple-of-7 milestone.
 router.post("/orders/:orderId/print", (req, res) => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
@@ -126,13 +156,57 @@ router.post("/orders/:orderId/print", (req, res) => {
       : order.items.reduce((s, it) => s + (it.category === "حلى" ? 0 : it.qty), 0);
     if (drinks > 0) {
       const u = users.find(u => u.phone === order.customerPhone);
-      if (u) u.totalOrders += drinks;
+      if (u) {
+        u.totalOrders += drinks;
+        // Issue free-coffee code(s) for any milestones just crossed.
+        awardMilestoneCoffees(u.phone, u.username, u.totalOrders);
+      }
     }
     order.pointsAwarded = true;
     order.printedAt = new Date().toISOString();
     if (order.status !== "done") order.status = "done";
   }
   return res.json({ order });
+});
+
+// ── Free coffees ─────────────────────────────────────────────
+// Validate a code (preview only — does NOT redeem). Returns owner info if valid.
+router.post("/free-coffees/validate", (req: any, res) => {
+  const code = String(req.body?.code ?? "").trim().toUpperCase();
+  if (!code) return res.status(400).json({ error: "أدخل الكود" });
+  const fc = freeCoffees.find(f => f.code === code);
+  if (!fc)              return res.status(404).json({ error: "الكود غير موجود" });
+  if (fc.redeemedAt)    return res.status(400).json({ error: "هذا الكود تم استخدامه مسبقاً" });
+  res.json({
+    valid: true,
+    code:           fc.code,
+    userName:       fc.userName,
+    userPhone:      fc.userPhone,
+    earnedAtLevel:  fc.earnedAtLevel,
+    earnedAt:       fc.earnedAt,
+  });
+});
+
+// Redeem a code against a specific order (called when admin prints free invoice).
+router.post("/free-coffees/redeem", (req: any, res) => {
+  const cafeId  = req.params.cafeId;
+  const code    = String(req.body?.code ?? "").trim().toUpperCase();
+  const orderId = req.body?.orderId ? String(req.body.orderId) : null;
+  if (!code) return res.status(400).json({ error: "أدخل الكود" });
+  const fc = freeCoffees.find(f => f.code === code);
+  if (!fc)             return res.status(404).json({ error: "الكود غير موجود" });
+  if (fc.redeemedAt)   return res.status(400).json({ error: "هذا الكود تم استخدامه مسبقاً" });
+  fc.redeemedAt        = new Date().toISOString();
+  fc.redeemedAtCafeId  = cafeId;
+  fc.redeemedOrderId   = orderId;
+  if (orderId) {
+    const order = orders.find(o => o.id === orderId);
+    if (order) {
+      order.freeCoffeeCode  = fc.code;
+      order.freeCoffeeLevel = fc.earnedAtLevel;
+    }
+  }
+  res.json({ freeCoffee: fc });
 });
 
 // ── Bookings ──────────────────────────────────────────────────
