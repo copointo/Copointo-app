@@ -115,6 +115,10 @@ function ReelCard({
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
   const viewedRef = useRef(false);
+  const [expanded, setExpanded] = useState(false);
+  // "Long enough to truncate" — anything beyond ~80 chars or 2 lines benefits
+  // from a "قراءة المزيد" toggle.
+  const isLong = (reel.description?.length ?? 0) > 80;
 
   useEffect(() => {
     if (isActive && !viewedRef.current) {
@@ -154,8 +158,8 @@ function ReelCard({
         </TouchableOpacity>
       </View>
 
-      {/* Bottom info */}
-      <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 16 }]}>
+      {/* Bottom info — cafe + description (with read-more) + views chip stacked left */}
+      <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 12 }]}>
         <View style={styles.cafeRow}>
           <View style={styles.cafeLogoBubble}>
             <Text style={{ color: PRIMARY, fontWeight: "700" }}>
@@ -164,13 +168,27 @@ function ReelCard({
           </View>
           <Text style={styles.cafeName} numberOfLines={1}>{reel.cafeName}</Text>
         </View>
-        <Text style={styles.description} numberOfLines={3}>{reel.description}</Text>
-      </View>
-
-      {/* Tiny views chip — bottom-left */}
-      <View style={[styles.viewsChip, { bottom: bottomPadding + 16 }]}>
-        <Feather name="eye" size={12} color="#fff" />
-        <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
+        {!!reel.description && (
+          <View style={styles.descWrap}>
+            <Text
+              style={styles.description}
+              numberOfLines={expanded ? undefined : 2}
+            >
+              {reel.description}
+            </Text>
+            {isLong && (
+              <TouchableOpacity onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
+                <Text style={styles.readMore}>
+                  {expanded ? "عرض أقل" : "قراءة المزيد"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        <View style={styles.viewsChip}>
+          <Feather name="eye" size={12} color="#fff" />
+          <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
+        </View>
       </View>
     </View>
   );
@@ -401,19 +419,21 @@ const styles = StyleSheet.create({
   },
   railIconLabel: { color: "#000", fontSize: 9, fontWeight: "700", marginTop: 1 },
   viewsChip: {
-    position: "absolute", left: 12, flexDirection: "row", alignItems: "center", gap: 4,
+    flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start",
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.5)", marginTop: 8,
   },
   viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
   bottomInfo: { position: "absolute", left: 0, right: 80, bottom: 0, padding: 16 },
+  descWrap: { marginBottom: 4 },
+  readMore: { color: PRIMARY, fontSize: 13, fontWeight: "700", marginTop: 4 },
   cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   cafeLogoBubble: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: "#0A0606",
     borderWidth: 2, borderColor: PRIMARY, alignItems: "center", justifyContent: "center",
   },
   cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
-  description: { color: "#fff", fontSize: 14, lineHeight: 20, marginBottom: 12, opacity: 0.95 },
+  description: { color: "#fff", fontSize: 14, lineHeight: 20, opacity: 0.95 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 12 },
   emptyHint: { color: "#888", marginTop: 6 },
