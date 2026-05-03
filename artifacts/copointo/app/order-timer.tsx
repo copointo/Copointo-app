@@ -23,6 +23,13 @@ const PRIMARY = "#E8B86D";
 const CREAM   = "#F5E6CC";
 const SUCCESS = "#4ADE80";
 
+function levelsLabel(n: number): string {
+  if (n === 1) return "مستوى واحد";
+  if (n === 2) return "مستويين";
+  if (n >= 3 && n <= 10) return `${n} مستويات`;
+  return `${n} مستوى`;
+}
+
 interface ServerOrder {
   id: string;
   status: "pending" | "preparing" | "ready" | "done";
@@ -138,8 +145,8 @@ export default function OrderTimerScreen() {
           >
             <Text style={styles.pointsIcon}>🎮</Text>
             <View>
-              <Text style={styles.pointsLabel}>تقدم في اللعبة</Text>
-              <Text style={styles.pointsValue}>+{pointsAwarded} مشروب  •  +{pointsAwarded * 10} نقطة</Text>
+              <Text style={styles.pointsLabel}>تقدمت في اللعبة</Text>
+              <Text style={styles.pointsValue}>{levelsLabel(pointsAwarded)}</Text>
             </View>
           </LinearGradient>
 
