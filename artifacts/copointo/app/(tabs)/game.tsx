@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, DAILY_LEVEL_CAP } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
+import { useResponsive } from "@/hooks/useResponsive";
 import { RANKS, getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
@@ -52,6 +53,7 @@ export default function GameScreen() {
   const router    = useRouter();
   const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
+  const r = useResponsive();
   const { toast: overtakeToast, dismiss: dismissOvertake } = useRankOvertakeNotifier();
 
   // Per-café progress: pick the currently-viewed café, or first available.
@@ -217,7 +219,8 @@ export default function GameScreen() {
         ))
       : 0;
     return (
-      <View style={[styles.container, { paddingTop: topPad }]}>
+      <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
+       <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
         <ScrollView
           contentContainerStyle={styles.blockedScroll}
           showsVerticalScrollIndicator={false}
@@ -253,12 +256,14 @@ export default function GameScreen() {
             للاستفسار، تواصل مع إدارة Copointo.
           </Text>
         </ScrollView>
+       </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: topPad }]}>
+    <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
+     <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
 
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -533,6 +538,7 @@ export default function GameScreen() {
         </TouchableOpacity>
 
       </View>
+     </View>
     </View>
   );
 }

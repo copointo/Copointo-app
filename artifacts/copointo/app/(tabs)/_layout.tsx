@@ -7,6 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 import { useColors } from "@/hooks/useColors";
+import { useResponsive } from "@/hooks/useResponsive";
 
 function NativeTabLayout() {
   return (
@@ -41,6 +42,10 @@ function ClassicTabLayout() {
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+  const r = useResponsive();
+  const tbHeight = isWeb ? r.tabBarHeight : undefined;
+  const icSize = r.iconSize;
+  const labelSize = r.isPhone ? 10 : r.isTablet ? 11 : 12;
 
   return (
     <Tabs
@@ -54,7 +59,7 @@ function ClassicTabLayout() {
           borderTopWidth: isWeb ? 1 : 0,
           borderTopColor: colors.border,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          ...(isWeb && tbHeight ? { height: tbHeight, paddingTop: 6, paddingBottom: 6 } : {}),
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -73,8 +78,11 @@ function ClassicTabLayout() {
           ) : null,
         tabBarLabelStyle: {
           fontFamily: "Inter_500Medium",
-          fontSize: 10,
+          fontSize: labelSize,
         },
+        tabBarItemStyle: isWeb && (r.isTablet || r.isDesktop)
+          ? { maxWidth: 220, alignSelf: "center" }
+          : undefined,
       }}
     >
       <Tabs.Screen
@@ -83,9 +91,9 @@ function ClassicTabLayout() {
           title: "Home",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="house" tintColor={color} size={24} />
+              <SymbolView name="house" tintColor={color} size={icSize} />
             ) : (
-              <Feather name="home" size={22} color={color} />
+              <Feather name="home" size={icSize} color={color} />
             ),
         }}
       />
@@ -95,9 +103,9 @@ function ClassicTabLayout() {
           title: "Messages",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="message" tintColor={color} size={24} />
+              <SymbolView name="message" tintColor={color} size={icSize} />
             ) : (
-              <Feather name="message-circle" size={22} color={color} />
+              <Feather name="message-circle" size={icSize} color={color} />
             ),
         }}
       />
@@ -107,9 +115,9 @@ function ClassicTabLayout() {
           title: "Videos",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="play.rectangle" tintColor={color} size={24} />
+              <SymbolView name="play.rectangle" tintColor={color} size={icSize} />
             ) : (
-              <Feather name="play-circle" size={22} color={color} />
+              <Feather name="play-circle" size={icSize} color={color} />
             ),
         }}
       />
@@ -119,9 +127,9 @@ function ClassicTabLayout() {
           title: "Copointo Hub",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="gamecontroller" tintColor={color} size={24} />
+              <SymbolView name="gamecontroller" tintColor={color} size={icSize} />
             ) : (
-              <Feather name="award" size={22} color={color} />
+              <Feather name="award" size={icSize} color={color} />
             ),
         }}
       />
@@ -131,9 +139,9 @@ function ClassicTabLayout() {
           title: "Profile",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="person" tintColor={color} size={24} />
+              <SymbolView name="person" tintColor={color} size={icSize} />
             ) : (
-              <Feather name="user" size={22} color={color} />
+              <Feather name="user" size={icSize} color={color} />
             ),
         }}
       />

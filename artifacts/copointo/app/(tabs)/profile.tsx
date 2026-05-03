@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useResponsive } from "@/hooks/useResponsive";
 import { RANKS, getRank } from "@/data/mockData";
 
 const BG      = "#000000";
@@ -459,6 +460,7 @@ function RanksModal({
 // ─── Profile Screen ───────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const r = useResponsive();
   const { user, setUser, logout, friends, registeredUsers } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -473,7 +475,8 @@ export default function ProfileScreen() {
   // ── Logged-out empty state ──
   if (!user) {
     return (
-      <View style={[styles.container, { paddingTop: topPad }]}>
+      <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
+       <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>الملف الشخصي</Text>
         </View>
@@ -493,6 +496,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
         <AuthModal visible={authOpen} onClose={() => setAuthOpen(false)} />
+       </View>
       </View>
     );
   }
@@ -539,7 +543,8 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: topPad }]}>
+    <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
+     <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>الملف الشخصي</Text>
@@ -547,7 +552,7 @@ export default function ProfileScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 16 }}
+        contentContainerStyle={{ paddingHorizontal: r.hPad, paddingBottom: insets.bottom + 100, gap: 16 }}
       >
         {/* ── Avatar with double glowing ring ── */}
         <View style={styles.avatarSection}>
@@ -712,6 +717,7 @@ export default function ProfileScreen() {
         onClose={() => setRanksOpen(false)}
         currentLevel={level}
       />
+     </View>
     </View>
   );
 }

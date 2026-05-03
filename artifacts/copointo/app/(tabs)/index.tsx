@@ -15,6 +15,7 @@ import { CafeCard } from "@/components/CafeCard";
 import { SearchBar } from "@/components/SearchBar";
 import { useApp } from "@/context/AppContext";
 import { useColors } from "@/hooks/useColors";
+import { useResponsive } from "@/hooks/useResponsive";
 import { apiFetch } from "@/constants/api";
 import type { Cafe } from "@/data/mockData";
 
@@ -84,6 +85,7 @@ function mapCafe(c: ApiCafe, userLat?: number, userLng?: number): Cafe {
 export default function HomeScreen() {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
+  const r       = useResponsive();
   const { user } = useApp();
   const [search,      setSearch]      = useState("");
   const [rawCafes,    setRawCafes]    = useState<ApiCafe[]>([]);
@@ -140,8 +142,9 @@ export default function HomeScreen() {
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, alignItems: "center" }]}>
+     <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
+      <View style={[styles.header, { paddingTop: topPadding + 12, paddingHorizontal: r.hPad }]}>
         <View>
           <Text style={[styles.greeting, { color: colors.mutedForeground }]}>صباح الخير،</Text>
           <Text style={[styles.userName, { color: colors.foreground }]}>
@@ -152,7 +155,7 @@ export default function HomeScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: r.hPad }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => fetchCafes(true)} tintColor={colors.foreground} />
@@ -195,6 +198,7 @@ export default function HomeScreen() {
 
         <View style={{ height: Platform.OS === "web" ? 110 : 100 }} />
       </ScrollView>
+     </View>
     </View>
   );
 }
@@ -212,6 +216,6 @@ const styles = StyleSheet.create({
   count:         { fontSize: 13, fontFamily: "Inter_400Regular" },
   empty:         { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 12 },
   emptyText:     { fontSize: 16, fontFamily: "Inter_400Regular" },
-  grid:          { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  gridItem:      { width: "48%" },
+  grid:          { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "flex-start" },
+  gridItem:      { flexBasis: "48%", flexGrow: 1, minWidth: 160, maxWidth: 320 },
 });

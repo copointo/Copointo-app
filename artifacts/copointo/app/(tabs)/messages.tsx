@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Message } from "@/data/mockData";
 import { useMessages } from "@/context/MessagesContext";
 import { useColors } from "@/hooks/useColors";
+import { useResponsive } from "@/hooks/useResponsive";
 
 function ConversationItem({ msg }: { msg: Message }) {
   const colors  = useColors();
@@ -99,6 +100,7 @@ export default function MessagesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const r = useResponsive();
   const { convList, refreshChats } = useMessages();
   const [search, setSearch] = useState("");
 
@@ -120,7 +122,8 @@ export default function MessagesScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, alignItems: "center" }]}>
+     <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
       <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
         <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
         <TouchableOpacity
@@ -162,6 +165,7 @@ export default function MessagesScreen() {
         }
         scrollEnabled={filtered.length > 0}
       />
+     </View>
     </View>
   );
 }
