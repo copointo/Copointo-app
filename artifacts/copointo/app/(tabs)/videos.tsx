@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -130,27 +130,31 @@ function ReelCard({
         <View style={styles.scrim} />
       </View>
 
-      {/* Right rail (likes / comments / views) */}
+      {/* Right rail (like / comments / order / location) */}
       <View style={[styles.rightRail, { bottom: bottomPadding + 110 }]}>
-        <TouchableOpacity onPress={onLike} style={styles.railBtn}>
-          <Feather
-            name="heart"
-            size={32}
-            color={reel.likedByMe ? "#FF4D6D" : "#fff"}
+        <TouchableOpacity onPress={onLike} style={styles.railBtn} activeOpacity={0.7}>
+          <Ionicons
+            name={reel.likedByMe ? "heart" : "heart-outline"}
+            size={36}
+            color={reel.likedByMe ? "#FF1744" : "#fff"}
           />
           <Text style={styles.railNum}>{formatNumber(reel.likes)}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onOpenComments} style={styles.railBtn}>
+        <TouchableOpacity onPress={onOpenComments} style={styles.railBtn} activeOpacity={0.7}>
           <Feather name="message-circle" size={32} color="#fff" />
           <Text style={styles.railNum}>{formatNumber(reel.comments)}</Text>
         </TouchableOpacity>
-        <View style={styles.railBtn}>
-          <Feather name="eye" size={28} color="#fff" />
-          <Text style={styles.railNum}>{formatNumber(reel.views)}</Text>
-        </View>
+        <TouchableOpacity onPress={onOrder} style={styles.railIconBtn} activeOpacity={0.7}>
+          <Feather name="shopping-bag" size={22} color="#000" />
+          <Text style={styles.railIconLabel}>اطلب</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onLocation} style={styles.railIconBtnAlt} activeOpacity={0.7}>
+          <Feather name="map-pin" size={22} color={PRIMARY} />
+          <Text style={[styles.railIconLabel, { color: PRIMARY }]}>الموقع</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Bottom info + CTA buttons */}
+      {/* Bottom info */}
       <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 16 }]}>
         <View style={styles.cafeRow}>
           <View style={styles.cafeLogoBubble}>
@@ -161,16 +165,12 @@ function ReelCard({
           <Text style={styles.cafeName} numberOfLines={1}>{reel.cafeName}</Text>
         </View>
         <Text style={styles.description} numberOfLines={3}>{reel.description}</Text>
-        <View style={styles.ctaRow}>
-          <TouchableOpacity onPress={onOrder} style={styles.ctaPrimary}>
-            <Feather name="shopping-bag" size={16} color="#000" />
-            <Text style={styles.ctaPrimaryText}>اطلب الآن</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onLocation} style={styles.ctaSecondary}>
-            <Feather name="map-pin" size={16} color={PRIMARY} />
-            <Text style={styles.ctaSecondaryText}>موقع الكوفي</Text>
-          </TouchableOpacity>
-        </View>
+      </View>
+
+      {/* Tiny views chip — bottom-left */}
+      <View style={[styles.viewsChip, { bottom: bottomPadding + 16 }]}>
+        <Feather name="eye" size={12} color="#fff" />
+        <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
       </View>
     </View>
   );
@@ -259,7 +259,7 @@ export default function VideosScreen() {
       const r = await apiPost<{ comment: Comment }>(`/reels/${commentsOpenFor.id}/comments`, {
         userId, userName, text,
       });
-      setComments((prev) => [...prev, r.comment]);
+      setComments((prev) => [r.comment, ...prev]);
       setReels((prev) => prev.map((x) =>
         x.id === commentsOpenFor.id ? { ...x, comments: x.comments + 1 } : x,
       ));
@@ -388,8 +388,25 @@ const styles = StyleSheet.create({
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
   rightRail: { position: "absolute", right: 12, alignItems: "center", gap: 18 },
   railBtn: { alignItems: "center", marginBottom: 16 },
-  railNum: { color: "#fff", fontSize: 12, marginTop: 4, fontWeight: "600" },
-  bottomInfo: { position: "absolute", left: 0, right: 70, bottom: 0, padding: 16 },
+  railNum: { color: "#fff", fontSize: 12, marginTop: 4, fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 3 },
+  railIconBtn: {
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
+    width: 50, height: 50, borderRadius: 25, backgroundColor: PRIMARY,
+  },
+  railIconBtnAlt: {
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
+    width: 50, height: 50, borderRadius: 25,
+    borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  railIconLabel: { color: "#000", fontSize: 9, fontWeight: "700", marginTop: 1 },
+  viewsChip: {
+    position: "absolute", left: 12, flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  bottomInfo: { position: "absolute", left: 0, right: 80, bottom: 0, padding: 16 },
   cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   cafeLogoBubble: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: "#0A0606",
@@ -397,42 +414,31 @@ const styles = StyleSheet.create({
   },
   cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
   description: { color: "#fff", fontSize: 14, lineHeight: 20, marginBottom: 12, opacity: 0.95 },
-  ctaRow: { flexDirection: "row", gap: 8 },
-  ctaPrimary: {
-    flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: PRIMARY,
-    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22,
-  },
-  ctaPrimaryText: { color: "#000", fontWeight: "700", fontSize: 14 },
-  ctaSecondary: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22,
-    borderWidth: 1, borderColor: PRIMARY, backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  ctaSecondaryText: { color: PRIMARY, fontWeight: "700", fontSize: 14 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 12 },
   emptyHint: { color: "#888", marginTop: 6 },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)", justifyContent: "flex-end" },
   modalSheet: {
-    backgroundColor: "#0A0606", borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    height: "70%", borderTopWidth: 1, borderColor: "#222",
+    backgroundColor: "rgba(0,0,0,0.55)", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    height: "65%", borderTopWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" } as any) : {}),
   },
   modalHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    padding: 16, borderBottomWidth: 1, borderColor: "#1a1010",
+    padding: 16, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },
   modalTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  modalEmpty: { color: "#888", textAlign: "center", marginTop: 32 },
+  modalEmpty: { color: "#aaa", textAlign: "center", marginTop: 32 },
   commentRow: { flexDirection: "row", marginBottom: 10 },
-  commentBubble: { flex: 1, backgroundColor: "#1a1010", borderRadius: 14, padding: 10 },
+  commentBubble: { flex: 1, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 14, padding: 10 },
   commentName: { color: PRIMARY, fontWeight: "700", fontSize: 13, marginBottom: 2 },
   commentText: { color: "#fff", fontSize: 14, lineHeight: 19 },
   commentInputBar: {
     flexDirection: "row", padding: 10, gap: 8,
-    borderTopWidth: 1, borderColor: "#1a1010",
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
   },
   commentInput: {
-    flex: 1, backgroundColor: "#1a1010", borderRadius: 22, paddingHorizontal: 16,
+    flex: 1, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 22, paddingHorizontal: 16,
     paddingVertical: 10, color: "#fff", textAlign: "right",
   },
   sendBtn: {

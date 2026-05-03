@@ -116,6 +116,14 @@ Super-admin can push system messages to every Copointo player from the **Copoint
 
 **Mobile** — `notifications.tsx` fetches `/api/broadcasts` on mount + focus, renders a gold-bordered card per broadcast with 📣 badge, "Copointo • رسمي" sender, relative time (الآن / قبل N د/س/يوم), and the message body. On open it writes the newest `createdAt` to AsyncStorage key `copointo_broadcast_last_seen_v1`. Game tab bell badge (`game.tsx`) polls broadcasts every 30s and on focus, adding `unread = broadcasts.filter(b => b.createdAt > lastSeen).length` to the existing friend-request count so users see the badge clear after viewing.
 
+## Reels viewer UI (mobile)
+
+`(tabs)/videos.tsx` TikTok-style layout:
+- **Right rail (top→bottom)**: Like (Ionicons heart / heart-outline; fully filled red `#FF1744` when liked, optimistic toggle persists), Comments (count), then two stacked CTA pills under comments — gold filled "اطلب" (Order) and gold-bordered transparent "الموقع" (Location). 50px circles with tiny 9pt label.
+- **Bottom-left**: small dark-translucent views chip (eye icon + count), much smaller than other actions.
+- **Comments sheet**: `rgba(0,0,0,0.55)` background + `backdropFilter: blur(18px)` (web) so the reel shows through. New comments are inserted at the **top** of the list immediately after submit (optimistic), reel comment-count bumps too.
+- All numbers have a subtle black text-shadow so they remain legible over any frame.
+
 ## Reel upload — any source quality, capped at 1080p
 
 Cafes can upload videos of **any resolution and any size** (no MB cap). The admin form (`CafeDashboardPage.tsx ReelsTab`) shows the source `WIDTH×HEIGHT · SIZE MB` immediately after pick.
