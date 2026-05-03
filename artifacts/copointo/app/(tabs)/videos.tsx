@@ -125,10 +125,9 @@ function ReelCard({
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
   const viewedRef = useRef(false);
-  const [expanded, setExpanded] = useState(false);
-  // "Long enough to truncate" — anything beyond ~80 chars or 2 lines benefits
-  // from a "قراءة المزيد" toggle.
-  const isLong = (reel.description?.length ?? 0) > 80;
+  // Description is now hidden by default; user opens it via the
+  // "اقرأ التفاصيل" button that sits just above the views chip.
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     if (isActive && !viewedRef.current) {
@@ -168,7 +167,7 @@ function ReelCard({
         </TouchableOpacity>
       </View>
 
-      {/* Bottom info — cafe + description (with read-more) + views chip stacked left */}
+      {/* Bottom info — cafe + "Read details" button + views chip stacked left */}
       <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 12 }]}>
         <View style={styles.cafeRow}>
           <View style={styles.cafeLogoBubble}>
@@ -179,27 +178,53 @@ function ReelCard({
           <Text style={styles.cafeName} numberOfLines={1}>{reel.cafeName}</Text>
         </View>
         {!!reel.description && (
-          <View style={styles.descWrap}>
-            <Text
-              style={styles.description}
-              numberOfLines={expanded ? undefined : 2}
-            >
-              {reel.description}
-            </Text>
-            {isLong && (
-              <TouchableOpacity onPress={() => setExpanded((v) => !v)} activeOpacity={0.7}>
-                <Text style={styles.readMore}>
-                  {expanded ? "عرض أقل" : "قراءة المزيد"}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <TouchableOpacity
+            onPress={() => setDetailsOpen(true)}
+            style={styles.detailsBtn}
+            activeOpacity={0.7}
+          >
+            <Feather name="file-text" size={14} color="#000" />
+            <Text style={styles.detailsBtnText}>اقرأ التفاصيل</Text>
+          </TouchableOpacity>
         )}
         <View style={styles.viewsChip}>
           <Feather name="eye" size={12} color="#fff" />
           <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
         </View>
       </View>
+
+      {/* Details overlay — shown only after the user taps "اقرأ التفاصيل". */}
+      <Modal
+        visible={detailsOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDetailsOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.detailsBackdrop}
+          activeOpacity={1}
+          onPress={() => setDetailsOpen(false)}
+        >
+          <TouchableOpacity
+            style={styles.detailsCard}
+            activeOpacity={1}
+            onPress={() => { /* swallow */ }}
+          >
+            <View style={styles.detailsHeader}>
+              <Text style={styles.detailsTitle}>التفاصيل</Text>
+              <TouchableOpacity
+                onPress={() => setDetailsOpen(false)}
+                style={styles.detailsClose}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.detailsBody}>{reel.description}</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -444,6 +469,34 @@ const styles = StyleSheet.create({
   },
   cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
   description: { color: "#fff", fontSize: 14, lineHeight: 20, opacity: 0.95 },
+  detailsBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+    backgroundColor: PRIMARY, marginBottom: 6,
+  },
+  detailsBtnText: { color: "#000", fontSize: 12, fontWeight: "800" },
+  detailsBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center", justifyContent: "center", padding: 24,
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" } as any) : {}),
+  },
+  detailsCard: {
+    width: "100%", maxWidth: 480, maxHeight: "70%",
+    backgroundColor: "#0A0606", borderRadius: 20,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
+    padding: 16,
+  },
+  detailsHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  detailsTitle: { color: PRIMARY, fontWeight: "800", fontSize: 16 },
+  detailsClose: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+  },
+  detailsBody: { color: "#fff", fontSize: 15, lineHeight: 22, textAlign: "right" },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 12 },
   emptyHint: { color: "#888", marginTop: 6 },
