@@ -505,6 +505,28 @@ function updateManifests(manifests, timestamp, baseUrl, assetsByHash) {
   console.log("Manifests updated");
 }
 
+function exportWeb() {
+  console.log("Exporting web build (expo export -p web)...");
+  const env = {
+    ...process.env,
+    EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN || "",
+    EXPO_PUBLIC_REPL_ID: process.env.EXPO_PUBLIC_REPL_ID || process.env.REPL_ID || "",
+  };
+  const outDir = path.join(projectRoot, "static-build", "web");
+  if (fs.existsSync(outDir)) {
+    fs.rmSync(outDir, { recursive: true });
+  }
+  const result = require("child_process").spawnSync(
+    "pnpm",
+    ["exec", "expo", "export", "--platform", "web", "--output-dir", "static-build/web"],
+    { cwd: projectRoot, env, stdio: "inherit" },
+  );
+  if (result.status !== 0) {
+    exitWithError(`Web export failed with status ${result.status}`);
+  }
+  console.log("Web export complete");
+}
+
 async function main() {
   console.log("Building static Expo Go deployment...");
 
@@ -517,6 +539,8 @@ async function main() {
 
   prepareDirectories(timestamp);
   clearMetroCache();
+
+  exportWeb();
 
   await startMetro(domain, expoPublicReplId);
 
