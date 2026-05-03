@@ -17,6 +17,7 @@ import { useCommunities } from "@/context/CommunityContext";
 import { RANKS, getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
+import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
 
 interface GameStatus {
   gameBanned: boolean;
@@ -50,6 +51,7 @@ export default function GameScreen() {
   const router    = useRouter();
   const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
+  const { toast: overtakeToast, dismiss: dismissOvertake } = useRankOvertakeNotifier();
 
   // Per-café progress: pick the currently-viewed café, or first available.
   const cafeProgress = user?.cafeProgress ?? {};
@@ -378,6 +380,26 @@ export default function GameScreen() {
         </TouchableOpacity>
       )}
 
+      {/* ── Rank-overtake toast ── */}
+      {overtakeToast && (
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => { dismissOvertake(); router.push("/leaderboard"); }}
+          style={[styles.overtakeToast, {
+            top: Platform.OS === "web" ? 80 : insets.top + 12,
+          }]}
+        >
+          <Text style={styles.overtakeIcon}>⚡</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.overtakeTitle}>تجاوزك في التصنيف!</Text>
+            <Text style={styles.overtakeSub} numberOfLines={1}>
+              {overtakeToast.name} وصل إلى مستوى {overtakeToast.level}
+            </Text>
+          </View>
+          <Feather name="chevron-left" size={18} color="#000" />
+        </TouchableOpacity>
+      )}
+
       {/* ── Floating action buttons ── */}
       <View style={[styles.fabGroup, {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
@@ -553,6 +575,26 @@ const styles = StyleSheet.create({
     right: 20,
     alignItems: "center",
     gap: 12,
+  },
+  overtakeToast: {
+    position: "absolute",
+    left: 16, right: 16,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.55, shadowRadius: 14, elevation: 10,
+    zIndex: 50,
+  },
+  overtakeIcon: { fontSize: 22 },
+  overtakeTitle: {
+    fontSize: 13, fontFamily: "Inter_700Bold", color: "#000",
+    marginBottom: 2,
+  },
+  overtakeSub: {
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(0,0,0,0.75)",
   },
   fabSmall: {
     width: 54, height: 54, borderRadius: 16,
