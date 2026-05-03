@@ -201,6 +201,15 @@ router.post("/reels/:rid/comments", (req, res): any => {
   res.status(201).json({ comment: c });
 });
 
+router.delete("/reels/:rid/comments/:cid", (req, res): any => {
+  const reel = reels.find(r => r.id === req.params.rid);
+  if (!reel) return res.status(404).json({ error: "Reel not found" });
+  const idx = reelComments.findIndex(c => c.id === req.params.cid && c.reelId === reel.id);
+  if (idx === -1) return res.status(404).json({ error: "Comment not found" });
+  reelComments.splice(idx, 1);
+  res.json({ ok: true });
+});
+
 router.post("/reels/:rid/view", (req, res): any => {
   const reel = reels.find(r => r.id === req.params.rid);
   if (!reel) return res.status(404).json({ error: "Reel not found" });
