@@ -16,6 +16,7 @@ import { useApp } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { RANKS, getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
+import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
 
 interface GameStatus {
   gameBanned: boolean;
@@ -113,6 +114,29 @@ export default function GameScreen() {
     const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.55);
     setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 250);
   }, [level]);
+
+  // ── Sound: play a triumphant chime whenever the user levels up ──
+  const prevLevelRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (prevLevelRef.current !== null && level > prevLevelRef.current) {
+      playLevelUpSound();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    prevLevelRef.current = level;
+  }, [level]);
+
+  // ── Sound: play a soft chime when a new in-game notification arrives
+  // (incoming friend request OR community invite). Skips the very first
+  // mount so existing pending items don't trigger on screen open.
+  const prevNotifCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const count = incomingRequests.length + incomingInvites.length;
+    if (prevNotifCountRef.current !== null && count > prevNotifCountRef.current) {
+      playNotificationChime();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    }
+    prevNotifCountRef.current = count;
+  }, [incomingRequests.length, incomingInvites.length]);
 
   const handleScroll = useCallback(
     (e: any) => {
