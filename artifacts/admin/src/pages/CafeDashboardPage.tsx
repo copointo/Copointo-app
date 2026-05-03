@@ -3292,8 +3292,6 @@ function ReelsTab({ id }: { id: string }) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoDataUrl, setVideoDataUrl] = useState<string>("");
   const [description, setDescription] = useState("");
-  const [orderLink, setOrderLink] = useState("");
-  const [locationUrl, setLocationUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
@@ -3337,18 +3335,15 @@ function ReelsTab({ id }: { id: string }) {
     setError("");
     if (!videoDataUrl) { setError("يرجى رفع فيديو"); return; }
     if (!description.trim()) { setError("الوصف مطلوب"); return; }
-    if (!locationUrl.trim()) { setError("رابط الموقع مطلوب"); return; }
     setSubmitting(true);
     try {
       await api.addReel(id, {
         videoUrl: videoDataUrl,
         description: description.trim(),
-        orderLink: orderLink.trim(),
-        locationUrl: locationUrl.trim(),
       });
       setShowForm(false);
       setVideoFile(null); setVideoDataUrl("");
-      setDescription(""); setOrderLink(""); setLocationUrl("");
+      setDescription("");
       await refresh();
     } catch (e: any) {
       setError(e?.message ?? "حدث خطأ أثناء الرفع");
@@ -3442,21 +3437,15 @@ function ReelsTab({ id }: { id: string }) {
               rows={3} className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
               placeholder="مثال: قهوة الصباح بنكهة جديدة ☕" />
           </div>
-          <div>
-            <label className="block text-sm mb-2 text-white/70 flex items-center gap-2">
-              <Link2 className="w-4 h-4" /> رابط صفحة الكوفي للطلب (اختياري — افتراضياً صفحة الكوفي بالتطبيق)
-            </label>
-            <input value={orderLink} onChange={(e) => setOrderLink(e.target.value)}
-              className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
-              placeholder={`copointo://cafe/${id}`} />
-          </div>
-          <div>
-            <label className="block text-sm mb-2 text-white/70 flex items-center gap-2">
-              <MapPin className="w-4 h-4" /> رابط موقع الكوفي على الخريطة
-            </label>
-            <input value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)}
-              className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
-              placeholder="https://maps.google.com/?q=..." />
+          <div className="rounded-xl border border-[#E8B86D]/30 bg-[#E8B86D]/5 p-3 text-xs text-white/70 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-[#E8B86D]" />
+              <span>رابط صفحة الكوفي للطلب يُضاف تلقائياً</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-[#E8B86D]" />
+              <span>موقع الكوفي على الخريطة يُضاف تلقائياً من بيانات الكوفي</span>
+            </div>
           </div>
           {error && <div className="text-sm text-rose-400">{error}</div>}
           <div className="flex gap-2">

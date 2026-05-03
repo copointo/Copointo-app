@@ -116,6 +116,14 @@ Super-admin can push system messages to every Copointo player from the **Copoint
 
 **Mobile** — `notifications.tsx` fetches `/api/broadcasts` on mount + focus, renders a gold-bordered card per broadcast with 📣 badge, "Copointo • رسمي" sender, relative time (الآن / قبل N د/س/يوم), and the message body. On open it writes the newest `createdAt` to AsyncStorage key `copointo_broadcast_last_seen_v1`. Game tab bell badge (`game.tsx`) polls broadcasts every 30s and on focus, adding `unread = broadcasts.filter(b => b.createdAt > lastSeen).length` to the existing friend-request count so users see the badge clear after viewing.
 
+## Auto-derived reel links
+
+When a cafe publishes a reel, both `orderLink` and `locationUrl` are filled automatically by the server (`POST /api/cafe/:cafeId/reels`):
+- `orderLink` defaults to `copointo://cafe/<cafeId>` (deep-link to the cafe page in the app).
+- `locationUrl` defaults to `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>` when the cafe has coordinates, otherwise to a maps search of the cafe's address. Cafe creation already geocodes addresses, so coords are usually present.
+
+The admin "Add Reel" form in `CafeDashboardPage.tsx ReelsTab` no longer asks for these — it shows a small gold info card stating both will be added automatically. Only video file + description are required.
+
 ## Copointo Reels
 
 Vertical short-video feature with Instagram/TikTok-style reels.

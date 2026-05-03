@@ -783,10 +783,13 @@ router.post("/reels", (req: any, res) => {
   const videoUrl    = String(body.videoUrl    ?? "").trim();
   const description = String(body.description ?? "").trim();
   const orderLink   = String(body.orderLink   ?? "").trim() || `copointo://cafe/${cid}`;
-  const locationUrl = String(body.locationUrl ?? "").trim();
+  // Auto-derive map location URL from cafe coordinates (fallback: address search).
+  const fallbackLocation = (cafe.lat != null && cafe.lng != null)
+    ? `https://www.google.com/maps/search/?api=1&query=${cafe.lat},${cafe.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cafe.address || cafe.name)}`;
+  const locationUrl = String(body.locationUrl ?? "").trim() || fallbackLocation;
   if (!videoUrl)    return res.status(400).json({ error: "الرجاء رفع فيديو" });
   if (!description) return res.status(400).json({ error: "الوصف مطلوب" });
-  if (!locationUrl) return res.status(400).json({ error: "رابط الموقع مطلوب" });
   const r: Reel = {
     id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
     cafeId: cid,
