@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp } from "@/context/AppContext";
+import { useApp, DAILY_LEVEL_CAP } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { RANKS, getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
@@ -98,6 +98,14 @@ export default function GameScreen() {
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 999) * 100, 100);
+
+  // ── Daily level cap progress (resets each calendar day) ──
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  })();
+  const levelsTodayUsed = (user?.levelsTodayDate === todayStr) ? (user?.levelsToday ?? 0) : 0;
+  const dailyCapReached = levelsTodayUsed >= DAILY_LEVEL_CAP;
 
   const startLvl = Math.max(0,    level - BEFORE);
   const endLvl   = Math.min(999, level + AFTER);
@@ -248,6 +256,26 @@ export default function GameScreen() {
           <Text style={styles.cafePillText}>اطلب من أحد المقاهي لبدء التقدم</Text>
         </TouchableOpacity>
       )}
+
+      {/* ── Daily level cap indicator ── */}
+      <View style={[
+        styles.dailyCapPill,
+        dailyCapReached && styles.dailyCapPillFull,
+      ]}>
+        <Feather
+          name={dailyCapReached ? "lock" : "zap"}
+          size={12}
+          color={dailyCapReached ? "#EF5350" : PRIMARY}
+        />
+        <Text style={[
+          styles.dailyCapText,
+          dailyCapReached && { color: "#EF5350" },
+        ]}>
+          {dailyCapReached
+            ? `وصلت لحد اليوم (${DAILY_LEVEL_CAP}/${DAILY_LEVEL_CAP}) — يتجدّد غدًا`
+            : `تقدم اليوم: ${levelsTodayUsed}/${DAILY_LEVEL_CAP} مستويات`}
+        </Text>
+      </View>
 
       {/* ── Progress bar + Free indicator ── */}
       <View style={styles.progressRow}>
@@ -643,6 +671,23 @@ const styles = StyleSheet.create({
   cafePillText: {
     fontSize: 12, fontFamily: "Inter_600SemiBold",
     color: PRIMARY, maxWidth: 220,
+  },
+  dailyCapPill: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    alignSelf: "center",
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.06)",
+    marginBottom: 8, maxWidth: "92%",
+  },
+  dailyCapPillFull: {
+    borderColor: "rgba(239,83,80,0.55)",
+    backgroundColor: "rgba(239,83,80,0.10)",
+  },
+  dailyCapText: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
+    color: PRIMARY,
   },
   fabLeaderboard: {
     width: 88, height: 88, borderRadius: 22,

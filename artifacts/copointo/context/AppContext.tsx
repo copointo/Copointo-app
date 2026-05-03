@@ -29,6 +29,22 @@ export interface User {
   totalOrders: number;
   points: number;
   cafeProgress?: Record<string, CafeProgress>;
+  /** Number of levels gained today (across all cafés). */
+  levelsToday?: number;
+  /** Date string (YYYY-MM-DD) for which `levelsToday` applies. */
+  levelsTodayDate?: string;
+}
+
+/** Hard cap: a user can only gain this many levels per calendar day. */
+export const DAILY_LEVEL_CAP = 10;
+
+/** Local YYYY-MM-DD string for "today" in the device's timezone. */
+function todayKey(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -495,13 +511,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (qty <= 0) return;
     setUserState((prev) => {
       if (!prev) return prev;
+
+      // ── Daily level cap (10 levels per calendar day) ──
+      const today = todayKey();
+      const isNewDay = prev.levelsTodayDate !== today;
+      const usedToday = isNewDay ? 0 : (prev.levelsToday ?? 0);
+      const remainingToday = Math.max(0, DAILY_LEVEL_CAP - usedToday);
+      const levelGain = Math.min(qty, remainingToday);
+
       const prevProgress = prev.cafeProgress ?? {};
       const prevCafe = prevProgress[cafeId] ?? { cafeId, cafeName, totalOrders: 0, level: 0 };
       const nextCafe: CafeProgress = {
         cafeId,
         cafeName: cafeName || prevCafe.cafeName || cafeId,
         totalOrders: prevCafe.totalOrders + qty,
-        level: Math.min(999, prevCafe.level + qty),
+        // totalOrders still grows fully, but level only grows by capped amount.
+        level: Math.min(999, prevCafe.level + levelGain),
       };
       const newProgress = { ...prevProgress, [cafeId]: nextCafe };
       // Global level = max level across all cafés (so Profile/Leaderboard reflect best progress).
@@ -512,6 +537,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         totalOrders: (prev.totalOrders ?? 0) + qty,
         points: (prev.points ?? 0) + qty * 10,
         level: maxLevel,
+        levelsToday: usedToday + levelGain,
+        levelsTodayDate: today,
       };
       // Persist + mirror into registeredUsers (matches setUser side-effects).
       AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
