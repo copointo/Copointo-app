@@ -218,6 +218,7 @@ export default function CartScreen() {
         params: {
           orderId: res.order.id,
           cafeId,
+          cafeName,
           minutes: String(prepMin),
           drinks: String(totalQty),
         },

@@ -151,10 +151,11 @@ export default function OrderScreen() {
           onPress={() => router.push({
             pathname: "/order-timer",
             params: {
-              orderId: activeOrder!.orderId,
-              cafeId:  activeOrder!.cafeId,
-              minutes: String(activeOrder!.prepMinutes),
-              drinks:  String(activeOrder!.drinkQty),
+              orderId:  activeOrder!.orderId,
+              cafeId:   activeOrder!.cafeId,
+              cafeName: activeOrder!.cafeName,
+              minutes:  String(activeOrder!.prepMinutes),
+              drinks:   String(activeOrder!.drinkQty),
             },
           })}
         />

@@ -37,12 +37,13 @@ interface ServerOrder {
 export default function OrderTimerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, setUser, setActiveOrder } = useApp();
+  const { user, setActiveOrder, addCafeOrder } = useApp();
   const params = useLocalSearchParams<{
-    orderId: string; cafeId: string; minutes: string; drinks: string;
+    orderId: string; cafeId: string; cafeName?: string; minutes: string; drinks: string;
   }>();
   const orderId   = params.orderId;
   const cafeId    = params.cafeId;
+  const cafeName  = params.cafeName ?? "";
   const totalMin  = Math.max(1, Number(params.minutes ?? "3"));
   const drinkQty  = Math.max(1, Number(params.drinks  ?? "1"));
 
@@ -95,16 +96,11 @@ export default function OrderTimerScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         if (data.order.pointsAwarded) {
-          // Manager printed invoice → award points + show final screen.
+          // Manager printed invoice → award per-café progress + show final screen.
           setCompleted(true);
           setPointsAwarded(drinkQty);
           if (user) {
-            const updated = {
-              ...user,
-              totalOrders: (user.totalOrders ?? 0) + drinkQty,
-              points:      (user.points      ?? 0) + drinkQty * 10,
-            };
-            setUser(updated);
+            addCafeOrder(cafeId, cafeName, drinkQty);
           }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }

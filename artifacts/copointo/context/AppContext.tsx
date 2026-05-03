@@ -9,6 +9,13 @@ import React, {
 
 export type Gender = "male" | "female";
 
+export interface CafeProgress {
+  cafeId: string;
+  cafeName: string;
+  totalOrders: number;
+  level: number;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -21,6 +28,7 @@ export interface User {
   level: number;
   totalOrders: number;
   points: number;
+  cafeProgress?: Record<string, CafeProgress>;
 }
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
@@ -72,6 +80,11 @@ interface AppContextType {
   addOrder: (order: Order) => void;
   activeOrder: ActiveOrder | null;
   setActiveOrder: (o: ActiveOrder | null) => void;
+  /** Currently-displayed café in the Game tab (per-café progress view). */
+  activeGameCafeId: string | null;
+  setActiveGameCafeId: (cafeId: string | null) => void;
+  /** Increment per-café progress (and global aggregate) when an order completes. */
+  addCafeOrder: (cafeId: string, cafeName: string, qty: number) => void;
 }
 
 export interface ActiveOrder {
@@ -106,6 +119,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [likedVideos, setLikedVideos] = useState<string[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [activeOrder, setActiveOrderState] = useState<ActiveOrder | null>(null);
+  const [activeGameCafeId, setActiveGameCafeIdState] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -127,6 +141,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (userData) {
         const parsed: User = JSON.parse(userData);
         setUserState(parsed);
+        const activeCafeRaw = await AsyncStorage.getItem(`activeGameCafeId:${parsed.id}`);
+        setActiveGameCafeIdState(activeCafeRaw || null);
         // Load per-user friends + friend requests
         const [fRaw, inRaw, outRaw] = await Promise.all([
           AsyncStorage.getItem(`friends:${parsed.id}`),
@@ -402,6 +418,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFriends([]);
     setIncomingRequests([]);
     setOutgoingRequests([]);
+    setActiveGameCafeIdState(null);
   }, []);
 
   const addToCart = useCallback((item: Omit<CartItem, "quantity">) => {
@@ -463,6 +480,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveOrderState(o);
   }, []);
 
+  const setActiveGameCafeId = useCallback((cafeId: string | null) => {
+    setActiveGameCafeIdState(cafeId);
+    if (user) {
+      if (cafeId) {
+        AsyncStorage.setItem(`activeGameCafeId:${user.id}`, cafeId).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(`activeGameCafeId:${user.id}`).catch(() => {});
+      }
+    }
+  }, [user]);
+
+  const addCafeOrder = useCallback((cafeId: string, cafeName: string, qty: number) => {
+    if (qty <= 0) return;
+    setUserState((prev) => {
+      if (!prev) return prev;
+      const prevProgress = prev.cafeProgress ?? {};
+      const prevCafe = prevProgress[cafeId] ?? { cafeId, cafeName, totalOrders: 0, level: 0 };
+      const nextCafe: CafeProgress = {
+        cafeId,
+        cafeName: cafeName || prevCafe.cafeName || cafeId,
+        totalOrders: prevCafe.totalOrders + qty,
+        level: Math.min(999, prevCafe.level + qty),
+      };
+      const newProgress = { ...prevProgress, [cafeId]: nextCafe };
+      // Global level = max level across all cafés (so Profile/Leaderboard reflect best progress).
+      const maxLevel = Math.max(0, ...Object.values(newProgress).map((c) => c.level));
+      const updated: User = {
+        ...prev,
+        cafeProgress: newProgress,
+        totalOrders: (prev.totalOrders ?? 0) + qty,
+        points: (prev.points ?? 0) + qty * 10,
+        level: maxLevel,
+      };
+      // Persist + mirror into registeredUsers (matches setUser side-effects).
+      AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
+      setRegisteredUsers((regs) => {
+        const idx = regs.findIndex((r) => r.id === updated.id);
+        if (idx === -1) return regs;
+        const next = [...regs];
+        next[idx] = updated;
+        AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+        return next;
+      });
+      // Auto-select this café for the game view if none chosen yet.
+      setActiveGameCafeIdState((curr) => {
+        if (curr) return curr;
+        AsyncStorage.setItem(`activeGameCafeId:${updated.id}`, cafeId).catch(() => {});
+        return cafeId;
+      });
+      return updated;
+    });
+  }, []);
+
   const cartTotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
@@ -498,6 +568,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addOrder,
         activeOrder,
         setActiveOrder,
+        activeGameCafeId,
+        setActiveGameCafeId,
+        addCafeOrder,
       }}
     >
       {children}

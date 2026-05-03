@@ -47,8 +47,23 @@ const AFTER  = 48;
 export default function GameScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
-  const { user }  = useApp();
+  const { user, activeGameCafeId, setActiveGameCafeId }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
+
+  // Per-café progress: pick the currently-viewed café, or first available.
+  const cafeProgress = user?.cafeProgress ?? {};
+  const cafeIds = Object.keys(cafeProgress);
+  const effectiveCafeId =
+    (activeGameCafeId && cafeProgress[activeGameCafeId]) ? activeGameCafeId
+    : (cafeIds[0] ?? null);
+  const activeCafe = effectiveCafeId ? cafeProgress[effectiveCafeId] : null;
+
+  // Auto-heal stale activeGameCafeId (e.g. after data wipe).
+  useEffect(() => {
+    if (activeGameCafeId && !cafeProgress[activeGameCafeId] && cafeIds.length === 0) {
+      setActiveGameCafeId(null);
+    }
+  }, [activeGameCafeId, cafeIds.length]);
 
   // Re-read invite badge whenever the Game tab gains focus
   useFocusEffect(
@@ -75,7 +90,7 @@ export default function GameScreen() {
 
   const isBlocked = !!(status && (status.gameBanned || status.gameSuspended));
 
-  const level     = user?.level ?? 0;
+  const level     = activeCafe?.level ?? 0;
   const rank      = getRank(level);
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
@@ -185,6 +200,28 @@ export default function GameScreen() {
           <Text style={styles.rankChipText}>{rank.name}</Text>
         </View>
       </View>
+
+      {/* ── Active café indicator ── */}
+      {activeCafe ? (
+        <TouchableOpacity
+          style={styles.cafePill}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="coffee" size={14} color={PRIMARY} />
+          <Text style={styles.cafePillText} numberOfLines={1}>{activeCafe.cafeName}</Text>
+          <Feather name="chevron-down" size={14} color={PRIMARY} />
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.cafePillEmpty}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="coffee" size={14} color={PRIMARY} />
+          <Text style={styles.cafePillText}>اطلب من أحد المقاهي لبدء التقدم</Text>
+        </TouchableOpacity>
+      )}
 
       {/* ── Progress bar + Free indicator ── */}
       <View style={styles.progressRow}>
@@ -355,6 +392,20 @@ export default function GameScreen() {
           )}
         </TouchableOpacity>
 
+        {/* My Cafés */}
+        <TouchableOpacity
+          style={styles.fabSmall}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="coffee" size={22} color={PRIMARY} />
+          {cafeIds.length > 0 && (
+            <View style={styles.cafeCountBadge}>
+              <Text style={styles.cafeCountText}>{cafeIds.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         {/* Leaderboard - purple distinctive */}
         <TouchableOpacity
           style={styles.fabLeaderboard}
@@ -492,6 +543,37 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: BG,
   },
   badgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
+  cafeCountBadge: {
+    position: "absolute", top: -5, right: -5,
+    minWidth: 20, height: 20, borderRadius: 10,
+    backgroundColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4,
+    borderWidth: 1.5, borderColor: BG,
+  },
+  cafeCountText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#000" },
+  cafePill: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    alignSelf: "center",
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.08)",
+    marginBottom: 6, maxWidth: "85%",
+  },
+  cafePillEmpty: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    alignSelf: "center",
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.04)",
+    marginBottom: 6, maxWidth: "90%",
+  },
+  cafePillText: {
+    fontSize: 12, fontFamily: "Inter_600SemiBold",
+    color: PRIMARY, maxWidth: 220,
+  },
   fabLeaderboard: {
     width: 88, height: 88, borderRadius: 22,
     alignItems: "center", justifyContent: "center", gap: 4,
