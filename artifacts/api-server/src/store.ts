@@ -54,6 +54,8 @@ export interface Order {
   confirmedAt?: string;
   pointsAwarded?: boolean;
   printedAt?: string;
+  /** Optional customer notes (bean type, extra-hot, customizations, etc). */
+  notes?: string;
   /** Free-coffee redemption code applied to this order, if any. */
   freeCoffeeCode?: string;
   /** Snapshot of the level milestone the redeemed code was earned at. */

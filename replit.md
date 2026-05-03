@@ -104,6 +104,8 @@ Each pending order row in the dashboard's **Orders** tab has two distinct button
 
 Once preparing, follow-up buttons are "الطلب جاهز" → "تم التسليم" (also via `cafeOrderStatus`).
 
+**Optional order notes** — `Order.notes?: string` (≤300 chars). Mobile cart shows a "ملاحظات إضافية (اختياري)" multiline input (bean type, extra heat, customizations). Admin renders notes in: orders tab card (highlighted gold-bordered block), printed-orders archive (truncated single line), and the printable invoice HTML (HTML-escaped, between items table and totals).
+
 ## Copointo Reels
 
 Vertical short-video feature with Instagram/TikTok-style reels.

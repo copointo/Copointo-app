@@ -769,6 +769,12 @@ function OrdersTab({ id }: { id: string }) {
               </div>
             ))}
           </div>
+          {o.notes && (
+            <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+              <p className="text-[11px] font-semibold text-primary mb-0.5">📝 ملاحظات الزبون</p>
+              <p className="text-sm text-foreground whitespace-pre-wrap">{o.notes}</p>
+            </div>
+          )}
           <div className="flex items-center justify-between border-t border-border pt-3 gap-3 flex-wrap">
             <span className="font-bold text-primary">{o.total?.toFixed(3)} OMR</span>
             <div className="flex gap-2 flex-wrap">
@@ -1706,6 +1712,7 @@ ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 </td></tr>
 <tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
 <tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
+${o.notes ? `<tr><td class="cell info-cell"><div><b>ملاحظات / Notes:</b></div><div style="white-space:pre-wrap">${String(o.notes).replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]!))}</div></td></tr>` : ""}
 ${freeBlock}
 <tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${finalTot.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
@@ -2072,6 +2079,11 @@ function PrintedInvoices({ id }: { id: string }) {
                   <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                     {(o.items ?? []).map((it: any) => `${it.name} ×${it.qty}`).join("، ")}
                   </p>
+                  {o.notes && (
+                    <p className="text-[11px] text-primary/90 mt-1 truncate">
+                      📝 {o.notes}
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <span className="text-base font-bold text-primary whitespace-nowrap">

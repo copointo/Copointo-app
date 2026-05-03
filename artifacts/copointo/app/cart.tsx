@@ -113,6 +113,9 @@ export default function CartScreen() {
   const [carPlateNum,  setCarPlateNum]  = useState("");
   const [carPlateChar, setCarPlateChar] = useState("");
 
+  // Optional free-text notes — bean type, extra heat, customizations, etc.
+  const [notes, setNotes] = useState("");
+
   const orderSummary = cart.map(i => `${i.name} ×${i.quantity}`).join("، ");
 
   const [submitting, setSubmitting] = useState(false);
@@ -186,6 +189,9 @@ export default function CartScreen() {
       };
       if (discountPercent > 0 && discountCode.trim()) {
         payload.discountCode = discountCode.trim();
+      }
+      if (notes.trim()) {
+        payload.notes = notes.trim();
       }
       if (isDine) {
         payload.tableNumber = dineTable.trim();
@@ -384,6 +390,24 @@ export default function CartScreen() {
                 </View>
               </View>
             )}
+
+            {/* Notes (optional) — bean type, extra heat, customizations */}
+            <View style={styles.notesWrap}>
+              <Text style={fStyles.label}>📝  ملاحظات إضافية (اختياري)</Text>
+              <TextInput
+                style={styles.notesInput}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="مثال: نوع البن، زيادة سخونة، بدون سكر…"
+                placeholderTextColor="rgba(255,255,255,0.28)"
+                multiline
+                numberOfLines={3}
+                maxLength={300}
+                textAlignVertical="top"
+                selectionColor={PRIMARY}
+              />
+              <Text style={styles.notesHint}>{notes.length}/300</Text>
+            </View>
 
             {/* Discount code (optional) */}
             <View style={styles.discountWrap}>
@@ -641,6 +665,21 @@ const styles = StyleSheet.create({
   itemTotal: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", minWidth: 50, textAlign: "right" },
 
   // Discount code
+  notesWrap:           { gap: 6, marginTop: 4 },
+  notesInput: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.25)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#FFF",
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    minHeight: 78,
+    textAlign: "right",
+  },
+  notesHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.4)", textAlign: "left" },
   discountWrap:        { gap: 6, marginTop: 4 },
   discountRow:         { flexDirection: "row", gap: 8, alignItems: "stretch" },
   discountBtn:         { paddingHorizontal: 18, justifyContent: "center", alignItems: "center", borderRadius: 14, borderWidth: 1, borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.12)", minWidth: 80 },
