@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -82,6 +82,11 @@ function ReelVideo({ src, isActive, muted }: { src: string; isActive: boolean; m
     if (isActive) {
       const p = el.play?.();
       if (p && typeof p.catch === "function") p.catch(() => { /* autoplay may be blocked when unmuted */ });
+    } else {
+      // Pausing on the inactive reels (and especially when the user leaves
+      // the Videos tab) is critical so audio doesn't keep playing in the
+      // background.
+      try { el.pause?.(); } catch { /* ignore */ }
     }
   }, [muted, isActive]);
 
@@ -269,6 +274,15 @@ export default function VideosScreen() {
   // unmute via the small speaker button at the bottom-left of any reel; the
   // state is shared across all reels so they keep the same audio preference.
   const [muted, setMuted] = useState(true);
+  // When the user leaves the Videos tab we want every reel to pause and
+  // mute immediately so audio doesn't keep playing in the background.
+  const [screenFocused, setScreenFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setScreenFocused(true);
+      return () => setScreenFocused(false);
+    }, []),
+  );
   const [commentsOpenFor, setCommentsOpenFor] = useState<Reel | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -425,8 +439,8 @@ export default function VideosScreen() {
         renderItem={({ item, index }) => (
           <ReelCard
             reel={item}
-            isActive={index === activeIndex}
-            muted={muted}
+            isActive={index === activeIndex && screenFocused}
+            muted={muted || !screenFocused}
             onToggleMute={() => setMuted((m) => !m)}
             onLike={() => handleLike(item)}
             onOpenComments={() => openComments(item)}
