@@ -400,30 +400,7 @@ function OrdersTab({ id }: { id: string }) {
     api.cafeOrderPrint(id, o.id).then(() => {
       setOrders(prev => prev.map(x => x.id === o.id ? { ...x, status: "done", pointsAwarded: true } : x));
     }).catch(() => { /* swallow — print still happens */ });
-    let tpl: any = null;
-    try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
-
-    const rows = (o.items ?? []).map((it: any) =>
-      `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`
-    ).join("");
-    const where = o.type === "dine"
-      ? `طاولة / Table ${o.tableNumber}`
-      : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
-
-    const body = `
-${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
-<tr><td class="cell info-cell">
-  <div><b>الزبون / Customer:</b> ${o.customerName}${o.customerNameEn ? ` <span style="direction:ltr;display:inline-block">(${o.customerNameEn})</span>` : ""}</div>
-  <div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
-  <div><b>المكان / Location:</b> ${where}</div>
-  <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
-</td></tr>
-<tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
-<tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
-<tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${o.total?.toFixed(3)} ر.ع / OMR</span></td></tr>
-${tplFooterHtml(tpl)}
-    `;
-    openPrintWindow(`فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
+    await printOrderInvoice(id, o);
   };
 
   return (
@@ -1210,6 +1187,33 @@ function fmtDateTimeAr(d: string) {
   return new Date(d).toLocaleString("ar-OM", { year:"numeric", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
 }
 
+async function printOrderInvoice(id: string, o: any) {
+  let tpl: any = null;
+  try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
+
+  const rows = (o.items ?? []).map((it: any) =>
+    `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`
+  ).join("");
+  const where = o.type === "dine"
+    ? `طاولة / Table ${o.tableNumber}`
+    : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
+
+  const body = `
+${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
+<tr><td class="cell info-cell">
+  <div><b>الزبون / Customer:</b> ${o.customerName}${o.customerNameEn ? ` <span style="direction:ltr;display:inline-block">(${o.customerNameEn})</span>` : ""}</div>
+  <div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
+  <div><b>المكان / Location:</b> ${where}</div>
+  <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
+<tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
+<tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${o.total?.toFixed(3)} ر.ع / OMR</span></td></tr>
+${tplFooterHtml(tpl)}
+  `;
+  openPrintWindow(`فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
+}
+
 async function printDailyInvoice(id: string, dateStr: string) {
   const tpl = (await api.invoiceTemplate(id, "daily").catch(() => ({ template: null }))).template;
   const { orders } = await loadAggData(id);
@@ -1383,6 +1387,8 @@ function InvoicesTab({ id }: { id: string }) {
         ))}
       </div>
 
+      <PrintedInvoices id={id} />
+
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">آخر الفواتير المسجلة</h3>
         {recent.length === 0 && <Empty icon="🧾" text="لا توجد فواتير بعد" />}
@@ -1401,6 +1407,188 @@ function InvoicesTab({ id }: { id: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Printed Invoices Browser ─────────────────────────────────
+type PMode = "range" | "daily" | "monthly" | "yearly";
+
+function PrintedInvoices({ id }: { id: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const yyyy = new Date().getFullYear();
+  const [mode, setMode] = useState<PMode>("range");
+  const [from, setFrom] = useState<string>(today);
+  const [to, setTo]     = useState<string>(today);
+  const [day, setDay]   = useState<string>(today);
+  const [ym, setYm]     = useState<string>(today.slice(0, 7));
+  const [yr, setYr]     = useState<string>(String(yyyy));
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const reload = useCallback(() => {
+    setLoading(true);
+    api.cafeOrders(id).then(d => setOrders(d.orders ?? [])).finally(() => setLoading(false));
+  }, [id]);
+  useEffect(() => { reload(); }, [reload]);
+
+  // Filter to printed orders only
+  const printed = orders.filter(o => !!o.printedAt);
+
+  const inWindow = (d: Date, start: Date, end: Date) => d >= start && d < end;
+
+  const filtered = (() => {
+    if (mode === "range") {
+      const s = new Date(from + "T00:00:00");
+      const e = new Date(to + "T00:00:00"); e.setDate(e.getDate() + 1);
+      return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
+    }
+    if (mode === "daily") {
+      const s = new Date(day + "T00:00:00");
+      const e = new Date(s); e.setDate(e.getDate() + 1);
+      return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
+    }
+    if (mode === "monthly") {
+      const [y, m] = ym.split("-").map(Number);
+      if (!y || !m) return [];
+      const s = new Date(y, m - 1, 1);
+      const e = new Date(y, m, 1);
+      return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
+    }
+    // yearly
+    const y = Number(yr);
+    if (!y) return [];
+    const s = new Date(y, 0, 1);
+    const e = new Date(y + 1, 0, 1);
+    return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
+  })();
+
+  // Sort newest first by printedAt
+  const sorted = [...filtered].sort((a, b) => new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime());
+  const total = sorted.reduce((s, o) => s + (Number(o.total) || 0), 0);
+
+  const tabBtn = (m: PMode, label: string, sub: string) => (
+    <button
+      key={m}
+      onClick={() => setMode(m)}
+      className={`flex-1 min-w-[120px] px-3 py-2.5 rounded-xl border text-xs font-bold transition ${
+        mode === m
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-input border-border text-muted-foreground hover:bg-muted/30"
+      }`}
+    >
+      <div>{label}</div>
+      <div className={`text-[10px] font-normal mt-0.5 ${mode === m ? "opacity-90" : "opacity-60"}`}>{sub}</div>
+    </button>
+  );
+
+  const inp = "bg-input border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary";
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+          <Printer size={18}/>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">الفواتير المطبوعة / Printed Invoices</p>
+          <p className="text-xs text-muted-foreground">سجل فواتير الزبائن المطبوعة مع تاريخ ووقت الطباعة</p>
+        </div>
+      </div>
+
+      {/* Mode tabs */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        {tabBtn("range",   "نطاق تواريخ",   "Date Range")}
+        {tabBtn("daily",   "يومي",          "Daily")}
+        {tabBtn("monthly", "شهري",          "Monthly")}
+        {tabBtn("yearly",  "سنوي",          "Yearly")}
+      </div>
+
+      {/* Filter inputs */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {mode === "range" && (
+          <>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>من / From</span>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
+            </label>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>إلى / To</span>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
+            </label>
+          </>
+        )}
+        {mode === "daily" && (
+          <input type="date" value={day} onChange={e => setDay(e.target.value)} className={inp} />
+        )}
+        {mode === "monthly" && (
+          <input type="month" value={ym} onChange={e => setYm(e.target.value)} className={inp} />
+        )}
+        {mode === "yearly" && (
+          <input type="number" min={2020} max={2100} value={yr} onChange={e => setYr(e.target.value)} className={inp} />
+        )}
+        <button onClick={reload}
+          className="ml-auto px-3 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted/30">
+          تحديث / Refresh
+        </button>
+      </div>
+
+      {/* Summary */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-xl bg-primary/10 border border-primary/30 p-3">
+          <p className="text-[11px] text-muted-foreground">عدد الفواتير / Count</p>
+          <p className="text-xl font-bold text-primary">{sorted.length}</p>
+        </div>
+        <div className="rounded-xl bg-primary/10 border border-primary/30 p-3">
+          <p className="text-[11px] text-muted-foreground">المجموع / Total</p>
+          <p className="text-xl font-bold text-primary">{total.toFixed(3)} <span className="text-xs">OMR</span></p>
+        </div>
+      </div>
+
+      {/* List */}
+      {loading ? (
+        <p className="text-center text-xs text-muted-foreground py-6">جاري التحميل...</p>
+      ) : sorted.length === 0 ? (
+        <Empty icon="🖨️" text="لا توجد فواتير مطبوعة في هذه الفترة / No printed invoices" />
+      ) : (
+        <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
+          {sorted.map(o => (
+            <div key={o.id} className="rounded-xl border border-border bg-input/40 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-primary">#{o.id.slice(-6)}</span>
+                    <span className="text-sm font-semibold text-foreground truncate">
+                      {o.customerName}
+                      {o.customerNameEn && (
+                        <span className="ml-2 text-[11px] text-muted-foreground" dir="ltr">({o.customerNameEn})</span>
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {o.customerPhone} • {o.type === "dine" ? `🪑 طاولة ${o.tableNumber}` : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    🖨️ طُبعت / Printed: {fmtDateTimeAr(o.printedAt)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                    {(o.items ?? []).map((it: any) => `${it.name} ×${it.qty}`).join("، ")}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <span className="text-base font-bold text-primary whitespace-nowrap">
+                    {Number(o.total).toFixed(3)} OMR
+                  </span>
+                  <button onClick={() => printOrderInvoice(id, o)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border text-[11px] font-semibold text-muted-foreground hover:bg-muted/30">
+                    <Printer size={11}/> إعادة طباعة
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 
