@@ -17,7 +17,7 @@ const today = new Date().toISOString().split("T")[0];
 const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
 const nextYearStr = nextYear.toISOString().split("T")[0];
 
-const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, website: "", lat: "", lng: "" };
+const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, subscriptionAmount: "300", website: "", lat: "", lng: "" };
 
 // Manager dashboard URL  →  /admin/cafe/:id
 function managerUrl(id: string) {
@@ -197,7 +197,7 @@ export default function CafesPage() {
       const coords = (!form.lat || !form.lng) ? parseLatLng(form.website) : null;
       const lat = coords?.lat ?? form.lat;
       const lng = coords?.lng ?? form.lng;
-      await api.addCafe({ ...form, lat, lng, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd });
+      await api.addCafe({ ...form, lat, lng, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd, subscriptionAmount: Number(form.subscriptionAmount) || 0 });
       const res = await api.getCafes();
       setCafes(res.cafes);
       // Find the newly created cafe (last one with matching name)
@@ -576,9 +576,23 @@ export default function CafesPage() {
                     )}
                   </div>
 
-                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-foreground">
-                    <p className="font-semibold text-primary mb-1">💳 قيمة الاشتراك السنوي</p>
-                    <p className="text-muted-foreground">سيتم إضافة هذا الكوفي بعد سداد رسوم الاشتراك السنوية البالغة <span className="font-bold text-primary">300 ريال عماني</span>.</p>
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-foreground space-y-3">
+                    <div>
+                      <p className="font-semibold text-primary mb-1">💳 قيمة الاشتراك السنوي</p>
+                      <p className="text-muted-foreground text-xs">حدّد المبلغ الذي سيدفعه الكوفي مقابل الاشتراك السنوي.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={form.subscriptionAmount}
+                        onChange={e => setForm(f => ({ ...f, subscriptionAmount: e.target.value }))}
+                        placeholder="300"
+                        className="flex-1 bg-input border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <span className="text-sm font-bold text-primary whitespace-nowrap">ريال عماني / OMR</span>
+                    </div>
                   </div>
                 </>
               )}

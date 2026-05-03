@@ -43,7 +43,9 @@ router.post("/cafes", async (req, res) => {
     managerPassword,
     active: true,
     subscriptionPaid: true,
-    subscriptionAmount: 300,
+    subscriptionAmount: req.body.subscriptionAmount != null && !Number.isNaN(Number(req.body.subscriptionAmount))
+      ? Number(req.body.subscriptionAmount)
+      : 300,
     subscriptionStart: subscriptionStart || today,
     subscriptionEnd:   subscriptionEnd   || oneYear.toISOString().split("T")[0],
     website: website || "",
