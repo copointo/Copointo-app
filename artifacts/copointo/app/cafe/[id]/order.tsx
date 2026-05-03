@@ -45,6 +45,8 @@ interface MenuItem {
   originalPrice?: number | null;
   promoBuyQty?: number | null;
   promoGetQty?: number | null;
+  stockQty?: number | null;
+  initialStockQty?: number | null;
 }
 
 const CATEGORIES: { key: string; icon: string }[] = [
@@ -193,6 +195,11 @@ export default function OrderScreen() {
         {visibleItems.map((item) => {
           const cartItem = cart.find((c) => c.id === item.id);
           const qty = cartItem?.quantity ?? 0;
+          const tracked   = item.stockQty != null;
+          const remaining = tracked ? Math.max(0, (item.stockQty as number) - qty) : Infinity;
+          const depleted  = tracked && (item.stockQty as number) <= 0;
+          const lowStock  = tracked && !depleted && (item.stockQty as number) > 0
+            && (item.stockQty as number) <= Math.max(1, Math.ceil(((item.initialStockQty ?? item.stockQty) as number) * 0.25));
           return (
             <View key={item.id} style={styles.card}>
               {item.image ? (
@@ -218,6 +225,23 @@ export default function OrderScreen() {
                     </Text>
                   </View>
                 )}
+                {tracked && (
+                  <View style={[
+                    styles.stockBadge,
+                    depleted ? styles.stockBadgeOut : lowStock ? styles.stockBadgeLow : styles.stockBadgeOk,
+                  ]}>
+                    <Text style={[
+                      styles.stockBadgeText,
+                      depleted ? styles.stockTextOut : lowStock ? styles.stockTextLow : styles.stockTextOk,
+                    ]}>
+                      {depleted
+                        ? "نَفِد المنتج"
+                        : lowStock
+                          ? `كمية محدودة — متبقّي ${item.stockQty}`
+                          : `متوفر: ${item.stockQty}`}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.cardBottom}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                     {!!(item.originalPrice && item.originalPrice > item.price) && (
@@ -232,7 +256,13 @@ export default function OrderScreen() {
                       </View>
                     )}
                   </View>
-                  {qty > 0 ? (
+                  {depleted ? (
+                    <View style={[styles.addBtn, { opacity: 0.45 }]}>
+                      <View style={[styles.addBtnGrad, { backgroundColor: "#3a1a1a" }]}>
+                        <Feather name="x" size={18} color={CREAM} />
+                      </View>
+                    </View>
+                  ) : qty > 0 ? (
                     <View style={styles.qtyRow}>
                       <TouchableOpacity
                         style={styles.qtyBtn}
@@ -242,8 +272,9 @@ export default function OrderScreen() {
                       </TouchableOpacity>
                       <Text style={styles.qtyText}>{qty}</Text>
                       <TouchableOpacity
-                        style={[styles.qtyBtn, { backgroundColor: PRIMARY }]}
-                        onPress={() => handleAdd(item)}
+                        style={[styles.qtyBtn, { backgroundColor: PRIMARY, opacity: remaining <= 0 ? 0.4 : 1 }]}
+                        onPress={() => { if (remaining > 0) handleAdd(item); }}
+                        disabled={remaining <= 0}
                       >
                         <Feather name="plus" size={14} color="#000" />
                       </TouchableOpacity>
@@ -492,6 +523,18 @@ const styles = StyleSheet.create({
   bundleBadgeText: {
     fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY,
   },
+  stockBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+    borderWidth: 1, marginTop: 4,
+  },
+  stockBadgeOk:  { backgroundColor: "rgba(34,197,94,0.12)",  borderColor: "rgba(34,197,94,0.35)" },
+  stockBadgeLow: { backgroundColor: "rgba(234,179,8,0.15)",  borderColor: "rgba(234,179,8,0.4)"  },
+  stockBadgeOut: { backgroundColor: "rgba(239,68,68,0.18)",  borderColor: "rgba(239,68,68,0.45)" },
+  stockBadgeText:{ fontSize: 11, fontFamily: "Inter_700Bold" },
+  stockTextOk:   { color: "#86EFAC" },
+  stockTextLow:  { color: "#FDE68A" },
+  stockTextOut:  { color: "#FCA5A5" },
 
   // Add controls
   addBtn:     { borderRadius: 12, overflow: "hidden" },

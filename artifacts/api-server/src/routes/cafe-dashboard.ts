@@ -229,15 +229,64 @@ router.patch("/bookings/:bookingId/status", (req, res) => {
 router.get("/menu", (req: any, res) => {
   res.json({ items: menuItems.filter(m => m.cafeId === req.params.cafeId) });
 });
+function normalizeStock(body: any) {
+  // Coerce stockQty: undefined → leave alone; null/"" → null (untracked); number → integer >= 0
+  if (body && Object.prototype.hasOwnProperty.call(body, "stockQty")) {
+    const raw = body.stockQty;
+    if (raw === null || raw === "" || typeof raw === "undefined") {
+      body.stockQty = null;
+    } else {
+      const n = Math.floor(Number(raw));
+      body.stockQty = Number.isFinite(n) && n >= 0 ? n : null;
+    }
+  }
+}
+
 router.post("/menu", (req: any, res) => {
-  const item: MenuItem = { id: Date.now().toString(), cafeId: req.params.cafeId, available: true, createdAt: new Date().toISOString(), ...req.body };
+  const body = req.body ?? {};
+  normalizeStock(body);
+  const item: MenuItem = {
+    id: Date.now().toString(),
+    cafeId: req.params.cafeId,
+    available: true,
+    createdAt: new Date().toISOString(),
+    ...body,
+    // Snapshot the initial total when stock is provided at creation.
+    initialStockQty: typeof body.stockQty === "number" ? body.stockQty : null,
+  };
   menuItems.push(item);
   res.status(201).json({ item });
 });
 router.patch("/menu/:itemId", (req, res) => {
   const item = menuItems.find(m => m.id === req.params.itemId);
   if (!item) return res.status(404).json({ error: "Not found" });
-  Object.assign(item, req.body);
+  const body = req.body ?? {};
+  normalizeStock(body);
+  // Recompute initialStockQty (the alert-threshold baseline) only when stockQty
+  // is actually being changed, so editing other fields (name/price/desc) via
+  // the menu form does NOT silently clear low/critical alerts.
+  if (Object.prototype.hasOwnProperty.call(body, "stockQty")) {
+    const next = body.stockQty;
+    if (next === null) {
+      // Stock tracking turned off → clear baseline.
+      body.initialStockQty = null;
+    } else if (typeof next === "number") {
+      const prevStock = typeof item.stockQty === "number" ? item.stockQty : null;
+      const prevInit  = typeof item.initialStockQty === "number" ? item.initialStockQty : null;
+      if (prevStock === null) {
+        // Tracking newly enabled → this IS the baseline.
+        body.initialStockQty = next;
+      } else if (next > (prevInit ?? prevStock)) {
+        // Restock above the prior baseline → bump baseline up.
+        body.initialStockQty = next;
+      } else {
+        // Same or lower (depletion / minor correction) → keep existing baseline
+        // so 50% / 25% thresholds remain meaningful.
+        body.initialStockQty = prevInit ?? prevStock;
+      }
+    }
+  }
+  Object.assign(item, body);
   res.json({ item });
 });
 router.delete("/menu/:itemId", (req, res) => {

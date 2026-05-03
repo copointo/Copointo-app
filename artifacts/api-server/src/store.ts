@@ -26,6 +26,10 @@ export interface MenuItem {
   originalPrice?: number | null;
   promoBuyQty?: number | null;
   promoGetQty?: number | null;
+  /** Optional stock tracking. null/undefined = not tracked (unlimited). */
+  stockQty?: number | null;
+  /** Snapshot of last "restock" total — used as denominator for low/critical alerts. */
+  initialStockQty?: number | null;
 }
 export interface CafeTable {
   id: string; cafeId: string; number: number; capacity: number;

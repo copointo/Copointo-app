@@ -531,11 +531,23 @@ type MenuForm = {
   originalPrice: string;
   promoBuyQty: string;
   promoGetQty: string;
+  stockQty: string;          // empty string = not tracked
 };
 const emptyForm = (): MenuForm => ({
   name: "", price: "", category: DEFAULT_CATEGORY, description: "", image: "",
   promoMode: "none", originalPrice: "", promoBuyQty: "", promoGetQty: "",
+  stockQty: "",
 });
+
+function menuStockStatus(item: { stockQty?: number | null; initialStockQty?: number | null }) {
+  if (item.stockQty == null) return "untracked" as const;
+  if (item.stockQty <= 0) return "depleted" as const;
+  const denom = (item.initialStockQty && item.initialStockQty > 0) ? item.initialStockQty : item.stockQty;
+  const ratio = item.stockQty / denom;
+  if (ratio <= 0.25) return "critical" as const;
+  if (ratio <= 0.5)  return "warning"  as const;
+  return "ok" as const;
+}
 
 function MenuTab({ id }: { id: string }) {
   const [items, setItems] = useState<any[]>([]);
@@ -580,6 +592,12 @@ function MenuTab({ id }: { id: string }) {
 
     setSaving(true);
     try {
+      // Stock: empty string = not tracked (null), otherwise integer >= 0
+      let stockQty: number | null = null;
+      if (form.stockQty.trim() !== "") {
+        const sq = Math.floor(Number(form.stockQty));
+        stockQty = (Number.isFinite(sq) && sq >= 0) ? sq : null;
+      }
       const body = {
         name: form.name,
         price,
@@ -589,6 +607,7 @@ function MenuTab({ id }: { id: string }) {
         originalPrice,
         promoBuyQty,
         promoGetQty,
+        stockQty,
       };
       if (editingId) {
         await api.updateMenuItem(id, editingId, body);
@@ -620,6 +639,7 @@ function MenuTab({ id }: { id: string }) {
       originalPrice: item.originalPrice ? String(item.originalPrice) : "",
       promoBuyQty: item.promoBuyQty ? String(item.promoBuyQty) : "",
       promoGetQty: item.promoGetQty ? String(item.promoGetQty) : "",
+      stockQty: (item.stockQty != null) ? String(item.stockQty) : "",
     });
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -632,6 +652,23 @@ function MenuTab({ id }: { id: string }) {
   const toggleAvail = async (item: any) => {
     await api.updateMenuItem(id, item.id, { available: !item.available });
     setItems(prev => prev.map(m => m.id === item.id ? { ...m, available: !m.available } : m));
+  };
+  const editStock = async (item: any) => {
+    const cur = item.stockQty == null ? "" : String(item.stockQty);
+    const v = typeof window !== "undefined"
+      ? window.prompt(`الكمية المتوفرة لـ «${item.name}»\n(اتركه فارغاً للإلغاء؛ اكتب "-" للإلغاء التتبّع)`, cur)
+      : null;
+    if (v === null) return;
+    let stockQty: number | null;
+    if (v.trim() === "-" || v.trim() === "") {
+      stockQty = null;
+    } else {
+      const n = Math.floor(Number(v));
+      if (!Number.isFinite(n) || n < 0) { alert("أدخل رقماً صحيحاً ≥ 0 أو - للإلغاء"); return; }
+      stockQty = n;
+    }
+    await api.updateMenuItem(id, item.id, { stockQty });
+    await load();
   };
 
   const onPickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -662,6 +699,21 @@ function MenuTab({ id }: { id: string }) {
           <Inp value={form.price} onChange={(v:string) => setForm(p=>({...p,price:v}))} placeholder="السعر (OMR) *" type="number" />
           <Sel value={form.category} onChange={(v:string) => setForm(p=>({...p,category:v}))} options={MENU_CATEGORIES} />
           <Inp value={form.description} onChange={(v:string) => setForm(p=>({...p,description:v}))} placeholder="وصف مختصر" />
+
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+              الكمية المتوفرة (اختياري) <span className="text-[10px] font-normal">— اتركه فارغاً إذا كان غير محدود</span>
+            </label>
+            <Inp
+              value={form.stockQty}
+              onChange={(v: string) => setForm(p => ({ ...p, stockQty: v.replace(/[^0-9]/g, "") }))}
+              placeholder="مثال: 30"
+              type="number"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              عند تعيين كمية، ستظهر للزبون في التطبيق وسنُنبّهك تلقائياً عند 50% و25% والنفاد.
+            </p>
+          </div>
 
           {/* Image picker */}
           <div className="col-span-2">
@@ -783,6 +835,50 @@ function MenuTab({ id }: { id: string }) {
         </form>
       </Card>
 
+      {/* Stock alerts */}
+      {(() => {
+        const tracked = items.filter(i => i.stockQty != null);
+        const depleted = tracked.filter(i => menuStockStatus(i) === "depleted");
+        const critical = tracked.filter(i => menuStockStatus(i) === "critical");
+        const warning  = tracked.filter(i => menuStockStatus(i) === "warning");
+        if (depleted.length + critical.length + warning.length === 0) return null;
+        return (
+          <div className="space-y-2">
+            {depleted.length > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-xl border bg-red-500/15 border-red-500/50 text-red-300">
+                <XCircle size={16} className="mt-0.5"/>
+                <div className="text-xs">
+                  <p className="font-bold mb-0.5">منتجات نَفِدت — يرجى إعادة التعبئة</p>
+                  <p className="opacity-90">{depleted.map(i => i.name).join(" • ")}</p>
+                </div>
+              </div>
+            )}
+            {critical.length > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-xl border bg-red-500/10 border-red-500/40 text-red-300">
+                <AlertTriangle size={16} className="mt-0.5"/>
+                <div className="text-xs">
+                  <p className="font-bold mb-0.5">كميات قريبة من النفاد (≤ 25%) — أضف المزيد</p>
+                  <p className="opacity-90">
+                    {critical.map(i => `${i.name} (${i.stockQty}/${i.initialStockQty ?? i.stockQty})`).join(" • ")}
+                  </p>
+                </div>
+              </div>
+            )}
+            {warning.length > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-xl border bg-yellow-500/15 border-yellow-500/40 text-yellow-300">
+                <AlertTriangle size={16} className="mt-0.5"/>
+                <div className="text-xs">
+                  <p className="font-bold mb-0.5">كميات وصلت إلى النصف</p>
+                  <p className="opacity-90">
+                    {warning.map(i => `${i.name} (${i.stockQty}/${i.initialStockQty ?? i.stockQty})`).join(" • ")}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Items grouped by category (fixed order) */}
       {items.length === 0 && <Empty icon="🍽️" text="القائمة فارغة — أضف منتجات!" />}
       {MENU_CATEGORIES.map(({ value: cat, label }) => {
@@ -818,6 +914,30 @@ function MenuTab({ id }: { id: string }) {
                     </div>
                   </div>
                   <span className="text-primary font-bold text-sm whitespace-nowrap">{item.price?.toFixed(3)} OMR</span>
+                  {(() => {
+                    const st = menuStockStatus(item);
+                    if (st === "untracked") {
+                      return (
+                        <button onClick={() => editStock(item)} title="تعيين كمية"
+                          className="text-[10px] px-2 py-1 rounded-lg font-medium border border-border text-muted-foreground hover:border-primary/40 hover:text-primary whitespace-nowrap">
+                          ∞ غير محدود
+                        </button>
+                      );
+                    }
+                    const cls =
+                      st === "depleted" ? "bg-red-500/20 text-red-400 border-red-500/40" :
+                      st === "critical" ? "bg-red-500/15 text-red-300 border-red-500/30" :
+                      st === "warning"  ? "bg-yellow-500/15 text-yellow-300 border-yellow-500/30" :
+                                          "bg-primary/15 text-primary border-primary/30";
+                    return (
+                      <button onClick={() => editStock(item)} title="تعديل الكمية"
+                        className={`text-[10px] px-2 py-1 rounded-lg font-bold border whitespace-nowrap ${cls}`}>
+                        {st === "depleted"
+                          ? "نَفِد"
+                          : <>متبقّي {item.stockQty}{item.initialStockQty ? ` / ${item.initialStockQty}` : ""}</>}
+                      </button>
+                    );
+                  })()}
                   <button onClick={() => toggleAvail(item)} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${item.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
                     {item.available ? "متاح" : "غير متاح"}
                   </button>
