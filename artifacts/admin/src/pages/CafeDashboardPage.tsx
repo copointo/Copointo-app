@@ -9,6 +9,7 @@ import {
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
+  GlassWater, Cookie,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -517,11 +518,11 @@ function BookingsTab({ id }: { id: string }) {
 }
 
 // ── Menu Tab ──────────────────────────────────────────────────
-const MENU_CATEGORIES = [
-  { value: "مشروب ساخن",   label: "☕ مشروب ساخن" },
-  { value: "مشروبات باردة", label: "🥤 مشروبات باردة" },
-  { value: "حلى",          label: "🍰 حلى" },
-  { value: "طعام",         label: "🍽️ طعام" },
+const MENU_CATEGORIES: { value: string; label: string; Icon: any }[] = [
+  { value: "مشروب ساخن",   label: "مشروبات ساخنة",  Icon: Coffee          },
+  { value: "مشروبات باردة", label: "مشروبات باردة",  Icon: GlassWater      },
+  { value: "طعام",         label: "طعام",           Icon: UtensilsCrossed },
+  { value: "حلى",          label: "حلى",            Icon: Cookie          },
 ];
 const DEFAULT_CATEGORY = MENU_CATEGORIES[0].value;
 const MAX_IMAGE_BYTES = 600 * 1024; // 600KB cap on upload
@@ -881,16 +882,25 @@ function MenuTab({ id }: { id: string }) {
         );
       })()}
 
-      {/* Items grouped by category (fixed order) */}
-      {items.length === 0 && <Empty icon="🍽️" text="القائمة فارغة — أضف منتجات!" />}
-      {MENU_CATEGORIES.map(({ value: cat, label }) => {
+      {/* Items grouped by category (4 fixed sections — always visible) */}
+      {MENU_CATEGORIES.map(({ value: cat, label, Icon }) => {
         const list = items.filter(i => i.category === cat);
-        if (list.length === 0) return null;
         return (
           <Card key={cat} className="overflow-hidden">
-            <div className="px-5 py-3 bg-muted/30 border-b border-border">
+            <div className="px-5 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center">
+                <Icon size={15} className="text-primary" strokeWidth={2} />
+              </span>
               <span className="font-semibold text-foreground text-sm">{label}</span>
+              <span className="ms-auto text-[11px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
+                {list.length} منتج
+              </span>
             </div>
+            {list.length === 0 ? (
+              <div className="px-5 py-6 text-center text-xs text-muted-foreground">
+                لا توجد منتجات في هذا القسم بعد — اختر "{label}" من قائمة التصنيف عند إضافة منتج جديد.
+              </div>
+            ) : (
             <div className="divide-y divide-border">
               {list.map(item => (
                 <div key={item.id} className={`flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`}>
@@ -948,6 +958,7 @@ function MenuTab({ id }: { id: string }) {
                 </div>
               ))}
             </div>
+            )}
           </Card>
         );
       })}
