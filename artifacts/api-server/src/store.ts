@@ -124,3 +124,16 @@ export interface FreeCoffee {
   redeemedOrderId: string | null;
 }
 export const freeCoffees: FreeCoffee[] = [];
+
+export interface InventoryItem {
+  id: string;
+  cafeId: string;
+  name: string;
+  initialQty: number;
+  currentQty: number;
+  unitPrice: number;     // OMR per single unit
+  totalCost: number;     // initialQty * unitPrice (snapshot at creation)
+  createdAt: string;     // ISO timestamp
+  depletedAt: string | null; // ISO when currentQty first hit 0
+}
+export const inventoryItems: InventoryItem[] = [];

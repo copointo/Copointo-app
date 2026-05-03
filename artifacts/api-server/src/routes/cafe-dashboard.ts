@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
-  expenses, invoiceTemplates, freeCoffees,
+  expenses, invoiceTemplates, freeCoffees, inventoryItems,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
-  type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee } from "../store";
+  type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem } from "../store";
 
 // ── Free-coffee code helpers ─────────────────────────────────
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
@@ -564,6 +564,62 @@ router.delete("/expenses/:expenseId", (req: any, res): any => {
   if (idx < 0) return res.status(404).json({ error: "not found" });
   expenses.splice(idx, 1);
   res.json({ ok: true });
+});
+
+// ── Inventory (المخزن) ───────────────────────────────────────
+router.get("/inventory", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const list = inventoryItems
+    .filter(i => i.cafeId === cid)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const active   = list.filter(i => i.currentQty > 0);
+  const depleted = list.filter(i => i.currentQty <= 0);
+  res.json({ active, depleted });
+});
+
+router.post("/inventory", (req: any, res): any => {
+  const cid  = req.params.cafeId;
+  const body = req.body ?? {};
+  const name       = String(body.name ?? "").trim();
+  const initialQty = Math.floor(Number(body.initialQty));
+  const unitPrice  = Number(body.unitPrice);
+  if (!name || !Number.isFinite(initialQty) || initialQty <= 0 ||
+      !Number.isFinite(unitPrice) || unitPrice < 0) {
+    return res.status(400).json({ error: "name/initialQty/unitPrice مطلوبة وقيم موجبة" });
+  }
+  const item: InventoryItem = {
+    id: Date.now().toString(),
+    cafeId: cid,
+    name,
+    initialQty,
+    currentQty: initialQty,
+    unitPrice,
+    totalCost: Number((initialQty * unitPrice).toFixed(3)),
+    createdAt: new Date().toISOString(),
+    depletedAt: null,
+  };
+  inventoryItems.push(item);
+  res.json({ item });
+});
+
+router.patch("/inventory/:itemId/decrement", (req: any, res): any => {
+  const item = inventoryItems.find(
+    i => i.id === req.params.itemId && i.cafeId === req.params.cafeId
+  );
+  if (!item) return res.status(404).json({ error: "not found" });
+  if (item.currentQty <= 0) {
+    return res.status(400).json({ error: "المنتج منتهٍ بالفعل" });
+  }
+  const rawStep = Number(req.body?.step ?? 1);
+  if (!Number.isFinite(rawStep) || rawStep < 1) {
+    return res.status(400).json({ error: "step يجب أن يكون عدداً موجباً" });
+  }
+  const step = Math.max(1, Math.floor(rawStep));
+  item.currentQty = Math.max(0, item.currentQty - step);
+  if (item.currentQty === 0 && !item.depletedAt) {
+    item.depletedAt = new Date().toISOString();
+  }
+  res.json({ item });
 });
 
 // ── Invoice templates (5 types per cafe) ─────────────────────

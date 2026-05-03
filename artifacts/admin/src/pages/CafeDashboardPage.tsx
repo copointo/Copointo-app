@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
@@ -8,7 +8,7 @@ import {
   MessageCircle, Table2, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
-  Wallet, FileText, Printer, Save,
+  Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -16,7 +16,7 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "templates";
+type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates";
 
 const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
   { id:"stats",     label:"الإحصائيات",       icon: LayoutDashboard,  emoji:"📊" },
@@ -27,6 +27,7 @@ const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
   { id:"tables",    label:"الطاولات",          icon: Table2,           emoji:"🪑" },
   { id:"invoices",  label:"الفواتير",          icon: Receipt,          emoji:"🧾" },
   { id:"expenses",  label:"المصاريف",          icon: Wallet,           emoji:"💸" },
+  { id:"inventory", label:"المخزن",            icon: Package,          emoji:"📦" },
   { id:"templates", label:"تعديل الفواتير",    icon: FileText,         emoji:"📝" },
 ];
 
@@ -1673,6 +1674,234 @@ function ExpensesTab({ id }: { id: string }) {
   );
 }
 
+// ── Inventory Tab (المخزن) ───────────────────────────────────
+function inventoryStatus(item: { initialQty: number; currentQty: number }) {
+  if (item.currentQty <= 0) return "depleted" as const;
+  const ratio = item.currentQty / Math.max(1, item.initialQty);
+  if (ratio <= 0.25) return "critical" as const;
+  if (ratio <= 0.5)  return "warning"  as const;
+  return "ok" as const;
+}
+
+const INV_BANNER: Record<"critical" | "warning", { bg: string; text: string; icon: any; msg: (n: string) => string }> = {
+  warning:  { bg: "bg-yellow-500/15 border-yellow-500/40 text-yellow-300", text: "text-yellow-300",
+    icon: AlertTriangle, msg: (n) => `وصلت كمية «${n}» إلى النصف` },
+  critical: { bg: "bg-red-500/15 border-red-500/50 text-red-300",        text: "text-red-300",
+    icon: AlertTriangle, msg: (n) => `كمية «${n}» وصلت إلى الربع — يحتاج زيادة المنتج` },
+};
+
+function fmtDateTime(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("ar-OM", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch { return iso; }
+}
+
+function InventoryTab({ id }: { id: string }) {
+  const [active, setActive] = useState<any[]>([]);
+  const [depleted, setDepleted] = useState<any[]>([]);
+  const [form, setForm] = useState({ name: "", initialQty: "", unitPrice: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [pending, setPending] = useState<Record<string, boolean>>({});
+  const reqSeq = useRef(0);
+
+  const load = useCallback(async () => {
+    const my = ++reqSeq.current;
+    try {
+      const d = await api.inventory(id);
+      // Drop stale response if a newer request has started.
+      if (my !== reqSeq.current) return;
+      setActive(d.active ?? []);
+      setDepleted(d.depleted ?? []);
+    } catch {/* ignore */}
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  const qtyN   = Number(form.initialQty);
+  const priceN = Number(form.unitPrice);
+  const total  = (Number.isFinite(qtyN) && Number.isFinite(priceN) && qtyN > 0 && priceN >= 0)
+    ? qtyN * priceN : 0;
+
+  const submit = async () => {
+    setErr("");
+    const name = form.name.trim();
+    if (!name) { setErr("أدخل اسم المنتج"); return; }
+    if (!Number.isFinite(qtyN) || qtyN <= 0)   { setErr("أدخل عدداً صحيحاً موجباً"); return; }
+    if (!Number.isFinite(priceN) || priceN < 0) { setErr("أدخل سعراً صالحاً"); return; }
+    setBusy(true);
+    try {
+      await api.addInventoryItem(id, {
+        name, initialQty: Math.floor(qtyN), unitPrice: priceN,
+      });
+      setForm({ name: "", initialQty: "", unitPrice: "" });
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "تعذر إضافة المنتج");
+    } finally { setBusy(false); }
+  };
+
+  const decrement = async (itemId: string) => {
+    if (pending[itemId]) return;
+    setPending(p => ({ ...p, [itemId]: true }));
+    try {
+      await api.decrementInventory(id, itemId, 1);
+      await load();
+    } catch {/* ignore */}
+    finally { setPending(p => { const n = { ...p }; delete n[itemId]; return n; }); }
+  };
+
+  const banners = active
+    .map(it => ({ it, st: inventoryStatus(it) }))
+    .filter(x => x.st === "warning" || x.st === "critical");
+
+  return (
+    <div className="space-y-5">
+      {/* Add product form */}
+      <Card className="p-5">
+        <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
+          <Plus size={16}/> إضافة منتج للمخزن
+        </h3>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Inp value={form.name} onChange={(v: string) => setForm(f => ({ ...f, name: v }))}
+               placeholder="اسم المنتج (مثال: أكياس بن، سيروب فانيلا)" className="md:col-span-3" />
+          <Inp value={form.initialQty} onChange={(v: string) => setForm(f => ({ ...f, initialQty: v }))}
+               placeholder="عدد المنتج" type="number" />
+          <Inp value={form.unitPrice} onChange={(v: string) => setForm(f => ({ ...f, unitPrice: v }))}
+               placeholder="سعر المنتج الواحد (OMR)" type="number" />
+          <div className="flex items-center justify-between gap-2 px-4 rounded-xl bg-primary/10 border border-primary/30">
+            <span className="text-xs text-muted-foreground">الإجمالي</span>
+            <span className="text-base font-bold text-primary">{total.toFixed(3)} OMR</span>
+          </div>
+        </div>
+        {err && <p className="text-xs text-red-400 mt-2">{err}</p>}
+        <div className="flex justify-end mt-3">
+          <button onClick={submit} disabled={busy}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 disabled:opacity-50">
+            <Save size={14}/> {busy ? "جاري الحفظ..." : "حفظ المنتج"}
+          </button>
+        </div>
+      </Card>
+
+      {/* Alerts */}
+      {banners.length > 0 && (
+        <div className="space-y-2">
+          {banners.map(({ it, st }) => {
+            const meta = INV_BANNER[st as "warning" | "critical"];
+            const Icon = meta.icon;
+            return (
+              <div key={it.id} className={`flex items-center gap-2 p-3 rounded-xl border ${meta.bg}`}>
+                <Icon size={16} />
+                <span className="text-xs font-semibold">{meta.msg(it.name)}</span>
+                <span className="text-[11px] opacity-70 mr-auto">
+                  المتبقي {it.currentQty} من {it.initialQty}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Active products */}
+      <div>
+        <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
+          <Package size={16} className="text-primary"/> المنتجات الحالية في المخزن
+          <span className="text-[11px] text-muted-foreground font-normal">({active.length})</span>
+        </h3>
+        {active.length === 0 && <Empty icon="📦" text="لا توجد منتجات في المخزن" />}
+        <div className="grid md:grid-cols-2 gap-3">
+          {active.map(it => {
+            const st = inventoryStatus(it);
+            const ratio = it.currentQty / Math.max(1, it.initialQty);
+            const barColor = st === "critical" ? "bg-red-400"
+                           : st === "warning"  ? "bg-yellow-400"
+                           : "bg-primary";
+            return (
+              <Card key={it.id} className="p-4">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <p className="font-semibold text-foreground text-sm">{it.name}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      أُضيف: {fmtDateTime(it.createdAt)}
+                    </p>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[11px] text-muted-foreground">سعر الوحدة</p>
+                    <p className="text-sm font-bold text-primary">{Number(it.unitPrice).toFixed(3)} OMR</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="text-muted-foreground">المتبقي الآن</span>
+                  <span className="font-bold text-foreground">
+                    {it.currentQty} <span className="text-muted-foreground font-normal">/ {it.initialQty}</span>
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+                  <div className={`h-full ${barColor} transition-all`} style={{ width: `${Math.max(2, ratio * 100)}%` }} />
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-border">
+                  <span className="text-[11px] text-muted-foreground">
+                    إجمالي الشراء: <span className="text-foreground font-semibold">{Number(it.totalCost).toFixed(3)} OMR</span>
+                  </span>
+                  <button onClick={() => decrement(it.id)} disabled={!!pending[it.id]}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/15 text-primary text-xs font-semibold hover:bg-primary/25 disabled:opacity-50 disabled:cursor-wait">
+                    <Minus size={13}/> {pending[it.id] ? "..." : "إنقاص بمقدار 1"}
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Depleted products */}
+      <div>
+        <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
+          <XCircle size={16} className="text-red-400"/> المنتجات المفروغ منها
+          <span className="text-[11px] text-muted-foreground font-normal">({depleted.length})</span>
+        </h3>
+        {depleted.length === 0 && <Empty icon="✅" text="لا توجد منتجات منتهية" />}
+        <div className="grid md:grid-cols-2 gap-3">
+          {depleted.map(it => (
+            <Card key={it.id} className="p-4 opacity-80">
+              <div className="flex items-start justify-between gap-3 mb-1">
+                <div>
+                  <p className="font-semibold text-foreground text-sm flex items-center gap-2">
+                    {it.name}
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 font-bold">
+                      منتهٍ
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    أُضيف: {fmtDateTime(it.createdAt)}
+                  </p>
+                  {it.depletedAt && (
+                    <p className="text-[11px] text-red-400/80 mt-0.5">
+                      انتهى: {fmtDateTime(it.depletedAt)}
+                    </p>
+                  )}
+                </div>
+                <div className="text-left">
+                  <p className="text-[11px] text-muted-foreground">الكمية المشتراة</p>
+                  <p className="text-sm font-bold text-foreground">{it.initialQty}</p>
+                </div>
+              </div>
+              <div className="mt-2 p-2 rounded-lg bg-red-500/10 border border-red-500/30 text-[11px] text-red-300 text-center font-semibold">
+                تم انتهاء العدد — يرجى شراء عدد أكثر من المنتج
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Templates Tab (تعديل الفواتير) ───────────────────────────
 const TEMPLATE_TYPES: { key: "expense" | "order" | "daily" | "monthly" | "yearly"; label: string; icon: any }[] = [
   { key: "expense", label: "فواتير المصاريف", icon: Wallet },
@@ -1962,6 +2191,7 @@ export default function CafeDashboardPage() {
         {tab === "tables"   && <TablesTab   id={id} />}
         {tab === "invoices"  && <InvoicesTab  id={id} />}
         {tab === "expenses"  && <ExpensesTab  id={id} />}
+        {tab === "inventory" && <InventoryTab id={id} />}
         {tab === "templates" && <TemplatesTab id={id} />}
       </div>
 

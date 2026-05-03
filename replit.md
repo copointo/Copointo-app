@@ -69,6 +69,22 @@ Three new tabs added to the existing tab strip:
 - **Monthly/Yearly invoice** — header → order count → category breakdown → revenue total → expenses total (if any, in red) → net → footer.
 - **Expense invoice** — header → date + category info → expense detail row → notes → total → footer.
 
+## Inventory (المخزن)
+
+Each cafe has an **Inventory tab** (`📦 المخزن`) in the admin dashboard for tracking warehouse stock (coffee bags, equipment, syrups, …).
+
+**Server (`artifacts/api-server/src/store.ts` + `routes/cafe-dashboard.ts`):**
+- `InventoryItem { id, cafeId, name, initialQty, currentQty, unitPrice, totalCost, createdAt, depletedAt }` in `inventoryItems[]`.
+- `GET /api/cafe/:id/inventory` → `{ active, depleted }` (split by `currentQty > 0`).
+- `POST /api/cafe/:id/inventory` — body `{ name, initialQty, unitPrice }`; `totalCost = initialQty * unitPrice` snapshot at creation.
+- `PATCH /api/cafe/:id/inventory/:itemId/decrement` — body `{ step? = 1 }`; sets `depletedAt` when `currentQty` first reaches 0; returns 400 if already depleted (no further edits possible).
+
+**Admin (`artifacts/admin/src/pages/CafeDashboardPage.tsx` → `InventoryTab`):**
+- Add form: name + count + unit price → live total (`count × price`) and timestamp captured server-side.
+- "المنتجات الحالية في المخزن" cards show name, added datetime, unit price, total purchase cost, remaining `currentQty / initialQty` with a colored progress bar, and a "إنقاص بمقدار 1" button.
+- Status thresholds (`inventoryStatus` helper): `ratio ≤ 0.5` → yellow warning banner "وصلت كمية «X» إلى النصف"; `ratio ≤ 0.25` → red banner "كمية «X» وصلت إلى الربع — يحتاج زيادة المنتج".
+- When `currentQty` hits 0 the item auto-moves to "المنتجات المفروغ منها" section (read-only badge "منتهٍ" + red banner "تم انتهاء العدد — يرجى شراء عدد أكثر من المنتج"), with no decrement/edit controls.
+
 ## Discount Codes
 
 Each cafe can issue **digit-only** promo codes from the new "أكواد التخفيض" tab in the cafe dashboard. Codes have a fixed percent (10/20/30/40/50), an expiry date, and a `usedCount`. Server endpoints (in `artifacts/api-server/src/routes/cafe-dashboard.ts`):

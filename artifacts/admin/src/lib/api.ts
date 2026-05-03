@@ -59,6 +59,13 @@ export const api = {
   addExpense:      (id: string, body: any)   => req<any>("POST",   `${C(id)}/expenses`, body),
   deleteExpense:   (id: string, eid: string) => req<any>("DELETE", `${C(id)}/expenses/${eid}`),
 
+  // Inventory (المخزن)
+  inventory:           (id: string) => req<any>("GET",  `${C(id)}/inventory`),
+  addInventoryItem:    (id: string, body: { name: string; initialQty: number; unitPrice: number }) =>
+                                       req<any>("POST", `${C(id)}/inventory`, body),
+  decrementInventory:  (id: string, itemId: string, step = 1) =>
+                                       req<any>("PATCH", `${C(id)}/inventory/${itemId}/decrement`, { step }),
+
   // Invoice templates (per type: order/expense/daily/monthly/yearly)
   invoiceTemplates:      (id: string)                       => req<any>("GET", `${C(id)}/invoice-templates`),
   invoiceTemplate:       (id: string, type: string)         => req<any>("GET", `${C(id)}/invoice-templates/${type}`),
