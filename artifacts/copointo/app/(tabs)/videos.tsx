@@ -73,12 +73,22 @@ const PRIMARY = "#E8B86D";
 // the user is testing in the web preview iframe).
 function ReelVideo({ src, isActive }: { src: string; isActive: boolean }) {
   if (Platform.OS === "web") {
+    // Relative API paths (e.g. "/api/reels/123/video") must be resolved
+    // against the API origin — the Expo web app is served from a different
+    // host than api-server, so a bare relative URL would 404 (black screen).
+    const resolved = /^https?:\/\//i.test(src) || src.startsWith("data:")
+      ? src
+      : `${API_BASE}${src.replace(/^\/api/, "")}`;
     return React.createElement("video" as any, {
-      src,
+      src: resolved,
       autoPlay: isActive,
       loop: true,
       muted: true,
       playsInline: true,
+      // Instagram-like: only the active reel pre-buffers, neighbours lazy-load
+      // metadata. The browser's native HTTP Range buffering will pause/stall
+      // gracefully on weak networks instead of showing a black frame.
+      preload: isActive ? "auto" : "metadata",
       style: {
         width: "100%",
         height: "100%",
@@ -467,5 +477,3 @@ const styles = StyleSheet.create({
   },
 });
 
-// Avoid unused-import warning on web-only API_BASE.
-void API_BASE;

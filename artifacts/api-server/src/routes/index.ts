@@ -119,9 +119,14 @@ router.get("/reels", (req, res) => {
 router.get("/reels/:rid/video", (req, res): any => {
   const r = reels.find(x => x.id === req.params.rid);
   if (!r || !r.videoUrl) return res.status(404).end();
-  const m = /^data:([^;]+);base64,(.*)$/s.exec(r.videoUrl);
+  // Accept data URLs with optional codec parameters, e.g.
+  // "data:video/webm;codecs=vp9;base64,...". The mime portion is everything
+  // up to ";base64,".
+  const m = /^data:([^,]+?);base64,(.*)$/s.exec(r.videoUrl);
   if (!m) return res.status(415).end();
-  const mime = m[1];
+  // Strip codec parameters for the response Content-Type — most browsers
+  // handle the bare type more reliably for <video> playback.
+  const mime = m[1].split(";")[0].trim() || "video/mp4";
   const buf = Buffer.from(m[2], "base64");
   const total = buf.length;
   res.setHeader("Content-Type", mime);
