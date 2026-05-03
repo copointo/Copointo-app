@@ -10,6 +10,14 @@ export interface Cafe {
 export interface AppUser {
   id: string; username: string; phone: string; level: number;
   totalOrders: number; banned: boolean; joinedAt: string;
+  /** Permanent game ban (separate from `banned` which blocks the whole account). */
+  gameBanned?: boolean;
+  /** ISO timestamp; if in the future, the user is temporarily suspended from the game. */
+  gameSuspendedUntil?: string | null;
+  /** Reason shown to the user when game is suspended/banned. */
+  gameSuspendReason?: string | null;
+  /** ISO timestamp of when the suspension/ban was applied. */
+  gameSuspendedAt?: string | null;
 }
 export interface MenuItem {
   id: string; cafeId: string; name: string; price: number;

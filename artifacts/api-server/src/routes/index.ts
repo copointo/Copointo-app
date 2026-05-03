@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
-import { cafes } from "../store";
+import { cafes, users } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 const router: IRouter = Router();
@@ -45,6 +45,26 @@ router.get("/cafes/:id", (req, res) => {
       active: c.active,
       lat: c.lat, lng: c.lng,
     }
+  });
+});
+
+// Public game-status endpoint — used by the mobile app to check whether
+// the current user is suspended or banned from the game.
+// Lookup by phone (mobile keeps user state local; phone is the bridge).
+router.get("/user-status", (req, res) => {
+  const phone = String(req.query.phone ?? "").trim();
+  if (!phone) { res.json({ gameBanned: false, gameSuspended: false }); return; }
+  const u = users.find(x => x.phone === phone);
+  if (!u) { res.json({ gameBanned: false, gameSuspended: false }); return; }
+  const now = Date.now();
+  const until = u.gameSuspendedUntil ? new Date(u.gameSuspendedUntil).getTime() : 0;
+  const isSuspended = !!u.gameSuspendedUntil && until > now;
+  res.json({
+    gameBanned:        !!u.gameBanned,
+    gameSuspended:     isSuspended,
+    gameSuspendedUntil: isSuspended ? u.gameSuspendedUntil : null,
+    gameSuspendReason:  (u.gameBanned || isSuspended) ? (u.gameSuspendReason ?? null) : null,
+    gameSuspendedAt:    (u.gameBanned || isSuspended) ? (u.gameSuspendedAt ?? null) : null,
   });
 });
 

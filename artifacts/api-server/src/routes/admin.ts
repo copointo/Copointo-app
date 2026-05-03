@@ -89,6 +89,53 @@ router.patch("/users/:id/ban", (req, res) => {
   res.json({ user });
 });
 
+// ── POST /api/admin/users/:id/game-ban ─────
+// Body: { reason: string }
+// Permanently bans user from the game (ranking hidden, game tab blocked).
+// Cafe ordering & points keep working.
+router.post("/users/:id/game-ban", (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const reason = String(req.body?.reason ?? "").trim();
+  if (!reason) return res.status(400).json({ error: "Reason is required" });
+  user.gameBanned = true;
+  user.gameSuspendedUntil = null;
+  user.gameSuspendReason = reason;
+  user.gameSuspendedAt = new Date().toISOString();
+  res.json({ user });
+});
+
+// ── POST /api/admin/users/:id/game-suspend ─
+// Body: { days: number, reason: string }
+// Temporarily suspends the user from the game for `days` days.
+router.post("/users/:id/game-suspend", (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const days   = Number(req.body?.days);
+  const reason = String(req.body?.reason ?? "").trim();
+  if (!Number.isFinite(days) || days <= 0) return res.status(400).json({ error: "Invalid days" });
+  if (!reason) return res.status(400).json({ error: "Reason is required" });
+  const until = new Date();
+  until.setDate(until.getDate() + Math.floor(days));
+  user.gameBanned = false;
+  user.gameSuspendedUntil = until.toISOString();
+  user.gameSuspendReason = reason;
+  user.gameSuspendedAt = new Date().toISOString();
+  res.json({ user });
+});
+
+// ── POST /api/admin/users/:id/game-clear ───
+// Lifts any active game ban or suspension.
+router.post("/users/:id/game-clear", (req, res) => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.gameBanned = false;
+  user.gameSuspendedUntil = null;
+  user.gameSuspendReason = null;
+  user.gameSuspendedAt = null;
+  res.json({ user });
+});
+
 // ── GET /api/admin/stats ────────────────────
 router.get("/stats", (_req, res) => {
   const totalCafes   = cafes.length;

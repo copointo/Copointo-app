@@ -20,6 +20,9 @@ export const api = {
   deleteCafe: (id: string) => req<any>("DELETE",`${A}/cafes/${id}`),
   getUsers:   ()           => req<any>("GET",   `${A}/users`),
   toggleBan:  (id: string) => req<any>("PATCH", `${A}/users/${id}/ban`),
+  gameBan:     (id: string, reason: string)              => req<any>("POST", `${A}/users/${id}/game-ban`,     { reason }),
+  gameSuspend: (id: string, days: number, reason: string) => req<any>("POST", `${A}/users/${id}/game-suspend`, { days, reason }),
+  gameClear:   (id: string)                              => req<any>("POST", `${A}/users/${id}/game-clear`),
 
   // Cafe Dashboard
   cafeStats:     (id: string)              => req<any>("GET",    `${C(id)}/stats`),

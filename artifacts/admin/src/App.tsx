@@ -4,8 +4,9 @@ import { Toaster } from "@/components/ui/toaster";
 import DashboardPage     from "@/pages/DashboardPage";
 import CafesPage         from "@/pages/CafesPage";
 import UsersPage         from "@/pages/UsersPage";
+import CopointoHubPage   from "@/pages/CopointoHubPage";
 import CafeDashboardPage, { ManagerAnalyticsPage } from "@/pages/CafeDashboardPage";
-import { LayoutDashboard, Coffee, Users, ArrowRight } from "lucide-react";
+import { LayoutDashboard, Coffee, Users, Gamepad2, ArrowRight } from "lucide-react";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,15 @@ function HomePage() {
       grad:    "from-[#0A0606] via-[#050303] to-black",
       border:  "border-[#E8B86D]/40",
     },
+    {
+      href:    "/copointo-hub",
+      icon:    Gamepad2,
+      emoji:   "🎮",
+      label:   "Copointo Hub",
+      sub:     "إدارة لاعبي اللعبة وإيقافهم",
+      grad:    "from-[#0A0606] via-[#050303] to-black",
+      border:  "border-[#E8B86D]/40",
+    },
   ];
 
   return (
@@ -51,7 +61,7 @@ function HomePage() {
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-4xl">
         {cards.map(({ href, emoji, label, sub, grad, border }) => (
           <Link key={href} href={href}
             className={`group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
@@ -103,6 +113,9 @@ function CafesWrapped() {
 function UsersWrapped() {
   return <PageLayout title="المستخدمون"><UsersPage /></PageLayout>;
 }
+function CopointoHubWrapped() {
+  return <PageLayout title="Copointo Hub"><CopointoHubPage /></PageLayout>;
+}
 
 // ── Router ────────────────────────────────────────────────────
 function AdminApp() {
@@ -112,6 +125,7 @@ function AdminApp() {
       <Route path="/dashboard"  component={DashboardWrapped}/>
       <Route path="/cafes"      component={CafesWrapped}    />
       <Route path="/users"      component={UsersWrapped}    />
+      <Route path="/copointo-hub" component={CopointoHubWrapped} />
       <Route path="/cafe/:id/analytics"  component={ManagerAnalyticsPage}/>
       <Route path="/cafe/:id"            component={CafeDashboardPage}/>
     </Switch>

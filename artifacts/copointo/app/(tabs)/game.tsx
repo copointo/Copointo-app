@@ -15,6 +15,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { RANKS, getRank } from "@/data/mockData";
+import { apiFetch } from "@/constants/api";
+
+interface GameStatus {
+  gameBanned: boolean;
+  gameSuspended: boolean;
+  gameSuspendedUntil?: string | null;
+  gameSuspendReason?: string | null;
+  gameSuspendedAt?: string | null;
+}
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -49,6 +58,22 @@ export default function GameScreen() {
   );
   const scrollRef = useRef<ScrollView>(null);
   const [showGoBack, setShowGoBack] = useState(false);
+  const [status, setStatus] = useState<GameStatus | null>(null);
+
+  // Poll game-suspension status from server (keyed by phone).
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const phone = user?.phone;
+      if (!phone) { setStatus(null); return; }
+      apiFetch<GameStatus>(`/user-status?phone=${encodeURIComponent(phone)}`)
+        .then(s => { if (!cancelled) setStatus(s); })
+        .catch(() => { /* network errors → leave game accessible */ });
+      return () => { cancelled = true; };
+    }, [user?.phone]),
+  );
+
+  const isBlocked = !!(status && (status.gameBanned || status.gameSuspended));
 
   const level     = user?.level ?? 0;
   const rank      = getRank(level);
@@ -90,6 +115,60 @@ export default function GameScreen() {
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  // ── Suspension/Ban screen (replaces game UI; other tabs keep working) ──
+  if (isBlocked && status) {
+    const isPerm = status.gameBanned;
+    const untilTxt = status.gameSuspendedUntil
+      ? new Date(status.gameSuspendedUntil).toLocaleDateString("ar-OM", {
+          year: "numeric", month: "long", day: "numeric",
+        })
+      : "";
+    const daysLeft = status.gameSuspendedUntil
+      ? Math.max(0, Math.ceil(
+          (new Date(status.gameSuspendedUntil).getTime() - Date.now()) / 86400000,
+        ))
+      : 0;
+    return (
+      <View style={[styles.container, { paddingTop: topPad }]}>
+        <ScrollView
+          contentContainerStyle={styles.blockedScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.blockedIconWrap}>
+            <Text style={styles.blockedIcon}>{isPerm ? "🚫" : "⏳"}</Text>
+          </View>
+          <Text style={styles.blockedTitle}>
+            {isPerm ? "تم حظرك من اللعبة نهائياً" : "تم إيقاف اللعبة معك مؤقتاً"}
+          </Text>
+          <Text style={styles.blockedSubtitle}>
+            {isPerm
+              ? "لن يظهر تصنيفك في اللعبة ولن تتمكن من الوصول لشاشة التقدم."
+              : `سيُرفع الإيقاف بعد ${daysLeft} يوم${daysLeft === 1 ? "" : ""} (${untilTxt}).`}
+          </Text>
+
+          {!!status.gameSuspendReason && (
+            <View style={styles.reasonCard}>
+              <Text style={styles.reasonLabel}>سبب الإجراء</Text>
+              <Text style={styles.reasonText}>{status.gameSuspendReason}</Text>
+            </View>
+          )}
+
+          <View style={styles.noticeCard}>
+            <Text style={styles.noticeTitle}>✓ ما الذي لا يزال يعمل؟</Text>
+            <Text style={styles.noticeItem}>• الطلب من الكوفيهات</Text>
+            <Text style={styles.noticeItem}>• حجز الطاولات</Text>
+            <Text style={styles.noticeItem}>• تجميع النقاط للحصول على مشروب مجاني ☕</Text>
+            <Text style={styles.noticeItem}>• تصفّح المطاعم والفيديوهات</Text>
+          </View>
+
+          <Text style={styles.blockedHelp}>
+            للاستفسار، تواصل مع إدارة Copointo.
+          </Text>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -435,5 +514,59 @@ const styles = StyleSheet.create({
   freeHintText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: PRIMARY, textAlign: "center",
+  },
+  blockedScroll: {
+    paddingHorizontal: 24, paddingTop: 24, paddingBottom: 80,
+    alignItems: "center",
+  },
+  blockedIconWrap: {
+    width: 110, height: 110, borderRadius: 55,
+    backgroundColor: "rgba(239,83,80,0.12)",
+    borderWidth: 2, borderColor: "rgba(239,83,80,0.4)",
+    alignItems: "center", justifyContent: "center",
+    marginTop: 30, marginBottom: 24,
+  },
+  blockedIcon: { fontSize: 56 },
+  blockedTitle: {
+    fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF",
+    textAlign: "center", marginBottom: 10,
+  },
+  blockedSubtitle: {
+    fontSize: 14, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "center", marginBottom: 24, lineHeight: 22,
+  },
+  reasonCard: {
+    width: "100%", borderRadius: 16, padding: 16,
+    backgroundColor: "rgba(239,83,80,0.08)",
+    borderWidth: 1, borderColor: "rgba(239,83,80,0.3)",
+    marginBottom: 16,
+  },
+  reasonLabel: {
+    fontSize: 11, fontFamily: "Inter_700Bold",
+    color: "#EF5350", marginBottom: 6, letterSpacing: 0.5,
+  },
+  reasonText: {
+    fontSize: 14, fontFamily: "Inter_500Medium",
+    color: "#FFF", lineHeight: 22, textAlign: "right",
+  },
+  noticeCard: {
+    width: "100%", borderRadius: 16, padding: 16,
+    backgroundColor: PRIMARY_FAINT,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    marginBottom: 20,
+  },
+  noticeTitle: {
+    fontSize: 13, fontFamily: "Inter_700Bold",
+    color: PRIMARY, marginBottom: 10, textAlign: "right",
+  },
+  noticeItem: {
+    fontSize: 13, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.85)", marginBottom: 6,
+    textAlign: "right", lineHeight: 22,
+  },
+  blockedHelp: {
+    fontSize: 12, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.5)", textAlign: "center",
   },
 });
