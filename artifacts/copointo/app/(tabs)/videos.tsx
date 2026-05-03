@@ -41,7 +41,7 @@ async function getAnonId(): Promise<string> {
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 - 67 : SCREEN_HEIGHT;
+const VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 : SCREEN_HEIGHT;
 
 interface Reel {
   id: string;
