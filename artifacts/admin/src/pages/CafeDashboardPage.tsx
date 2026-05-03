@@ -9,7 +9,7 @@ import {
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
-  GlassWater, Cookie, Gift,
+  GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -17,7 +17,7 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates";
+type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels";
 
 // ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
 function playNotificationBell() {
@@ -51,9 +51,9 @@ function playNotificationBell() {
 // the tab. Persists seen-IDs in localStorage so badges don't re-trigger after
 // a refresh.
 function useTabNotifications(cafeId: string, activeTab: Tab) {
-  const [counts, setCounts] = useState<Record<string, number>>({ orders: 0, bookings: 0 });
-  const seenRef = useRef<Record<string, Set<string>>>({ orders: new Set(), bookings: new Set() });
-  const initedRef = useRef<Record<string, boolean>>({ orders: false, bookings: false });
+  const [counts, setCounts] = useState<Record<string, number>>({ orders: 0, bookings: 0, reels: 0 });
+  const seenRef = useRef<Record<string, Set<string>>>({ orders: new Set(), bookings: new Set(), reels: new Set() });
+  const initedRef = useRef<Record<string, boolean>>({ orders: false, bookings: false, reels: false });
 
   // Hydrate seen IDs from localStorage on mount / cafe change.
   useEffect(() => {
@@ -63,9 +63,9 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
         return new Set(raw ? JSON.parse(raw) : []);
       } catch { return new Set(); }
     };
-    seenRef.current = { orders: load("orders"), bookings: load("bookings") };
-    initedRef.current = { orders: false, bookings: false };
-    setCounts({ orders: 0, bookings: 0 });
+    seenRef.current = { orders: load("orders"), bookings: load("bookings"), reels: load("reels") };
+    initedRef.current = { orders: false, bookings: false, reels: false };
+    setCounts({ orders: 0, bookings: 0, reels: 0 });
   }, [cafeId]);
 
   const persist = (k: string) => {
@@ -83,23 +83,31 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
     let cancelled = false;
     const tick = async () => {
       try {
-        const [oRes, bRes] = await Promise.all([
+        const [oRes, bRes, rRes] = await Promise.all([
           api.cafeOrders(cafeId).catch(() => ({ orders: [] })),
           api.cafeBookings(cafeId).catch(() => ({ bookings: [] })),
+          api.reelsNotifications(cafeId, "").catch(() => ({ items: [] })),
         ]);
         if (cancelled) return;
+        // Reel notif IDs: synthesize stable id per like/comment.
+        const reelEventIds = (rRes.items ?? []).map((it: any) =>
+          it.kind === "like"
+            ? `like:${it.reelId}:${it.userName}:${it.at}`
+            : `cmt:${it.commentId}`,
+        );
         const buckets: Record<string, any[]> = {
           orders:   oRes.orders   ?? [],
           bookings: bRes.bookings ?? [],
+          reels:    reelEventIds.map((id: string) => ({ id })),
         };
+        // Compute per-tab new-counts without depending on the stale `counts`
+        // closure — apply via functional update at the end.
+        const additions: Record<string, number> = {};
         let newCount = 0;
-        const next = { ...counts };
-        for (const k of ["orders", "bookings"] as const) {
+        for (const k of ["orders", "bookings", "reels"] as const) {
           const seen = seenRef.current[k];
           const ids: string[] = buckets[k].map((x: any) => String(x.id));
           if (!initedRef.current[k]) {
-            // First poll after mount: treat everything as already seen so we
-            // don't spam a bell for pre-existing items.
             ids.forEach((id) => seen.add(id));
             initedRef.current[k] = true;
             persist(k);
@@ -108,21 +116,28 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
           let added = 0;
           for (const id of ids) {
             if (!seen.has(id)) {
-              // Auto-clear if user is currently looking at this tab.
               if (activeTab === k) {
                 seen.add(id);
               } else {
+                seen.add(id);
                 added += 1;
               }
             }
           }
           if (added > 0) {
-            next[k] = (next[k] ?? 0) + added;
+            additions[k] = added;
             newCount += added;
+            persist(k);
           }
         }
         if (newCount > 0) {
-          setCounts(next);
+          setCounts((prev) => {
+            const out = { ...prev };
+            for (const k of Object.keys(additions)) {
+              out[k] = (out[k] ?? 0) + additions[k]!;
+            }
+            return out;
+          });
           playNotificationBell();
         }
       } catch { /* ignore */ }
@@ -146,6 +161,16 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
       d.bookings?.forEach((b: any) => seenRef.current.bookings.add(String(b.id)));
       persist("bookings");
     });
+    api.reelsNotifications(cafeId, "").catch(() => null).then((d) => {
+      if (k !== "reels" || !d) return;
+      (d.items ?? []).forEach((it: any) => {
+        const id = it.kind === "like"
+          ? `like:${it.reelId}:${it.userName}:${it.at}`
+          : `cmt:${it.commentId}`;
+        seenRef.current.reels.add(id);
+      });
+      persist("reels");
+    });
   };
 
   return { counts, markSeen };
@@ -162,6 +187,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"expenses",  label:"المصاريف",          icon: Wallet           },
   { id:"inventory", label:"المخزن",            icon: Package          },
   { id:"templates", label:"تعديل الفواتير",    icon: FileText         },
+  { id:"reels",     label:"كوبوينتو ريلز",     icon: Video            },
 ];
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
@@ -2671,6 +2697,7 @@ export default function CafeDashboardPage() {
         {tab === "expenses"  && <ExpensesTab  id={id} />}
         {tab === "inventory" && <InventoryTab id={id} />}
         {tab === "templates" && <TemplatesTab id={id} />}
+        {tab === "reels"     && <ReelsTab     id={id} />}
       </div>
 
     </div>
@@ -3241,6 +3268,270 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
           </div>
         ) : <p className="text-center text-muted-foreground py-6 text-sm">لا توجد فواتير بعد</p>}
       </SectionCard>
+    </div>
+  );
+}
+
+// ─── Reels Tab ───────────────────────────────────────────────────────
+function ReelsTab({ id }: { id: string }) {
+  const [list, setList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoDataUrl, setVideoDataUrl] = useState<string>("");
+  const [description, setDescription] = useState("");
+  const [orderLink, setOrderLink] = useState("");
+  const [locationUrl, setLocationUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
+  const [commentsByReel, setCommentsByReel] = useState<Record<string, any[]>>({});
+  const [notifs, setNotifs] = useState<any[]>([]);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.reels(id);
+      setList(r.reels ?? []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [id]);
+
+  const refreshNotifs = useCallback(async () => {
+    try {
+      const r = await api.reelsNotifications(id, "");
+      setNotifs(r.items ?? []);
+    } catch { /* ignore */ }
+  }, [id]);
+
+  useEffect(() => { refresh(); refreshNotifs(); }, [refresh, refreshNotifs]);
+  useEffect(() => {
+    const t = setInterval(refreshNotifs, 7000);
+    return () => clearInterval(t);
+  }, [refreshNotifs]);
+
+  const handleFile = (f: File | null) => {
+    setError("");
+    if (!f) { setVideoFile(null); setVideoDataUrl(""); return; }
+    if (!f.type.startsWith("video/")) { setError("يرجى اختيار ملف فيديو"); return; }
+    if (f.size > 50 * 1024 * 1024) { setError("الحجم الأقصى 50 ميجابايت"); return; }
+    setVideoFile(f);
+    const reader = new FileReader();
+    reader.onload = () => setVideoDataUrl(String(reader.result ?? ""));
+    reader.readAsDataURL(f);
+  };
+
+  const submit = async () => {
+    setError("");
+    if (!videoDataUrl) { setError("يرجى رفع فيديو"); return; }
+    if (!description.trim()) { setError("الوصف مطلوب"); return; }
+    if (!locationUrl.trim()) { setError("رابط الموقع مطلوب"); return; }
+    setSubmitting(true);
+    try {
+      await api.addReel(id, {
+        videoUrl: videoDataUrl,
+        description: description.trim(),
+        orderLink: orderLink.trim(),
+        locationUrl: locationUrl.trim(),
+      });
+      setShowForm(false);
+      setVideoFile(null); setVideoDataUrl("");
+      setDescription(""); setOrderLink(""); setLocationUrl("");
+      await refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "حدث خطأ أثناء الرفع");
+    }
+    setSubmitting(false);
+  };
+
+  const remove = async (rid: string) => {
+    if (!confirm("حذف هذا الريل وجميع تعليقاته؟")) return;
+    await api.deleteReel(id, rid);
+    await refresh();
+  };
+
+  const openComments = async (rid: string) => {
+    setOpenCommentsFor(rid);
+    try {
+      const r = await api.reelComments(id, rid);
+      setCommentsByReel((p) => ({ ...p, [rid]: r.comments ?? [] }));
+    } catch { /* ignore */ }
+  };
+
+  const deleteComment = async (rid: string, cid: string) => {
+    await api.deleteReelComment(id, rid, cid);
+    const r = await api.reelComments(id, rid);
+    setCommentsByReel((p) => ({ ...p, [rid]: r.comments ?? [] }));
+    await refresh();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Video className="w-6 h-6 text-[#E8B86D]" />
+            كوبوينتو ريلز
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            ارفع فيديوهات قصيرة عمودية لتظهر في تبويب الفيديوهات بالتطبيق
+          </p>
+        </div>
+        <button
+          onClick={() => setShowForm((s) => !s)}
+          className="px-4 py-2 rounded-xl bg-[#E8B86D] text-black font-semibold flex items-center gap-2 hover:opacity-90"
+        >
+          <Plus className="w-4 h-4" /> إضافة ريل جديد
+        </button>
+      </div>
+
+      {/* Notifications panel */}
+      {notifs.length > 0 && (
+        <div className="rounded-2xl border border-white/10 bg-[#0A0606] p-4">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Heart className="w-4 h-4 text-rose-400" /> آخر التفاعلات
+          </h3>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {notifs.slice(0, 20).map((it: any, i: number) => (
+              <div key={i} className="text-sm flex items-center gap-2 text-white/80">
+                {it.kind === "like" ? (
+                  <><Heart className="w-3.5 h-3.5 text-rose-400" /> أعجب <b>{it.userName}</b> بريل</>
+                ) : (
+                  <><MessageSquare className="w-3.5 h-3.5 text-sky-400" /> <b>{it.userName}</b>: {it.text}</>
+                )}
+                <span className="text-xs text-white/40 mr-auto">
+                  {new Date(it.at).toLocaleString("ar")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upload form */}
+      {showForm && (
+        <div className="rounded-2xl border border-[#E8B86D]/30 bg-[#0A0606] p-5 space-y-4">
+          <h3 className="font-semibold">ريل جديد</h3>
+          <div>
+            <label className="block text-sm mb-2 text-white/70">ملف الفيديو (عمودي، أقل من 50MB)</label>
+            <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-black/30 cursor-pointer hover:border-[#E8B86D]/50">
+              <Upload className="w-4 h-4 text-[#E8B86D]" />
+              <span className="text-sm text-white/70">{videoFile ? videoFile.name : "اختيار ملف…"}</span>
+              <input type="file" accept="video/*" className="hidden"
+                onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
+            </label>
+            {videoDataUrl && (
+              <video src={videoDataUrl} controls className="mt-3 w-48 rounded-xl border border-white/10" />
+            )}
+          </div>
+          <div>
+            <label className="block text-sm mb-2 text-white/70">الوصف</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+              rows={3} className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
+              placeholder="مثال: قهوة الصباح بنكهة جديدة ☕" />
+          </div>
+          <div>
+            <label className="block text-sm mb-2 text-white/70 flex items-center gap-2">
+              <Link2 className="w-4 h-4" /> رابط صفحة الكوفي للطلب (اختياري — افتراضياً صفحة الكوفي بالتطبيق)
+            </label>
+            <input value={orderLink} onChange={(e) => setOrderLink(e.target.value)}
+              className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
+              placeholder={`copointo://cafe/${id}`} />
+          </div>
+          <div>
+            <label className="block text-sm mb-2 text-white/70 flex items-center gap-2">
+              <MapPin className="w-4 h-4" /> رابط موقع الكوفي على الخريطة
+            </label>
+            <input value={locationUrl} onChange={(e) => setLocationUrl(e.target.value)}
+              className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
+              placeholder="https://maps.google.com/?q=..." />
+          </div>
+          {error && <div className="text-sm text-rose-400">{error}</div>}
+          <div className="flex gap-2">
+            <button onClick={submit} disabled={submitting}
+              className="px-5 py-2 rounded-xl bg-[#E8B86D] text-black font-semibold disabled:opacity-50">
+              {submitting ? "جارٍ الرفع…" : "نشر الريل"}
+            </button>
+            <button onClick={() => setShowForm(false)}
+              className="px-5 py-2 rounded-xl border border-white/10 text-white/70">
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <p className="text-center text-white/50 py-8">جارٍ التحميل…</p>
+      ) : list.length === 0 ? (
+        <p className="text-center text-white/50 py-12">لا توجد ريلز بعد. اضغط "إضافة ريل جديد" لتبدأ.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {list.map((r) => (
+            <div key={r.id} className="rounded-2xl border border-white/10 bg-[#0A0606] overflow-hidden">
+              <video src={r.videoUrl} controls className="w-full aspect-[9/16] bg-black object-cover" />
+              <div className="p-4 space-y-3">
+                <p className="text-sm text-white/80 line-clamp-2">{r.description}</p>
+                <div className="flex items-center gap-4 text-xs text-white/60">
+                  <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{r.views}</span>
+                  <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" />{r.likes}</span>
+                  <button onClick={() => openComments(r.id)}
+                    className="flex items-center gap-1 hover:text-[#E8B86D]">
+                    <MessageSquare className="w-3.5 h-3.5" />{r.comments}
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => remove(r.id)}
+                    className="flex-1 px-3 py-2 rounded-lg border border-rose-500/30 text-rose-400 text-xs flex items-center justify-center gap-1 hover:bg-rose-500/10">
+                    <Trash2 className="w-3.5 h-3.5" /> حذف
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Comments modal */}
+      {openCommentsFor && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setOpenCommentsFor(null)}>
+          <div className="bg-[#0A0606] border border-white/10 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <h3 className="font-semibold flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-[#E8B86D]" /> التعليقات
+              </h3>
+              <button onClick={() => setOpenCommentsFor(null)}>
+                <X className="w-5 h-5 text-white/60" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {(commentsByReel[openCommentsFor] ?? []).length === 0 ? (
+                <p className="text-center text-white/50 text-sm py-8">لا توجد تعليقات</p>
+              ) : (
+                (commentsByReel[openCommentsFor] ?? []).map((c: any) => (
+                  <div key={c.id} className="rounded-xl bg-black/40 p-3 flex items-start gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-[#E8B86D]">{c.userName}</span>
+                        <span className="text-xs text-white/40">
+                          {new Date(c.createdAt).toLocaleString("ar")}
+                        </span>
+                      </div>
+                      <p className="text-sm text-white/80 mt-1">{c.text}</p>
+                    </div>
+                    <button onClick={() => deleteComment(openCommentsFor!, c.id)}
+                      className="p-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

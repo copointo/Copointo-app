@@ -1,122 +1,174 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/context/AppContext";
-import { VIDEOS, VideoPost, formatNumber } from "@/data/mockData";
+import { formatNumber } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { apiFetch, apiPost, API_BASE } from "@/constants/api";
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
+// Per-device anonymous identifier so logged-out viewers each count once for
+// likes/views — never share a single "guest" identity across all devices.
+const ANON_KEY = "copointo_anon_id_v1";
+async function getAnonId(): Promise<string> {
+  try {
+    const existing = await AsyncStorage.getItem(ANON_KEY);
+    if (existing) return existing;
+    const fresh = `anon_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    await AsyncStorage.setItem(ANON_KEY, fresh);
+    return fresh;
+  } catch {
+    return `anon_${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 - 67 : SCREEN_HEIGHT;
 
-const BG_GRADIENTS = [
-  ["#2C1810", "#6B3F1A"],
-  ["#1A2C10", "#3F6B1A"],
-  ["#10182C", "#1A3F6B"],
-  ["#2C1A10", "#6B4B1A"],
-  ["#1A102C", "#4B1A6B"],
-];
+interface Reel {
+  id: string;
+  cafeId: string;
+  cafeName: string;
+  cafeLogo?: string;
+  videoUrl: string;
+  description: string;
+  orderLink: string;
+  locationUrl: string;
+  views: number;
+  likes: number;
+  comments: number;
+  likedByMe: boolean;
+  createdAt: string;
+}
 
-function VideoCard({
-  video,
+interface Comment {
+  id: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+}
+
+const PRIMARY = "#E8B86D";
+
+// ── Native-safe video element. On web we use <video>, on native a placeholder
+// thumbnail (full Expo video integration is out of scope for this slice;
+// the user is testing in the web preview iframe).
+function ReelVideo({ src, isActive }: { src: string; isActive: boolean }) {
+  if (Platform.OS === "web") {
+    return React.createElement("video" as any, {
+      src,
+      autoPlay: isActive,
+      loop: true,
+      muted: true,
+      playsInline: true,
+      style: {
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        backgroundColor: "#000",
+      },
+    });
+  }
+  return (
+    <View style={{ flex: 1, backgroundColor: "#111", alignItems: "center", justifyContent: "center" }}>
+      <Feather name="play-circle" size={64} color="#E8B86D" />
+      <Text style={{ color: "#E8B86D", marginTop: 8 }}>فيديو</Text>
+    </View>
+  );
+}
+
+function ReelCard({
+  reel,
   isActive,
-  index,
+  onLike,
+  onOpenComments,
+  onOrder,
+  onLocation,
+  onView,
 }: {
-  video: VideoPost;
+  reel: Reel;
   isActive: boolean;
-  index: number;
+  onLike: () => void;
+  onOpenComments: () => void;
+  onOrder: () => void;
+  onLocation: () => void;
+  onView: () => void;
 }) {
-  const colors = useColors();
-  const router = useRouter();
-  const { likedVideos, toggleLikeVideo } = useApp();
   const insets = useSafeAreaInsets();
-  const isLiked = likedVideos.includes(video.id);
-  const [localLikes, setLocalLikes] = useState(video.likes);
-
-  const gradient = BG_GRADIENTS[index % BG_GRADIENTS.length];
-
-  const handleLike = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    toggleLikeVideo(video.id);
-    setLocalLikes((prev) => (isLiked ? prev - 1 : prev + 1));
-  };
-
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
+  const viewedRef = useRef(false);
+
+  useEffect(() => {
+    if (isActive && !viewedRef.current) {
+      viewedRef.current = true;
+      onView();
+    }
+  }, [isActive, onView]);
 
   return (
-    <View style={[styles.videoCard, { height: VIDEO_HEIGHT }]}>
-      <View style={[styles.videoBg, { backgroundColor: gradient[0] }]}>
-        <View
-          style={[
-            styles.videoGlow,
-            { backgroundColor: gradient[1], opacity: 0.4 },
-          ]}
-        />
-        <View style={styles.videoCenter}>
-          <Text style={styles.playIcon}>▶</Text>
-          <Text style={[styles.duration, { color: "rgba(255,255,255,0.7)" }]}>
-            {video.duration}
-          </Text>
+    <View style={[styles.card, { height: VIDEO_HEIGHT }]}>
+      <View style={styles.videoLayer}>
+        <ReelVideo src={reel.videoUrl} isActive={isActive} />
+        <View style={styles.scrim} />
+      </View>
+
+      {/* Right rail (likes / comments / views) */}
+      <View style={[styles.rightRail, { bottom: bottomPadding + 110 }]}>
+        <TouchableOpacity onPress={onLike} style={styles.railBtn}>
+          <Feather
+            name="heart"
+            size={32}
+            color={reel.likedByMe ? "#FF4D6D" : "#fff"}
+          />
+          <Text style={styles.railNum}>{formatNumber(reel.likes)}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onOpenComments} style={styles.railBtn}>
+          <Feather name="message-circle" size={32} color="#fff" />
+          <Text style={styles.railNum}>{formatNumber(reel.comments)}</Text>
+        </TouchableOpacity>
+        <View style={styles.railBtn}>
+          <Feather name="eye" size={28} color="#fff" />
+          <Text style={styles.railNum}>{formatNumber(reel.views)}</Text>
         </View>
       </View>
 
-      <View style={[styles.videoOverlay, { paddingBottom: bottomPadding + 20 }]}>
-        <View style={styles.videoInfo}>
-          <TouchableOpacity
-            style={styles.cafeTag}
-            onPress={() => router.push(`/cafe/${video.cafeId}`)}
-          >
-            <Feather name="coffee" size={12} color="#FFF" />
-            <Text style={styles.cafeName}>{video.cafeName}</Text>
-          </TouchableOpacity>
-          <Text style={styles.username}>@{video.username}</Text>
-          <Text style={styles.description} numberOfLines={2}>
-            {video.description}
-          </Text>
-          <View style={styles.views}>
-            <Feather name="eye" size={12} color="rgba(255,255,255,0.7)" />
-            <Text style={styles.viewsText}>{formatNumber(video.views)} views</Text>
+      {/* Bottom info + CTA buttons */}
+      <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 16 }]}>
+        <View style={styles.cafeRow}>
+          <View style={styles.cafeLogoBubble}>
+            <Text style={{ color: PRIMARY, fontWeight: "700" }}>
+              {reel.cafeName?.[0] ?? "C"}
+            </Text>
           </View>
+          <Text style={styles.cafeName} numberOfLines={1}>{reel.cafeName}</Text>
         </View>
-
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleLike}>
-            <Feather
-              name="heart"
-              size={28}
-              color={isLiked ? "#FF4040" : "#FFF"}
-              fill={isLiked ? "#FF4040" : "none"}
-            />
-            <Text style={styles.actionText}>{formatNumber(localLikes)}</Text>
+        <Text style={styles.description} numberOfLines={3}>{reel.description}</Text>
+        <View style={styles.ctaRow}>
+          <TouchableOpacity onPress={onOrder} style={styles.ctaPrimary}>
+            <Feather name="shopping-bag" size={16} color="#000" />
+            <Text style={styles.ctaPrimaryText}>اطلب الآن</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionBtn}>
-            <Feather name="message-circle" size={28} color="#FFF" />
-            <Text style={styles.actionText}>{formatNumber(video.comments)}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionBtn}>
-            <Feather name="share-2" size={26} color="#FFF" />
-            <Text style={styles.actionText}>Share</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => router.push(`/cafe/${video.cafeId}`)}
-          >
-            <Feather name="shopping-bag" size={26} color="#FFF" />
-            <Text style={styles.actionText}>Order</Text>
+          <TouchableOpacity onPress={onLocation} style={styles.ctaSecondary}>
+            <Feather name="map-pin" size={16} color={PRIMARY} />
+            <Text style={styles.ctaSecondaryText}>موقع الكوفي</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -126,160 +178,268 @@ function VideoCard({
 
 export default function VideosScreen() {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user: currentUser } = useApp();
+
+  const [reels, setReels] = useState<Reel[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [commentsOpenFor, setCommentsOpenFor] = useState<Reel | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0) {
-        setActiveIndex(viewableItems[0].index ?? 0);
-      }
+  const [anonId, setAnonId] = useState<string>("");
+  useEffect(() => { getAnonId().then(setAnonId); }, []);
+  const userId = currentUser?.phone ?? currentUser?.id ?? anonId;
+  const userName = currentUser?.gameUsername ?? currentUser?.name ?? "ضيف";
+
+  const load = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const r = await apiFetch<{ reels: Reel[] }>(`/reels?userId=${encodeURIComponent(userId)}`);
+      setReels(r.reels ?? []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => { if (userId) load(); }, [load, userId]);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const first = viewableItems.find((v) => v.isViewable);
+    if (first && typeof first.index === "number") setActiveIndex(first.index);
+  }).current;
+
+  const handleView = useCallback(async (reelId: string) => {
+    try {
+      const r = await apiPost<{ views: number }>(`/reels/${reelId}/view`, { userId });
+      setReels((prev) => prev.map((x) => x.id === reelId ? { ...x, views: r.views } : x));
+    } catch { /* ignore */ }
+  }, [userId]);
+
+  const handleLike = useCallback(async (reel: Reel) => {
+    if (!userId) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // optimistic
+    setReels((prev) => prev.map((x) =>
+      x.id === reel.id
+        ? { ...x, likedByMe: !x.likedByMe, likes: x.likes + (x.likedByMe ? -1 : 1) }
+        : x,
+    ));
+    try {
+      const r = await apiPost<{ liked: boolean; likes: number }>(`/reels/${reel.id}/like`, { userId, userName });
+      setReels((prev) => prev.map((x) =>
+        x.id === reel.id ? { ...x, likedByMe: r.liked, likes: r.likes } : x,
+      ));
+    } catch {
+      // Revert optimistic update on failure to keep UI in sync with server.
+      setReels((prev) => prev.map((x) =>
+        x.id === reel.id
+          ? { ...x, likedByMe: reel.likedByMe, likes: reel.likes }
+          : x,
+      ));
     }
-  ).current;
+  }, [userId, userName]);
 
-  const topPadding = Platform.OS === "web" ? 67 : insets.top;
+  const openComments = useCallback(async (reel: Reel) => {
+    setCommentsOpenFor(reel);
+    setCommentsLoading(true);
+    try {
+      const r = await apiFetch<{ comments: Comment[] }>(`/reels/${reel.id}/comments`);
+      setComments(r.comments ?? []);
+    } catch { setComments([]); }
+    setCommentsLoading(false);
+  }, []);
+
+  const submitComment = useCallback(async () => {
+    if (!commentsOpenFor || !commentDraft.trim()) return;
+    const text = commentDraft.trim();
+    setCommentDraft("");
+    try {
+      const r = await apiPost<{ comment: Comment }>(`/reels/${commentsOpenFor.id}/comments`, {
+        userId, userName, text,
+      });
+      setComments((prev) => [...prev, r.comment]);
+      setReels((prev) => prev.map((x) =>
+        x.id === commentsOpenFor.id ? { ...x, comments: x.comments + 1 } : x,
+      ));
+    } catch { /* ignore */ }
+  }, [commentDraft, commentsOpenFor, userId, userName]);
+
+  const handleOrder = useCallback((reel: Reel) => {
+    if (reel.orderLink?.startsWith("copointo://cafe/")) {
+      const cafeId = reel.orderLink.replace("copointo://cafe/", "");
+      router.push(`/cafe/${cafeId}` as any);
+    } else if (reel.orderLink) {
+      Linking.openURL(reel.orderLink).catch(() => router.push(`/cafe/${reel.cafeId}` as any));
+    } else {
+      router.push(`/cafe/${reel.cafeId}` as any);
+    }
+  }, [router]);
+
+  const handleLocation = useCallback((reel: Reel) => {
+    if (reel.locationUrl) Linking.openURL(reel.locationUrl).catch(() => {});
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.empty, { backgroundColor: "#000" }]}>
+        <ActivityIndicator color={PRIMARY} />
+      </View>
+    );
+  }
+
+  if (reels.length === 0) {
+    return (
+      <View style={[styles.empty, { backgroundColor: "#000" }]}>
+        <Feather name="video-off" size={48} color="#E8B86D" />
+        <Text style={styles.emptyTitle}>لا توجد ريلز بعد</Text>
+        <Text style={styles.emptyHint}>عودة قريباً — الكوفيات يحضرون فيديوهاتهم</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
-      <View style={[styles.topBar, { paddingTop: topPadding }]}>
-        <Text style={styles.topTitle}>Copointo Videos</Text>
-        <Feather name="camera" size={22} color="#FFF" />
-      </View>
-
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
       <FlatList
-        data={VIDEOS}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <VideoCard video={item} isActive={index === activeIndex} index={index} />
-        )}
+        data={reels}
+        keyExtractor={(r) => r.id}
         pagingEnabled
-        snapToAlignment="start"
+        showsVerticalScrollIndicator={false}
         snapToInterval={VIDEO_HEIGHT}
         decelerationRate="fast"
-        showsVerticalScrollIndicator={false}
         onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-        scrollEnabled={VIDEOS.length > 0}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+        renderItem={({ item, index }) => (
+          <ReelCard
+            reel={item}
+            isActive={index === activeIndex}
+            onLike={() => handleLike(item)}
+            onOpenComments={() => openComments(item)}
+            onOrder={() => handleOrder(item)}
+            onLocation={() => handleLocation(item)}
+            onView={() => handleView(item.id)}
+          />
+        )}
       />
+
+      {/* Comments modal */}
+      <Modal
+        visible={!!commentsOpenFor}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCommentsOpenFor(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setCommentsOpenFor(null)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={{ flex: 1 }}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>التعليقات</Text>
+                <TouchableOpacity onPress={() => setCommentsOpenFor(null)}>
+                  <Feather name="x" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              {commentsLoading ? (
+                <ActivityIndicator color={PRIMARY} style={{ marginTop: 24 }} />
+              ) : comments.length === 0 ? (
+                <Text style={styles.modalEmpty}>كن أول من يعلق</Text>
+              ) : (
+                <FlatList
+                  data={comments}
+                  keyExtractor={(c) => c.id}
+                  contentContainerStyle={{ padding: 12 }}
+                  renderItem={({ item }) => (
+                    <View style={styles.commentRow}>
+                      <View style={styles.commentBubble}>
+                        <Text style={styles.commentName}>{item.userName}</Text>
+                        <Text style={styles.commentText}>{item.text}</Text>
+                      </View>
+                    </View>
+                  )}
+                />
+              )}
+              <View style={styles.commentInputBar}>
+                <TextInput
+                  value={commentDraft}
+                  onChangeText={setCommentDraft}
+                  placeholder="اكتب تعليقاً…"
+                  placeholderTextColor="#666"
+                  style={styles.commentInput}
+                  onSubmitEditing={submitComment}
+                />
+                <TouchableOpacity onPress={submitComment} style={styles.sendBtn}>
+                  <Feather name="send" size={18} color="#000" />
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  card: { width: "100%", backgroundColor: "#000", position: "relative" },
+  videoLayer: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
+  rightRail: { position: "absolute", right: 12, alignItems: "center", gap: 18 },
+  railBtn: { alignItems: "center", marginBottom: 16 },
+  railNum: { color: "#fff", fontSize: 12, marginTop: 4, fontWeight: "600" },
+  bottomInfo: { position: "absolute", left: 0, right: 70, bottom: 0, padding: 16 },
+  cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  cafeLogoBubble: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: "#0A0606",
+    borderWidth: 2, borderColor: PRIMARY, alignItems: "center", justifyContent: "center",
   },
-  topBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+  cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
+  description: { color: "#fff", fontSize: 14, lineHeight: 20, marginBottom: 12, opacity: 0.95 },
+  ctaRow: { flexDirection: "row", gap: 8 },
+  ctaPrimary: {
+    flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: PRIMARY,
+    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22,
   },
-  topTitle: {
-    color: "#FFF",
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
+  ctaPrimaryText: { color: "#000", fontWeight: "700", fontSize: 14 },
+  ctaSecondary: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22,
+    borderWidth: 1, borderColor: PRIMARY, backgroundColor: "rgba(0,0,0,0.4)",
   },
-  videoCard: {
-    width: SCREEN_WIDTH,
-    position: "relative",
+  ctaSecondaryText: { color: PRIMARY, fontWeight: "700", fontSize: 14 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 12 },
+  emptyHint: { color: "#888", marginTop: 6 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  modalSheet: {
+    backgroundColor: "#0A0606", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    height: "70%", borderTopWidth: 1, borderColor: "#222",
   },
-  videoBg: {
-    position: "absolute",
-    inset: 0,
-    alignItems: "center",
-    justifyContent: "center",
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 16, borderBottomWidth: 1, borderColor: "#1a1010",
   },
-  videoGlow: {
-    position: "absolute",
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    bottom: 100,
-    right: -50,
+  modalTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  modalEmpty: { color: "#888", textAlign: "center", marginTop: 32 },
+  commentRow: { flexDirection: "row", marginBottom: 10 },
+  commentBubble: { flex: 1, backgroundColor: "#1a1010", borderRadius: 14, padding: 10 },
+  commentName: { color: PRIMARY, fontWeight: "700", fontSize: 13, marginBottom: 2 },
+  commentText: { color: "#fff", fontSize: 14, lineHeight: 19 },
+  commentInputBar: {
+    flexDirection: "row", padding: 10, gap: 8,
+    borderTopWidth: 1, borderColor: "#1a1010",
   },
-  videoCenter: {
-    alignItems: "center",
-    gap: 8,
+  commentInput: {
+    flex: 1, backgroundColor: "#1a1010", borderRadius: 22, paddingHorizontal: 16,
+    paddingVertical: 10, color: "#fff", textAlign: "right",
   },
-  playIcon: {
-    fontSize: 64,
-    color: "rgba(255,255,255,0.3)",
-  },
-  duration: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  videoOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: 16,
-    paddingTop: 100,
-    gap: 12,
-    background:
-      "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)",
-  },
-  videoInfo: {
-    flex: 1,
-    gap: 6,
-  },
-  cafeTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(196, 123, 43, 0.8)",
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  cafeName: {
-    color: "#FFF",
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-  username: {
-    color: "#FFF",
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-  },
-  description: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    lineHeight: 18,
-  },
-  views: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  viewsText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
-  actions: {
-    alignItems: "center",
-    gap: 20,
-  },
-  actionBtn: {
-    alignItems: "center",
-    gap: 4,
-  },
-  actionText: {
-    color: "#FFF",
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+  sendBtn: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
   },
 });
+
+// Avoid unused-import warning on web-only API_BASE.
+void API_BASE;

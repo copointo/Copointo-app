@@ -141,3 +141,45 @@ export interface InventoryItem {
   depletedAt: string | null; // ISO when currentQty first hit 0
 }
 export const inventoryItems: InventoryItem[] = [];
+
+// ─── Copointo Reels (vertical short videos posted by cafés) ──────────────
+export interface Reel {
+  id: string;
+  cafeId: string;
+  cafeName: string;
+  cafeLogo?: string;
+  /** Data URL (data:video/...;base64,...) or remote URL. Stored in memory. */
+  videoUrl: string;
+  description: string;
+  /** Link to the cafe's order page (in-app deep link or external URL). */
+  orderLink: string;
+  /** Maps URL or address text used by the "موقع الكوفي" button. */
+  locationUrl: string;
+  views: number;
+  createdAt: string;
+}
+export interface ReelLike {
+  reelId: string;
+  /** User identifier (phone or game username) — keeps likes unique per user. */
+  userId: string;
+  userName?: string;
+  likedAt: string;
+}
+export interface ReelComment {
+  id: string;
+  reelId: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
+}
+export interface ReelView {
+  reelId: string;
+  userId: string;
+  viewedAt: string;
+}
+
+export const reels:        Reel[]        = [];
+export const reelLikes:    ReelLike[]    = [];
+export const reelComments: ReelComment[] = [];
+export const reelViews:    ReelView[]    = [];

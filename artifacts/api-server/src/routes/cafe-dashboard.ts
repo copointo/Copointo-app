@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
   expenses, invoiceTemplates, freeCoffees, inventoryItems,
+  reels, reelLikes, reelComments, reelViews,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
-  type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem } from "../store";
+  type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem,
+  type Reel } from "../store";
 
 // ── Free-coffee code helpers ─────────────────────────────────
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
@@ -757,6 +759,100 @@ router.put("/invoice-templates/:type", (req: any, res): any => {
   if (idx >= 0) invoiceTemplates[idx] = next;
   else invoiceTemplates.push(next);
   res.json({ template: next });
+});
+
+// ─── Reels (admin per-cafe management) ──────────────────────────────────
+router.get("/reels", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const list = reels
+    .filter(r => r.cafeId === cid)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(r => ({
+      ...r,
+      likes:    reelLikes.filter(l => l.reelId === r.id).length,
+      comments: reelComments.filter(c => c.reelId === r.id).length,
+    }));
+  res.json({ reels: list });
+});
+
+router.post("/reels", (req: any, res) => {
+  const cid  = req.params.cafeId;
+  const cafe = cafes.find(c => c.id === cid);
+  if (!cafe) return res.status(404).json({ error: "Cafe not found" });
+  const body = req.body ?? {};
+  const videoUrl    = String(body.videoUrl    ?? "").trim();
+  const description = String(body.description ?? "").trim();
+  const orderLink   = String(body.orderLink   ?? "").trim() || `copointo://cafe/${cid}`;
+  const locationUrl = String(body.locationUrl ?? "").trim();
+  if (!videoUrl)    return res.status(400).json({ error: "الرجاء رفع فيديو" });
+  if (!description) return res.status(400).json({ error: "الوصف مطلوب" });
+  if (!locationUrl) return res.status(400).json({ error: "رابط الموقع مطلوب" });
+  const r: Reel = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+    cafeId: cid,
+    cafeName: cafe.name,
+    cafeLogo: cafe.logo,
+    videoUrl, description, orderLink, locationUrl,
+    views: 0,
+    createdAt: new Date().toISOString(),
+  };
+  reels.push(r);
+  res.status(201).json({ reel: r });
+});
+
+router.delete("/reels/:rid", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const idx = reels.findIndex(r => r.id === req.params.rid && r.cafeId === cid);
+  if (idx === -1) return res.status(404).json({ error: "Reel not found" });
+  const [removed] = reels.splice(idx, 1);
+  // Cascade-cleanup likes/comments/views.
+  for (let i = reelLikes.length - 1; i >= 0; i--) {
+    if (reelLikes[i]!.reelId === removed!.id) reelLikes.splice(i, 1);
+  }
+  for (let i = reelComments.length - 1; i >= 0; i--) {
+    if (reelComments[i]!.reelId === removed!.id) reelComments.splice(i, 1);
+  }
+  for (let i = reelViews.length - 1; i >= 0; i--) {
+    if (reelViews[i]!.reelId === removed!.id) reelViews.splice(i, 1);
+  }
+  res.json({ ok: true });
+});
+
+router.get("/reels/:rid/comments", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const reel = reels.find(r => r.id === req.params.rid && r.cafeId === cid);
+  if (!reel) return res.status(404).json({ error: "Reel not found" });
+  const list = reelComments
+    .filter(c => c.reelId === reel.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json({ comments: list });
+});
+
+router.delete("/reels/:rid/comments/:cid", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const reel = reels.find(r => r.id === req.params.rid && r.cafeId === cid);
+  if (!reel) return res.status(404).json({ error: "Reel not found" });
+  const idx = reelComments.findIndex(c => c.id === req.params.cid && c.reelId === reel.id);
+  if (idx === -1) return res.status(404).json({ error: "Comment not found" });
+  reelComments.splice(idx, 1);
+  res.json({ ok: true });
+});
+
+// Notifications feed: new likes & comments since `since` ISO timestamp.
+router.get("/reels-notifications", (req: any, res) => {
+  const cid = req.params.cafeId;
+  const since = String(req.query.since ?? "");
+  const myReelIds = new Set(reels.filter(r => r.cafeId === cid).map(r => r.id));
+  if (!myReelIds.size) { res.json({ items: [], latest: new Date().toISOString() }); return; }
+  const items = [
+    ...reelLikes
+      .filter(l => myReelIds.has(l.reelId) && (!since || l.likedAt > since))
+      .map(l => ({ kind: "like" as const, reelId: l.reelId, userName: l.userName ?? "مستخدم", at: l.likedAt })),
+    ...reelComments
+      .filter(c => myReelIds.has(c.reelId) && (!since || c.createdAt > since))
+      .map(c => ({ kind: "comment" as const, reelId: c.reelId, commentId: c.id, userName: c.userName, text: c.text, at: c.createdAt })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+  res.json({ items, latest: new Date().toISOString() });
 });
 
 export default router;

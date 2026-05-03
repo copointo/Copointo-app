@@ -74,4 +74,15 @@ export const api = {
   // Manager analytics (password-protected)
   cafeAuth:          (id: string, password: string) => req<any>("POST", `${C(id)}/auth`, { password }),
   cafeAdvancedStats: (id: string, password: string) => req<any>("POST", `${C(id)}/advanced-stats`, { password }),
+
+  // Reels (admin)
+  reels:               (id: string)              => req<any>("GET",    `${C(id)}/reels`),
+  addReel:             (id: string, body: { videoUrl: string; description: string; orderLink?: string; locationUrl: string }) =>
+                                                    req<any>("POST",   `${C(id)}/reels`, body),
+  deleteReel:          (id: string, rid: string) => req<any>("DELETE", `${C(id)}/reels/${rid}`),
+  reelComments:        (id: string, rid: string) => req<any>("GET",    `${C(id)}/reels/${rid}/comments`),
+  deleteReelComment:   (id: string, rid: string, cid: string) =>
+                                                    req<any>("DELETE", `${C(id)}/reels/${rid}/comments/${cid}`),
+  reelsNotifications:  (id: string, since: string) =>
+                                                    req<any>("GET",    `${C(id)}/reels-notifications?since=${encodeURIComponent(since)}`),
 };

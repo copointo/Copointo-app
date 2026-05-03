@@ -104,6 +104,31 @@ Each pending order row in the dashboard's **Orders** tab has two distinct button
 
 Once preparing, follow-up buttons are "الطلب جاهز" → "تم التسليم" (also via `cafeOrderStatus`).
 
+## Copointo Reels
+
+Vertical short-video feature with Instagram/TikTok-style reels.
+
+**Backend (`api-server`)** — types `Reel`, `ReelLike`, `ReelComment`, `ReelView` in `store.ts`. JSON body limit raised to 60mb so admin can POST videos as data URLs.
+
+Public endpoints (mobile):
+- `GET  /api/reels?userId=…` — engagement-ranked feed (likes×3 + comments×5 + views×0.05 + recency boost). Returns `likedByMe` per reel.
+- `POST /api/reels/:rid/like`     — toggle like (idempotent per `userId`).
+- `GET  /api/reels/:rid/comments` — list comments (chronological).
+- `POST /api/reels/:rid/comments` — add comment.
+- `POST /api/reels/:rid/view`     — increment view (deduped per `userId`).
+
+Admin endpoints (per cafe, mounted under `/api/cafe/:cafeId`):
+- `GET    /reels`                          — list cafe's reels (with like/comment counts).
+- `POST   /reels`                          — create (videoUrl/description/orderLink/locationUrl).
+- `DELETE /reels/:rid`                     — delete reel + cascade likes/comments.
+- `GET    /reels/:rid/comments`            — list comments newest-first.
+- `DELETE /reels/:rid/comments/:cid`       — moderate (delete) a comment.
+- `GET    /reels-notifications?since=…`    — feed of new likes & comments on this cafe's reels.
+
+**Admin UI (`CafeDashboardPage.tsx`)** — new `"reels"` tab "كوبوينتو ريلز" with `<Video>` icon. `ReelsTab` component: file upload (≤50MB, video/* only) → base64 → POST; recent likes/comments panel; per-reel grid with view/like/comment counts; comments modal with delete-comment moderation. Wired into `useTabNotifications` so the cafe gets bell + badge whenever a customer likes or comments.
+
+**Mobile (`(tabs)/videos.tsx`)** — refactored from mocks to live `/api/reels` feed. Fullscreen vertical FlatList paged by `VIDEO_HEIGHT`; right rail with heart/comments/views; bottom CTAs "اطلب الآن" (deep-links to `/cafe/:id`) and "موقع الكوفي" (opens `Linking`). Comments modal with optimistic-add. Web uses native `<video>` (autoplay/muted/loop); native shows a placeholder (full Expo video integration deferred — user is testing in web preview). Auto-fires `/view` on first activation per session per reel.
+
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
