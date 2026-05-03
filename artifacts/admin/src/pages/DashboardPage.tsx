@@ -10,13 +10,13 @@ interface Stats {
   bannedUsers: number;
 }
 
-function StatCard({ icon: Icon, label, value, sub, color }: {
-  icon: any; label: string; value: string | number; sub?: string; color: string;
+function StatCard({ icon: Icon, label, value, sub }: {
+  icon: any; label: string; value: string | number; sub?: string;
 }) {
   return (
     <div className="bg-card border border-border rounded-2xl p-5 flex items-start gap-4">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-        <Icon size={22} className="text-white" />
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-primary/15 border border-primary/30">
+        <Icon size={22} className="text-primary" />
       </div>
       <div>
         <p className="text-muted-foreground text-sm">{label}</p>
@@ -53,42 +53,36 @@ export default function DashboardPage() {
           label="إجمالي الكوفيهات"
           value={stats.totalCafes}
           sub={`${stats.activeCafes} نشط حالياً`}
-          color="bg-amber-700"
         />
         <StatCard
           icon={DollarSign}
           label="إيرادات الاشتراكات"
           value={`${stats.totalRevenue} OMR`}
           sub={`${stats.totalCafes} كوفي × 300 OMR`}
-          color="bg-green-700"
         />
         <StatCard
           icon={Users}
           label="المستخدمون"
           value={stats.totalUsers}
           sub={`${stats.bannedUsers} محظور`}
-          color="bg-violet-700"
         />
         <StatCard
           icon={TrendingUp}
           label="معدل النمو السنوي"
           value={`${(stats.totalCafes * 300).toLocaleString()} OMR`}
           sub="الإيراد السنوي المتوقع"
-          color="bg-sky-700"
         />
         <StatCard
           icon={Power}
           label="الكوفيهات الموقوفة"
           value={stats.totalCafes - stats.activeCafes}
           sub="بانتظار التفعيل"
-          color="bg-red-700"
         />
         <StatCard
           icon={UserX}
           label="المستخدمون المحظورون"
           value={stats.bannedUsers}
           sub="تم الإيقاف من المدير"
-          color="bg-slate-600"
         />
       </div>
 
@@ -106,7 +100,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex justify-between items-center py-2 border-b border-border">
             <span className="text-muted-foreground text-sm">الكوفيهات النشطة</span>
-            <span className="font-semibold text-green-400">{stats.activeCafes}</span>
+            <span className="font-semibold text-primary">{stats.activeCafes}</span>
           </div>
           <div className="flex justify-between items-center pt-2">
             <span className="text-foreground font-bold">الإجمالي</span>
