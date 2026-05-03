@@ -15,8 +15,7 @@ function HomePage() {
   const cards = [
     {
       href:    "/dashboard",
-      icon:    LayoutDashboard,
-      emoji:   "📊",
+      Icon:    LayoutDashboard,
       label:   "لوحة التحكم",
       sub:     "الإيرادات والإحصائيات العامة",
       grad:    "from-[#0A0606] via-[#050303] to-black",
@@ -24,8 +23,7 @@ function HomePage() {
     },
     {
       href:    "/cafes",
-      icon:    Coffee,
-      emoji:   "☕",
+      Icon:    Coffee,
       label:   "الكوفيهات",
       sub:     "إدارة وإضافة الكوفيهات",
       grad:    "from-[#0A0606] via-[#050303] to-black",
@@ -33,8 +31,7 @@ function HomePage() {
     },
     {
       href:    "/users",
-      icon:    Users,
-      emoji:   "👥",
+      Icon:    Users,
       label:   "المستخدمون",
       sub:     "عرض وحظر المستخدمين",
       grad:    "from-[#0A0606] via-[#050303] to-black",
@@ -42,8 +39,7 @@ function HomePage() {
     },
     {
       href:    "/copointo-hub",
-      icon:    Gamepad2,
-      emoji:   "🎮",
+      Icon:    Gamepad2,
       label:   "Copointo Hub",
       sub:     "إدارة لاعبي اللعبة وإيقافهم",
       grad:    "from-[#0A0606] via-[#050303] to-black",
@@ -55,17 +51,21 @@ function HomePage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6" dir="rtl">
       {/* Logo */}
       <div className="text-center mb-14">
-        <div className="text-7xl mb-4">☕</div>
+        <div className="mx-auto mb-5 w-20 h-20 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 shadow-lg shadow-[#E8B86D]/15">
+          <Coffee size={42} className="text-[#E8B86D]" />
+        </div>
         <h1 className="text-4xl font-bold text-foreground">Copointo</h1>
         <p className="text-muted-foreground mt-2 text-lg">لوحة تحكم المدير</p>
       </div>
 
       {/* Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-4xl">
-        {cards.map(({ href, emoji, label, sub, grad, border }) => (
+        {cards.map(({ href, Icon, label, sub, grad, border }) => (
           <Link key={href} href={href}
             className={`group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
-            <span className="text-5xl">{emoji}</span>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 group-hover:bg-[#E8B86D]/20 transition-colors">
+              <Icon size={32} className="text-[#E8B86D]" strokeWidth={1.75} />
+            </div>
             <div className="text-center">
               <p className="text-[#E8B86D] font-bold text-lg">{label}</p>
               <p className="text-[#F5E6CC]/60 text-xs mt-1">{sub}</p>
@@ -91,7 +91,7 @@ export function PageLayout({ title, children }: { title: string; children: React
           الرئيسية
         </Link>
         <div className="w-px h-5 bg-border" />
-        <span className="text-xl">☕</span>
+        <Coffee size={18} className="text-[#E8B86D]" />
         <h1 className="font-bold text-foreground text-lg">{title}</h1>
       </header>
 
