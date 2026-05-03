@@ -9,7 +9,7 @@ import {
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
-  GlassWater, Cookie,
+  GlassWater, Cookie, Gift,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
@@ -382,9 +382,173 @@ function openPrintWindow(title: string, body: string) {
   w.document.close();
 }
 
+// ── Free-coffee redemption modal (used inside OrdersTab) ──────
+function FreeCoffeeModal({
+  cafeId, order, onClose, onPrinted,
+}: {
+  cafeId: string;
+  order: any;
+  onClose: () => void;
+  onPrinted: (order: any) => void;
+}) {
+  const [code, setCode] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [validated, setValidated] = useState<null | {
+    code: string; userName?: string; earnedAtLevel?: number;
+  }>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [pickedIdx, setPickedIdx] = useState<number>(-1);
+  const [printing, setPrinting] = useState(false);
+
+  // Drinks only (exclude طعام + حلى). Each row = one cup.
+  const drinkRows: { idx: number; name: string; price: number }[] = [];
+  (order.items ?? []).forEach((it: any, i: number) => {
+    const cat = String(it.category ?? "");
+    if (cat === "طعام" || cat === "حلى") return;
+    for (let k = 0; k < (it.qty ?? 1); k++) {
+      drinkRows.push({ idx: drinkRows.length, name: it.name, price: Number(it.price) || 0 });
+    }
+  });
+
+  const validate = async () => {
+    setErr(null);
+    const c = code.trim().toUpperCase();
+    if (!c) { setErr("أدخل الكود"); return; }
+    setValidating(true);
+    try {
+      const res = await api.validateFreeCoffee(cafeId, c);
+      setValidated({ code: res.code, userName: res.userName, earnedAtLevel: res.earnedAtLevel });
+    } catch (e: any) {
+      let msg = "الكود غير صالح";
+      try { msg = JSON.parse(e?.message ?? "{}").error ?? msg; } catch {}
+      setErr(msg);
+    } finally { setValidating(false); }
+  };
+
+  const printAndRedeem = async () => {
+    if (!validated || pickedIdx < 0) return;
+    const drink = drinkRows[pickedIdx];
+    if (!drink) return;
+    setPrinting(true);
+    try {
+      // Redeem on server (marks code used + tags order with freeCoffeeCode/Level).
+      await api.redeemFreeCoffee(cafeId, validated.code, order.id);
+      // Also mark order done (idempotent — same as regular print flow).
+      api.cafeOrderPrint(cafeId, order.id).catch(() => {});
+      const updated = {
+        ...order,
+        status: "done",
+        pointsAwarded: true,
+        freeCoffeeCode: validated.code,
+        freeCoffeeLevel: validated.earnedAtLevel,
+      };
+      onPrinted(updated);
+      await printOrderInvoice(cafeId, order, {
+        code: validated.code,
+        itemName: drink.name,
+        itemPrice: drink.price,
+      });
+      onClose();
+    } catch (e: any) {
+      let msg = "تعذّر استرداد الكود";
+      try { msg = JSON.parse(e?.message ?? "{}").error ?? msg; } catch {}
+      setErr(msg);
+    } finally { setPrinting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card border border-border rounded-2xl w-full max-w-md p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+            <Gift size={18}/> كوفي مجاني
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18}/></button>
+        </div>
+
+        {!validated && (
+          <>
+            <p className="text-xs text-muted-foreground">أدخل كود الكوفي المجاني الذي يحمله الزبون.</p>
+            <input
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="مثال: A1B2C3"
+              className="w-full px-3 py-2.5 rounded-lg bg-muted/30 border border-border text-foreground tracking-widest text-center font-mono"
+              maxLength={12}
+            />
+            {err && <p className="text-xs text-red-400">{err}</p>}
+            <button
+              disabled={validating || !code.trim()}
+              onClick={validate}
+              className="w-full px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-50"
+            >
+              {validating ? "جارٍ التحقق…" : "تحقّق من الكود"}
+            </button>
+          </>
+        )}
+
+        {validated && (
+          <>
+            <div className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-xs space-y-1">
+              <div className="flex items-center gap-2 text-primary font-bold">
+                <CheckCircle size={14}/> الكود صالح: <span className="font-mono">{validated.code}</span>
+              </div>
+              {validated.userName && (
+                <div className="text-muted-foreground">المستخدم: {validated.userName}</div>
+              )}
+              {validated.earnedAtLevel != null && (
+                <div className="text-muted-foreground">مكتسب عند المستوى {validated.earnedAtLevel}</div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">اختر المشروب الذي سيُحتسب مجاناً:</p>
+              {drinkRows.length === 0 ? (
+                <div className="text-xs text-red-400 border border-red-500/40 bg-red-500/10 rounded-lg p-3">
+                  لا توجد مشروبات في هذا الطلب — لا يمكن تطبيق كوفي مجاني على الطعام أو الحلى.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {drinkRows.map((d) => (
+                    <button
+                      key={d.idx}
+                      onClick={() => setPickedIdx(d.idx)}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                        pickedIdx === d.idx
+                          ? "border-primary bg-primary/15 text-primary"
+                          : "border-border bg-muted/20 text-foreground hover:bg-muted/30"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Coffee size={14}/> {d.name}
+                      </span>
+                      <span className="text-xs">− {d.price.toFixed(3)} OMR</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {err && <p className="text-xs text-red-400">{err}</p>}
+            <button
+              disabled={printing || pickedIdx < 0 || drinkRows.length === 0}
+              onClick={printAndRedeem}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-50"
+            >
+              <Printer size={14}/> {printing ? "جارٍ الطباعة…" : "طباعة الفاتورة"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Orders Tab ────────────────────────────────────────────────
 function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
+  const [freeFor, setFreeFor] = useState<any | null>(null);
   const load = useCallback(() => api.cafeOrders(id).then(d => setOrders(d.orders)), [id]);
   useEffect(() => { load(); }, [load]);
   const confirmPrep = async (oid: string) => {
@@ -409,6 +573,16 @@ function OrdersTab({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
+      {freeFor && (
+        <FreeCoffeeModal
+          cafeId={id}
+          order={freeFor}
+          onClose={() => setFreeFor(null)}
+          onPrinted={(updated) => {
+            setOrders(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x));
+          }}
+        />
+      )}
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
       {orders.map(o => (
         <Card key={o.id} className="p-5">
@@ -447,6 +621,19 @@ function OrdersTab({ id }: { id: string }) {
                 >
                   <CheckCircle size={14}/> تأكيد تحضير الطلب
                 </button>
+              )}
+              {!o.freeCoffeeCode && (
+                <button
+                  onClick={() => setFreeFor(o)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/60 text-primary text-xs font-semibold hover:bg-primary/10"
+                >
+                  <Gift size={13}/> كوفي مجاني
+                </button>
+              )}
+              {o.freeCoffeeCode && (
+                <span className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary text-xs font-semibold">
+                  <Gift size={13}/> كوفي مجاني: {o.freeCoffeeCode}
+                </span>
               )}
               {o.status === "preparing" && (
                 <button
@@ -1321,7 +1508,11 @@ function fmtDateTimeAr(d: string) {
   return new Date(d).toLocaleString("ar-OM", { year:"numeric", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
 }
 
-async function printOrderInvoice(id: string, o: any) {
+async function printOrderInvoice(
+  id: string,
+  o: any,
+  freeCoffee?: { code: string; itemName: string; itemPrice: number } | null,
+) {
   let tpl: any = null;
   try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
 
@@ -1331,6 +1522,21 @@ async function printOrderInvoice(id: string, o: any) {
   const where = o.type === "dine"
     ? `طاولة / Table ${o.tableNumber}`
     : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
+
+  const subtotal = Number(o.total ?? 0);
+  const freeAmt  = freeCoffee ? Number(freeCoffee.itemPrice ?? 0) : 0;
+  const finalTot = Math.max(0, subtotal - freeAmt);
+
+  const freeBlock = freeCoffee ? `
+<tr><td class="cell sec-title-cell">كوفي مجاني / Free Coffee</td></tr>
+<tr><td class="cell info-cell">
+  <div><b>الكود / Code:</b> ${freeCoffee.code}</div>
+  <div><b>المشروب المجاني / Free drink:</b> ${freeCoffee.itemName}</div>
+  <div><b>قيمة الخصم / Discount:</b> − ${freeAmt.toFixed(3)} ر.ع / OMR</div>
+</td></tr>
+<tr><td class="cell row-cell"><span class="lbl">الإجمالي قبل الخصم / Subtotal</span><span class="val">${subtotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">خصم الكوفي المجاني / Free coffee</span><span class="val">− ${freeAmt.toFixed(3)} ر.ع / OMR</span></td></tr>
+` : "";
 
   const body = `
 ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
@@ -1342,7 +1548,8 @@ ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 </td></tr>
 <tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
 <tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
-<tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${o.total?.toFixed(3)} ر.ع / OMR</span></td></tr>
+${freeBlock}
+<tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${finalTot.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
