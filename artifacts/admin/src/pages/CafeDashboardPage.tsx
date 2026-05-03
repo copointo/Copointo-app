@@ -3328,7 +3328,12 @@ function ReelsTab({ id }: { id: string }) {
     setError("");
     setOrigInfo(null);
     if (!f) { setVideoFile(null); setVideoDataUrl(""); return; }
-    if (!f.type.startsWith("video/")) { setError("يرجى اختيار ملف فيديو"); return; }
+    // Accept any file the user picked. Browsers don't always populate `type`
+    // for less-common containers (mkv, ts, flv, 3gp, m4v, …), so we also fall
+    // back to the file extension before refusing.
+    const VIDEO_EXTS = /\.(mp4|mov|m4v|webm|mkv|avi|wmv|flv|3gp|3g2|mpg|mpeg|mts|m2ts|ts|ogv|ogg|qt|hevc|h264|h265|asf|f4v|vob|mxf)$/i;
+    const looksLikeVideo = f.type.startsWith("video/") || VIDEO_EXTS.test(f.name);
+    if (!looksLikeVideo) { setError("يرجى اختيار ملف فيديو"); return; }
     setVideoFile(f);
     setVideoDataUrl(URL.createObjectURL(f));
     // Probe dimensions for the user-facing info card.
@@ -3529,7 +3534,7 @@ function ReelsTab({ id }: { id: string }) {
             <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-black/30 cursor-pointer hover:border-[#E8B86D]/50">
               <Upload className="w-4 h-4 text-[#E8B86D]" />
               <span className="text-sm text-white/70">{videoFile ? videoFile.name : "اختيار ملف…"}</span>
-              <input type="file" accept="video/*" className="hidden"
+              <input type="file" accept="video/*,.mkv,.avi,.wmv,.flv,.3gp,.3g2,.mts,.m2ts,.ts,.ogv,.mxf,.f4v,.vob,.hevc,.h264,.h265" className="hidden"
                 onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
             </label>
             {origInfo && (
