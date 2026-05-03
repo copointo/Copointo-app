@@ -18,17 +18,17 @@ import { Link } from "wouter";
 
 type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates";
 
-const TABS: { id: Tab; label: string; icon: any; emoji: string }[] = [
-  { id:"stats",     label:"الإحصائيات",       icon: LayoutDashboard,  emoji:"📊" },
-  { id:"orders",    label:"طلبات القهوة",      icon: ShoppingBag,      emoji:"☕" },
-  { id:"bookings",  label:"حجوزات الطاولة",    icon: CalendarDays,     emoji:"📅" },
-  { id:"menu",      label:"القائمة",           icon: UtensilsCrossed,  emoji:"🍽️" },
-  { id:"chat",      label:"معلومات الشات",     icon: MessageCircle,    emoji:"💬" },
-  { id:"tables",    label:"الطاولات",          icon: Table2,           emoji:"🪑" },
-  { id:"invoices",  label:"الفواتير",          icon: Receipt,          emoji:"🧾" },
-  { id:"expenses",  label:"المصاريف",          icon: Wallet,           emoji:"💸" },
-  { id:"inventory", label:"المخزن",            icon: Package,          emoji:"📦" },
-  { id:"templates", label:"تعديل الفواتير",    icon: FileText,         emoji:"📝" },
+const TABS: { id: Tab; label: string; icon: any }[] = [
+  { id:"stats",     label:"الإحصائيات",       icon: LayoutDashboard  },
+  { id:"orders",    label:"طلبات القهوة",      icon: ShoppingBag      },
+  { id:"bookings",  label:"حجوزات الطاولة",    icon: CalendarDays     },
+  { id:"menu",      label:"القائمة",           icon: UtensilsCrossed  },
+  { id:"chat",      label:"معلومات الشات",     icon: MessageCircle    },
+  { id:"tables",    label:"الطاولات",          icon: Table2           },
+  { id:"invoices",  label:"الفواتير",          icon: Receipt          },
+  { id:"expenses",  label:"المصاريف",          icon: Wallet           },
+  { id:"inventory", label:"المخزن",            icon: Package          },
+  { id:"templates", label:"تعديل الفواتير",    icon: FileText         },
 ];
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
@@ -56,10 +56,12 @@ const STATUS_AR: Record<string, string> = {
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`bg-card border border-border rounded-2xl ${className}`}>{children}</div>;
 }
-function StatBox({ label, value, icon }: { label:string; value:any; icon:string; color?:string }) {
+function StatBox({ label, value, Icon }: { label:string; value:any; Icon: any }) {
   return (
     <Card className="p-5 flex items-start gap-4">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 bg-primary/15 border border-primary/30">{icon}</div>
+      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-primary/15 border border-primary/30">
+        <Icon size={20} className="text-primary" strokeWidth={1.75} />
+      </div>
       <div><p className="text-muted-foreground text-sm">{label}</p><p className="text-2xl font-bold text-foreground mt-0.5">{value}</p></div>
     </Card>
   );
@@ -95,12 +97,12 @@ function StatsTab({ id }: { id: string }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
-        <StatBox label="إجمالي الطلبات"   value={data.totalOrders}   icon="📦" color="bg-amber-700/60" />
-        <StatBox label="الحجوزات"          value={data.totalBookings} icon="🪑" color="bg-violet-700/60" />
-        <StatBox label="عناصر القائمة"    value={data.totalMenuItems} icon="🍽️" color="bg-blue-700/60" />
-        <StatBox label="إجمالي الإيرادات" value={`${data.totalRevenue} OMR`} icon="💰" color="bg-green-700/60" />
-        <StatBox label="طلبات بانتظار"    value={data.pendingOrders}  icon="⏳" color="bg-yellow-700/60" />
-        <StatBox label="حجوزات مؤكدة"    value={data.confirmedBookings} icon="✅" color="bg-teal-700/60" />
+        <StatBox label="إجمالي الطلبات"   value={data.totalOrders}   Icon={ShoppingBag} />
+        <StatBox label="الحجوزات"          value={data.totalBookings} Icon={CalendarDays} />
+        <StatBox label="عناصر القائمة"    value={data.totalMenuItems} Icon={UtensilsCrossed} />
+        <StatBox label="إجمالي الإيرادات" value={`${data.totalRevenue} OMR`} Icon={Wallet} />
+        <StatBox label="طلبات بانتظار"    value={data.pendingOrders}  Icon={Clock} />
+        <StatBox label="حجوزات مؤكدة"    value={data.confirmedBookings} Icon={CheckCircle} />
       </div>
 
       {data.chartData?.length > 0 && (
@@ -2260,7 +2262,7 @@ export default function CafeDashboardPage() {
               <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 border-2 border-card animate-pulse" />
             </div>
           </Link>
-          {TABS.map(({ id: tid, label, icon: Icon, emoji }, i) => {
+          {TABS.map(({ id: tid, label, icon: Icon }, i) => {
             const active     = tab === tid;
             const isSpinning = spinIdx === i;
             return (
@@ -2284,8 +2286,7 @@ export default function CafeDashboardPage() {
                   {/* Inner gold accent ring */}
                   <div className={`absolute inset-1 rounded-xl pointer-events-none ${active ? "ring-1 ring-black/20" : "ring-1 ring-[#E8B86D]/15"}`} />
 
-                  <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>{emoji}</span>
-                  <Icon size={18} className={active ? "text-black/80" : "text-[#E8B86D]/80"} />
+                  <Icon size={28} strokeWidth={1.75} className={active ? "text-black" : "text-[#E8B86D]"} />
                   <span className={`text-[11px] font-bold leading-tight text-center px-1 ${active ? "text-black" : "text-[#F5E6CC]"}`}>
                     {label}
                   </span>
