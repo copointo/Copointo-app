@@ -47,7 +47,7 @@ const AFTER  = 48;
 export default function GameScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
-  const { user, activeGameCafeId, setActiveGameCafeId }  = useApp();
+  const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
 
   // Per-café progress: pick the currently-viewed café, or first available.
@@ -366,7 +366,11 @@ export default function GameScreen() {
           activeOpacity={0.85}
         >
           <Feather name="bell" size={22} color={PRIMARY} />
-          <View style={styles.badge}><Text style={styles.badgeText}>3</Text></View>
+          {incomingRequests.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{incomingRequests.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Add Friends */}
