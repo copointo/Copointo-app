@@ -23,6 +23,10 @@ export const api = {
   gameBan:     (id: string, reason: string)              => req<any>("POST", `${A}/users/${id}/game-ban`,     { reason }),
   gameSuspend: (id: string, days: number, reason: string) => req<any>("POST", `${A}/users/${id}/game-suspend`, { days, reason }),
   gameClear:   (id: string)                              => req<any>("POST", `${A}/users/${id}/game-clear`),
+  // Broadcast notifications to all game users
+  getBroadcasts:    ()                  => req<any>("GET",    `${A}/broadcasts`),
+  sendBroadcast:    (message: string)   => req<any>("POST",   `${A}/broadcasts`, { message }),
+  deleteBroadcast:  (id: string)        => req<any>("DELETE", `${A}/broadcasts/${id}`),
 
   // Cafe Dashboard
   cafeStats:     (id: string)              => req<any>("GET",    `${C(id)}/stats`),

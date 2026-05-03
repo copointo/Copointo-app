@@ -185,3 +185,14 @@ export const reels:        Reel[]        = [];
 export const reelLikes:    ReelLike[]    = [];
 export const reelComments: ReelComment[] = [];
 export const reelViews:    ReelView[]    = [];
+
+/**
+ * Broadcast announcement sent by the super-admin to all game users.
+ * Appears in the mobile notifications screen as a system message from Copointo.
+ */
+export interface Broadcast {
+  id: string;
+  message: string;
+  createdAt: string;
+}
+export const broadcasts: Broadcast[] = [];

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { cafes, users, type Cafe } from "../store";
+import { cafes, users, broadcasts, type Cafe, type Broadcast } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 const router = Router();
@@ -134,6 +134,36 @@ router.post("/users/:id/game-clear", (req, res) => {
   user.gameSuspendReason = null;
   user.gameSuspendedAt = null;
   res.json({ user });
+});
+
+// ── POST /api/admin/broadcasts ─────────────
+// Body: { message: string }
+// Super-admin sends a broadcast to all game users (system notification from Copointo).
+router.post("/broadcasts", (req, res): any => {
+  const message = String(req.body?.message ?? "").trim();
+  if (!message) return res.status(400).json({ error: "الرسالة مطلوبة" });
+  if (message.length > 500) return res.status(400).json({ error: "الرسالة طويلة جداً (الحد الأقصى 500 حرف)" });
+  const b: Broadcast = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+    message,
+    createdAt: new Date().toISOString(),
+  };
+  broadcasts.unshift(b);
+  res.json({ broadcast: b });
+});
+
+// ── GET /api/admin/broadcasts ──────────────
+// Returns broadcast history (newest first) for the super-admin panel.
+router.get("/broadcasts", (_req, res) => {
+  res.json({ broadcasts });
+});
+
+// ── DELETE /api/admin/broadcasts/:id ───────
+router.delete("/broadcasts/:id", (req, res): any => {
+  const i = broadcasts.findIndex(b => b.id === req.params.id);
+  if (i === -1) return res.status(404).json({ error: "Broadcast not found" });
+  broadcasts.splice(i, 1);
+  res.json({ ok: true });
 });
 
 // ── GET /api/admin/stats ────────────────────

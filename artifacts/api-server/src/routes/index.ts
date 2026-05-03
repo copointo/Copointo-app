@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
-import { cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews } from "../store";
+import { cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 const router: IRouter = Router();
@@ -76,6 +76,17 @@ router.get("/free-coffees", (req, res) => {
     .filter(f => f.userPhone === phone)
     .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
   res.json({ coffees: list });
+});
+
+// ─── Public Broadcasts endpoint ─────────────────────────────────────────
+// Mobile fetches system broadcasts (announcements from Copointo super-admin).
+// Optional ?since=<ISO> filters to only newer broadcasts.
+router.get("/broadcasts", (req, res) => {
+  const since = String(req.query.since ?? "").trim();
+  const items = since
+    ? broadcasts.filter(b => b.createdAt > since)
+    : broadcasts;
+  res.json({ broadcasts: items });
 });
 
 // ─── Public Reels endpoints ─────────────────────────────────────────────

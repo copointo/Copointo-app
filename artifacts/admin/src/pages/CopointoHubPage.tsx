@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Ban, Clock, ShieldOff, ShieldCheck, X, AlertTriangle, Users as UsersIcon, CheckCircle as CheckIcon, Hourglass } from "lucide-react";
+import { Search, Ban, Clock, ShieldOff, ShieldCheck, X, AlertTriangle, Users as UsersIcon, CheckCircle as CheckIcon, Hourglass, Megaphone, Send, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface HubUser {
@@ -48,6 +48,49 @@ export default function CopointoHubPage() {
   const [days,   setDays]   = useState("3");
   const [busy,   setBusy]   = useState(false);
   const [err,    setErr]    = useState("");
+
+  // Broadcast (system notification to all game users) modal state
+  const [broadcastOpen,   setBroadcastOpen]   = useState(false);
+  const [broadcastMsg,    setBroadcastMsg]    = useState("");
+  const [broadcastBusy,   setBroadcastBusy]   = useState(false);
+  const [broadcastErr,    setBroadcastErr]    = useState("");
+  const [broadcastOk,     setBroadcastOk]     = useState(false);
+  const [broadcasts,      setBroadcasts]      = useState<{ id: string; message: string; createdAt: string }[]>([]);
+
+  const loadBroadcasts = () =>
+    api.getBroadcasts().then(d => setBroadcasts(d.broadcasts ?? [])).catch(() => {});
+
+  const openBroadcast = () => {
+    setBroadcastMsg("");
+    setBroadcastErr("");
+    setBroadcastOk(false);
+    setBroadcastOpen(true);
+    loadBroadcasts();
+  };
+
+  const sendBroadcast = async () => {
+    const m = broadcastMsg.trim();
+    if (!m) { setBroadcastErr("الرجاء كتابة نص الإشعار"); return; }
+    setBroadcastBusy(true); setBroadcastErr("");
+    try {
+      await api.sendBroadcast(m);
+      setBroadcastOk(true);
+      setBroadcastMsg("");
+      await loadBroadcasts();
+      setTimeout(() => setBroadcastOk(false), 2500);
+    } catch (e: any) {
+      try { setBroadcastErr(JSON.parse(e?.message ?? "{}").error || "تعذّر الإرسال"); }
+      catch { setBroadcastErr(e?.message || "تعذّر الإرسال"); }
+    } finally {
+      setBroadcastBusy(false);
+    }
+  };
+
+  const removeBroadcast = async (id: string) => {
+    if (!confirm("حذف هذا الإشعار من السجل؟ (لن يُحذف من إشعارات المستخدمين)")) return;
+    await api.deleteBroadcast(id);
+    await loadBroadcasts();
+  };
 
   const reload = () => api.getUsers().then(d => setUsers(d.users));
 
@@ -122,14 +165,22 @@ export default function CopointoHubPage() {
   return (
     <div className="p-8" dir="rtl">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <span className="text-3xl">🎮</span>
-          <h1 className="text-3xl font-bold text-foreground">Copointo Hub</h1>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <span className="text-3xl">🎮</span>
+            <h1 className="text-3xl font-bold text-foreground">Copointo Hub</h1>
+          </div>
+          <p className="text-muted-foreground">
+            إدارة لاعبي اللعبة • {counts.all} لاعب • {counts.suspended} موقوف مؤقتاً • {counts.banned} محظور
+          </p>
         </div>
-        <p className="text-muted-foreground">
-          إدارة لاعبي اللعبة • {counts.all} لاعب • {counts.suspended} موقوف مؤقتاً • {counts.banned} محظور
-        </p>
+        <button
+          onClick={openBroadcast}
+          className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 shadow"
+        >
+          <Megaphone size={18} /> إشعار للمستخدمين
+        </button>
       </div>
 
       {/* Stat cards */}
@@ -388,6 +439,111 @@ export default function CopointoHubPage() {
               >
                 {busy ? "جارٍ الحفظ..." : (modal.mode === "ban" ? "تأكيد الحظر" : "تأكيد الإيقاف")}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Broadcast modal — send a system notification to all game users */}
+      {broadcastOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { if (!broadcastBusy) setBroadcastOpen(false); }}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-primary/15 text-primary flex items-center justify-center">
+                  <Megaphone size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-lg">إشعار للمستخدمين</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    سيظهر لجميع لاعبي Copointo في شاشة الإشعارات كرسالة من Copointo
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { if (!broadcastBusy) setBroadcastOpen(false); }}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-foreground mb-1.5">
+                نص الإشعار <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={broadcastMsg}
+                onChange={e => setBroadcastMsg(e.target.value.slice(0, 500))}
+                rows={5}
+                placeholder="مثال: عرض خاص اليوم! اطلب أي قهوة واحصل على نقاط مضاعفة 🎉"
+                className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground resize-none"
+              />
+              <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
+                <span>سيُرسل من: <b className="text-primary">Copointo</b></span>
+                <span>{broadcastMsg.length}/500</span>
+              </div>
+            </div>
+
+            {broadcastErr && (
+              <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-lg py-2 px-3 mb-3">{broadcastErr}</p>
+            )}
+            {broadcastOk && (
+              <p className="text-green-400 text-xs bg-green-500/10 border border-green-500/30 rounded-lg py-2 px-3 mb-3">
+                ✓ تم إرسال الإشعار لجميع المستخدمين
+              </p>
+            )}
+
+            <div className="flex gap-2 mb-5">
+              <button
+                onClick={() => { if (!broadcastBusy) setBroadcastOpen(false); }}
+                disabled={broadcastBusy}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-muted/40 text-foreground hover:bg-muted/60 disabled:opacity-50"
+              >
+                إغلاق
+              </button>
+              <button
+                onClick={sendBroadcast}
+                disabled={broadcastBusy || !broadcastMsg.trim()}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                <Send size={15} /> {broadcastBusy ? "جارٍ الإرسال..." : "إرسال للجميع"}
+              </button>
+            </div>
+
+            {/* History */}
+            <div className="border-t border-border pt-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">
+                الإشعارات السابقة ({broadcasts.length})
+              </p>
+              {broadcasts.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">لا توجد إشعارات سابقة</p>
+              ) : (
+                <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                  {broadcasts.map(b => (
+                    <div key={b.id} className="bg-muted/20 border border-border rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm text-foreground whitespace-pre-wrap flex-1">{b.message}</p>
+                        <button
+                          onClick={() => removeBroadcast(b.id)}
+                          className="text-muted-foreground hover:text-red-400 p-1 shrink-0"
+                          title="حذف من السجل"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">{fmtDateTime(b.createdAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

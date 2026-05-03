@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -13,6 +14,22 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { getRank } from "@/data/mockData";
+import { apiFetch } from "@/constants/api";
+
+interface Broadcast { id: string; message: string; createdAt: string; }
+
+const BROADCAST_LAST_SEEN_KEY = "copointo_broadcast_last_seen_v1";
+
+const fmtRelative = (iso: string): string => {
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1)   return "الآن";
+  if (m < 60)  return `قبل ${m} د`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `قبل ${h} س`;
+  const d = Math.floor(h / 24);
+  return `قبل ${d} يوم`;
+};
 
 const BG     = "#000000";
 const ACCENT = "#E8B86D";
@@ -34,12 +51,30 @@ export default function NotificationsScreen() {
   // Track recent decisions so the row stays visible briefly with status
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
 
+  // Copointo system broadcasts from super-admin
+  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+
+  const loadBroadcasts = useCallback(async () => {
+    try {
+      const r = await apiFetch<{ broadcasts: Broadcast[] }>("/broadcasts");
+      setBroadcasts(r.broadcasts ?? []);
+      // Mark as seen so the bell badge clears.
+      const newest = r.broadcasts?.[0]?.createdAt;
+      if (newest) await AsyncStorage.setItem(BROADCAST_LAST_SEEN_KEY, newest);
+    } catch {
+      /* ignore network errors — show whatever is cached */
+    }
+  }, []);
+
+  useEffect(() => { loadBroadcasts(); }, [loadBroadcasts]);
+
   // Whenever this screen comes into focus, re-pull friend/request data from
   // storage in case another logged-in user on the same device sent something.
   useFocusEffect(
     useCallback(() => {
       refreshFriendData();
-    }, [refreshFriendData])
+      loadBroadcasts();
+    }, [refreshFriendData, loadBroadcasts])
   );
 
   // Build display rows from the incoming-request IDs, hydrated from
@@ -96,7 +131,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
-        {rows.length === 0 && recentlyDecided.length === 0 && (
+        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🔔</Text>
             <Text style={styles.emptyTitle}>لا توجد إشعارات</Text>
@@ -105,6 +140,26 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         )}
+
+        {/* Copointo system broadcasts */}
+        {broadcasts.map(b => (
+          <View key={`bc-${b.id}`} style={styles.broadcastCard}>
+            <View style={styles.broadcastHeader}>
+              <View style={styles.broadcastBadge}>
+                <Text style={styles.broadcastBadgeIcon}>📣</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.broadcastTitleRow}>
+                  <Text style={styles.broadcastSender}>Copointo</Text>
+                  <View style={styles.officialDot} />
+                  <Text style={styles.broadcastOfficial}>رسمي</Text>
+                </View>
+                <Text style={styles.broadcastTime}>{fmtRelative(b.createdAt)}</Text>
+              </View>
+            </View>
+            <Text style={styles.broadcastBody}>{b.message}</Text>
+          </View>
+        ))}
 
         {/* Pending friend requests */}
         {rows.map((r) => {
@@ -251,6 +306,27 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 13, fontFamily: "Inter_600SemiBold",
   },
+  // Broadcast (system message from Copointo)
+  broadcastCard: {
+    backgroundColor: "#0A0606",
+    borderRadius: 18, padding: 16,
+    borderWidth: 1, borderColor: ACCENT,
+    gap: 12,
+  },
+  broadcastHeader: { flexDirection: "row", gap: 12, alignItems: "center" },
+  broadcastBadge: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: ACCENT,
+    alignItems: "center", justifyContent: "center",
+  },
+  broadcastBadgeIcon: { fontSize: 22 },
+  broadcastTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  broadcastSender: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
+  officialDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: ACCENT },
+  broadcastOfficial: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: ACCENT },
+  broadcastTime: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", marginTop: 2 },
+  broadcastBody: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#FFF", lineHeight: 22 },
+
   emptyWrap: { alignItems: "center", paddingTop: 100, gap: 10 },
   emptyIcon: { fontSize: 56 },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },

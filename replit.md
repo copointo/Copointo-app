@@ -106,6 +106,16 @@ Once preparing, follow-up buttons are "الطلب جاهز" → "تم التسل
 
 **Optional order notes** — `Order.notes?: string` (≤300 chars). Mobile cart shows a "ملاحظات إضافية (اختياري)" multiline input (bean type, extra heat, customizations). Admin renders notes in: orders tab card (highlighted gold-bordered block), printed-orders archive (truncated single line), and the printable invoice HTML (HTML-escaped, between items table and totals).
 
+## Broadcast notifications (super-admin → all game users)
+
+Super-admin can push system messages to every Copointo player from the **Copointo Hub** page header ("إشعار للمستخدمين" button, Megaphone icon).
+
+**Backend** — `Broadcast { id, message (≤500 chars), createdAt }` array in `store.ts`. Routes: `POST/GET/DELETE /api/admin/broadcasts` (admin), `GET /api/broadcasts?since=<ISO>` (public — mobile poll, since-filter for delta).
+
+**Admin UI (`CopointoHubPage.tsx`)** — modal with textarea (500-char counter, "سيُرسل من: Copointo" label), send button, success chip, and a scrollable history below with delete-from-log buttons.
+
+**Mobile** — `notifications.tsx` fetches `/api/broadcasts` on mount + focus, renders a gold-bordered card per broadcast with 📣 badge, "Copointo • رسمي" sender, relative time (الآن / قبل N د/س/يوم), and the message body. On open it writes the newest `createdAt` to AsyncStorage key `copointo_broadcast_last_seen_v1`. Game tab bell badge (`game.tsx`) polls broadcasts every 30s and on focus, adding `unread = broadcasts.filter(b => b.createdAt > lastSeen).length` to the existing friend-request count so users see the badge clear after viewing.
+
 ## Copointo Reels
 
 Vertical short-video feature with Instagram/TikTok-style reels.
