@@ -295,6 +295,29 @@ export default function VideosScreen() {
     if (first && typeof first.index === "number") setActiveIndex(first.index);
   }).current;
 
+  // On web (mouse wheel + trackpad), react-native-web's FlatList does not
+  // snap reliably between pages — wheel scroll either does nothing or stops
+  // mid-reel. We intercept wheel events and snap to the next/previous reel.
+  const listRef = useRef<FlatList<Reel> | null>(null);
+  const wheelLockRef = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 10) return;
+      if (wheelLockRef.current) { e.preventDefault(); return; }
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const next = Math.min(reels.length - 1, Math.max(0, activeIndex + dir));
+      if (next === activeIndex) return;
+      e.preventDefault();
+      wheelLockRef.current = true;
+      setActiveIndex(next);
+      try { listRef.current?.scrollToIndex({ index: next, animated: true }); } catch { /* ignore */ }
+      setTimeout(() => { wheelLockRef.current = false; }, 450);
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [activeIndex, reels.length]);
+
   const handleView = useCallback(async (reelId: string) => {
     try {
       const r = await apiPost<{ views: number }>(`/reels/${reelId}/view`, { userId });
@@ -387,14 +410,18 @@ export default function VideosScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <FlatList
+        ref={listRef}
         data={reels}
         keyExtractor={(r) => r.id}
         pagingEnabled
         showsVerticalScrollIndicator={false}
         snapToInterval={VIDEO_HEIGHT}
+        snapToAlignment="start"
+        disableIntervalMomentum
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+        getItemLayout={(_, index) => ({ length: VIDEO_HEIGHT, offset: VIDEO_HEIGHT * index, index })}
         renderItem={({ item, index }) => (
           <ReelCard
             reel={item}
