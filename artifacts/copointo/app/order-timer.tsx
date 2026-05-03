@@ -63,6 +63,7 @@ export default function OrderTimerScreen() {
   const [confirmed,setConfirmed]= useState(false); // manager moved out of pending
   const [completed,setCompleted]= useState(false); // manager pressed print → final
   const [pointsAwarded, setPointsAwarded] = useState(0);
+  const awardedRef = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -102,13 +103,19 @@ export default function OrderTimerScreen() {
           setConfirmed(true);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-        if (data.order.pointsAwarded) {
-          // Manager printed invoice → award per-café progress + show final screen.
-          setCompleted(true);
+        if (data.order.pointsAwarded && !awardedRef.current) {
+          // Manager confirmed → award per-café progress (drink count) immediately.
+          awardedRef.current = true;
           setPointsAwarded(drinkQty);
           if (user) {
             addCafeOrder(cafeId, cafeName, drinkQty);
           }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+        // Only switch to the "completed" screen when the order is fully done
+        // (manager printed / status === "done").
+        if (data.order.status === "done" && !completed) {
+          setCompleted(true);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       } catch {/* ignore transient */}

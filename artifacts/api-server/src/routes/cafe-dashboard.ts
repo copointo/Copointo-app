@@ -148,13 +148,30 @@ router.get("/orders/:orderId", (req, res): any => {
   if (!order) return res.status(404).json({ error: "Not found" });
   return res.json({ order });
 });
+// Award drink-count progress to the customer (idempotent — only fires once per order).
+function awardOrderProgress(order: any) {
+  if (order.pointsAwarded) return;
+  const drinks = (order.drinkCount != null)
+    ? order.drinkCount
+    : order.items.reduce((s: number, it: any) => s + (it.category === "حلى" ? 0 : it.qty), 0);
+  if (drinks > 0) {
+    const u = users.find(u => u.phone === order.customerPhone);
+    if (u) {
+      u.totalOrders += drinks;
+      awardMilestoneCoffees(u.phone, u.username, u.totalOrders);
+    }
+  }
+  order.pointsAwarded = true;
+}
+
 router.patch("/orders/:orderId/status", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
   const prevStatus = order.status;
   const next = req.body.status;
   order.status = next;
-  // First time the order leaves "pending" → finalise invoice (points happen on print).
+  // First time the order leaves "pending" → finalise invoice AND award drink progress
+  // immediately (no longer waits for the manager to print the invoice).
   if (prevStatus === "pending" && next !== "pending") {
     order.confirmedAt = new Date().toISOString();
     if (!invoices.some(i => i.orderId === order.id)) {
@@ -170,31 +187,20 @@ router.patch("/orders/:orderId/status", (req, res): any => {
       };
       invoices.push(inv);
     }
+    awardOrderProgress(order);
   }
   return res.json({ order });
 });
 
-// Mark invoice printed → awards drink points to the user (idempotent) + completes order.
-// Also issues a free-coffee code for every newly-crossed multiple-of-7 milestone.
+// Mark invoice printed → completes order. Drink progress was already awarded at
+// confirmation time (see PATCH /status); this still calls the helper so any
+// edge-case order that was printed without going through confirmation is awarded.
 router.post("/orders/:orderId/print", (req, res) => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
-  if (!order.pointsAwarded) {
-    const drinks = (order.drinkCount != null)
-      ? order.drinkCount
-      : order.items.reduce((s, it) => s + (it.category === "حلى" ? 0 : it.qty), 0);
-    if (drinks > 0) {
-      const u = users.find(u => u.phone === order.customerPhone);
-      if (u) {
-        u.totalOrders += drinks;
-        // Issue free-coffee code(s) for any milestones just crossed.
-        awardMilestoneCoffees(u.phone, u.username, u.totalOrders);
-      }
-    }
-    order.pointsAwarded = true;
-    order.printedAt = new Date().toISOString();
-    if (order.status !== "done") order.status = "done";
-  }
+  awardOrderProgress(order);
+  if (!order.printedAt) order.printedAt = new Date().toISOString();
+  if (order.status !== "done") order.status = "done";
   return res.json({ order });
 });
 
