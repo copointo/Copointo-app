@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatMessage } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 import { useMessages } from "@/context/MessagesContext";
+import { playReceiveMessageSound, playSendMessageSound } from "@/lib/notification-sound";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -77,10 +78,23 @@ export default function ConversationScreen() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
   }, [convMsgs.length]);
 
+  // Play a soft chime when a new incoming (not-from-me) message appears.
+  // Skips the initial mount so existing history doesn't trigger on open.
+  const prevTheirCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    const theirCount = convMsgs.filter(m => !m.fromMe).length;
+    if (prevTheirCountRef.current !== null && theirCount > prevTheirCountRef.current) {
+      playReceiveMessageSound();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+    prevTheirCountRef.current = theirCount;
+  }, [convMsgs]);
+
   const sendMessage = () => {
     const trimmed = text.trim();
     if (!trimmed || !id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playSendMessageSound();
     const newMsg: ChatMessage = {
       id: Date.now().toString(),
       text: trimmed,

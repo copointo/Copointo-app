@@ -48,6 +48,22 @@ export function playNotificationChime() {
   playTone(ctx, 1320, 0.14, 0.32, 0.14, "sine");
 }
 
+/** Short upward "whoosh" — played when the user sends a message. */
+export function playSendMessageSound() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  playTone(ctx, 660, 0,    0.10, 0.10, "sine");
+  playTone(ctx, 990, 0.05, 0.14, 0.10, "sine");
+}
+
+/** Soft downward "pop" — played when the user receives a new message. */
+export function playReceiveMessageSound() {
+  const ctx = getCtx();
+  if (!ctx) return;
+  playTone(ctx, 1100, 0,    0.12, 0.12, "sine");
+  playTone(ctx, 740,  0.07, 0.18, 0.12, "sine");
+}
+
 /** Triumphant ascending arpeggio — used when the user levels up. */
 export function playLevelUpSound() {
   const ctx = getCtx();
