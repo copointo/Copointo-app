@@ -6,9 +6,11 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -16,11 +18,12 @@ import {
   View,
   ViewToken,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/context/AppContext";
 import { formatNumber } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
-import { apiFetch, apiPost, apiDelete, API_BASE } from "@/constants/api";
+import { apiFetch, apiPost, API_BASE } from "@/constants/api";
 
 // Per-device anonymous identifier so logged-out viewers each count once for
 // likes/views — never share a single "guest" identity across all devices.
@@ -38,9 +41,7 @@ async function getAnonId(): Promise<string> {
 }
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-// Smaller, card-style video so multiple reels fit naturally in the feed and
-// each reel's likes/comments can be shown directly underneath it.
-const VIDEO_HEIGHT = Math.min(Math.round(SCREEN_HEIGHT * 0.55), 520);
+const VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 - 67 : SCREEN_HEIGHT;
 
 interface Reel {
   id: string;
@@ -129,29 +130,27 @@ function ReelCard({
   muted,
   onToggleMute,
   onLike,
+  onOpenComments,
   onOrder,
   onLocation,
   onView,
-  userId,
-  userName,
-  onCommentsCountChange,
 }: {
   reel: Reel;
   isActive: boolean;
   muted: boolean;
   onToggleMute: () => void;
   onLike: () => void;
+  onOpenComments: () => void;
   onOrder: () => void;
   onLocation: () => void;
   onView: () => void;
-  userId: string;
-  userName: string;
-  onCommentsCountChange: (reelId: string, delta: number) => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
   const viewedRef = useRef(false);
+  // Description is now hidden by default; user opens it via the
+  // "اقرأ التفاصيل" button that sits just above the views chip.
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     if (isActive && !viewedRef.current) {
@@ -160,60 +159,39 @@ function ReelCard({
     }
   }, [isActive, onView]);
 
-  // Each card fetches its own comments so they can be displayed inline
-  // underneath the video — there's no longer a separate modal.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await apiFetch<{ comments: Comment[] }>(`/reels/${reel.id}/comments`);
-        if (!cancelled) setComments(r.comments ?? []);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [reel.id]);
-
-  const submitComment = useCallback(async () => {
-    const text = draft.trim();
-    if (!text || !userId) return;
-    setDraft("");
-    try {
-      const r = await apiPost<{ comment: Comment }>(`/reels/${reel.id}/comments`, {
-        userId, userName, text,
-      });
-      setComments((prev) => [...prev, r.comment]);
-      onCommentsCountChange(reel.id, +1);
-    } catch { /* ignore */ }
-  }, [draft, reel.id, userId, userName, onCommentsCountChange]);
-
-  const deleteComment = useCallback(async (cid: string) => {
-    // Optimistic delete — reconcile silently if the request fails.
-    setComments((prev) => prev.filter((c) => c.id !== cid));
-    onCommentsCountChange(reel.id, -1);
-    try {
-      await apiDelete<{ ok: boolean }>(`/reels/${reel.id}/comments/${cid}`);
-    } catch { /* ignore */ }
-  }, [reel.id, onCommentsCountChange]);
-
   return (
-    <View style={styles.card}>
-      <View style={[styles.videoBox, { height: VIDEO_HEIGHT }]}>
+    <View style={[styles.card, { height: VIDEO_HEIGHT }]}>
+      <View style={styles.videoLayer}>
         <ReelVideo src={reel.videoUrl} isActive={isActive} muted={muted} />
-        <TouchableOpacity
-          onPress={onToggleMute}
-          style={styles.muteBtnFloat}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Feather name={muted ? "volume-x" : "volume-2"} size={14} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.viewsChipFloat}>
-          <Feather name="eye" size={12} color="#fff" />
-          <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
-        </View>
+        <View style={styles.scrim} />
       </View>
 
-      <View style={styles.infoBlock}>
+      {/* Right rail (like / comments / order / location) */}
+      <View style={[styles.rightRail, { bottom: bottomPadding + 110 }]}>
+        <TouchableOpacity onPress={onLike} style={styles.railBtn} activeOpacity={0.7}>
+          <Ionicons
+            name={reel.likedByMe ? "heart" : "heart-outline"}
+            size={36}
+            color={reel.likedByMe ? "#FF1744" : "#fff"}
+          />
+          <Text style={styles.railNum}>{formatNumber(reel.likes)}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onOpenComments} style={styles.railBtn} activeOpacity={0.7}>
+          <Feather name="message-circle" size={32} color="#fff" />
+          <Text style={styles.railNum}>{formatNumber(reel.comments)}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onOrder} style={styles.railIconBtn} activeOpacity={0.7}>
+          <Feather name="shopping-bag" size={22} color="#000" />
+          <Text style={styles.railIconLabel}>اطلب</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onLocation} style={styles.railIconBtnAlt} activeOpacity={0.7}>
+          <Feather name="map-pin" size={22} color={PRIMARY} />
+          <Text style={[styles.railIconLabel, { color: PRIMARY }]}>الموقع</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom info — cafe + "Read details" button + views chip stacked left */}
+      <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 12 }]}>
         <View style={styles.cafeRow}>
           <View style={styles.cafeLogoBubble}>
             <Text style={{ color: PRIMARY, fontWeight: "700" }}>
@@ -222,7 +200,6 @@ function ReelCard({
           </View>
           <Text style={styles.cafeName} numberOfLines={1}>{reel.cafeName}</Text>
         </View>
-
         {!!reel.description && (
           <TouchableOpacity
             onPress={() => setDetailsOpen(true)}
@@ -233,70 +210,23 @@ function ReelCard({
             <Text style={styles.detailsBtnText}>اقرأ التفاصيل</Text>
           </TouchableOpacity>
         )}
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity onPress={onLike} style={styles.actionBtn} activeOpacity={0.7}>
-            <Ionicons
-              name={reel.likedByMe ? "heart" : "heart-outline"}
-              size={22}
-              color={reel.likedByMe ? "#FF1744" : "#fff"}
-            />
-            <Text style={styles.actionLabel}>{formatNumber(reel.likes)}</Text>
+        <View style={styles.bottomRow}>
+          <TouchableOpacity
+            onPress={onToggleMute}
+            style={styles.muteBtn}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name={muted ? "volume-x" : "volume-2"} size={14} color="#fff" />
           </TouchableOpacity>
-          <View style={styles.actionBtn}>
-            <Feather name="message-circle" size={20} color="#fff" />
-            <Text style={styles.actionLabel}>{formatNumber(comments.length)}</Text>
+          <View style={styles.viewsChip}>
+            <Feather name="eye" size={12} color="#fff" />
+            <Text style={styles.viewsChipText}>{formatNumber(reel.views)}</Text>
           </View>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity onPress={onOrder} style={styles.cta} activeOpacity={0.7}>
-            <Feather name="shopping-bag" size={14} color="#000" />
-            <Text style={styles.ctaText}>اطلب</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onLocation} style={styles.ctaAlt} activeOpacity={0.7}>
-            <Feather name="map-pin" size={14} color={PRIMARY} />
-            <Text style={[styles.ctaText, { color: PRIMARY }]}>الموقع</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.commentsList}>
-          {comments.length === 0 ? (
-            <Text style={styles.noComments}>لا توجد تعليقات بعد — كن أول من يعلق</Text>
-          ) : (
-            comments.map((c) => (
-              <View key={c.id} style={styles.commentItem}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.commentName}>{c.userName}</Text>
-                  <Text style={styles.commentText}>{c.text}</Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => deleteComment(c.id)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.commentDelBtn}
-                  activeOpacity={0.6}
-                >
-                  <Feather name="trash-2" size={14} color="#FF6B6B" />
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View>
-
-        <View style={styles.commentInputBar}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="اكتب تعليقاً…"
-            placeholderTextColor="#777"
-            style={styles.commentInput}
-            onSubmitEditing={submitComment}
-            returnKeyType="send"
-          />
-          <TouchableOpacity onPress={submitComment} style={styles.sendBtn} activeOpacity={0.7}>
-            <Feather name="send" size={16} color="#000" />
-          </TouchableOpacity>
         </View>
       </View>
 
+      {/* Details overlay — shown only after the user taps "اقرأ التفاصيل". */}
       <Modal
         visible={detailsOpen}
         transparent
@@ -353,6 +283,11 @@ export default function VideosScreen() {
       return () => setScreenFocused(false);
     }, []),
   );
+  const [commentsOpenFor, setCommentsOpenFor] = useState<Reel | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentDraft, setCommentDraft] = useState("");
+
   const [anonId, setAnonId] = useState<string>("");
   useEffect(() => { getAnonId().then(setAnonId); }, []);
   const userId = currentUser?.phone ?? currentUser?.id ?? anonId;
@@ -374,11 +309,28 @@ export default function VideosScreen() {
     if (first && typeof first.index === "number") setActiveIndex(first.index);
   }).current;
 
-  const updateCommentsCount = useCallback((reelId: string, delta: number) => {
-    setReels((prev) => prev.map((x) =>
-      x.id === reelId ? { ...x, comments: Math.max(0, x.comments + delta) } : x,
-    ));
-  }, []);
+  // On web (mouse wheel + trackpad), react-native-web's FlatList does not
+  // snap reliably between pages — wheel scroll either does nothing or stops
+  // mid-reel. We intercept wheel events and snap to the next/previous reel.
+  const listRef = useRef<FlatList<Reel> | null>(null);
+  const wheelLockRef = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) < 10) return;
+      if (wheelLockRef.current) { e.preventDefault(); return; }
+      const dir = e.deltaY > 0 ? 1 : -1;
+      const next = Math.min(reels.length - 1, Math.max(0, activeIndex + dir));
+      if (next === activeIndex) return;
+      e.preventDefault();
+      wheelLockRef.current = true;
+      setActiveIndex(next);
+      try { listRef.current?.scrollToIndex({ index: next, animated: true }); } catch { /* ignore */ }
+      setTimeout(() => { wheelLockRef.current = false; }, 450);
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [activeIndex, reels.length]);
 
   const handleView = useCallback(async (reelId: string) => {
     try {
@@ -410,6 +362,31 @@ export default function VideosScreen() {
       ));
     }
   }, [userId, userName]);
+
+  const openComments = useCallback(async (reel: Reel) => {
+    setCommentsOpenFor(reel);
+    setCommentsLoading(true);
+    try {
+      const r = await apiFetch<{ comments: Comment[] }>(`/reels/${reel.id}/comments`);
+      setComments(r.comments ?? []);
+    } catch { setComments([]); }
+    setCommentsLoading(false);
+  }, []);
+
+  const submitComment = useCallback(async () => {
+    if (!commentsOpenFor || !commentDraft.trim()) return;
+    const text = commentDraft.trim();
+    setCommentDraft("");
+    try {
+      const r = await apiPost<{ comment: Comment }>(`/reels/${commentsOpenFor.id}/comments`, {
+        userId, userName, text,
+      });
+      setComments((prev) => [r.comment, ...prev]);
+      setReels((prev) => prev.map((x) =>
+        x.id === commentsOpenFor.id ? { ...x, comments: x.comments + 1 } : x,
+      ));
+    } catch { /* ignore */ }
+  }, [commentDraft, commentsOpenFor, userId, userName]);
 
   const handleOrder = useCallback((reel: Reel) => {
     if (reel.orderLink?.startsWith("copointo://cafe/")) {
@@ -447,12 +424,18 @@ export default function VideosScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <FlatList
+        ref={listRef}
         data={reels}
         keyExtractor={(r) => r.id}
+        pagingEnabled
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingVertical: 12 }}
+        snapToInterval={VIDEO_HEIGHT}
+        snapToAlignment="start"
+        disableIntervalMomentum
+        decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+        getItemLayout={(_, index) => ({ length: VIDEO_HEIGHT, offset: VIDEO_HEIGHT * index, index })}
         renderItem={({ item, index }) => (
           <ReelCard
             reel={item}
@@ -460,103 +443,120 @@ export default function VideosScreen() {
             muted={muted || !screenFocused}
             onToggleMute={() => setMuted((m) => !m)}
             onLike={() => handleLike(item)}
+            onOpenComments={() => openComments(item)}
             onOrder={() => handleOrder(item)}
             onLocation={() => handleLocation(item)}
             onView={() => handleView(item.id)}
-            userId={userId}
-            userName={userName}
-            onCommentsCountChange={updateCommentsCount}
           />
         )}
       />
+
+      {/* Comments modal */}
+      <Modal
+        visible={!!commentsOpenFor}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCommentsOpenFor(null)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setCommentsOpenFor(null)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={{ flex: 1 }}
+            >
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>التعليقات</Text>
+                <TouchableOpacity onPress={() => setCommentsOpenFor(null)}>
+                  <Feather name="x" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              {commentsLoading ? (
+                <ActivityIndicator color={PRIMARY} style={{ marginTop: 24 }} />
+              ) : comments.length === 0 ? (
+                <Text style={styles.modalEmpty}>كن أول من يعلق</Text>
+              ) : (
+                <FlatList
+                  data={comments}
+                  keyExtractor={(c) => c.id}
+                  contentContainerStyle={{ padding: 12 }}
+                  renderItem={({ item }) => (
+                    <View style={styles.commentRow}>
+                      <View style={styles.commentBubble}>
+                        <Text style={styles.commentName}>{item.userName}</Text>
+                        <Text style={styles.commentText}>{item.text}</Text>
+                      </View>
+                    </View>
+                  )}
+                />
+              )}
+              <View style={styles.commentInputBar}>
+                <TextInput
+                  value={commentDraft}
+                  onChangeText={setCommentDraft}
+                  placeholder="اكتب تعليقاً…"
+                  placeholderTextColor="#666"
+                  style={styles.commentInput}
+                  onSubmitEditing={submitComment}
+                />
+                <TouchableOpacity onPress={submitComment} style={styles.sendBtn}>
+                  <Feather name="send" size={18} color="#000" />
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    width: "100%", maxWidth: 560, alignSelf: "center",
-    backgroundColor: "#0A0606", borderRadius: 18, overflow: "hidden",
-    marginBottom: 16, marginHorizontal: 8,
-    borderWidth: 1, borderColor: "rgba(232,184,109,0.18)",
+  card: { width: "100%", backgroundColor: "#000", position: "relative" },
+  videoLayer: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
+  rightRail: { position: "absolute", right: 12, alignItems: "center", gap: 18 },
+  railBtn: { alignItems: "center", marginBottom: 16 },
+  railNum: { color: "#fff", fontSize: 12, marginTop: 4, fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 3 },
+  railIconBtn: {
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
+    width: 50, height: 50, borderRadius: 25, backgroundColor: PRIMARY,
   },
-  videoBox: { width: "100%", backgroundColor: "#000", position: "relative" },
-  muteBtnFloat: {
-    position: "absolute", left: 10, bottom: 10,
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: "rgba(0,0,0,0.65)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
-    alignItems: "center", justifyContent: "center",
+  railIconBtnAlt: {
+    alignItems: "center", justifyContent: "center", marginBottom: 12,
+    width: 50, height: 50, borderRadius: 25,
+    borderWidth: 1.5, borderColor: PRIMARY, backgroundColor: "rgba(0,0,0,0.45)",
   },
-  viewsChipFloat: {
-    position: "absolute", right: 10, bottom: 10,
+  railIconLabel: { color: "#000", fontSize: 9, fontWeight: "700", marginTop: 1 },
+  viewsChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  bottomRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  muteBtn: {
+    width: 28, height: 28, borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.6)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center", justifyContent: "center",
   },
   viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-
-  infoBlock: { padding: 12, gap: 10 },
-  cafeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  bottomInfo: { position: "absolute", left: 0, right: 80, bottom: 0, padding: 16 },
+  descWrap: { marginBottom: 4 },
+  readMore: { color: PRIMARY, fontSize: 13, fontWeight: "700", marginTop: 4 },
+  cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   cafeLogoBubble: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: "#0A0606",
     borderWidth: 2, borderColor: PRIMARY, alignItems: "center", justifyContent: "center",
   },
   cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
-
+  description: { color: "#fff", fontSize: 14, lineHeight: 20, opacity: 0.95 },
   detailsBtn: {
     flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14,
-    backgroundColor: PRIMARY,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
+    backgroundColor: PRIMARY, marginBottom: 6,
   },
   detailsBtnText: { color: "#000", fontSize: 12, fontWeight: "800" },
-
-  actionRow: { flexDirection: "row", alignItems: "center", gap: 14, marginTop: 2 },
-  actionBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-  actionLabel: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  cta: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
-    backgroundColor: PRIMARY,
-  },
-  ctaAlt: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14,
-    borderWidth: 1.2, borderColor: PRIMARY, backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  ctaText: { color: "#000", fontSize: 12, fontWeight: "800" },
-
-  commentsList: {
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    paddingTop: 10, gap: 8,
-  },
-  noComments: { color: "#888", fontSize: 13, textAlign: "right", paddingVertical: 4 },
-  commentItem: {
-    flexDirection: "row", alignItems: "flex-start", gap: 8,
-    backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 12, padding: 10,
-  },
-  commentName: { color: PRIMARY, fontWeight: "700", fontSize: 13, marginBottom: 2 },
-  commentText: { color: "#fff", fontSize: 14, lineHeight: 19 },
-  commentDelBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: "rgba(255,107,107,0.12)",
-    alignItems: "center", justifyContent: "center",
-  },
-  commentInputBar: {
-    flexDirection: "row", gap: 8, alignItems: "center",
-    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
-    paddingTop: 10,
-  },
-  commentInput: {
-    flex: 1, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 18,
-    paddingHorizontal: 14, paddingVertical: 8, color: "#fff", textAlign: "right",
-    fontSize: 14,
-  },
-  sendBtn: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: PRIMARY,
-    alignItems: "center", justifyContent: "center",
-  },
-
   detailsBackdrop: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center", justifyContent: "center", padding: 24,
@@ -579,9 +579,36 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   detailsBody: { color: "#fff", fontSize: 15, lineHeight: 22, textAlign: "right" },
-
   empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
   emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 12 },
   emptyHint: { color: "#888", marginTop: 6 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.25)", justifyContent: "flex-end" },
+  modalSheet: {
+    backgroundColor: "rgba(0,0,0,0.55)", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    height: "65%", borderTopWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+    ...(Platform.OS === "web" ? ({ backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)" } as any) : {}),
+  },
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 16, borderBottomWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  modalTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  modalEmpty: { color: "#aaa", textAlign: "center", marginTop: 32 },
+  commentRow: { flexDirection: "row", marginBottom: 10 },
+  commentBubble: { flex: 1, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 14, padding: 10 },
+  commentName: { color: PRIMARY, fontWeight: "700", fontSize: 13, marginBottom: 2 },
+  commentText: { color: "#fff", fontSize: 14, lineHeight: 19 },
+  commentInputBar: {
+    flexDirection: "row", padding: 10, gap: 8,
+    borderTopWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+  },
+  commentInput: {
+    flex: 1, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 22, paddingHorizontal: 16,
+    paddingVertical: 10, color: "#fff", textAlign: "right",
+  },
+  sendBtn: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+  },
 });
 
