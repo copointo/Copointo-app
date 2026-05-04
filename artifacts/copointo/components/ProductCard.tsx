@@ -37,6 +37,7 @@ export function ProductCard({ product, cafeName }: ProductCardProps) {
       price: product.price,
       cafeId: product.cafeId,
       cafeName,
+      category: product.category,
     });
   };
 

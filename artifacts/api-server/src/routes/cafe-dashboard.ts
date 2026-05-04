@@ -16,8 +16,15 @@ function generateUniqueCode(): string {
   }
   return `FC${Date.now().toString(36).toUpperCase()}`;
 }
-/** Issues one FreeCoffee per multiple-of-7 milestone the user has crossed but not yet been awarded for. */
-function awardMilestoneCoffees(userPhone: string, userName: string, totalOrders: number) {
+/** Issues one FreeCoffee per multiple-of-7 milestone the user has crossed but not yet been awarded for.
+ *  The triggering cafe is recorded so the free coffee is only redeemable there. */
+function awardMilestoneCoffees(
+  userPhone: string,
+  userName: string,
+  totalOrders: number,
+  earnedAtCafeId?: string | null,
+  earnedAtCafeName?: string | null,
+) {
   const milestonesEarned = Math.floor(totalOrders / 7);
   const alreadyAwarded   = freeCoffees.filter(f => f.userPhone === userPhone).length;
   for (let i = alreadyAwarded; i < milestonesEarned; i++) {
@@ -28,6 +35,8 @@ function awardMilestoneCoffees(userPhone: string, userName: string, totalOrders:
       userName,
       earnedAtLevel:    (i + 1) * 7,
       earnedAt:         new Date().toISOString(),
+      earnedAtCafeId:   earnedAtCafeId ?? null,
+      earnedAtCafeName: earnedAtCafeName ?? null,
       redeemedAt:       null,
       redeemedAtCafeId: null,
       redeemedOrderId:  null,
@@ -80,8 +89,13 @@ router.post("/orders", (req: any, res): any => {
   const body = req.body ?? {};
   const cafeId = req.params.cafeId;
 
-  // ── Stock check & decrement ────────────────────────────────
-  // Aggregate requested qty per item name (cart may include duplicates).
+  // ─── PHASE 1: VALIDATE EVERYTHING (no mutations yet) ──────────
+  // We must defer ALL state changes (stock decrement, discount usedCount,
+  // free-coffee redeemedAt) until every validation has passed. Otherwise an
+  // early 4xx return can leave inventory or discount usage in a corrupted
+  // state with no order to show for it.
+
+  // ── Stock check ─────────────────────────────────────────────
   const requested = new Map<string, number>();
   for (const it of (body.items ?? [])) {
     const n = String(it?.name ?? "").trim();
@@ -89,8 +103,6 @@ router.post("/orders", (req: any, res): any => {
     if (!n || q <= 0) continue;
     requested.set(n, (requested.get(n) ?? 0) + q);
   }
-  // For each requested name, find the matching tracked menu item in this cafe.
-  // Untracked items (stockQty == null) are unlimited.
   const decrements: { item: typeof menuItems[number]; qty: number }[] = [];
   for (const [name, qty] of requested) {
     const item = menuItems.find(m => m.cafeId === cafeId && m.name === name);
@@ -103,17 +115,14 @@ router.post("/orders", (req: any, res): any => {
     }
     decrements.push({ item, qty });
   }
-  // All checks passed → apply decrements.
-  for (const { item, qty } of decrements) {
-    item.stockQty = (item.stockQty as number) - qty;
-  }
 
-  // Optional discount code: validate, apply, increment usage.
+  // ── Discount code: validate (do not mutate usedCount yet) ──
   let discountPercent: number | undefined;
   let discountCode: string | undefined;
   let discountAmount: number | undefined;
   let subtotal: number = Number(body.total) || 0;
   let total = subtotal;
+  let dcRef: typeof discountCodes[number] | undefined;
   if (body.discountCode) {
     const code = String(body.discountCode).trim();
     const dc = discountCodes.find(d =>
@@ -127,10 +136,93 @@ router.post("/orders", (req: any, res): any => {
     discountPercent = dc.percent;
     discountAmount = +(subtotal * dc.percent / 100).toFixed(3);
     total = +(subtotal - discountAmount).toFixed(3);
-    dc.usedCount++;
+    dcRef = dc; // commit usedCount in phase 2
   }
+
+  // ── Free-coffee redemptions: validate (do not mark redeemed yet) ──
+  // Each entry redeems one free coffee against one drink in the order.
+  // Validation per entry: code exists, owned by this customer's phone,
+  // unredeemed, earned at THIS cafe; the drink must exist in the order,
+  // its price ≤ 2 OMR, category ≠ طعام/حلى. If any validation fails,
+  // the whole order is rejected and NO state has been mutated yet.
+  const redemptionsInput: any[] = Array.isArray(body.freeCoffeeRedemptions)
+    ? body.freeCoffeeRedemptions
+    : [];
+  const redemptionRecords: { code: string; level: number; itemName: string; itemPrice: number }[] = [];
+  let freeCoffeeDiscount = 0;
+  const fcRefs: { fc: typeof freeCoffees[number]; itemName: string; itemPrice: number }[] = [];
+  if (redemptionsInput.length > 0) {
+    const customerPhone = String(body.customerPhone ?? "").trim();
+    if (!customerPhone) {
+      return res.status(400).json({ error: "رقم الهاتف مطلوب لاستخدام كوفي مجاني" });
+    }
+    // Build a working count of per-name drink slots so two redemptions
+    // can target two cups of the same item, but never more than were ordered.
+    const slotsByName = new Map<string, number>();
+    for (const it of (body.items ?? [])) {
+      const name = String(it?.name ?? "").trim();
+      const cat  = String(it?.category ?? "");
+      const qty  = Number(it?.qty) || 0;
+      if (!name || qty <= 0) continue;
+      if (cat === "طعام" || cat === "حلى") continue;          // ineligible
+      if ((Number(it?.price) || 0) > 2) continue;                // > 2 OMR
+      slotsByName.set(name, (slotsByName.get(name) ?? 0) + qty);
+    }
+    const seenCodes = new Set<string>();
+    for (const r of redemptionsInput) {
+      const code = String(r?.code ?? "").trim().toUpperCase();
+      const itemName = String(r?.itemName ?? "").trim();
+      if (!code || !itemName) {
+        return res.status(400).json({ error: "بيانات الكوفي المجاني ناقصة" });
+      }
+      if (seenCodes.has(code)) {
+        return res.status(400).json({ error: "تكرار نفس كود الكوفي المجاني" });
+      }
+      seenCodes.add(code);
+      const fc = freeCoffees.find(f => f.code === code);
+      if (!fc)                                       return res.status(404).json({ error: `الكود ${code} غير موجود` });
+      if (fc.userPhone !== customerPhone)            return res.status(403).json({ error: "هذا الكوفي المجاني ليس لك" });
+      if (fc.redeemedAt)                             return res.status(400).json({ error: `الكود ${code} تم استخدامه مسبقاً` });
+      if (fc.earnedAtCafeId && fc.earnedAtCafeId !== cafeId) {
+        return res.status(400).json({ error: "هذا الكوفي المجاني يخص كوفي آخر" });
+      }
+      const remaining = slotsByName.get(itemName) ?? 0;
+      if (remaining <= 0) {
+        return res.status(400).json({ error: `لا يوجد مشروب مؤهل بالاسم "${itemName}" لاستخدام الكوفي المجاني عليه` });
+      }
+      // Lookup price from the order line (already validated ≤ 2 OMR).
+      const line = (body.items ?? []).find((it: any) => String(it?.name ?? "").trim() === itemName);
+      const itemPrice = Number(line?.price) || 0;
+      slotsByName.set(itemName, remaining - 1);
+      fcRefs.push({ fc, itemName, itemPrice });
+      redemptionRecords.push({ code: fc.code, level: fc.earnedAtLevel, itemName, itemPrice });
+      freeCoffeeDiscount += itemPrice;
+    }
+    freeCoffeeDiscount = +freeCoffeeDiscount.toFixed(3);
+    total = +(total - freeCoffeeDiscount).toFixed(3);
+    if (total < 0) total = 0;
+  }
+
+  // ─── PHASE 2: COMMIT ALL MUTATIONS ATOMICALLY ─────────────────
+  // From this point on, every mutation succeeds together. There are no
+  // further validations, async hops, or early returns.
+  const orderId = Date.now().toString();
+
+  // 2a. Stock decrements
+  for (const { item, qty } of decrements) {
+    item.stockQty = (item.stockQty as number) - qty;
+  }
+  // 2b. Discount usage bump
+  if (dcRef) dcRef.usedCount++;
+  // 2c. Mark free coffees redeemed against this order id
+  for (const { fc } of fcRefs) {
+    fc.redeemedAt       = new Date().toISOString();
+    fc.redeemedAtCafeId = cafeId;
+    fc.redeemedOrderId  = orderId;
+  }
+
   const o: Order = {
-    id: Date.now().toString(),
+    id: orderId,
     cafeId,
     status: "pending",
     createdAt: new Date().toISOString(),
@@ -140,6 +232,8 @@ router.post("/orders", (req: any, res): any => {
     discountPercent,
     discountAmount,
     total,
+    freeCoffeeRedemptions: redemptionRecords.length > 0 ? redemptionRecords : undefined,
+    freeCoffeeDiscount:    redemptionRecords.length > 0 ? freeCoffeeDiscount  : undefined,
   };
   orders.push(o);
   // Invoice is created only when the manager confirms preparation.
@@ -160,7 +254,8 @@ function awardOrderProgress(order: any) {
     const u = users.find(u => u.phone === order.customerPhone);
     if (u) {
       u.totalOrders += drinks;
-      awardMilestoneCoffees(u.phone, u.username, u.totalOrders);
+      const cafe = cafes.find(c => c.id === order.cafeId);
+      awardMilestoneCoffees(u.phone, u.username, u.totalOrders, order.cafeId, cafe?.name ?? null);
     }
   }
   order.pointsAwarded = true;

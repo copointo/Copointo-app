@@ -56,10 +56,14 @@ export interface Order {
   printedAt?: string;
   /** Optional customer notes (bean type, extra-hot, customizations, etc). */
   notes?: string;
-  /** Free-coffee redemption code applied to this order, if any. */
+  /** Legacy single-code free-coffee redemption (kept for older orders). */
   freeCoffeeCode?: string;
-  /** Snapshot of the level milestone the redeemed code was earned at. */
+  /** Snapshot of the level milestone the legacy code was earned at. */
   freeCoffeeLevel?: number;
+  /** New multi-redemption: each entry is one free-coffee code applied to one drink. */
+  freeCoffeeRedemptions?: { code: string; level: number; itemName: string; itemPrice: number }[];
+  /** Total OMR deducted from the order via free-coffee redemptions. */
+  freeCoffeeDiscount?: number;
   /** Payment method recorded by the cafe when the order is ready (cash | visa). */
   paymentMethod?: "cash" | "visa";
   createdAt: string;
@@ -127,6 +131,9 @@ export interface FreeCoffee {
   userName: string;         // snapshot
   earnedAtLevel: number;    // milestone level (multiple of 7) that earned it
   earnedAt: string;         // ISO
+  /** Cafe whose order pushed the user past the milestone — only redeemable here. */
+  earnedAtCafeId?: string | null;
+  earnedAtCafeName?: string | null;
   redeemedAt: string | null;
   redeemedAtCafeId: string | null;
   redeemedOrderId: string | null;

@@ -135,6 +135,8 @@ export interface CartItem {
   cafeId: string;
   cafeName: string;
   image?: string;
+  /** Menu category — used for free-coffee eligibility (drinks only, not طعام/حلى). */
+  category?: string;
 }
 
 interface AppContextType {

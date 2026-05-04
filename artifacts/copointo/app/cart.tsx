@@ -17,8 +17,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
-import { apiPost } from "@/constants/api";
+import { apiFetch, apiPost } from "@/constants/api";
 import { loadSavedOrderInfo, saveOrderInfo } from "@/lib/savedOrderInfo";
+
+interface HeldFreeCoffee {
+  id: string;
+  code: string;
+  earnedAtLevel: number;
+  earnedAt: string;
+  earnedAtCafeId?: string | null;
+  earnedAtCafeName?: string | null;
+  redeemedAt: string | null;
+}
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -93,7 +103,7 @@ function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { cart, cartTotal, cartCount, updateQuantity, removeFromCart, clearCart, addOrder, setActiveOrder } = useApp();
+  const { user, cart, cartTotal, cartCount, updateQuantity, removeFromCart, clearCart, addOrder, setActiveOrder } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -116,6 +126,58 @@ export default function CartScreen() {
 
   // Optional free-text notes — bean type, extra heat, customizations, etc.
   const [notes, setNotes] = useState("");
+
+  // ─── Free-coffee redemption ─────────────────────────────────
+  // Free coffees the signed-in user holds that were earned at THIS cafe (and
+  // are still unredeemed). The customer may apply 1+ of them to qualifying
+  // drinks (price ≤ 2 OMR, category ≠ طعام/حلى) at checkout.
+  const cartCafeId = cart[0]?.cafeId ?? null;
+  const [heldFreeCoffees, setHeldFreeCoffees] = useState<HeldFreeCoffee[]>([]);
+  // Indices into the per-cup `drinkRows` list (see below) that the user has
+  // chosen to redeem a free coffee against.
+  const [pickedRowIdx, setPickedRowIdx] = useState<number[]>([]);
+  const [freeModal, setFreeModal] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const phone = user?.phone?.trim();
+    if (!phone || !cartCafeId) { setHeldFreeCoffees([]); return; }
+    apiFetch<{ coffees: HeldFreeCoffee[] }>(`/free-coffees?phone=${encodeURIComponent(phone)}`)
+      .then(r => {
+        if (cancelled) return;
+        const eligible = (r.coffees ?? []).filter(
+          c => !c.redeemedAt && (!c.earnedAtCafeId || c.earnedAtCafeId === cartCafeId),
+        );
+        setHeldFreeCoffees(eligible);
+      })
+      .catch(() => { if (!cancelled) setHeldFreeCoffees([]); });
+    return () => { cancelled = true; };
+  }, [user?.phone, cartCafeId]);
+
+  // Reset picks if cart contents change (item removed, qty changed, etc).
+  useEffect(() => { setPickedRowIdx([]); }, [cart]);
+
+  // Per-cup expansion of qualifying drinks: each row = one cup that a free
+  // coffee can be applied to. Mirrors the rule used by the admin's old
+  // free-coffee modal so the price/category logic stays consistent.
+  const drinkRows = React.useMemo(() => {
+    const rows: { idx: number; itemId: string; name: string; price: number }[] = [];
+    cart.forEach(it => {
+      const cat = String(it.category ?? "");
+      if (cat === "طعام" || cat === "حلى") return;
+      if (it.price > 2) return;
+      for (let k = 0; k < it.quantity; k++) {
+        rows.push({ idx: rows.length, itemId: it.id, name: it.name, price: it.price });
+      }
+    });
+    return rows;
+  }, [cart]);
+
+  const maxPicks = Math.min(heldFreeCoffees.length, drinkRows.length);
+  const validPicks = pickedRowIdx.filter(i => i < drinkRows.length).slice(0, maxPicks);
+  const freeCoffeeDiscount = +validPicks
+    .reduce((s, i) => s + (drinkRows[i]?.price ?? 0), 0)
+    .toFixed(3);
 
   // Prefill from previously saved info (after the user's first order)
   useEffect(() => {
@@ -146,7 +208,7 @@ export default function CartScreen() {
   const [discountChecking,setDiscountChecking]= useState(false);
 
   const discountAmount = +(cartTotal * discountPercent / 100).toFixed(3);
-  const finalTotal     = +(cartTotal - discountAmount).toFixed(3);
+  const finalTotal     = Math.max(0, +(cartTotal - discountAmount - freeCoffeeDiscount).toFixed(3));
 
   const applyCode = async () => {
     setDiscountErr("");
@@ -200,7 +262,10 @@ export default function CartScreen() {
         customerName,
         ...(customerNameEn ? { customerNameEn } : {}),
         customerPhone,
-        items: cart.map(i => ({ name: i.name, qty: i.quantity, price: i.price })),
+        items: cart.map(i => ({
+          name: i.name, qty: i.quantity, price: i.price,
+          ...(i.category ? { category: i.category } : {}),
+        })),
         total: cartTotal,
         type: isDine ? "dine" : "car",
         source: "direct",
@@ -211,6 +276,19 @@ export default function CartScreen() {
       }
       if (notes.trim()) {
         payload.notes = notes.trim();
+      }
+      // Build free-coffee redemptions: one entry per picked drink-cup, paired
+      // with one held free-coffee code (oldest first so older codes are used
+      // before newer ones).
+      if (validPicks.length > 0 && heldFreeCoffees.length > 0) {
+        const codesAsc = [...heldFreeCoffees]
+          .sort((a, b) => a.earnedAt.localeCompare(b.earnedAt))
+          .slice(0, validPicks.length);
+        payload.freeCoffeeRedemptions = validPicks.map((rowIdx, i) => ({
+          code:      codesAsc[i].code,
+          itemName:  drinkRows[rowIdx].name,
+          itemPrice: drinkRows[rowIdx].price,
+        }));
       }
       if (isDine) {
         payload.tableNumber = dineTable.trim();
@@ -515,6 +593,14 @@ export default function CartScreen() {
                   <Text style={[styles.summaryPrice, { color: SUCCESS }]}>− {discountAmount.toFixed(3)} OMR</Text>
                 </View>
               )}
+              {validPicks.length > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryItem, { color: PRIMARY }]}>
+                    🎁 كوفي مجاني ({validPicks.length})
+                  </Text>
+                  <Text style={[styles.summaryPrice, { color: PRIMARY }]}>− {freeCoffeeDiscount.toFixed(3)} OMR</Text>
+                </View>
+              )}
               <View style={styles.summaryRow}>
                 <Text style={[styles.summaryItem, { color: "#FFF", fontFamily: "Inter_700Bold" }]}>الإجمالي</Text>
                 <Text style={[styles.summaryPrice, { color: PRIMARY, fontFamily: "Inter_700Bold", fontSize: 15 }]}>
@@ -522,6 +608,30 @@ export default function CartScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Free-coffee redemption (only when user actually has any from this cafe) */}
+            {heldFreeCoffees.length > 0 && drinkRows.length > 0 && (
+              <TouchableOpacity
+                style={styles.freeCoffeeBtn}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFreeModal(true); }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.freeCoffeeBtnIcon}>🎁</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.freeCoffeeBtnTitle}>
+                    {validPicks.length > 0
+                      ? `تم تطبيق ${validPicks.length} كوفي مجاني`
+                      : `لديك ${heldFreeCoffees.length} كوفي مجاني — استخدمه الآن`}
+                  </Text>
+                  <Text style={styles.freeCoffeeBtnSub}>
+                    {validPicks.length > 0
+                      ? `وفّرت ${freeCoffeeDiscount.toFixed(3)} OMR — اضغط للتعديل`
+                      : "ينطبق على المشروبات ≤ 2 ر.ع. (بدون أطعمة أو حلى)"}
+                  </Text>
+                </View>
+                <Feather name="chevron-left" size={18} color={PRIMARY} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Submit */}
@@ -538,6 +648,93 @@ export default function CartScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </ScrollView>
+
+        {/* Free-coffee picker modal */}
+        <Modal visible={freeModal} transparent animationType="slide" onRequestClose={() => setFreeModal(false)}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setFreeModal(false)} />
+          <View style={[styles.freeSheet, { paddingBottom: botPad + 16 }]}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>🎁  استخدام كوفي مجاني</Text>
+            <Text style={styles.sheetSub}>
+              لديك {heldFreeCoffees.length} كوفي مجاني من{" "}
+              {heldFreeCoffees[0]?.earnedAtCafeName ?? cart[0]?.cafeName ?? "هذا الكوفي"}
+              {"  •  "}اختر حتى {maxPicks} مشروب
+            </Text>
+            <View style={styles.freeRules}>
+              <Text style={styles.freeRulesText}>
+                • مشروبات فقط — لا أطعمة أو حلى{"\n"}
+                • سعر المشروب ≤ 2 ر.ع.{"\n"}
+                • كل كوفي مجاني يُستخدم مرة واحدة
+              </Text>
+            </View>
+
+            {drinkRows.length === 0 ? (
+              <View style={styles.freeEmpty}>
+                <Text style={styles.freeEmptyIcon}>☕</Text>
+                <Text style={styles.freeEmptyText}>
+                  لا يوجد في سلتك مشروب مؤهل لاستخدام الكوفي المجاني
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+                {drinkRows.map(row => {
+                  const idxInPicks = pickedRowIdx.indexOf(row.idx);
+                  const picked = idxInPicks >= 0;
+                  const atCap = !picked && pickedRowIdx.length >= maxPicks;
+                  return (
+                    <TouchableOpacity
+                      key={row.idx}
+                      style={[
+                        styles.freeRow,
+                        picked && styles.freeRowPicked,
+                        atCap   && { opacity: 0.4 },
+                      ]}
+                      onPress={() => {
+                        if (atCap) return;
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setPickedRowIdx(prev =>
+                          picked ? prev.filter(i => i !== row.idx) : [...prev, row.idx],
+                        );
+                      }}
+                      activeOpacity={0.85}
+                      disabled={atCap}
+                    >
+                      <View style={[styles.freeCheck, picked && { backgroundColor: PRIMARY, borderColor: PRIMARY }]}>
+                        {picked && <Feather name="check" size={14} color="#000" />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.freeRowName}>{row.name}</Text>
+                        <Text style={styles.freeRowPrice}>{row.price.toFixed(3)} OMR</Text>
+                      </View>
+                      {picked && <Text style={styles.freeRowFree}>مجاني</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={[styles.freeSheetBtn, { backgroundColor: "rgba(255,255,255,0.08)" }]}
+                onPress={() => { setPickedRowIdx([]); setFreeModal(false); }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.freeSheetBtnText, { color: "#FFF" }]}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.freeSheetBtn, { backgroundColor: PRIMARY }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setFreeModal(false); }}
+                activeOpacity={0.9}
+              >
+                <Text style={[styles.freeSheetBtnText, { color: "#000" }]}>
+                  {validPicks.length > 0
+                    ? `تأكيد  •  وفّر ${freeCoffeeDiscount.toFixed(3)} OMR`
+                    : "تم"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     );
   }
@@ -723,6 +920,32 @@ const styles = StyleSheet.create({
   discountApplied:     { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(46,125,50,0.12)", borderWidth: 1, borderColor: "rgba(46,125,50,0.4)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginTop: 4 },
   discountAppliedText: { flex: 1, fontSize: 12, fontFamily: "Inter_600SemiBold", color: SUCCESS },
   discountErrText:     { fontSize: 12, fontFamily: "Inter_500Medium", color: "#EF5350", marginTop: 4, textAlign: "center" },
+
+  // Free-coffee picker
+  freeCoffeeBtn:      { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.10)" },
+  freeCoffeeBtnIcon:  { fontSize: 24 },
+  freeCoffeeBtnTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY, marginBottom: 2 },
+  freeCoffeeBtnSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
+  freeSheet: {
+    backgroundColor: "#13102B",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 10, paddingHorizontal: 16,
+    borderWidth: 1, borderColor: BORDER, borderBottomWidth: 0,
+    position: "absolute", bottom: 0, left: 0, right: 0,
+  },
+  freeRules:       { backgroundColor: "rgba(232,184,109,0.08)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(232,184,109,0.30)", padding: 12, marginBottom: 14 },
+  freeRulesText:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)", lineHeight: 22 },
+  freeEmpty:       { alignItems: "center", paddingVertical: 30, gap: 8 },
+  freeEmptyIcon:   { fontSize: 42 },
+  freeEmptyText:   { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)", textAlign: "center", paddingHorizontal: 20 },
+  freeRow:         { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, marginBottom: 8 },
+  freeRowPicked:   { borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.10)" },
+  freeCheck:       { width: 24, height: 24, borderRadius: 6, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.30)", alignItems: "center", justifyContent: "center" },
+  freeRowName:     { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  freeRowPrice:    { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", marginTop: 2 },
+  freeRowFree:     { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(232,184,109,0.20)" },
+  freeSheetBtn:    { flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  freeSheetBtnText:{ fontSize: 14, fontFamily: "Inter_700Bold" },
 
   // Total card
   totalCard:  { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, marginTop: 8 },

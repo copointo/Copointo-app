@@ -17,8 +17,18 @@ import { getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 
 interface Broadcast { id: string; message: string; createdAt: string; }
+interface FreeCoffeeNotif {
+  id: string;
+  code: string;
+  earnedAtLevel: number;
+  earnedAt: string;
+  earnedAtCafeId?: string | null;
+  earnedAtCafeName?: string | null;
+  redeemedAt: string | null;
+}
 
-const BROADCAST_LAST_SEEN_KEY = "copointo_broadcast_last_seen_v1";
+const BROADCAST_LAST_SEEN_KEY    = "copointo_broadcast_last_seen_v1";
+const FREE_COFFEE_LAST_SEEN_KEY  = "copointo_free_coffee_last_seen_v1";
 
 const fmtRelative = (iso: string): string => {
   const ms = Date.now() - new Date(iso).getTime();
@@ -44,6 +54,7 @@ export default function NotificationsScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const {
+    user,
     incomingRequests, registeredUsers,
     acceptFriendRequest, declineFriendRequest, refreshFriendData,
   } = useApp();
@@ -53,6 +64,9 @@ export default function NotificationsScreen() {
 
   // Copointo system broadcasts from super-admin
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
+
+  // Held free coffees (earned-but-still-redeemable) for this signed-in phone
+  const [freeCoffees, setFreeCoffees] = useState<FreeCoffeeNotif[]>([]);
 
   const loadBroadcasts = useCallback(async () => {
     try {
@@ -66,7 +80,27 @@ export default function NotificationsScreen() {
     }
   }, []);
 
-  useEffect(() => { loadBroadcasts(); }, [loadBroadcasts]);
+  const loadFreeCoffees = useCallback(async () => {
+    const phone = user?.phone?.trim();
+    if (!phone) { setFreeCoffees([]); return; }
+    try {
+      const r = await apiFetch<{ coffees: FreeCoffeeNotif[] }>(
+        `/free-coffees?phone=${encodeURIComponent(phone)}`,
+      );
+      // Show only currently-redeemable ones (unredeemed) — newest first.
+      const open = (r.coffees ?? [])
+        .filter(c => !c.redeemedAt)
+        .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
+      setFreeCoffees(open);
+      // Mark as seen so the bell badge clears.
+      const newest = open[0]?.earnedAt;
+      if (newest) await AsyncStorage.setItem(FREE_COFFEE_LAST_SEEN_KEY, newest);
+    } catch {
+      /* ignore */
+    }
+  }, [user?.phone]);
+
+  useEffect(() => { loadBroadcasts(); loadFreeCoffees(); }, [loadBroadcasts, loadFreeCoffees]);
 
   // Whenever this screen comes into focus, re-pull friend/request data from
   // storage in case another logged-in user on the same device sent something.
@@ -74,7 +108,8 @@ export default function NotificationsScreen() {
     useCallback(() => {
       refreshFriendData();
       loadBroadcasts();
-    }, [refreshFriendData, loadBroadcasts])
+      loadFreeCoffees();
+    }, [refreshFriendData, loadBroadcasts, loadFreeCoffees])
   );
 
   // Build display rows from the incoming-request IDs, hydrated from
@@ -131,7 +166,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
-        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && (
+        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🔔</Text>
             <Text style={styles.emptyTitle}>لا توجد إشعارات</Text>
@@ -140,6 +175,37 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         )}
+
+        {/* Free coffees the user has earned but not yet redeemed */}
+        {freeCoffees.map(c => (
+          <View key={`fc-${c.id}`} style={styles.freeCoffeeCard}>
+            <View style={styles.freeCoffeeHeader}>
+              <View style={styles.freeCoffeeBadge}>
+                <Text style={styles.freeCoffeeBadgeIcon}>🎁</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.freeCoffeeTitle}>حصلت على كوفي مجاني!</Text>
+                <Text style={styles.freeCoffeeTime}>
+                  {fmtRelative(c.earnedAt)}  •  مكافأة مستوى {c.earnedAtLevel}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.freeCoffeeBody}>
+              {c.earnedAtCafeName
+                ? `قابل للاستبدال في ${c.earnedAtCafeName}`
+                : "قابل للاستبدال في الكوفي الذي حصلت منه على المكافأة"}
+            </Text>
+            <View style={styles.freeCoffeeRulesBox}>
+              <Text style={styles.freeCoffeeRule}>• مشروبات فقط (لا أطعمة أو حلى)</Text>
+              <Text style={styles.freeCoffeeRule}>• سعر المشروب ≤ 2 ر.ع.</Text>
+              <Text style={styles.freeCoffeeRule}>• استخدم مرة واحدة عند الطلب التالي</Text>
+            </View>
+            <View style={styles.freeCoffeeCodeBox}>
+              <Text style={styles.freeCoffeeCodeLabel}>الرمز</Text>
+              <Text style={styles.freeCoffeeCode}>{c.code}</Text>
+            </View>
+          </View>
+        ))}
 
         {/* Copointo system broadcasts */}
         {broadcasts.map(b => (
@@ -326,6 +392,41 @@ const styles = StyleSheet.create({
   broadcastOfficial: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: ACCENT },
   broadcastTime: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", marginTop: 2 },
   broadcastBody: { fontSize: 14, fontFamily: "Inter_400Regular", color: "#FFF", lineHeight: 22 },
+
+  // Free-coffee earned notification
+  freeCoffeeCard: {
+    backgroundColor: "#0A0606",
+    borderRadius: 18, padding: 16,
+    borderWidth: 1, borderColor: ACCENT,
+    gap: 12,
+  },
+  freeCoffeeHeader: { flexDirection: "row", gap: 12, alignItems: "center" },
+  freeCoffeeBadge: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: "rgba(232,184,109,0.18)",
+    borderWidth: 1, borderColor: ACCENT,
+    alignItems: "center", justifyContent: "center",
+  },
+  freeCoffeeBadgeIcon: { fontSize: 24 },
+  freeCoffeeTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: ACCENT },
+  freeCoffeeTime:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", marginTop: 2 },
+  freeCoffeeBody:  { fontSize: 13, fontFamily: "Inter_500Medium", color: "#FFF", lineHeight: 20 },
+  freeCoffeeRulesBox: {
+    backgroundColor: "rgba(232,184,109,0.06)",
+    borderRadius: 10,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.20)",
+    paddingVertical: 10, paddingHorizontal: 12,
+    gap: 4,
+  },
+  freeCoffeeRule:  { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.78)", lineHeight: 18 },
+  freeCoffeeCodeBox: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: ACCENT,
+    borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 14,
+  },
+  freeCoffeeCodeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#000" },
+  freeCoffeeCode: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#000", letterSpacing: 2 },
 
   emptyWrap: { alignItems: "center", paddingTop: 100, gap: 10 },
   emptyIcon: { fontSize: 56 },

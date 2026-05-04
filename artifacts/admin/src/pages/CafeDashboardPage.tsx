@@ -866,7 +866,6 @@ function FreeCoffeeModal({
 // ── Orders Tab ────────────────────────────────────────────────
 function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
-  const [freeFor, setFreeFor] = useState<any | null>(null);
   const load = useCallback(
     () =>
       api.cafeOrders(id).then(d => {
@@ -912,16 +911,6 @@ function OrdersTab({ id }: { id: string }) {
 
   return (
     <div className="space-y-4">
-      {freeFor && (
-        <FreeCoffeeModal
-          cafeId={id}
-          order={freeFor}
-          onClose={() => setFreeFor(null)}
-          onPrinted={(updated) => {
-            setOrders(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x));
-          }}
-        />
-      )}
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
       {orders.map(o => (
         <Card key={o.id} className="p-5">
@@ -954,6 +943,26 @@ function OrdersTab({ id }: { id: string }) {
             <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
               <p className="text-[11px] font-semibold text-primary mb-0.5">📝 ملاحظات الزبون</p>
               <p className="text-sm text-foreground whitespace-pre-wrap">{o.notes}</p>
+            </div>
+          )}
+          {Array.isArray(o.freeCoffeeRedemptions) && o.freeCoffeeRedemptions.length > 0 && (
+            <div className="mb-3 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
+              <p className="text-[11px] font-semibold text-primary mb-1 flex items-center gap-1.5">
+                <Gift size={12}/> كوفي مجاني مُستخدَم ({o.freeCoffeeRedemptions.length})
+              </p>
+              <div className="space-y-0.5">
+                {o.freeCoffeeRedemptions.map((r: any, i: number) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-foreground">
+                      {r.itemName} <span className="text-muted-foreground">· كود {r.code}</span>
+                    </span>
+                    <span className="text-primary font-semibold">− {Number(r.itemPrice).toFixed(3)} OMR</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-emerald-400 font-semibold mt-1">
+                الخصم: −{Number(o.freeCoffeeDiscount ?? 0).toFixed(3)} OMR
+              </p>
             </div>
           )}
           <div className="flex items-center justify-between border-t border-border pt-3 gap-3 flex-wrap">
@@ -995,7 +1004,9 @@ function OrdersTab({ id }: { id: string }) {
                 </button>
               )}
 
-              {/* Step 3 — ready, no payment yet: choose cash/visa + optional free coffee */}
+              {/* Step 3 — ready, no payment yet: choose cash/visa.
+                  Free-coffee redemption is now done by the customer in the mobile app at checkout
+                  (and arrives baked into the order), so no manual button here. */}
               {o.status === "ready" && !o.paymentMethod && (
                 <>
                   <button
@@ -1010,14 +1021,6 @@ function OrdersTab({ id }: { id: string }) {
                   >
                     💳 فيزا
                   </button>
-                  {!o.freeCoffeeCode && (
-                    <button
-                      onClick={() => setFreeFor(o)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/60 text-primary text-xs font-semibold hover:bg-primary/10"
-                    >
-                      <Gift size={13}/> كوفي مجاني
-                    </button>
-                  )}
                 </>
               )}
 

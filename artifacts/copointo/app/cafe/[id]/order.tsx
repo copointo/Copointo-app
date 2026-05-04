@@ -124,6 +124,7 @@ export default function OrderScreen() {
       price: item.price,
       cafeId: id,
       cafeName: displayName,
+      category: item.category,
     });
   };
 

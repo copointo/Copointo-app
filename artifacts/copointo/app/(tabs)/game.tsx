@@ -155,37 +155,40 @@ export default function GameScreen() {
   // Polls the public broadcasts endpoint and counts ones newer than the
   // last-seen timestamp stored when the user last opened /notifications.
   const [unreadBroadcasts, setUnreadBroadcasts] = useState(0);
+  // ── Unread free coffees (newly-earned, not yet seen on /notifications) ──
+  const [unreadFreeCoffees, setUnreadFreeCoffees] = useState(0);
+
+  const refreshBadges = useCallback(async () => {
+    try {
+      const r = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>("/broadcasts");
+      const lastSeen = (await AsyncStorage.getItem("copointo_broadcast_last_seen_v1")) ?? "";
+      setUnreadBroadcasts((r.broadcasts ?? []).filter(b => b.createdAt > lastSeen).length);
+    } catch { /* ignore */ }
+    const phone = user?.phone?.trim();
+    if (!phone) { setUnreadFreeCoffees(0); return; }
+    try {
+      const fc = await apiFetch<{ coffees: { earnedAt: string; redeemedAt: string | null }[] }>(
+        `/free-coffees?phone=${encodeURIComponent(phone)}`,
+      );
+      const lastSeenFc = (await AsyncStorage.getItem("copointo_free_coffee_last_seen_v1")) ?? "";
+      setUnreadFreeCoffees(
+        (fc.coffees ?? []).filter(c => !c.redeemedAt && c.earnedAt > lastSeenFc).length,
+      );
+    } catch { /* ignore */ }
+  }, [user?.phone]);
+
   useEffect(() => {
     let cancelled = false;
-    const tick = async () => {
-      try {
-        const r = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>("/broadcasts");
-        const lastSeen = (await AsyncStorage.getItem("copointo_broadcast_last_seen_v1")) ?? "";
-        const unread = (r.broadcasts ?? []).filter(b => b.createdAt > lastSeen).length;
-        if (!cancelled) setUnreadBroadcasts(prev => {
-          // Chime when a new broadcast arrives (skip first mount via ref above
-          // is not needed here — broadcast badge is informational, no chime).
-          return unread;
-        });
-      } catch { /* ignore */ }
-    };
+    const tick = async () => { if (!cancelled) await refreshBadges(); };
     tick();
     const id = setInterval(tick, 30_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  }, [refreshBadges]);
 
   // Refresh on focus so the badge clears immediately after returning from
-  // /notifications (which writes the new last-seen timestamp).
+  // /notifications (which writes the new last-seen timestamps).
   useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        try {
-          const r = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>("/broadcasts");
-          const lastSeen = (await AsyncStorage.getItem("copointo_broadcast_last_seen_v1")) ?? "";
-          setUnreadBroadcasts((r.broadcasts ?? []).filter(b => b.createdAt > lastSeen).length);
-        } catch { /* ignore */ }
-      })();
-    }, [])
+    useCallback(() => { refreshBadges(); }, [refreshBadges])
   );
 
   const handleScroll = useCallback(
@@ -483,9 +486,9 @@ export default function GameScreen() {
           activeOpacity={0.85}
         >
           <Feather name="bell" size={22} color={PRIMARY} />
-          {(incomingRequests.length + unreadBroadcasts) > 0 && (
+          {(incomingRequests.length + unreadBroadcasts + unreadFreeCoffees) > 0 && (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{incomingRequests.length + unreadBroadcasts}</Text>
+              <Text style={styles.badgeText}>{incomingRequests.length + unreadBroadcasts + unreadFreeCoffees}</Text>
             </View>
           )}
         </TouchableOpacity>
