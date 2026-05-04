@@ -342,7 +342,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"bookings",  label:"حجوزات الطاولة",    icon: CalendarDays     },
   { id:"menu",      label:"القائمة",           icon: UtensilsCrossed  },
   { id:"chat",      label:"معلومات الشات",     icon: MessageCircle    },
-  { id:"tables",    label:"الطاولات",          icon: Armchair         },
+  { id:"tables",    label:"إدارة حجوزات الطاولات", icon: Armchair       },
   { id:"invoices",  label:"الفواتير",          icon: Receipt          },
   { id:"expenses",  label:"المصاريف",          icon: Wallet           },
   { id:"inventory", label:"المخزن",            icon: Package          },
