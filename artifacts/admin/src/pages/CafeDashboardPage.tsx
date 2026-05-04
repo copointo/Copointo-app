@@ -3013,27 +3013,86 @@ const TEMPLATE_TYPES: { key: "expense" | "order" | "daily" | "monthly" | "yearly
 function TemplatesTab({ id }: { id: string }) {
   const [active, setActive] = useState<string | null>(null);
 
+  // Print a sample invoice of the requested type so the cafe owner can preview
+  // their template (logo + header text + promo text) without needing real data.
+  // For order/expense we synthesize a tiny mock object; for daily/monthly/yearly
+  // we just call the real aggregation print which will show whatever data
+  // exists in the chosen period (or an "empty" notice if there's none).
+  const runTest = (key: typeof TEMPLATE_TYPES[number]["key"]) => {
+    const now = new Date();
+    const ts = now.toISOString();
+    switch (key) {
+      case "order":
+        printOrderInvoice(id, {
+          id: "TEST-" + String(Date.now()).slice(-6),
+          customerName: "زبون تجريبي",
+          customerPhone: "99999999",
+          type: "dine",
+          tableNumber: 5,
+          items: [
+            { name: "إسبريسو مزدوج", qty: 2, price: 1.500 },
+            { name: "كرواسون", qty: 1, price: 1.200 },
+            { name: "v60", qty: 1, price: 2.000 },
+          ],
+          subtotal: 6.200,
+          total: 6.200,
+          paymentMethod: "cash",
+          createdAt: ts,
+          notes: "هذه فاتورة تجريبية لمعاينة قالب الطلب",
+        });
+        return;
+      case "expense":
+        printExpenseInvoice(id, {
+          id: "TEST-" + String(Date.now()).slice(-6),
+          date: ts.slice(0, 10),
+          category: "كهرباء",
+          title: "فاتورة كهرباء — تجريبية",
+          amount: 35.500,
+          notes: "هذه فاتورة مصاريف تجريبية لمعاينة القالب",
+        });
+        return;
+      case "daily":
+        printDailyInvoice(id, ts.slice(0, 10));
+        return;
+      case "monthly":
+        printMonthlyInvoice(id, now.getFullYear(), now.getMonth() + 1);
+        return;
+      case "yearly":
+        printYearlyInvoice(id, now.getFullYear());
+        return;
+    }
+  };
+
   return (
     <div className="space-y-5">
       <Card className="p-5">
         <h3 className="font-semibold text-foreground mb-1">تعديل بيانات الفواتير</h3>
         <p className="text-xs text-muted-foreground mb-4">
           اختر نوع الفاتورة لتعديل البيانات التي تظهر في الترويسة (الشعار، الاسم، السجل التجاري، رقم التواصل، الكلام الترويجي).
+          اضغط <b className="text-primary">«تجربة»</b> لمعاينة شكل الفاتورة قبل الطباعة الفعلية.
         </p>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {TEMPLATE_TYPES.map(t => {
             const Icon = t.icon;
             const isActive = active === t.key;
             return (
-              <button key={t.key}
-                onClick={() => setActive(isActive ? null : t.key)}
-                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all
-                  ${isActive
-                    ? "border-primary bg-primary/15 text-primary"
-                    : "border-border bg-card text-foreground hover:border-primary/50"}`}>
-                <Icon size={22}/>
-                <span className="text-xs font-semibold text-center">{t.label}</span>
-              </button>
+              <div key={t.key} className="flex flex-col gap-1.5">
+                <button
+                  onClick={() => setActive(isActive ? null : t.key)}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border transition-all
+                    ${isActive
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border bg-card text-foreground hover:border-primary/50"}`}>
+                  <Icon size={22}/>
+                  <span className="text-xs font-semibold text-center">{t.label}</span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); runTest(t.key); }}
+                  title={`معاينة فاتورة ${t.label} بشكل تجريبي`}
+                  className="flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-colors">
+                  <Printer size={11}/> تجربة
+                </button>
+              </div>
             );
           })}
         </div>
