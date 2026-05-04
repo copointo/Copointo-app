@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp } from "@/context/AppContext";
+import { useApp, claimGameUsername } from "@/context/AppContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { RANKS, getRank } from "@/data/mockData";
 
@@ -691,7 +691,19 @@ export default function ProfileScreen() {
         title="تعديل يوزر اللعبة"
         value={username}
         onClose={() => setModal(null)}
-        onSave={(v) => { if (v.trim() && user) setUser({ ...user, gameUsername: v.trim() }); }}
+        onSave={async (v) => {
+          const next = v.trim();
+          if (!next || !user) return;
+          if (next.toLowerCase() === (user.gameUsername || "").toLowerCase()) return;
+          // Server is the single source of truth for username uniqueness
+          // across all devices — don't update locally if it's already taken.
+          const r = await claimGameUsername(user.id, next);
+          if (!r.ok) {
+            Alert.alert("تعذر تغيير يوزر اللعبة", r.error);
+            return;
+          }
+          setUser({ ...user, gameUsername: next });
+        }}
       />
 
       {/* Password modal */}

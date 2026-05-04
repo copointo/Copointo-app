@@ -2,7 +2,10 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
-import { cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts } from "../store";
+import {
+  cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
+  usernameRegistry, persistStore,
+} from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 const router: IRouter = Router();
@@ -208,6 +211,53 @@ router.delete("/reels/:rid/comments/:cid", (req, res): any => {
   if (idx === -1) return res.status(404).json({ error: "Comment not found" });
   reelComments.splice(idx, 1);
   res.json({ ok: true });
+});
+
+// ─── Game username uniqueness ────────────────────────────────────────────
+// Mobile users keep their account locally per-device, so device-local checks
+// cannot guarantee that a `gameUsername` is unique across the whole country.
+// These two endpoints are the single source of truth: claim reserves a
+// username for a user (replacing any prior claim by that user), and check
+// returns availability without mutating state.
+function normalizeUsername(raw: unknown): string {
+  return String(raw ?? "").trim();
+}
+
+router.get("/usernames/check", (req, res): any => {
+  const username = normalizeUsername(req.query.username);
+  const userId   = String(req.query.userId ?? "").trim();
+  if (!username) return res.json({ available: false, reason: "اكتب يوزر اللعبة" });
+  const key = username.toLowerCase();
+  const taken = usernameRegistry.find(u => u.username === key);
+  const available = !taken || taken.userId === userId;
+  res.json({ available, reason: available ? null : "يوزر اللعبة مستخدم مسبقاً" });
+});
+
+router.post("/usernames/claim", (req, res): any => {
+  const username = normalizeUsername(req.body?.username);
+  const userId   = String(req.body?.userId ?? "").trim();
+  if (!userId)   return res.status(400).json({ ok: false, error: "userId required" });
+  if (!username) return res.status(400).json({ ok: false, error: "يوزر اللعبة مطلوب" });
+  if (username.length < 3 || username.length > 24) {
+    return res.status(400).json({ ok: false, error: "يوزر اللعبة يجب أن يكون بين 3 و 24 حرفاً" });
+  }
+  const key = username.toLowerCase();
+  const existing = usernameRegistry.find(u => u.username === key);
+  if (existing && existing.userId !== userId) {
+    return res.status(409).json({ ok: false, error: "يوزر اللعبة مستخدم مسبقاً" });
+  }
+  // Replace any prior claim by this same user (allow renaming).
+  for (let i = usernameRegistry.length - 1; i >= 0; i--) {
+    if (usernameRegistry[i].userId === userId) usernameRegistry.splice(i, 1);
+  }
+  usernameRegistry.push({
+    username: key,
+    display: username,
+    userId,
+    claimedAt: new Date().toISOString(),
+  });
+  persistStore();
+  res.json({ ok: true, username });
 });
 
 router.post("/reels/:rid/view", (req, res): any => {

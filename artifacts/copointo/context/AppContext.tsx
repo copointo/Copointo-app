@@ -6,6 +6,31 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { API_BASE } from "@/constants/api";
+
+/**
+ * Reserve a `gameUsername` for a user on the API server. The server is the
+ * single source of truth for username uniqueness across all devices, since
+ * each mobile client only sees its own AsyncStorage. Returns ok on success
+ * or an Arabic error message (e.g. when another user already owns it).
+ */
+export async function claimGameUsername(
+  userId: string,
+  username: string,
+): Promise<AuthResult> {
+  try {
+    const r = await fetch(`${API_BASE}/usernames/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, username }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data?.ok) return { ok: true };
+    return { ok: false, error: data?.error || "تعذر حجز يوزر اللعبة" };
+  } catch {
+    return { ok: false, error: "تعذر الاتصال بالخادم" };
+  }
+}
 
 export type Gender = "male" | "female";
 
@@ -223,6 +248,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           totalOrders: 0,
           points: 0,
         };
+        // Reserve the username on the server BEFORE persisting locally — this
+        // is the only check that catches collisions across other devices.
+        const claim = await claimGameUsername(newUser.id, newUser.gameUsername);
+        if (!claim.ok) return claim;
         const updated = [...users, newUser];
         await AsyncStorage.setItem("registeredUsers", JSON.stringify(updated));
         await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));

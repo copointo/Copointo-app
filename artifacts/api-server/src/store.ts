@@ -60,6 +60,8 @@ export interface Order {
   freeCoffeeCode?: string;
   /** Snapshot of the level milestone the redeemed code was earned at. */
   freeCoffeeLevel?: number;
+  /** Payment method recorded by the cafe when the order is ready (cash | visa). */
+  paymentMethod?: "cash" | "visa";
   createdAt: string;
 }
 export interface CafeView {
@@ -197,6 +199,23 @@ export interface Broadcast {
 }
 export const broadcasts: Broadcast[] = [];
 
+// ─── Game username registry (cross-device uniqueness) ────────────────────
+// Mobile users keep their account state in AsyncStorage on their own device,
+// but we still need to guarantee that no two users in the country claim the
+// same `gameUsername`. The mobile app calls POST /api/usernames/claim before
+// creating or updating a user; the server enforces case-insensitive uniqueness
+// here and rejects collisions.
+export interface UsernameClaim {
+  /** Lower-cased username — used as the dedupe key. */
+  username: string;
+  /** Original casing as the user typed it (for display). */
+  display: string;
+  /** Owner of this username. */
+  userId: string;
+  claimedAt: string;
+}
+export const usernameRegistry: UsernameClaim[] = [];
+
 // ─── Disk persistence ────────────────────────────────────────────────────
 // In-memory state is great for fast prototyping, but every server restart
 // (hot reload during development, deploy, crash) wiped all cafés/reels and
@@ -210,6 +229,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
+  usernameRegistry,
 };
 
 function loadFromDisk() {
