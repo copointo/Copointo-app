@@ -340,7 +340,7 @@ export default function CafesPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">الكوفيهات</h1>
+          <h1 className="text-3xl font-bold text-foreground">الكافيهات</h1>
           <p className="text-muted-foreground mt-1">{cafes.length} كوفي مسجل</p>
         </div>
         <button
@@ -467,7 +467,7 @@ export default function CafesPage() {
           {cafes.length === 0 && (
             <div className="text-center py-16 text-muted-foreground">
               <div className="text-5xl mb-3">☕</div>
-              <p>لا توجد كوفيهات مضافة بعد</p>
+              <p>لا توجد كافيهات مضافة بعد</p>
             </div>
           )}
         </div>

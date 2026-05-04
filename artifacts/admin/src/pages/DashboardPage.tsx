@@ -50,7 +50,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
         <StatCard
           icon={Coffee}
-          label="إجمالي الكوفيهات"
+          label="إجمالي الكافيهات"
           value={stats.totalCafes}
           sub={`${stats.activeCafes} نشط حالياً`}
         />
@@ -74,7 +74,7 @@ export default function DashboardPage() {
         />
         <StatCard
           icon={Power}
-          label="الكوفيهات الموقوفة"
+          label="الكافيهات الموقوفة"
           value={stats.totalCafes - stats.activeCafes}
           sub="بانتظار التفعيل"
         />
@@ -95,11 +95,11 @@ export default function DashboardPage() {
             <span className="font-semibold text-foreground">300 OMR</span>
           </div>
           <div className="flex justify-between items-center py-2 border-b border-border">
-            <span className="text-muted-foreground text-sm">عدد الكوفيهات المشتركة</span>
+            <span className="text-muted-foreground text-sm">عدد الكافيهات المشتركة</span>
             <span className="font-semibold text-foreground">{stats.totalCafes}</span>
           </div>
           <div className="flex justify-between items-center py-2 border-b border-border">
-            <span className="text-muted-foreground text-sm">الكوفيهات النشطة</span>
+            <span className="text-muted-foreground text-sm">الكافيهات النشطة</span>
             <span className="font-semibold text-primary">{stats.activeCafes}</span>
           </div>
           <div className="flex justify-between items-center pt-2">

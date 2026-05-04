@@ -159,7 +159,7 @@ export default function HomeScreen() {
       const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
       setRawCafes(data.cafes);
     } catch {
-      setError("تعذّر تحميل الكوفيهات");
+      setError("تعذّر تحميل الكافيهات");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -223,7 +223,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الكوفيهات القريبة</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الكافيهات القريبة</Text>
           <Text style={[styles.count, { color: colors.mutedForeground }]}>{filtered.length} كوفي</Text>
         </View>
 
@@ -240,7 +240,7 @@ export default function HomeScreen() {
           <View style={styles.empty}>
             <Feather name="coffee" size={40} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              {apiCafes.length === 0 ? "لا توجد كوفيهات بعد" : "لا توجد نتائج"}
+              {apiCafes.length === 0 ? "لا توجد كافيهات بعد" : "لا توجد نتائج"}
             </Text>
           </View>
         ) : (

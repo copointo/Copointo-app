@@ -47,7 +47,7 @@ export default function MyCafesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
           <Feather name="arrow-right" size={18} color={CREAM} />
         </TouchableOpacity>
-        <Text style={styles.title}>كوفيهاتي</Text>
+        <Text style={styles.title}>كافيهاتي</Text>
         <View style={{ width: 36 }} />
       </View>
 

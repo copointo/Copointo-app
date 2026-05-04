@@ -3,7 +3,7 @@ import { LayoutDashboard, Coffee, Users, LogOut } from "lucide-react";
 
 const nav = [
   { href: "/",       icon: LayoutDashboard, label: "لوحة التحكم" },
-  { href: "/cafes",  icon: Coffee,          label: "الكوفيهات"   },
+  { href: "/cafes",  icon: Coffee,          label: "الكافيهات"   },
   { href: "/users",  icon: Users,           label: "المستخدمون"  },
 ];
 

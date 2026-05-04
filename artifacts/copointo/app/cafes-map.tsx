@@ -181,7 +181,7 @@ export default function CafesMapScreen() {
         const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
         if (alive) setCafes(data.cafes);
       } catch {
-        if (alive) setError("تعذّر تحميل الكوفيهات");
+        if (alive) setError("تعذّر تحميل الكافيهات");
       } finally {
         if (alive) setLoading(false);
       }

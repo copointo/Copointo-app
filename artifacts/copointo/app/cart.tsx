@@ -369,7 +369,7 @@ export default function CartScreen() {
           <Text style={styles.emptyTitle}>السلة فارغة</Text>
           <Text style={styles.emptyText}>أضف طلبات من قائمة الكوفي</Text>
           <TouchableOpacity style={styles.browseBtn} onPress={() => router.back()}>
-            <Text style={styles.browseBtnText}>تصفح الكوفيهات</Text>
+            <Text style={styles.browseBtnText}>تصفح الكافيهات</Text>
           </TouchableOpacity>
         </View>
       </View>

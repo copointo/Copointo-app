@@ -249,7 +249,7 @@ export default function GameScreen() {
 
           <View style={styles.noticeCard}>
             <Text style={styles.noticeTitle}>✓ ما الذي لا يزال يعمل؟</Text>
-            <Text style={styles.noticeItem}>• الطلب من الكوفيهات</Text>
+            <Text style={styles.noticeItem}>• الطلب من الكافيهات</Text>
             <Text style={styles.noticeItem}>• حجز الطاولات</Text>
             <Text style={styles.noticeItem}>• تجميع النقاط للحصول على مشروب مجاني ☕</Text>
             <Text style={styles.noticeItem}>• تصفّح المطاعم والفيديوهات</Text>

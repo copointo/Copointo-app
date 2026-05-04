@@ -24,8 +24,8 @@ function HomePage() {
     {
       href:    "/cafes",
       Icon:    Coffee,
-      label:   "الكوفيهات",
-      sub:     "إدارة وإضافة الكوفيهات",
+      label:   "الكافيهات",
+      sub:     "إدارة وإضافة الكافيهات",
       grad:    "from-[#0A0606] via-[#050303] to-black",
       border:  "border-[#E8B86D]/40",
     },
@@ -108,7 +108,7 @@ function DashboardWrapped() {
   return <PageLayout title="لوحة التحكم"><DashboardPage /></PageLayout>;
 }
 function CafesWrapped() {
-  return <PageLayout title="الكوفيهات"><CafesPage /></PageLayout>;
+  return <PageLayout title="الكافيهات"><CafesPage /></PageLayout>;
 }
 function UsersWrapped() {
   return <PageLayout title="المستخدمون"><UsersPage /></PageLayout>;
