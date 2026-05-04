@@ -1914,26 +1914,61 @@ async function printOrderInvoice(
   let tpl: any = null;
   try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
 
-  const rows = (o.items ?? []).map((it: any) =>
-    `<tr><td>${it.name}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`
-  ).join("");
+  // Build a per-item-name count of free cups so we can annotate the items list
+  // with how many cups of each item were redeemed via free coffee.
+  // Source of truth is the order object itself (o.freeCoffeeRedemptions[]),
+  // with a fallback to the legacy single-coffee `freeCoffee` arg for old paths.
+  const orderRedemptions: Array<{ code: string; itemName: string; itemPrice: number; level?: number }> =
+    Array.isArray(o.freeCoffeeRedemptions) && o.freeCoffeeRedemptions.length > 0
+      ? o.freeCoffeeRedemptions
+      : (freeCoffee ? [{ code: freeCoffee.code, itemName: freeCoffee.itemName, itemPrice: freeCoffee.itemPrice }] : []);
+  const freeCountByName = new Map<string, number>();
+  for (const r of orderRedemptions) {
+    freeCountByName.set(r.itemName, (freeCountByName.get(r.itemName) ?? 0) + 1);
+  }
+
+  const rows = (o.items ?? []).map((it: any) => {
+    const freeN = freeCountByName.get(it.name) ?? 0;
+    const freeNote = freeN > 0
+      ? `<div style="margin-top:3px;color:#b8860b;font-weight:bold">🎁 منها ${freeN} مجاني (كوفي مكافأة) / ${freeN} free</div>`
+      : "";
+    return `<tr><td>${it.name}${freeNote}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`;
+  }).join("");
   const where = o.type === "dine"
     ? `طاولة / Table ${o.tableNumber}`
     : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
 
-  const subtotal = Number(o.total ?? 0);
-  const freeAmt  = freeCoffee ? Number(freeCoffee.itemPrice ?? 0) : 0;
-  const finalTot = Math.max(0, subtotal - freeAmt);
+  // Pricing breakdown — prefer the persisted order fields when available
+  // (new flow), otherwise fall back to legacy single-coffee math.
+  const subtotal      = Number(o.subtotal ?? o.total ?? 0);
+  const discountAmt   = Number(o.discountAmount ?? 0);
+  const discountCode  = o.discountCode as string | undefined;
+  const discountPct   = o.discountPercent as number | undefined;
+  const freeAmtFromOrder = Number(o.freeCoffeeDiscount ?? 0);
+  const legacyFreeAmt    = freeCoffee ? Number(freeCoffee.itemPrice ?? 0) : 0;
+  const freeAmt       = orderRedemptions.length > 0
+    ? (freeAmtFromOrder > 0 ? freeAmtFromOrder : orderRedemptions.reduce((s, r) => s + Number(r.itemPrice || 0), 0))
+    : legacyFreeAmt;
+  const finalTot      = typeof o.total === "number"
+    ? Math.max(0, Number(o.total) - (orderRedemptions.length === 0 ? legacyFreeAmt : 0))
+    : Math.max(0, subtotal - discountAmt - freeAmt);
 
-  const freeBlock = freeCoffee ? `
-<tr><td class="cell sec-title-cell">كوفي مجاني / Free Coffee</td></tr>
+  const redemptionRows = orderRedemptions.map(r =>
+    `<div>• <b>${r.itemName}</b> — كود/Code <span style="font-family:monospace">${r.code}</span> — − ${Number(r.itemPrice || 0).toFixed(3)} ر.ع / OMR</div>`
+  ).join("");
+
+  const freeBlock = orderRedemptions.length > 0 ? `
+<tr><td class="cell sec-title-cell">🎁 كوفي مجاني مُستخدَم / Free Coffee Redeemed</td></tr>
 <tr><td class="cell info-cell">
-  <div><b>الكود / Code:</b> ${freeCoffee.code}</div>
-  <div><b>المشروب المجاني / Free drink:</b> ${freeCoffee.itemName}</div>
-  <div><b>قيمة الخصم / Discount:</b> − ${freeAmt.toFixed(3)} ر.ع / OMR</div>
+  ${redemptionRows}
+  <div style="margin-top:6px"><b>إجمالي الخصم / Total saved:</b> − ${freeAmt.toFixed(3)} ر.ع / OMR</div>
 </td></tr>
+` : "";
+
+  const summaryBlock = (orderRedemptions.length > 0 || discountAmt > 0) ? `
 <tr><td class="cell row-cell"><span class="lbl">الإجمالي قبل الخصم / Subtotal</span><span class="val">${subtotal.toFixed(3)} ر.ع / OMR</span></td></tr>
-<tr><td class="cell row-cell"><span class="lbl">خصم الكوفي المجاني / Free coffee</span><span class="val">− ${freeAmt.toFixed(3)} ر.ع / OMR</span></td></tr>
+${discountAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم${discountCode ? ` (${discountCode}${discountPct ? ` ${discountPct}%` : ""})` : ""} / Discount</span><span class="val">− ${discountAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
+${freeAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم الكوفي المجاني / Free coffee</span><span class="val">− ${freeAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ` : "";
 
   const payLabel = o.paymentMethod === "cash" ? "💵 كاش / Cash"
@@ -1953,6 +1988,7 @@ ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 <tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
 ${o.notes ? `<tr><td class="cell info-cell"><div><b>ملاحظات / Notes:</b></div><div style="white-space:pre-wrap">${String(o.notes).replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]!))}</div></td></tr>` : ""}
 ${freeBlock}
+${summaryBlock}
 <tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${finalTot.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
