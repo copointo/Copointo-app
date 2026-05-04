@@ -1143,6 +1143,7 @@ export default function CafeChatScreen() {
                   <Text
                     style={[
                       styles.bubbleText,
+                      item.role === "user" && styles.userBubbleText,
                       { color: item.role === "user" ? ON_PRIMARY : CREAM },
                     ]}
                   >
@@ -1282,6 +1283,14 @@ const styles = StyleSheet.create({
   bubbleText: {
     fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20,
   },
+  // User-typed text is shown bolder and a touch larger so it's clearly
+  // legible against the gold bubble background.
+  userBubbleText: {
+    fontSize: 15.5,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 22,
+    letterSpacing: 0.2,
+  },
   chipsRow: {
     flexDirection: "row", flexWrap: "wrap", gap: 6,
     marginTop: 8, marginLeft: 36,
@@ -1308,9 +1317,10 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1, borderRadius: 20, borderWidth: 1, borderColor: BORDER,
-    backgroundColor: CARD, color: CREAM,
+    backgroundColor: CARD, color: "#FFFFFF",
     paddingHorizontal: 16, paddingVertical: 10,
-    fontSize: 15, fontFamily: "Inter_400Regular",
+    fontSize: 16, fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.2,
     maxHeight: 100,
   },
   sendBtn: {
