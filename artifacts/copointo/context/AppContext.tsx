@@ -32,6 +32,31 @@ export async function claimGameUsername(
   }
 }
 
+/**
+ * Mirror a mobile-app user record into the server's `users` collection so the
+ * super-admin page lists every real registered player (not just those who
+ * placed an order). Idempotent: safe to call multiple times for the same id.
+ */
+export async function syncUserToServer(args: {
+  id: string;
+  username: string;
+  phone: string;
+  joinedAt?: string;
+}): Promise<AuthResult> {
+  try {
+    const r = await fetch(`${API_BASE}/users/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data?.ok) return { ok: true };
+    return { ok: false, error: data?.error || "تعذر تسجيل المستخدم على الخادم" };
+  } catch {
+    return { ok: false, error: "تعذر الاتصال بالخادم" };
+  }
+}
+
 export type Gender = "male" | "female";
 
 export interface CafeProgress {
@@ -182,6 +207,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (userData) {
         const parsed: User = JSON.parse(userData);
         setUserState(parsed);
+        // Backfill the server `users` collection for accounts that were
+        // created before server-side user-sync existed. Fire-and-forget so
+        // a slow network never blocks app startup.
+        syncUserToServer({
+          id: parsed.id,
+          username: parsed.gameUsername || parsed.name,
+          phone: parsed.phone,
+        }).catch(() => {});
         const activeCafeRaw = await AsyncStorage.getItem(`activeGameCafeId:${parsed.id}`);
         setActiveGameCafeIdState(activeCafeRaw || null);
         // Load per-user friends + friend requests
@@ -248,10 +281,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           totalOrders: 0,
           points: 0,
         };
-        // Reserve the username on the server BEFORE persisting locally — this
-        // is the only check that catches collisions across other devices.
-        const claim = await claimGameUsername(newUser.id, newUser.gameUsername);
-        if (!claim.ok) return claim;
+        // Atomically reserve the gameUsername AND mirror the user into the
+        // server's `users` collection (single endpoint so a failure can never
+        // leave an orphaned username claim or an orphaned user row). This is
+        // the only check that catches phone/username collisions across other
+        // devices, and it makes every signed-up player visible in the super-
+        // admin "المستخدمون" page even before they place their first order.
+        const synced = await syncUserToServer({
+          id: newUser.id,
+          username: newUser.gameUsername,
+          phone: newUser.phone,
+          joinedAt: new Date().toISOString(),
+        });
+        if (!synced.ok) return synced;
         const updated = [...users, newUser];
         await AsyncStorage.setItem("registeredUsers", JSON.stringify(updated));
         await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
@@ -288,6 +330,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIncomingRequests(inRaw ? JSON.parse(inRaw) : []);
       setOutgoingRequests(outRaw ? JSON.parse(outRaw) : []);
       setUserState(found);
+      // Backfill the server `users` collection for accounts created before
+      // server-side user-sync existed. Fire-and-forget; failure is harmless.
+      syncUserToServer({
+        id: found.id,
+        username: found.gameUsername || found.name,
+        phone: found.phone,
+      }).catch(() => {});
       return { ok: true };
     } catch {
       return { ok: false, error: "حدث خطأ أثناء تسجيل الدخول" };

@@ -4,7 +4,7 @@ import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
-  usernameRegistry, persistStore,
+  usernameRegistry, persistStore, type AppUser,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -256,8 +256,67 @@ router.post("/usernames/claim", (req, res): any => {
     userId,
     claimedAt: new Date().toISOString(),
   });
+  // Keep the matching AppUser record in sync so the super-admin shows the
+  // current display name immediately after a rename.
+  const existingUser = users.find(u => u.id === userId);
+  if (existingUser) existingUser.username = username;
   persistStore();
   res.json({ ok: true, username });
+});
+
+// ─── Mobile user registration (super-admin visibility) ───────────────────
+// The mobile app keeps its account state in AsyncStorage (per device), but
+// the super admin needs to see every user that registered on the platform.
+// `register` upserts a user into the server's `users` collection so the
+// admin "Users" page lists real, signed-up players — not only those who
+// placed an order.
+router.post("/users/register", (req, res): any => {
+  const id        = String(req.body?.id ?? "").trim();
+  const username  = normalizeUsername(req.body?.username);
+  const phone     = String(req.body?.phone ?? "").trim();
+  const joinedAt  = String(req.body?.joinedAt ?? "").trim() || new Date().toISOString();
+  if (!id)       return res.status(400).json({ ok: false, error: "id required" });
+  if (!username) return res.status(400).json({ ok: false, error: "يوزر اللعبة مطلوب" });
+  if (!phone)    return res.status(400).json({ ok: false, error: "رقم الهاتف مطلوب" });
+  if (username.length < 3 || username.length > 24) {
+    return res.status(400).json({ ok: false, error: "يوزر اللعبة يجب أن يكون بين 3 و 24 حرفاً" });
+  }
+  // ATOMIC: validate BOTH constraints before mutating either collection so a
+  // failure cannot leave an orphaned username claim or an orphaned user row.
+  const usernameKey = username.toLowerCase();
+  const usernameClash = usernameRegistry.find(u => u.username === usernameKey && u.userId !== id);
+  if (usernameClash) return res.status(409).json({ ok: false, error: "يوزر اللعبة مستخدم مسبقاً" });
+  const phoneClash = users.find(u => u.phone === phone && u.id !== id);
+  if (phoneClash)    return res.status(409).json({ ok: false, error: "رقم الهاتف مسجّل مسبقاً" });
+
+  // Both checks passed — commit username claim and user row together.
+  for (let i = usernameRegistry.length - 1; i >= 0; i--) {
+    if (usernameRegistry[i].userId === id) usernameRegistry.splice(i, 1);
+  }
+  usernameRegistry.push({
+    username: usernameKey, display: username, userId: id,
+    claimedAt: new Date().toISOString(),
+  });
+
+  const existing = users.find(u => u.id === id);
+  if (existing) {
+    // Idempotent: refresh username/phone but preserve game state, ban flags,
+    // totalOrders earned through real orders, etc.
+    existing.username = username;
+    existing.phone    = phone;
+    persistStore();
+    return res.json({ ok: true, user: existing });
+  }
+  const u: AppUser = {
+    id, username, phone,
+    level: 0,
+    totalOrders: 0,
+    banned: false,
+    joinedAt,
+  };
+  users.push(u);
+  persistStore();
+  res.json({ ok: true, user: u });
 });
 
 router.post("/reels/:rid/view", (req, res): any => {
