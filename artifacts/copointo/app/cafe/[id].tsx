@@ -21,10 +21,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiFetch, apiPost } from "@/constants/api";
+import { useApp } from "@/context/AppContext";
 
 interface ApiCafe {
   id: string; name: string; logo: string; image: string; lat?: number; lng?: number;
-  openTime: string; closeTime: string; rating: number; tags: string[]; address: string;
+  openTime: string; closeTime: string; rating: number; ratingCount?: number;
+  tags: string[]; address: string;
 }
 function isOpen(o: string, c: string) {
   const now = new Date(); const m = now.getHours()*60+now.getMinutes();
@@ -49,8 +51,12 @@ export default function CafeLandingScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
+  const { user } = useApp();
   const [cafe, setCafe] = useState<ApiCafe | null>(null);
   const [loading, setLoading] = useState(true);
+  // Rating panel state
+  const [myStars, setMyStars] = useState(0);          // current user's rating (0 = not rated yet)
+  const [submitting, setSubmitting] = useState(false);
 
   // User location states
   const [userLoc,        setUserLoc]        = useState<{ lat: number; lng: number } | null>(null);
@@ -117,13 +123,47 @@ export default function CafeLandingScreen() {
   const shimmerX = shimmer.interpolate({ inputRange: [0, 1], outputRange: [-160, 520] });
 
   useEffect(() => {
-    apiFetch<{ cafes: ApiCafe[] }>("/cafes")
-      .then(d => { const found = d.cafes.find(c => c.id === id); if (found) setCafe(found); })
+    // Fetch the single cafe (returns live average rating + ratingCount).
+    apiFetch<{ cafe: ApiCafe }>(`/cafes/${id}`)
+      .then(d => { if (d.cafe) setCafe(d.cafe); })
       .catch(() => {})
       .finally(() => setLoading(false));
     // Track this view (best-effort; ignore errors)
     if (id) apiPost(`/cafe/${id}/track-view`, { source: "cafe-detail" }).catch(() => {});
   }, [id]);
+
+  // Load the current user's previous rating (so the panel shows it pre-selected).
+  useEffect(() => {
+    if (!id || !user?.id) { setMyStars(0); return; }
+    apiFetch<{ stars: number }>(`/cafes/${id}/my-rating?userId=${encodeURIComponent(user.id)}`)
+      .then(d => setMyStars(d.stars ?? 0))
+      .catch(() => {});
+  }, [id, user?.id]);
+
+  // Upsert the user's rating. Optimistically updates the local stars count;
+  // refreshes the cafe stats from the server response.
+  const submitRating = async (stars: number) => {
+    if (!user?.id) return;
+    if (submitting) return;
+    if (stars < 1 || stars > 5) return;
+    setSubmitting(true);
+    const prev = myStars;
+    setMyStars(stars);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const res = await apiPost<{ ok: boolean; rating: number; ratingCount: number }>(
+        `/cafes/${id}/rate`, { userId: user.id, stars }
+      );
+      if (res?.ok && cafe) {
+        setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
+      }
+    } catch {
+      // Roll back on failure
+      setMyStars(prev);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -262,7 +302,11 @@ export default function CafeLandingScreen() {
         <View style={styles.metaRow}>
           <View style={styles.chip}>
             <Feather name="star" size={13} color="#E8B86D" />
-            <Text style={styles.chipText}>{cafe.rating.toFixed(1)}</Text>
+            <Text style={styles.chipText}>
+              {(cafe.ratingCount ?? 0) > 0
+                ? `${cafe.rating.toFixed(1)} (${cafe.ratingCount})`
+                : "بدون تقييم"}
+            </Text>
           </View>
           <View style={styles.chip}>
             <Feather name="map-pin" size={13} color="rgba(255,255,255,0.55)" />
@@ -414,6 +458,49 @@ export default function CafeLandingScreen() {
             )}
           </TouchableOpacity>
         )}
+
+        {/* ── Rating panel (optional) ── */}
+        <View style={styles.ratingCard}>
+          <View style={styles.ratingHeaderRow}>
+            <Feather name="star" size={16} color={PRIMARY} />
+            <Text style={styles.ratingTitle}>قيّم هذا الكوفي</Text>
+          </View>
+          <Text style={styles.ratingSub}>
+            {(cafe.ratingCount ?? 0) > 0
+              ? `متوسط التقييم ${cafe.rating.toFixed(1)} من ${cafe.ratingCount} مستخدم`
+              : "كن أوّل من يقيّم هذا الكوفي"}
+          </Text>
+
+          {/* 5 tappable stars (RTL: reversed so star 1 is on the right) */}
+          <View style={styles.starsRow}>
+            {[5, 4, 3, 2, 1].map((n) => {
+              const filled = myStars >= n;
+              return (
+                <TouchableOpacity
+                  key={n}
+                  onPress={() => submitRating(n)}
+                  disabled={submitting || !user}
+                  activeOpacity={0.7}
+                  style={styles.starBtn}
+                >
+                  <MaterialCommunityIcons
+                    name={filled ? "star" : "star-outline"}
+                    size={36}
+                    color={filled ? PRIMARY : "rgba(255,255,255,0.35)"}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.ratingHint}>
+            {!user
+              ? "سجّل دخولك لإضافة تقييم"
+              : myStars > 0
+                ? `تقييمك: ${myStars} من 5 — اضغط لتعديله`
+                : "التقييم اختياري — اضغط على عدد النجوم"}
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -478,6 +565,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
   },
   mapsBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+
+  // Rating panel
+  ratingCard: {
+    backgroundColor: CARD, borderRadius: 18,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 18, paddingVertical: 18,
+    marginTop: 14, gap: 10, alignItems: "center",
+  },
+  ratingHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  ratingTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
+  ratingSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", textAlign: "center" },
+  starsRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 4, marginTop: 4,
+  },
+  starBtn: { padding: 4 },
+  ratingHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)", textAlign: "center", marginTop: 2 },
 
   // Location permission prompt (bottom sheet)
   promptBackdrop: {

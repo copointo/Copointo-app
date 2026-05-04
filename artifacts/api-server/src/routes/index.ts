@@ -4,7 +4,8 @@ import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
-  usernameRegistry, persistStore, type AppUser,
+  usernameRegistry, cafeRatings, getCafeRatingStats,
+  persistStore, type AppUser,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -27,12 +28,26 @@ router.get("/cafes", async (_req, res) => {
     }));
   }
 
-  const publicCafes = active.map(c => ({
-    id: c.id, name: c.name, logo: c.logo, image: c.image,
-    openTime: c.openTime, closeTime: c.closeTime,
-    rating: c.rating, tags: c.tags, address: c.address,
-    lat: c.lat, lng: c.lng,
-  }));
+  const publicCafes = active.map(c => {
+    const stats = getCafeRatingStats(c.id);
+    return {
+      id: c.id, name: c.name, logo: c.logo, image: c.image,
+      openTime: c.openTime, closeTime: c.closeTime,
+      // `rating` is now the LIVE average from user ratings (0 if none).
+      rating: stats.rating,
+      ratingCount: stats.ratingCount,
+      tags: c.tags, address: c.address,
+      lat: c.lat, lng: c.lng,
+    };
+  });
+  // Sort by rating desc so the top-rated café appears first; cafes with no
+  // ratings (rating=0) drop to the bottom. Stable secondary sort: more
+  // ratings first, then most recently created.
+  publicCafes.sort((a, b) => {
+    if (b.rating !== a.rating) return b.rating - a.rating;
+    if (b.ratingCount !== a.ratingCount) return b.ratingCount - a.ratingCount;
+    return 0;
+  });
   res.json({ cafes: publicCafes });
 });
 
@@ -40,15 +55,53 @@ router.get("/cafes", async (_req, res) => {
 router.get("/cafes/:id", (req, res) => {
   const c = cafes.find(x => x.id === req.params.id);
   if (!c) { res.status(404).json({ error: "Cafe not found" }); return; }
+  const stats = getCafeRatingStats(c.id);
   res.json({
     cafe: {
       id: c.id, name: c.name, logo: c.logo, image: c.image,
       openTime: c.openTime, closeTime: c.closeTime,
-      rating: c.rating, tags: c.tags, address: c.address,
+      rating: stats.rating,
+      ratingCount: stats.ratingCount,
+      tags: c.tags, address: c.address,
       active: c.active,
       lat: c.lat, lng: c.lng,
     }
   });
+});
+
+// ─── Cafe rating endpoints ─────────────────────────────────────────────
+// Get the current user's rating for a cafe (0 if not yet rated).
+router.get("/cafes/:id/my-rating", (req, res): any => {
+  const cafeId = req.params.id;
+  const userId = String(req.query.userId ?? "").trim();
+  if (!userId) return res.json({ stars: 0 });
+  const entry = cafeRatings.find(r => r.cafeId === cafeId && r.userId === userId);
+  return res.json({ stars: entry?.stars ?? 0 });
+});
+
+// Upsert a rating (1-5 stars) for the given cafe + user. Submitting again
+// replaces the previous rating so each user contributes exactly one entry.
+router.post("/cafes/:id/rate", (req, res): any => {
+  const cafeId = req.params.id;
+  const cafe = cafes.find(c => c.id === cafeId);
+  if (!cafe) return res.status(404).json({ ok: false, error: "الكوفي غير موجود" });
+  const userId = String(req.body?.userId ?? "").trim();
+  const stars  = Number(req.body?.stars);
+  if (!userId) return res.status(400).json({ ok: false, error: "userId مطلوب" });
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+    return res.status(400).json({ ok: false, error: "التقييم يجب أن يكون بين 1 و 5 نجوم" });
+  }
+  const idx = cafeRatings.findIndex(r => r.cafeId === cafeId && r.userId === userId);
+  const now = new Date().toISOString();
+  if (idx >= 0) {
+    cafeRatings[idx].stars   = stars;
+    cafeRatings[idx].ratedAt = now;
+  } else {
+    cafeRatings.push({ cafeId, userId, stars, ratedAt: now });
+  }
+  persistStore();
+  const stats = getCafeRatingStats(cafeId);
+  return res.json({ ok: true, stars, ...stats });
 });
 
 // Public game-status endpoint — used by the mobile app to check whether

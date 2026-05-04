@@ -199,6 +199,30 @@ export interface Broadcast {
 }
 export const broadcasts: Broadcast[] = [];
 
+// ─── Cafe ratings (1-5 stars, one per user per cafe) ────────────────────
+// Each user may rate any cafe once; submitting again UPSERTS their rating.
+// The cafe's displayed rating is the average of all entries here (rounded
+// to 1 decimal). Cafes with no entries fall back to a 0 average (no stars).
+export interface CafeRating {
+  cafeId: string;
+  userId: string;
+  /** Whole stars 1–5 only. */
+  stars: number;
+  ratedAt: string;
+}
+export const cafeRatings: CafeRating[] = [];
+
+/** Compute average rating + count for a cafe from `cafeRatings`. */
+export function getCafeRatingStats(cafeId: string): { rating: number; ratingCount: number } {
+  const entries = cafeRatings.filter(r => r.cafeId === cafeId);
+  if (entries.length === 0) return { rating: 0, ratingCount: 0 };
+  const sum = entries.reduce((a, r) => a + r.stars, 0);
+  return {
+    rating: Math.round((sum / entries.length) * 10) / 10,
+    ratingCount: entries.length,
+  };
+}
+
 // ─── Game username registry (cross-device uniqueness) ────────────────────
 // Mobile users keep their account state in AsyncStorage on their own device,
 // but we still need to guarantee that no two users in the country claim the
@@ -229,7 +253,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
-  usernameRegistry,
+  usernameRegistry, cafeRatings,
 };
 
 function loadFromDisk() {
