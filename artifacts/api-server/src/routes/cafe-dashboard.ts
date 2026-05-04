@@ -4,7 +4,7 @@ import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
   reels, reelLikes, reelComments, reelViews,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
   type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem,
-  type Reel } from "../store";
+  type Reel, persistStore } from "../store";
 
 // ── Free-coffee code helpers ─────────────────────────────────
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
@@ -204,6 +204,32 @@ router.post("/orders/:orderId/print", (req, res) => {
   if (!order.printedAt) order.printedAt = new Date().toISOString();
   if (order.status !== "done") order.status = "done";
   return res.json({ order });
+});
+
+// Bulk-clear orders for a cafe, optionally restricted to a date range.
+// Used after generating a daily/range invoice so the orders tab doesn't
+// keep accumulating already-archived orders.
+router.delete("/orders", (req: any, res) => {
+  const cafeId = req.params.cafeId;
+  const fromStr = typeof req.query?.from === "string" ? req.query.from : null;
+  const toStr   = typeof req.query?.to   === "string" ? req.query.to   : null;
+  const from = fromStr ? new Date(fromStr).getTime() : null;
+  const to   = toStr   ? new Date(toStr).getTime()   : null;
+
+  let removed = 0;
+  for (let i = orders.length - 1; i >= 0; i--) {
+    const o = orders[i];
+    if (o.cafeId !== cafeId) continue;
+    if (from != null || to != null) {
+      const t = new Date(o.createdAt).getTime();
+      if (from != null && t < from) continue;
+      if (to   != null && t >= to)  continue;
+    }
+    orders.splice(i, 1);
+    removed++;
+  }
+  persistStore();
+  res.json({ removed });
 });
 
 // ── Free coffees ─────────────────────────────────────────────

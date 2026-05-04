@@ -33,6 +33,13 @@ export const api = {
   cafeOrders:    (id: string)              => req<any>("GET",    `${C(id)}/orders`),
   cafeOrderStatus:(id:string,oid:string,status:string) => req<any>("PATCH", `${C(id)}/orders/${oid}/status`, { status }),
   cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
+  cafeOrdersClear: (id: string, from?: string, to?: string) => {
+    const qs = new URLSearchParams();
+    if (from) qs.set("from", from);
+    if (to)   qs.set("to",   to);
+    const q = qs.toString();
+    return req<{ removed: number }>("DELETE", `${C(id)}/orders${q ? `?${q}` : ""}`);
+  },
   validateFreeCoffee: (id: string, code: string) =>
     req<any>("POST", `${C(id)}/free-coffees/validate`, { code }),
   redeemFreeCoffee:   (id: string, code: string, orderId: string) =>

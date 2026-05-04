@@ -707,8 +707,25 @@ function FreeCoffeeModal({
 function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [freeFor, setFreeFor] = useState<any | null>(null);
-  const load = useCallback(() => api.cafeOrders(id).then(d => setOrders(d.orders)), [id]);
+  const load = useCallback(
+    () =>
+      api.cafeOrders(id).then(d => {
+        const sorted = [...(d.orders ?? [])].sort((a, b) => {
+          const ta = new Date(a.createdAt).getTime();
+          const tb = new Date(b.createdAt).getTime();
+          return tb - ta; // newest first
+        });
+        setOrders(sorted);
+      }),
+    [id],
+  );
   useEffect(() => { load(); }, [load]);
+  // Reload when daily-invoice flow clears orders so the tab updates immediately.
+  useEffect(() => {
+    const onCleared = () => { load(); };
+    window.addEventListener("orders:cleared", onCleared);
+    return () => window.removeEventListener("orders:cleared", onCleared);
+  }, [load]);
   const confirmPrep = async (oid: string) => {
     await api.cafeOrderStatus(id, oid, "preparing");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "preparing" } : o));
@@ -1720,7 +1737,7 @@ ${tplFooterHtml(tpl)}
   openPrintWindow(`فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
 }
 
-async function printDailyInvoice(id: string, dateStr: string) {
+async function printDailyInvoice(id: string, dateStr: string): Promise<{ from: Date; to: Date; count: number }> {
   const tpl = (await api.invoiceTemplate(id, "daily").catch(() => ({ template: null }))).template;
   const { orders } = await loadAggData(id);
   const from = new Date(dateStr + "T00:00:00");
@@ -1751,6 +1768,7 @@ ${tplHeaderHtml(tpl, "الفاتورة اليومية / Daily Invoice", `${fmtDa
 ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة يومية / Daily ${dateStr}`, body);
+  return { from, to, count: inRange.length };
 }
 
 async function printMonthlyInvoice(id: string, year: number, month: number) {
@@ -1862,7 +1880,20 @@ function InvoicesTab({ id }: { id: string }) {
           <div className="flex gap-2">
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="flex-1 bg-input border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary" />
-            <button onClick={() => printDailyInvoice(id, date)}
+            <button onClick={async () => {
+              const result = await printDailyInvoice(id, date);
+              if (result.count === 0) return;
+              const ok = window.confirm(
+                `تم استخراج الفاتورة اليومية (${result.count} طلب).\nهل تريد حذف هذه الطلبات من قائمة الطلبات؟`
+              );
+              if (!ok) return;
+              try {
+                await api.cafeOrdersClear(id, result.from.toISOString(), result.to.toISOString());
+                window.dispatchEvent(new CustomEvent("orders:cleared"));
+              } catch {
+                alert("تعذّر حذف الطلبات. حاول مرة أخرى.");
+              }
+            }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90">
               <Printer size={14}/> طباعة
             </button>
