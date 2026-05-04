@@ -266,10 +266,14 @@ export default function CafeLandingScreen() {
           style={styles.gradient}
         />
 
-        {/* Back button */}
+        {/* Back button — falls back to home when there is no history
+            (e.g. cold-start via QR/barcode deep link into /cafe/[id]). */}
         <TouchableOpacity
           style={[styles.backBtn, { top: topPad + 8 }]}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/" as any);
+          }}
           activeOpacity={0.85}
         >
           <Feather name="arrow-left" size={20} color="#FFF" />
