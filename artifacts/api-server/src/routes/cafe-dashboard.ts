@@ -399,6 +399,8 @@ router.post("/bookings", (req: any, res): any => {
   const tableId = String(body.tableId ?? "");
   const guests  = Number(body.guests) || 0;
   const hours   = Number(body.hours) || 0;
+  const date    = String(body.date ?? new Date().toISOString().substring(0, 10));
+  const time    = String(body.time ?? "").trim();
 
   const table = tables.find(t => t.id === tableId && t.cafeId === cafeId);
   if (!table) return res.status(404).json({ error: "الطاولة غير موجودة" });
@@ -409,6 +411,29 @@ router.post("/bookings", (req: any, res): any => {
     return res.status(400).json({
       error: `الطاولة ${table.number} تتسع لـ ${table.capacity} أشخاص فقط`,
     });
+  }
+
+  // ── Time slot guards ─────────────────────────────────────────
+  if (!time) return res.status(400).json({ error: "اختر وقت الحجز" });
+  // If admin defined a fixed list, the time MUST be from it.
+  if (Array.isArray(table.availableTimes) && table.availableTimes.length > 0) {
+    if (!table.availableTimes.includes(time)) {
+      return res.status(400).json({ error: "هذا الوقت غير متاح للحجز في هذه الطاولة" });
+    }
+  }
+  // Reject if the admin manually blocked this date+time.
+  if (Array.isArray(table.blockedSlots) && table.blockedSlots.some(s => s.date === date && s.time === time)) {
+    return res.status(409).json({ error: "هذا الوقت مغلق من إدارة الكوفي" });
+  }
+  // Reject if another active booking already holds this date+time.
+  const collidesWithBooking = bookings.some(b =>
+    b.tableId === tableId
+    && b.date === date
+    && b.time === time
+    && b.status !== "cancelled",
+  );
+  if (collidesWithBooking) {
+    return res.status(409).json({ error: "هذا الوقت محجوز مسبقاً — اختر وقتاً آخر" });
   }
 
   // ── Hourly pricing guard (now mandatory) ─────────────────────
@@ -575,10 +600,51 @@ function validateHourlyPricing(body: any): string | null {
   }
   return null;
 }
+function normalizeAvailableTimes(body: any): string[] | undefined {
+  if (!Object.prototype.hasOwnProperty.call(body ?? {}, "availableTimes")) return undefined;
+  const arr = Array.isArray(body.availableTimes) ? body.availableTimes : [];
+  // De-dup, drop blanks, keep order, cap to 64 entries to prevent abuse.
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of arr) {
+    const s = String(v ?? "").trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+    if (out.length >= 64) break;
+  }
+  return out;
+}
+function normalizeBlockedSlots(body: any): { date: string; time: string }[] | undefined {
+  if (!Object.prototype.hasOwnProperty.call(body ?? {}, "blockedSlots")) return undefined;
+  const arr = Array.isArray(body.blockedSlots) ? body.blockedSlots : [];
+  const seen = new Set<string>();
+  const out: { date: string; time: string }[] = [];
+  for (const v of arr) {
+    const date = String(v?.date ?? "").trim();
+    const time = String(v?.time ?? "").trim();
+    if (!date || !time) continue;
+    const key = `${date}|${time}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ date, time });
+  }
+  return out;
+}
 router.post("/tables", (req: any, res): any => {
   const err = validateHourlyPricing(req.body);
   if (err) return res.status(400).json({ error: err });
-  const t: CafeTable = { id: Date.now().toString(), cafeId: req.params.cafeId, available: true, createdAt: new Date().toISOString(), ...req.body };
+  const availableTimes = normalizeAvailableTimes(req.body);
+  const blockedSlots = normalizeBlockedSlots(req.body);
+  const t: CafeTable = {
+    id: Date.now().toString(),
+    cafeId: req.params.cafeId,
+    available: true,
+    createdAt: new Date().toISOString(),
+    ...req.body,
+    ...(availableTimes !== undefined ? { availableTimes } : {}),
+    ...(blockedSlots !== undefined ? { blockedSlots } : {}),
+  };
   tables.push(t);
   res.status(201).json({ table: t });
 });
@@ -591,7 +657,11 @@ router.patch("/tables/:tableId", (req, res): any => {
     const err = validateHourlyPricing(req.body);
     if (err) return res.status(400).json({ error: err });
   }
+  const availableTimes = normalizeAvailableTimes(req.body);
+  const blockedSlots = normalizeBlockedSlots(req.body);
   Object.assign(t, req.body);
+  if (availableTimes !== undefined) t.availableTimes = availableTimes;
+  if (blockedSlots !== undefined) t.blockedSlots = blockedSlots;
   res.json({ table: t });
 });
 router.delete("/tables/:tableId", (req, res) => {
@@ -599,6 +669,34 @@ router.delete("/tables/:tableId", (req, res) => {
   if (idx === -1) return res.status(404).json({ error: "Not found" });
   tables.splice(idx, 1);
   res.json({ success: true });
+});
+
+// ── Admin: toggle a single date+time as blocked / unblocked for a table ──
+//   POST   /cafe/:cafeId/tables/:tableId/block  { date, time }  → adds (idempotent)
+//   DELETE /cafe/:cafeId/tables/:tableId/block  { date, time }  → removes (idempotent)
+// Used by the cafe owner's "إدارة المواعيد" modal so they can toggle one slot
+// at a time without resending the whole `blockedSlots` array.
+router.post("/tables/:tableId/block", (req: any, res): any => {
+  const t = tables.find(x => x.id === req.params.tableId && x.cafeId === req.params.cafeId);
+  if (!t) return res.status(404).json({ error: "الطاولة غير موجودة" });
+  const date = String(req.body?.date ?? "").trim();
+  const time = String(req.body?.time ?? "").trim();
+  if (!date || !time) return res.status(400).json({ error: "التاريخ والوقت مطلوبان" });
+  const list = Array.isArray(t.blockedSlots) ? t.blockedSlots.slice() : [];
+  if (!list.some(s => s.date === date && s.time === time)) list.push({ date, time });
+  t.blockedSlots = list;
+  res.json({ table: t });
+});
+router.delete("/tables/:tableId/block", (req: any, res): any => {
+  const t = tables.find(x => x.id === req.params.tableId && x.cafeId === req.params.cafeId);
+  if (!t) return res.status(404).json({ error: "الطاولة غير موجودة" });
+  const date = String(req.body?.date ?? req.query?.date ?? "").trim();
+  const time = String(req.body?.time ?? req.query?.time ?? "").trim();
+  if (!date || !time) return res.status(400).json({ error: "التاريخ والوقت مطلوبان" });
+  t.blockedSlots = (Array.isArray(t.blockedSlots) ? t.blockedSlots : []).filter(
+    s => !(s.date === date && s.time === time),
+  );
+  res.json({ table: t });
 });
 
 // ── Chat Info ─────────────────────────────────────────────────

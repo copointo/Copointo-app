@@ -95,12 +95,42 @@ interface BookDraft {
   customerPhone?: string;
 }
 
-const TIME_SLOTS = [
-  "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM",
-  "11:00 AM", "12:00 PM", "1:00 PM", "2:00 PM",
-  "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM",
-  "7:00 PM", "8:00 PM",
+// Fallback list when the selected table doesn't have admin-defined `availableTimes`.
+const DEFAULT_TIME_SLOTS = [
+  "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+  "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+  "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
 ];
+
+/**
+ * Compute the slots a customer can pick for the given table on `date`.
+ * Filters out admin-blocked slots and any slot already booked by another
+ * customer (status pending or confirmed). Returns ordered list preserving
+ * `availableTimes` order so the UI feels predictable.
+ */
+function computeBookableSlots(
+  table: { availableTimes?: string[]; blockedSlots?: { date: string; time: string }[]; id: string } | undefined,
+  date: string,
+  bookings: any[],
+): string[] {
+  if (!table) return [];
+  const base = (Array.isArray(table.availableTimes) && table.availableTimes.length > 0)
+    ? table.availableTimes
+    : DEFAULT_TIME_SLOTS;
+  const blocked = new Set((table.blockedSlots || [])
+    .filter((s) => s.date === date)
+    .map((s) => s.time));
+  const booked = new Set(
+    bookings
+      .filter((b: any) =>
+        b.tableId === table.id
+        && b.date === date
+        && b.status !== "cancelled",
+      )
+      .map((b: any) => b.time),
+  );
+  return base.filter((t) => !blocked.has(t) && !booked.has(t));
+}
 
 const MAIN_QUICK: QuickReply[] = [
   { label: "🛒 اطلب الآن",  value: "اطلب" },
@@ -149,6 +179,7 @@ export default function CafeChatScreen() {
   });
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [infos, setInfos] = useState<ChatInfoItem[]>([]);
   const [popular, setPopular] = useState<PopularItem[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -176,9 +207,10 @@ export default function CafeChatScreen() {
       apiFetch<{ tables: Table[] }>(`/cafe/${id}/tables`),
       apiFetch<{ items: ChatInfoItem[] }>(`/cafe/${id}/chat`),
       apiFetch<{ items: PopularItem[] }>(`/cafe/${id}/popular-items`),
+      apiFetch<{ bookings: any[] }>(`/cafe/${id}/bookings`),
     ]).then((results) => {
       if (cancelled) return;
-      const [cafeR, menuR, tablesR, infosR, popR] = results;
+      const [cafeR, menuR, tablesR, infosR, popR, bookingsR] = results;
       let cafeName = cafeMock?.name ?? "الكوفي";
       if (cafeR.status === "fulfilled" && cafeR.value?.cafe) {
         const cf = cafeR.value.cafe;
@@ -195,6 +227,7 @@ export default function CafeChatScreen() {
       if (tablesR.status === "fulfilled") setTables((tablesR.value.tables || []).filter(t => t.available !== false));
       if (infosR.status === "fulfilled") setInfos(infosR.value.items || []);
       if (popR.status === "fulfilled") setPopular(popR.value.items || []);
+      if (bookingsR && bookingsR.status === "fulfilled") setBookings(bookingsR.value.bookings || []);
       setLoadingData(false);
       // Greet after data is loaded so we can mention real cafe name.
       setMessages([{
@@ -674,17 +707,35 @@ export default function CafeChatScreen() {
     }
     setBook(b => ({ ...b, guests: g }));
     setStep("book_time");
+    const today = new Date().toISOString().substring(0, 10);
+    const tableObj = tables.find(x => x.id === book.tableId);
+    const slots = computeBookableSlots(tableObj as any, today, bookings);
+    if (slots.length === 0) {
+      pushBot("❌ للأسف، لا توجد مواعيد متاحة لهذه الطاولة اليوم. جرّب طاولة أخرى:", [
+        ...tables.filter(t => (t.hourlyPricing?.length ?? 0) > 0)
+          .map(t => ({ label: `طاولة ${t.number}`, value: `طاولة ${t.number}` })),
+        CANCEL_QUICK,
+      ]);
+      setStep("book_table");
+      return;
+    }
     pushBot("🕐 اختر وقت الحجز:", [
-      ...TIME_SLOTS.map(t => ({ label: t, value: t })),
+      ...slots.map(t => ({ label: t, value: t })),
       CANCEL_QUICK,
     ]);
   };
 
   const handleBookTime = (raw: string) => {
     const r = raw.trim();
-    const found = TIME_SLOTS.find(t => t.toLowerCase() === r.toLowerCase());
+    const today = new Date().toISOString().substring(0, 10);
+    const tableObj = tables.find(x => x.id === book.tableId);
+    const slots = computeBookableSlots(tableObj as any, today, bookings);
+    const found = slots.find(t => t.toLowerCase() === r.toLowerCase());
     if (!found) {
-      pushBot("اختر الوقت من الأزرار:", TIME_SLOTS.map(t => ({ label: t, value: t })));
+      pushBot("اختر الوقت من الأزرار (المواعيد الأخرى محجوزة أو مغلقة):", [
+        ...slots.map(t => ({ label: t, value: t })),
+        CANCEL_QUICK,
+      ]);
       return;
     }
     setBook(b => ({ ...b, time: found }));

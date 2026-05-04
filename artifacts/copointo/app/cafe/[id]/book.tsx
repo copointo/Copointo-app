@@ -23,14 +23,16 @@ interface PriceTier { hours: number; price: number; }
 interface Table {
   id: string; cafeId: string; number: number; capacity: number; available: boolean;
   hourlyPricing?: PriceTier[];
+  availableTimes?: string[];
+  blockedSlots?: { date: string; time: string }[];
 }
 
-const TIME_SLOTS = [
-  "7:00 AM", "7:30 AM", "8:00 AM", "8:30 AM",
-  "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM",
-  "11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM",
-  "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
-  "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM",
+// Fallback list when the cafe owner hasn't customized `availableTimes` yet.
+// Kept aligned with the admin DEFAULT_TIME_SLOTS so toggling stays predictable.
+const DEFAULT_TIME_SLOTS = [
+  "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+  "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+  "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
 ];
 
 export default function BookTableScreen() {
@@ -53,6 +55,11 @@ export default function BookTableScreen() {
   // Approval-tracking after a successful submit.
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [bookingStatus, setBookingStatus] = useState<"pending" | "confirmed" | "cancelled" | null>(null);
+
+  // Cafe-wide bookings, used to gray out time slots that another customer
+  // already grabbed for the chosen table on today's date.
+  const [cafeBookings, setCafeBookings] = useState<any[]>([]);
+  const bookingDate = new Date().toISOString().substring(0, 10);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
@@ -85,7 +92,41 @@ export default function BookTableScreen() {
     if (!selectedTable) return;
     setGuests(g => Math.min(g, selectedTable.capacity));
     setSelectedTier(null);
+    // Reset previously-selected time — it might no longer be available for the new table.
+    setSelectedTime(null);
   }, [selectedTable]);
+
+  // Refresh bookings + tables whenever the screen is in focus so the customer
+  // promptly sees slots that the cafe owner just blocked, freed, or that
+  // another customer just grabbed. Polls every 8 s while the booking screen
+  // is visible; pauses when the user navigates away. Re-fetches both
+  // /tables (catches admin edits to availableTimes / blockedSlots) and
+  // /bookings (catches new reservations from other customers).
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const refresh = () => {
+        apiFetch<{ bookings: any[] }>(`/cafe/${id}/bookings`)
+          .then((r) => { if (!cancelled) setCafeBookings(r.bookings || []); })
+          .catch(() => {});
+        apiFetch<{ tables: Table[] }>(`/cafe/${id}/tables`)
+          .then((r) => {
+            if (cancelled) return;
+            const fresh = (r.tables || []).filter(t => t.available !== false);
+            setTables(fresh);
+            // If the currently-selected table has been refreshed, swap to the
+            // newer row so availableTimes / blockedSlots stay in sync.
+            setSelectedTable(prev =>
+              prev ? (fresh.find(t => t.id === prev.id) ?? prev) : prev
+            );
+          })
+          .catch(() => {});
+      };
+      refresh();
+      const handle = setInterval(refresh, 8000);
+      return () => { cancelled = true; clearInterval(handle); };
+    }, [id]),
+  );
 
   // Once a booking has been submitted, poll its status every 5 s so the
   // customer sees the "✅ approved" confirmation as soon as the cafe admin
@@ -112,6 +153,26 @@ export default function BookTableScreen() {
 
   const tiers: PriceTier[] = Array.isArray(selectedTable?.hourlyPricing) ? selectedTable!.hourlyPricing! : [];
   const finalPrice = selectedTier ? Number(selectedTier.price) : null;
+
+  // Compute the effective slot list + availability for the selected table.
+  const availableSlots: string[] = (Array.isArray(selectedTable?.availableTimes)
+    && selectedTable!.availableTimes!.length > 0)
+    ? selectedTable!.availableTimes!
+    : DEFAULT_TIME_SLOTS;
+  const blockedTimesForToday = new Set(
+    (selectedTable?.blockedSlots || [])
+      .filter((s) => s.date === bookingDate)
+      .map((s) => s.time),
+  );
+  const bookedTimesForToday = new Set(
+    cafeBookings
+      .filter((b: any) =>
+        b.tableId === selectedTable?.id
+        && b.date === bookingDate
+        && b.status !== "cancelled",
+      )
+      .map((b: any) => b.time),
+  );
 
   const handleBook = async () => {
     if (!selectedTable) {
@@ -424,42 +485,82 @@ export default function BookTableScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            وقت الحجز
+            وقت الحجز {selectedTable ? "" : "(اختر طاولة أولاً)"}
           </Text>
-          <View style={styles.timesGrid}>
-            {TIME_SLOTS.map((time) => (
-              <TouchableOpacity
-                key={time}
-                style={[
-                  styles.timeSlot,
-                  {
-                    backgroundColor:
-                      selectedTime === time ? colors.primary : colors.card,
-                    borderColor:
-                      selectedTime === time ? colors.primary : colors.border,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setSelectedTime(time);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.timeText,
-                    {
-                      color:
-                        selectedTime === time
-                          ? colors.primaryForeground
-                          : colors.foreground,
-                    },
-                  ]}
-                >
-                  {time}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {!selectedTable ? (
+            <View style={[styles.emptyTables, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 12, color: colors.mutedForeground, textAlign: "center" }}>
+                اختر طاولة لعرض المواعيد المتاحة
+              </Text>
+            </View>
+          ) : availableSlots.length === 0 ? (
+            <View style={[styles.emptyTables, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 12, color: "#E55353", textAlign: "center" }}>
+                لا توجد مواعيد متاحة لهذه الطاولة
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.timesGrid}>
+              {availableSlots.map((time) => {
+                const isBlocked = blockedTimesForToday.has(time);
+                const isBooked  = bookedTimesForToday.has(time);
+                const disabled  = isBlocked || isBooked;
+                const active    = selectedTime === time && !disabled;
+                return (
+                  <TouchableOpacity
+                    key={time}
+                    disabled={disabled}
+                    style={[
+                      styles.timeSlot,
+                      {
+                        backgroundColor: active
+                          ? colors.primary
+                          : disabled
+                            ? colors.muted
+                            : colors.card,
+                        borderColor: active
+                          ? colors.primary
+                          : disabled
+                            ? colors.border
+                            : colors.border,
+                        opacity: disabled ? 0.5 : 1,
+                      },
+                    ]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelectedTime(time);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.timeText,
+                        {
+                          color: active
+                            ? colors.primaryForeground
+                            : disabled
+                              ? colors.mutedForeground
+                              : colors.foreground,
+                          textDecorationLine: disabled ? "line-through" : "none",
+                        },
+                      ]}
+                    >
+                      {time}
+                    </Text>
+                    {disabled && (
+                      <Text style={{
+                        fontSize: 9,
+                        color: isBooked ? "#E5A53C" : "#E55353",
+                        marginTop: 2,
+                        fontFamily: "Inter_600SemiBold",
+                      }}>
+                        {isBooked ? "محجوز" : "مغلق"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* ── Final price preview ── */}

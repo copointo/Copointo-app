@@ -36,6 +36,17 @@ export interface CafeTable {
   available: boolean; createdAt: string;
   image?: string | null;
   hourlyPricing?: { hours: number; price: number }[];
+  /**
+   * Admin-defined list of bookable time slots for this table (e.g. ["7:00 AM", "8:00 AM", ...]).
+   * If empty/undefined, the customer-facing booking screens fall back to a sensible default list.
+   */
+  availableTimes?: string[];
+  /**
+   * Specific date+time combinations that the cafe admin has manually marked as
+   * unavailable (e.g. private event, maintenance). Customer-facing screens will
+   * show these as "مغلق من الإدارة" and reject booking attempts on them.
+   */
+  blockedSlots?: { date: string; time: string }[];
 }
 export interface Order {
   id: string; cafeId: string; customerName: string; customerNameEn?: string; customerPhone: string;

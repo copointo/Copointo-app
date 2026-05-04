@@ -1665,8 +1665,186 @@ type PriceTier = { hours: string; price: string };
 type TableForm = {
   number: string; capacity: string; image: string;
   hourlyPricing: PriceTier[];
+  /** Admin-defined fixed list of time slots customers can book at this table. */
+  availableTimes: string[];
 };
-const emptyTableForm = (): TableForm => ({ number: "", capacity: "", image: "", hourlyPricing: [] });
+// Sensible default — covers the common 16-hour day in 1-hour intervals. The
+// admin can toggle individual slots on/off in the form below; the customer
+// app uses this same list as a fallback for legacy tables that don't have
+// `availableTimes` set yet.
+const DEFAULT_TIME_SLOTS = [
+  "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+  "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM",
+  "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM", "10:00 PM",
+];
+const emptyTableForm = (): TableForm => ({
+  number: "", capacity: "", image: "", hourlyPricing: [],
+  availableTimes: DEFAULT_TIME_SLOTS.slice(),
+});
+
+// ── Per-date slot management modal ────────────────────────────
+// Opens from each table card. Shows the table's `availableTimes` for the
+// chosen date, with a status badge per slot (متاح / محجوز من زبون / مغلق من
+// الإدارة) and a one-click toggle that calls the dedicated block/unblock
+// endpoints. Booked slots cannot be force-blocked from here — the cafe must
+// cancel that booking first via the bookings tab.
+function SlotsModal({
+  cafeId, table, onClose, onUpdated,
+}: {
+  cafeId: string;
+  table: any;
+  onClose: () => void;
+  onUpdated: (updatedTable: any) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busySlot, setBusySlot] = useState<string | null>(null);
+
+  const slots: string[] = (Array.isArray(table.availableTimes) && table.availableTimes.length > 0)
+    ? table.availableTimes
+    : DEFAULT_TIME_SLOTS;
+
+  const blockedSet = new Set(
+    (Array.isArray(table.blockedSlots) ? table.blockedSlots : [])
+      .filter((s: any) => s.date === date)
+      .map((s: any) => s.time),
+  );
+  const bookedMap = new Map<string, any>();
+  for (const b of bookings) {
+    if (b.tableId === table.id && b.date === date && b.status !== "cancelled") {
+      bookedMap.set(b.time, b);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api.cafeBookings(cafeId)
+      .then((d: any) => { if (!cancelled) setBookings(d.bookings ?? []); })
+      .catch(() => { if (!cancelled) setBookings([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [cafeId, date]);
+
+  const toggle = async (time: string) => {
+    if (bookedMap.has(time)) return; // can't block a booked slot from here
+    setBusySlot(time);
+    try {
+      const isBlocked = blockedSet.has(time);
+      const res = isBlocked
+        ? await api.unblockTableSlot(cafeId, table.id, { date, time })
+        : await api.blockTableSlot(cafeId, table.id, { date, time });
+      onUpdated(res.table);
+    } catch (e: any) {
+      alert("تعذّر تحديث الحالة: " + (e?.message ?? ""));
+    } finally {
+      setBusySlot(null);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-card border-b border-border p-4 flex items-center justify-between z-10">
+          <div>
+            <h3 className="font-bold text-foreground text-base">⏰ مواعيد طاولة {table.number}</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              فعّل/أغلق أي وقت في هذا اليوم — الزبائن سيرونه مباشرة
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+            title="إغلاق"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1">📅 اختر التاريخ</label>
+            <input
+              type="date"
+              value={date}
+              min={today}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+          {loading ? (
+            <p className="text-xs text-muted-foreground text-center py-6">جاري تحميل الحجوزات...</p>
+          ) : slots.length === 0 ? (
+            <p className="text-sm text-red-400 text-center py-6">
+              لم تحدّد أي توقيت متاح لهذه الطاولة بعد — عدّل الطاولة أولاً
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {slots.map((slot) => {
+                const isBlocked = blockedSet.has(slot);
+                const booking = bookedMap.get(slot);
+                const status = booking ? "booked" : isBlocked ? "blocked" : "available";
+                return (
+                  <div
+                    key={slot}
+                    className={`flex items-center justify-between gap-2 p-3 rounded-xl border ${
+                      status === "booked"
+                        ? "border-yellow-500/40 bg-yellow-500/5"
+                        : status === "blocked"
+                          ? "border-red-500/40 bg-red-500/5"
+                          : "border-green-500/40 bg-green-500/5"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-foreground text-sm">{slot}</div>
+                      <div className="text-[11px] mt-0.5">
+                        {status === "available" && (
+                          <span className="text-green-400 font-semibold">✅ متاح للحجز</span>
+                        )}
+                        {status === "blocked" && (
+                          <span className="text-red-400 font-semibold">🚫 مغلق من الإدارة</span>
+                        )}
+                        {status === "booked" && (
+                          <span className="text-yellow-500 font-semibold truncate block">
+                            📋 محجوز — {booking.customerName} ({booking.status === "pending" ? "بانتظار التأكيد" : "مؤكّد"})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {status !== "booked" ? (
+                      <button
+                        onClick={() => toggle(slot)}
+                        disabled={busySlot === slot}
+                        className={`shrink-0 px-3 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50 ${
+                          status === "blocked"
+                            ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
+                            : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+                        }`}
+                      >
+                        {busySlot === slot ? "..." : status === "blocked" ? "✅ افتح" : "🚫 أغلق"}
+                      </button>
+                    ) : (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        من حجز عميل
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function TablesTab({ id }: { id: string }) {
   const [tbls, setTbls]   = useState<any[]>([]);
@@ -1675,6 +1853,7 @@ function TablesTab({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [imgErr, setImgErr] = useState<string>("");
   const [formErr, setFormErr] = useState<string>("");
+  const [managingTable, setManagingTable] = useState<any | null>(null);
 
   const load = useCallback(() => api.cafeTables(id).then(d => setTbls(d.tables)), [id]);
   useEffect(() => { load(); }, [load]);
@@ -1713,6 +1892,7 @@ function TablesTab({ id }: { id: string }) {
         capacity: +form.capacity,
         image: form.image || null,
         hourlyPricing: tiers,
+        availableTimes: form.availableTimes,
       };
       if (editingId) {
         await api.updateTable(id, editingId, body);
@@ -1736,6 +1916,9 @@ function TablesTab({ id }: { id: string }) {
       hourlyPricing: (t.hourlyPricing ?? []).map((tier: any) => ({
         hours: String(tier.hours), price: String(tier.price),
       })),
+      availableTimes: Array.isArray(t.availableTimes) && t.availableTimes.length > 0
+        ? t.availableTimes.slice()
+        : DEFAULT_TIME_SLOTS.slice(),
     });
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1806,6 +1989,69 @@ function TablesTab({ id }: { id: string }) {
                 {imgErr && <p className="text-[11px] text-red-400">{imgErr}</p>}
               </div>
             </div>
+          </div>
+
+          {/* Available time slots */}
+          <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/30">
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              ⏰ التواقيت المتاحة للحجز
+            </label>
+            <p className="text-[10px] text-muted-foreground mb-2">
+              اختر الأوقات التي تسمح للزبائن بالحجز فيها — سيرى الزبون فقط هذه الأوقات.
+              يمكنك بعد ذلك إغلاق تواريخ محدّدة من زر "⏰ المواعيد" على بطاقة الطاولة.
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {DEFAULT_TIME_SLOTS.map((slot) => {
+                const on = form.availableTimes.includes(slot);
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    onClick={() =>
+                      setForm((p) => ({
+                        ...p,
+                        availableTimes: on
+                          ? p.availableTimes.filter((s) => s !== slot)
+                          : [...p.availableTimes, slot],
+                      }))
+                    }
+                    className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold transition-all ${
+                      on
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                    }`}
+                  >
+                    {slot}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-[11px] text-muted-foreground">
+                {form.availableTimes.length} وقت محدّد
+              </p>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, availableTimes: DEFAULT_TIME_SLOTS.slice() }))}
+                  className="text-[10px] px-2 py-1 rounded-md text-primary hover:bg-primary/10 font-semibold"
+                >
+                  تحديد الكل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, availableTimes: [] }))}
+                  className="text-[10px] px-2 py-1 rounded-md text-red-400 hover:bg-red-500/10 font-semibold"
+                >
+                  مسح الكل
+                </button>
+              </div>
+            </div>
+            {form.availableTimes.length === 0 && (
+              <p className="text-[11px] text-red-400 mt-2">
+                ⚠️ لم تختر أي وقت — لن يتمكّن الزبائن من الحجز على هذه الطاولة
+              </p>
+            )}
           </div>
 
           {/* Hourly pricing tiers */}
@@ -1895,9 +2141,27 @@ function TablesTab({ id }: { id: string }) {
                 ))}
               </div>
             )}
+            <button
+              onClick={() => setManagingTable(t)}
+              className="w-full mt-2 px-2 py-1.5 rounded-lg bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 text-[11px] font-bold flex items-center justify-center gap-1"
+            >
+              <Clock size={12} /> إدارة المواعيد
+            </button>
           </Card>
         ))}
       </div>
+
+      {managingTable && (
+        <SlotsModal
+          cafeId={id}
+          table={managingTable}
+          onClose={() => setManagingTable(null)}
+          onUpdated={(updated) => {
+            setTbls((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+            setManagingTable(updated);
+          }}
+        />
+      )}
     </div>
   );
 }
