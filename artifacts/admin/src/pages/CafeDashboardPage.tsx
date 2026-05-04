@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import {
   ArrowLeft, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
-  MessageCircle, Table2, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
+  MessageCircle, Armchair, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
@@ -342,7 +342,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"bookings",  label:"حجوزات الطاولة",    icon: CalendarDays     },
   { id:"menu",      label:"القائمة",           icon: UtensilsCrossed  },
   { id:"chat",      label:"معلومات الشات",     icon: MessageCircle    },
-  { id:"tables",    label:"الطاولات",          icon: Table2           },
+  { id:"tables",    label:"الطاولات",          icon: Armchair         },
   { id:"invoices",  label:"الفواتير",          icon: Receipt          },
   { id:"expenses",  label:"المصاريف",          icon: Wallet           },
   { id:"inventory", label:"المخزن",            icon: Package          },
@@ -3491,7 +3491,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         <GoldStat label="إجمالي الطلبات"    value={o.total}     icon={<ShoppingBag size={18} />} />
         <GoldStat label="داخل الكوفي"       value={o.dineIn}    icon={<Coffee size={18} />} />
         <GoldStat label="خارج الكوفي"       value={o.carOut}    icon={<Car size={18} />} />
-        <GoldStat label="حجوزات الطاولات"   value={b.total}     icon={<Table2 size={18} />} />
+        <GoldStat label="حجوزات الطاولات"   value={b.total}     icon={<Armchair size={18} />} />
         <GoldStat label="مشاهدات الكوفي"    value={v.total}     icon={<Eye size={18} />} />
         <GoldStat label="زوار فريدون"        value={v.uniqueViewers} icon={<Users size={18} />} />
       </div>
@@ -3541,7 +3541,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         </SectionCard>
 
         {/* Bookings status */}
-        <SectionCard title="حالة الحجوزات" icon={<Table2 size={16} />}>
+        <SectionCard title="حالة الحجوزات" icon={<Armchair size={16} />}>
           {b.total > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
