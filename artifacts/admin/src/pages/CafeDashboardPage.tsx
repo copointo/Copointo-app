@@ -3487,13 +3487,12 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
       </SectionCard>
 
       {/* Counts row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <GoldStat label="إجمالي الطلبات"    value={o.total}     icon={<ShoppingBag size={18} />} />
         <GoldStat label="داخل الكوفي"       value={o.dineIn}    icon={<Coffee size={18} />} />
         <GoldStat label="خارج الكوفي"       value={o.carOut}    icon={<Car size={18} />} />
         <GoldStat label="حجوزات الطاولات"   value={b.total}     icon={<Armchair size={18} />} />
         <GoldStat label="مشاهدات الكوفي"    value={v.total}     icon={<Eye size={18} />} />
-        <GoldStat label="زوار فريدون"        value={v.uniqueViewers} icon={<Users size={18} />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -3555,16 +3554,6 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد حجوزات بعد</p>}
         </SectionCard>
       </div>
-
-      {/* Visits & conversion */}
-      <SectionCard title="الزيارات والتحويل" icon={<Eye size={16} />}>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <GoldStat label="إجمالي المشاهدات"     value={v.total}            icon={<Eye size={18} />} />
-          <GoldStat label="زوار مميزون"          value={v.uniqueViewers}    icon={<Users size={18} />} />
-          <GoldStat label="زوار طلبوا"            value={v.viewsThatOrdered} icon={<ShoppingBag size={18} />} />
-          <GoldStat label="نسبة التحويل"          value={`${v.conversionRate}%`} icon={<TrendingUp size={18} />} accent="#10B981" />
-        </div>
-      </SectionCard>
 
       {/* Top products */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
