@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,8 +19,10 @@ import { useColors } from "@/hooks/useColors";
 import { apiFetch, apiPost } from "@/constants/api";
 import { loadSavedOrderInfo, saveOrderInfo } from "@/lib/savedOrderInfo";
 
+interface PriceTier { hours: number; price: number; }
 interface Table {
   id: string; cafeId: string; number: number; capacity: number; available: boolean;
+  hourlyPricing?: PriceTier[];
 }
 
 const TIME_SLOTS = [
@@ -39,14 +41,18 @@ export default function BookTableScreen() {
   const cafe = CAFES.find((c) => c.id === id) ?? CAFES[0];
 
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [guests, setGuests] = useState(2);
-  const [isBooked, setIsBooked] = useState(false);
+  const [guests, setGuests] = useState(1);
   const [tables, setTables]   = useState<Table[]>([]);
   const [loadingT, setLoadingT] = useState(true);
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [selectedTier, setSelectedTier] = useState<PriceTier | null>(null);
   const [name,  setName]  = useState("");
   const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Approval-tracking after a successful submit.
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<"pending" | "confirmed" | "cancelled" | null>(null);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
@@ -74,13 +80,58 @@ export default function BookTableScreen() {
     return () => { cancelled = true; };
   }, []);
 
+  // Whenever the table changes, clamp guests to its capacity and reset tier.
+  useEffect(() => {
+    if (!selectedTable) return;
+    setGuests(g => Math.min(g, selectedTable.capacity));
+    setSelectedTier(null);
+  }, [selectedTable]);
+
+  // Once a booking has been submitted, poll its status every 5 s so the
+  // customer sees the "✅ approved" confirmation as soon as the cafe admin
+  // taps "تأكيد". Uses useFocusEffect so the timer is paused (and cleared)
+  // whenever the user navigates away or the screen blurs — no background
+  // network chatter when this screen isn't visible.
+  useFocusEffect(
+    useCallback(() => {
+      if (!bookingId || bookingStatus !== "pending") return;
+      let cancelled = false;
+      const tick = async () => {
+        try {
+          const r = await apiFetch<{ bookings: any[] }>(`/cafe/${id}/bookings`);
+          if (cancelled) return;
+          const b = r.bookings?.find((x: any) => String(x.id) === String(bookingId));
+          if (b && b.status !== "pending") setBookingStatus(b.status);
+        } catch { /* keep polling */ }
+      };
+      tick();
+      const handle = setInterval(tick, 5000);
+      return () => { cancelled = true; clearInterval(handle); };
+    }, [bookingId, bookingStatus, id]),
+  );
+
+  const tiers: PriceTier[] = Array.isArray(selectedTable?.hourlyPricing) ? selectedTable!.hourlyPricing! : [];
+  const finalPrice = selectedTier ? Number(selectedTier.price) : null;
+
   const handleBook = async () => {
     if (!selectedTable) {
       Alert.alert("تنبيه", "يرجى اختيار طاولة");
       return;
     }
+    if (tiers.length === 0) {
+      Alert.alert("تنبيه", "هذه الطاولة بدون أسعار توقيت — راسل الكوفي");
+      return;
+    }
+    if (!selectedTier) {
+      Alert.alert("تنبيه", "اختر مدة الحجز (الساعات)");
+      return;
+    }
     if (!selectedTime) {
       Alert.alert("تنبيه", "يرجى اختيار الوقت");
+      return;
+    }
+    if (guests < 1 || guests > selectedTable.capacity) {
+      Alert.alert("تنبيه", `الطاولة ${selectedTable.number} تتسع لـ ${selectedTable.capacity} أشخاص فقط`);
       return;
     }
     if (!name.trim() || !phone.trim()) {
@@ -89,7 +140,7 @@ export default function BookTableScreen() {
     }
     setSubmitting(true);
     try {
-      await apiPost(`/cafe/${id}/bookings`, {
+      const r = await apiPost<{ booking: any }>(`/cafe/${id}/bookings`, {
         customerName: name.trim(),
         customerPhone: phone.trim(),
         tableId: selectedTable.id,
@@ -97,14 +148,12 @@ export default function BookTableScreen() {
         date: new Date().toISOString().substring(0, 10),
         time: selectedTime,
         guests,
+        hours: selectedTier.hours,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // Persist customer info so future bookings/orders are pre-filled
-      saveOrderInfo({
-        bookName:  name.trim(),
-        bookPhone: phone.trim(),
-      });
-      setIsBooked(true);
+      saveOrderInfo({ bookName:  name.trim(), bookPhone: phone.trim() });
+      setBookingId(String(r.booking?.id ?? ""));
+      setBookingStatus("pending");
     } catch (e: any) {
       Alert.alert("تعذّر الحجز", e?.message ?? "حاول مرة أخرى");
     } finally {
@@ -112,7 +161,22 @@ export default function BookTableScreen() {
     }
   };
 
-  if (isBooked) {
+  // ─── Result screen (after submit) ───────────────────────────
+  if (bookingStatus) {
+    const isConfirmed = bookingStatus === "confirmed";
+    const isCancelled = bookingStatus === "cancelled";
+    const stateColor  = isConfirmed ? colors.success
+                      : isCancelled ? "#E55353"
+                      : colors.primary;
+    const icon        = isConfirmed ? "check-circle"
+                      : isCancelled ? "x-circle"
+                      : "clock";
+    const title       = isConfirmed ? "✅ تم تأكيد حجزك"
+                      : isCancelled ? "❌ تم إلغاء طلب الحجز"
+                      : "⏳ في انتظار موافقة الكوفي";
+    const sub         = isConfirmed ? "نراك قريباً في "
+                      : isCancelled ? "للأسف لم يتمّ تأكيد طلبك في "
+                      : "أرسلنا طلبك إلى ";
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <TouchableOpacity
@@ -122,41 +186,61 @@ export default function BookTableScreen() {
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
         <View style={styles.successContainer}>
-          <View style={[styles.successIcon, { backgroundColor: colors.success + "20" }]}>
-            <Feather name="check-circle" size={64} color={colors.success} />
+          <View style={[styles.successIcon, { backgroundColor: stateColor + "20" }]}>
+            <Feather name={icon as any} size={64} color={stateColor} />
           </View>
-          <Text style={[styles.successTitle, { color: colors.foreground }]}>
-            Table Booked!
+          <Text style={[styles.successTitle, { color: colors.foreground, textAlign: "center" }]}>
+            {title}
           </Text>
-          <Text style={[styles.successSubtitle, { color: colors.mutedForeground }]}>
-            {cafe.name}
+          <Text style={[styles.successSubtitle, { color: colors.mutedForeground, textAlign: "center" }]}>
+            {sub}{cafe.name}
           </Text>
           <View style={[styles.bookingDetails, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.detailRow}>
+              <Feather name="grid" size={16} color={colors.primary} />
+              <Text style={[styles.detailText, { color: colors.foreground }]}>
+                طاولة {selectedTable?.number} • {selectedTable?.capacity} أشخاص
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
               <Feather name="clock" size={16} color={colors.primary} />
               <Text style={[styles.detailText, { color: colors.foreground }]}>
-                {selectedTime}
+                {selectedTime} • {selectedTier?.hours} ساعة
               </Text>
             </View>
             <View style={styles.detailRow}>
               <Feather name="users" size={16} color={colors.primary} />
               <Text style={[styles.detailText, { color: colors.foreground }]}>
-                {guests} {guests === 1 ? "guest" : "guests"}
+                {guests} {guests === 1 ? "شخص" : "أشخاص"}
               </Text>
             </View>
             <View style={styles.detailRow}>
-              <Feather name="map-pin" size={16} color={colors.primary} />
-              <Text style={[styles.detailText, { color: colors.foreground }]}>
-                {cafe.address}
+              <Feather name="dollar-sign" size={16} color={colors.primary} />
+              <Text style={[styles.detailText, { color: colors.foreground, fontWeight: "700" }]}>
+                {Number(finalPrice ?? 0).toFixed(3)} ر.ع.
               </Text>
             </View>
           </View>
+          {bookingStatus === "pending" && (
+            <View style={{
+              backgroundColor: colors.primary + "15",
+              borderColor:     colors.primary + "40",
+              borderWidth: 1, borderRadius: 14,
+              paddingHorizontal: 14, paddingVertical: 12,
+              flexDirection: "row", alignItems: "center", gap: 10,
+            }}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ color: colors.foreground, fontSize: 13, flex: 1 }}>
+                ستصلك رسالة تأكيد فور موافقة الكوفي على حجزك
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
             style={[styles.doneBtn, { backgroundColor: colors.primary }]}
             onPress={() => router.back()}
           >
             <Text style={[styles.doneBtnText, { color: colors.primaryForeground }]}>
-              Done
+              تم
             </Text>
           </TouchableOpacity>
         </View>
@@ -172,7 +256,7 @@ export default function BookTableScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-            Book a Table
+            حجز طاولة
           </Text>
           <Text style={[styles.headerSubtitle, { color: colors.mutedForeground }]}>
             {cafe.name}
@@ -220,12 +304,97 @@ export default function BookTableScreen() {
                       {t.number}
                     </Text>
                     <Text style={[styles.tableCap, { color: active ? colors.primaryForeground : colors.mutedForeground }]}>
-                      👥 {t.capacity}
+                      👥 حتى {t.capacity}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
+          )}
+        </View>
+
+        {/* ── Hourly pricing tiers ── */}
+        {selectedTable && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+              ⏱️  مدة الحجز / السعر
+            </Text>
+            {tiers.length === 0 ? (
+              <View style={[styles.emptyTables, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={{ fontSize: 12, color: "#E55353", textAlign: "center" }}>
+                  هذه الطاولة بدون أسعار توقيت — تواصل مع الكوفي
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.timesGrid}>
+                {tiers.map((tier) => {
+                  const active = selectedTier?.hours === tier.hours;
+                  return (
+                    <TouchableOpacity
+                      key={`${tier.hours}-${tier.price}`}
+                      style={[
+                        styles.tierCard,
+                        {
+                          backgroundColor: active ? colors.primary : colors.card,
+                          borderColor:     active ? colors.primary : colors.border,
+                        },
+                      ]}
+                      onPress={() => { Haptics.selectionAsync(); setSelectedTier(tier); }}
+                    >
+                      <Text style={[styles.tierHours, { color: active ? colors.primaryForeground : colors.foreground }]}>
+                        {tier.hours} ساعة
+                      </Text>
+                      <Text style={[styles.tierPrice, { color: active ? colors.primaryForeground : colors.primary }]}>
+                        {Number(tier.price).toFixed(3)} ر.ع
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ── Guests (capped to capacity) ── */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
+            عدد الأشخاص {selectedTable ? `(الحد الأقصى ${selectedTable.capacity})` : ""}
+          </Text>
+          <View style={[styles.guestsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity
+              style={[styles.guestBtn, { backgroundColor: colors.secondary }]}
+              onPress={() => setGuests(Math.max(1, guests - 1))}
+            >
+              <Feather name="minus" size={18} color={colors.secondaryForeground} />
+            </TouchableOpacity>
+            <View style={styles.guestCount}>
+              <Text style={[styles.guestNum, { color: colors.foreground }]}>{guests}</Text>
+              <Text style={[styles.guestLabel, { color: colors.mutedForeground }]}>
+                {guests === 1 ? "شخص" : "أشخاص"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.guestBtn,
+                {
+                  backgroundColor: selectedTable && guests >= selectedTable.capacity
+                    ? colors.muted : colors.primary,
+                  opacity: selectedTable && guests >= selectedTable.capacity ? 0.5 : 1,
+                },
+              ]}
+              disabled={!!selectedTable && guests >= selectedTable.capacity}
+              onPress={() => {
+                const cap = selectedTable?.capacity ?? 12;
+                setGuests(g => Math.min(cap, g + 1));
+              }}
+            >
+              <Feather name="plus" size={18} color={colors.primaryForeground} />
+            </TouchableOpacity>
+          </View>
+          {selectedTable && guests >= selectedTable.capacity && (
+            <Text style={{ fontSize: 11, color: "#E55353", marginTop: 6, textAlign: "center" }}>
+              وصلت إلى السعة القصوى لهذه الطاولة
+            </Text>
           )}
         </View>
 
@@ -255,31 +424,7 @@ export default function BookTableScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Number of Guests
-          </Text>
-          <View style={[styles.guestsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <TouchableOpacity
-              style={[styles.guestBtn, { backgroundColor: colors.secondary }]}
-              onPress={() => setGuests(Math.max(1, guests - 1))}
-            >
-              <Feather name="minus" size={18} color={colors.secondaryForeground} />
-            </TouchableOpacity>
-            <View style={styles.guestCount}>
-              <Text style={[styles.guestNum, { color: colors.foreground }]}>{guests}</Text>
-              <Text style={[styles.guestLabel, { color: colors.mutedForeground }]}>guests</Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.guestBtn, { backgroundColor: colors.primary }]}
-              onPress={() => setGuests(Math.min(12, guests + 1))}
-            >
-              <Feather name="plus" size={18} color={colors.primaryForeground} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-            Select Time
+            وقت الحجز
           </Text>
           <View style={styles.timesGrid}>
             {TIME_SLOTS.map((time) => (
@@ -316,6 +461,29 @@ export default function BookTableScreen() {
             ))}
           </View>
         </View>
+
+        {/* ── Final price preview ── */}
+        {finalPrice !== null && (
+          <View style={[styles.section, { marginBottom: 12 }]}>
+            <View style={{
+              backgroundColor: colors.primary + "15",
+              borderColor: colors.primary + "50",
+              borderWidth: 1,
+              borderRadius: 16,
+              padding: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}>
+              <Text style={{ fontSize: 14, color: colors.foreground, fontWeight: "600" }}>
+                💰 سعر الحجز النهائي
+              </Text>
+              <Text style={{ fontSize: 22, fontWeight: "800", color: colors.primary }}>
+                {finalPrice.toFixed(3)} ر.ع
+              </Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: bottomPadding + 8 }]}>
@@ -323,28 +491,30 @@ export default function BookTableScreen() {
           style={[
             styles.bookBtn,
             {
-              backgroundColor: (selectedTime && selectedTable && !submitting) ? colors.primary : colors.muted,
+              backgroundColor: (selectedTime && selectedTable && selectedTier && !submitting) ? colors.primary : colors.muted,
             },
           ]}
           onPress={handleBook}
-          disabled={!selectedTime || !selectedTable || submitting}
+          disabled={!selectedTime || !selectedTable || !selectedTier || submitting}
         >
           <Feather
             name="calendar"
             size={20}
-            color={(selectedTime && selectedTable) ? colors.primaryForeground : colors.mutedForeground}
+            color={(selectedTime && selectedTable && selectedTier) ? colors.primaryForeground : colors.mutedForeground}
           />
           <Text
             style={[
               styles.bookBtnText,
               {
-                color: (selectedTime && selectedTable) ? colors.primaryForeground : colors.mutedForeground,
+                color: (selectedTime && selectedTable && selectedTier) ? colors.primaryForeground : colors.mutedForeground,
               },
             ]}
           >
             {submitting
               ? "جاري الحجز..."
-              : `تأكيد الحجز ${selectedTable ? `• طاولة ${selectedTable.number}` : ""} ${selectedTime ? `• ${selectedTime}` : ""}`}
+              : finalPrice !== null
+                ? `طلب الحجز • ${finalPrice.toFixed(3)} ر.ع`
+                : "اختر الطاولة والمدة"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -404,6 +574,12 @@ const styles = StyleSheet.create({
   },
   tableNum: { fontSize: 22, fontFamily: "Inter_700Bold" },
   tableCap: { fontSize: 11, fontFamily: "Inter_500Medium" },
+  tierCard: {
+    width: "30%", paddingVertical: 14, borderRadius: 14, borderWidth: 1,
+    alignItems: "center", gap: 4,
+  },
+  tierHours: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  tierPrice: { fontSize: 13, fontFamily: "Inter_700Bold" },
   emptyTables: {
     paddingVertical: 28, paddingHorizontal: 16,
     borderRadius: 14, borderWidth: 1, alignItems: "center",
@@ -452,8 +628,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  successTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
-  successSubtitle: { fontSize: 16, fontFamily: "Inter_400Regular" },
+  successTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  successSubtitle: { fontSize: 15, fontFamily: "Inter_400Regular" },
   bookingDetails: {
     width: "100%",
     borderRadius: 16,

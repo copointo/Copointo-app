@@ -4,6 +4,7 @@ import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
+  bookings,
   usernameRegistry, cafeRatings, getCafeRatingStats,
   persistStore, type AppUser,
 } from "../store";
@@ -122,6 +123,17 @@ router.get("/user-status", (req, res) => {
     gameSuspendReason:  (u.gameBanned || isSuspended) ? (u.gameSuspendReason ?? null) : null,
     gameSuspendedAt:    (u.gameBanned || isSuspended) ? (u.gameSuspendedAt ?? null) : null,
   });
+});
+
+// Public — list a customer's table bookings (mobile notifications screen)
+// so they see a confirmation message once the cafe approves their request.
+router.get("/bookings", (req, res) => {
+  const phone = String(req.query.phone ?? "").trim();
+  if (!phone) { res.json({ bookings: [] }); return; }
+  const list = bookings
+    .filter(b => b.customerPhone === phone)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json({ bookings: list });
 });
 
 // Public — list free coffees a user has earned (mobile notifications screen).

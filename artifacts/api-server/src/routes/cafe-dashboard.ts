@@ -393,15 +393,97 @@ router.post("/free-coffees/redeem", (req: any, res) => {
 router.get("/bookings", (req: any, res) => {
   res.json({ bookings: bookings.filter(b => b.cafeId === req.params.cafeId) });
 });
-router.post("/bookings", (req: any, res) => {
-  const b: TableBooking = { id: Date.now().toString(), cafeId: req.params.cafeId, status: "pending", createdAt: new Date().toISOString(), ...req.body };
+router.post("/bookings", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const body = req.body ?? {};
+  const tableId = String(body.tableId ?? "");
+  const guests  = Number(body.guests) || 0;
+  const hours   = Number(body.hours) || 0;
+
+  const table = tables.find(t => t.id === tableId && t.cafeId === cafeId);
+  if (!table) return res.status(404).json({ error: "الطاولة غير موجودة" });
+
+  // ── Capacity guard ───────────────────────────────────────────
+  if (guests < 1) return res.status(400).json({ error: "عدد الأشخاص غير صحيح" });
+  if (guests > table.capacity) {
+    return res.status(400).json({
+      error: `الطاولة ${table.number} تتسع لـ ${table.capacity} أشخاص فقط`,
+    });
+  }
+
+  // ── Hourly pricing guard (now mandatory) ─────────────────────
+  const tiers = Array.isArray(table.hourlyPricing) ? table.hourlyPricing : [];
+  if (tiers.length === 0) {
+    return res.status(400).json({ error: "لم يحدّد الكوفي أسعار التواقيت لهذه الطاولة" });
+  }
+  if (!hours) {
+    return res.status(400).json({ error: "اختر مدة الحجز (الساعات)" });
+  }
+  const tier = tiers.find(t => Number(t.hours) === hours);
+  if (!tier) {
+    return res.status(400).json({ error: "المدة المختارة غير متوفرة لهذه الطاولة" });
+  }
+
+  const totalPrice = +Number(tier.price).toFixed(3);
+
+  const cafe = cafes.find(c => c.id === cafeId);
+  const b: TableBooking = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+    cafeId,
+    cafeName: cafe?.name,
+    customerName: String(body.customerName ?? "").trim(),
+    customerPhone: String(body.customerPhone ?? "").trim(),
+    tableId,
+    tableNumber: table.number,
+    tableCapacity: table.capacity,
+    date: String(body.date ?? new Date().toISOString().substring(0, 10)),
+    time: String(body.time ?? ""),
+    guests,
+    hours,
+    hourPrice: +Number(tier.price).toFixed(3),
+    totalPrice,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  };
   bookings.push(b);
   res.status(201).json({ booking: b });
 });
-router.patch("/bookings/:bookingId/status", (req, res) => {
+router.patch("/bookings/:bookingId/status", (req, res): any => {
   const booking = bookings.find(b => b.id === req.params.bookingId);
   if (!booking) return res.status(404).json({ error: "Not found" });
-  booking.status = req.body.status;
+  const prev = booking.status;
+  // Strict status enum — reject anything outside the three known states.
+  const ALLOWED: TableBooking["status"][] = ["pending", "confirmed", "cancelled"];
+  const next = req.body?.status as TableBooking["status"];
+  if (!ALLOWED.includes(next)) {
+    return res.status(400).json({ error: "حالة الحجز غير صالحة" });
+  }
+  booking.status = next;
+
+  // First time the booking transitions to confirmed → generate an invoice
+  // (so it shows up in revenue, daily/monthly/yearly aggregates, and the
+  // admin's print history).
+  if (prev !== "confirmed" && next === "confirmed") {
+    booking.confirmedAt = new Date().toISOString();
+    if (!booking.invoiceId) {
+      const inv: Invoice = {
+        id: `inv-bk-${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+        cafeId: booking.cafeId,
+        orderId: booking.id,
+        customerName: booking.customerName,
+        items: [{
+          name: `حجز طاولة ${booking.tableNumber} • ${booking.hours ?? 0} ساعة`,
+          qty: 1,
+          price: Number(booking.totalPrice ?? 0),
+        }],
+        total: Number(booking.totalPrice ?? 0),
+        type: "booking",
+        createdAt: booking.confirmedAt,
+      };
+      invoices.push(inv);
+      booking.invoiceId = inv.id;
+    }
+  }
   res.json({ booking });
 });
 
@@ -480,14 +562,35 @@ router.delete("/menu/:itemId", (req, res) => {
 router.get("/tables", (req: any, res) => {
   res.json({ tables: tables.filter(t => t.cafeId === req.params.cafeId) });
 });
-router.post("/tables", (req: any, res) => {
+function validateHourlyPricing(body: any): string | null {
+  const tiers = Array.isArray(body?.hourlyPricing) ? body.hourlyPricing : [];
+  if (tiers.length === 0) {
+    return "أسعار التواقيت مطلوبة — أضف على الأقل سعر ساعة واحدة";
+  }
+  for (const t of tiers) {
+    const h = Number(t?.hours), p = Number(t?.price);
+    if (!Number.isFinite(h) || h < 1 || !Number.isFinite(p) || p < 0) {
+      return "تأكد من إدخال الساعات والسعر بشكل صحيح في كل صف";
+    }
+  }
+  return null;
+}
+router.post("/tables", (req: any, res): any => {
+  const err = validateHourlyPricing(req.body);
+  if (err) return res.status(400).json({ error: err });
   const t: CafeTable = { id: Date.now().toString(), cafeId: req.params.cafeId, available: true, createdAt: new Date().toISOString(), ...req.body };
   tables.push(t);
   res.status(201).json({ table: t });
 });
-router.patch("/tables/:tableId", (req, res) => {
+router.patch("/tables/:tableId", (req, res): any => {
   const t = tables.find(x => x.id === req.params.tableId);
   if (!t) return res.status(404).json({ error: "Not found" });
+  // If hourlyPricing is being replaced, validate it. (Editing other fields
+  // without touching pricing is allowed.)
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "hourlyPricing")) {
+    const err = validateHourlyPricing(req.body);
+    if (err) return res.status(400).json({ error: err });
+  }
   Object.assign(t, req.body);
   res.json({ table: t });
 });

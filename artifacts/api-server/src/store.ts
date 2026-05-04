@@ -73,9 +73,22 @@ export interface CafeView {
   source?: string; viewedAt: string;
 }
 export interface TableBooking {
-  id: string; cafeId: string; customerName: string; customerPhone: string;
-  tableId: string; tableNumber: number; date: string; time: string;
-  guests: number; status: "pending" | "confirmed" | "cancelled"; createdAt: string;
+  id: string; cafeId: string; cafeName?: string;
+  customerName: string; customerPhone: string;
+  tableId: string; tableNumber: number; tableCapacity?: number;
+  date: string; time: string;
+  guests: number;
+  /** Number of hours booked (matches one of the table's hourlyPricing tiers). */
+  hours?: number;
+  /** Price snapshot of the chosen tier (OMR). */
+  hourPrice?: number;
+  /** Final price = hourPrice (one tier total). */
+  totalPrice?: number;
+  status: "pending" | "confirmed" | "cancelled";
+  confirmedAt?: string;
+  /** ID of the Invoice generated when this booking was confirmed. */
+  invoiceId?: string;
+  createdAt: string;
 }
 export interface ChatInfo {
   id: string; cafeId: string; topic: string; content: string; createdAt: string;

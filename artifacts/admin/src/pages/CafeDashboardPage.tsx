@@ -1048,7 +1048,7 @@ function BookingsTab({ id }: { id: string }) {
   useEffect(() => { load(); }, [load]);
   const change = async (bid: string, status: string) => {
     await api.cafeBookingStatus(id, bid, status);
-    setBookings(prev => prev.map(b => b.id === bid ? { ...b, status } : b));
+    setBookings(prev => prev.map(b => b.id === bid ? { ...b, status, confirmedAt: status === "confirmed" ? new Date().toISOString() : b.confirmedAt } : b));
   };
   return (
     <div className="space-y-4">
@@ -1062,22 +1062,78 @@ function BookingsTab({ id }: { id: string }) {
             </div>
             <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[b.status]}`}>{STATUS_AR[b.status]}</span>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-sm mb-3">
-            <div><p className="text-muted-foreground text-xs">الطاولة</p><p className="text-foreground font-medium">{b.tableNumber}</p></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+            <div><p className="text-muted-foreground text-xs">الطاولة</p><p className="text-foreground font-medium">{b.tableNumber} {b.tableCapacity ? <span className="text-muted-foreground text-[10px]">({b.tableCapacity})</span> : null}</p></div>
             <div><p className="text-muted-foreground text-xs">التاريخ</p><p className="text-foreground font-medium">{b.date}</p></div>
             <div><p className="text-muted-foreground text-xs">الوقت</p><p className="text-foreground font-medium">{b.time}</p></div>
+            <div><p className="text-muted-foreground text-xs">الأشخاص</p><p className="text-foreground font-medium">👥 {b.guests}</p></div>
           </div>
-          <div className="flex gap-2 pt-3 border-t border-border">
+          {(b.hours || b.totalPrice) && (
+            <div className="grid grid-cols-2 gap-3 text-sm mb-3 p-2.5 rounded-lg bg-primary/8 border border-primary/20">
+              {b.hours ? (
+                <div><p className="text-muted-foreground text-[10px]">⏱️ المدة</p><p className="text-foreground font-semibold">{b.hours} ساعة</p></div>
+              ) : null}
+              {typeof b.totalPrice === "number" ? (
+                <div><p className="text-muted-foreground text-[10px]">💰 سعر الحجز</p><p className="text-primary font-bold">{Number(b.totalPrice).toFixed(3)} OMR</p></div>
+              ) : null}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
             {b.status === "pending" && <>
               <button onClick={() => change(b.id,"confirmed")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-500/15 text-green-400 text-xs font-semibold hover:bg-green-500/25"><CheckCircle size={13}/>تأكيد</button>
               <button onClick={() => change(b.id,"cancelled")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 text-xs font-semibold hover:bg-red-500/25">إلغاء</button>
             </>}
-            {b.status === "confirmed" && <button onClick={() => change(b.id,"cancelled")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 text-xs font-semibold hover:bg-red-500/25">إلغاء الحجز</button>}
+            {b.status === "confirmed" && <>
+              <button
+                onClick={() => printBookingInvoice(id, b)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 text-primary text-xs font-semibold hover:bg-primary/30"
+              >
+                <Printer size={13}/> طباعة فاتورة
+              </button>
+              <button onClick={() => change(b.id,"cancelled")} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/15 text-red-400 text-xs font-semibold hover:bg-red-500/25">إلغاء الحجز</button>
+            </>}
           </div>
         </Card>
       ))}
     </div>
   );
+}
+
+// Print a thermal-receipt invoice for a confirmed table booking. Uses the
+// existing "order" template (logo, footer) so the look matches food invoices.
+async function printBookingInvoice(id: string, b: any) {
+  let tpl: any = null;
+  try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
+  const total = Number(b.totalPrice ?? 0);
+  const dateLabel = b.confirmedAt
+    ? new Date(b.confirmedAt).toLocaleString("ar-OM")
+    : new Date(b.createdAt).toLocaleString("ar-OM");
+
+  const body = `
+${tplHeaderHtml(tpl, `فاتورة حجز / Booking #${String(b.id).slice(-6)}`, "")}
+<tr><td class="cell info-cell">
+  <div><b>الزبون / Customer:</b> ${b.customerName ?? "-"}</div>
+  <div><b>الهاتف / Phone:</b> ${b.customerPhone ?? "-"}</div>
+  <div><b>الطاولة / Table:</b> ${b.tableNumber}${b.tableCapacity ? ` (سعة ${b.tableCapacity} أشخاص)` : ""}</div>
+  <div><b>التاريخ / Date:</b> ${b.date} • ${b.time ?? "-"}</div>
+  <div><b>عدد الأشخاص / Guests:</b> ${b.guests}</div>
+  <div><b>تاريخ الإصدار / Issued:</b> ${dateLabel}</div>
+</td></tr>
+<tr><td class="cell sec-title-cell">تفاصيل الحجز / Booking Details</td></tr>
+<tr><td class="cell items-cell"><table class="items">
+  <thead><tr><th>البيان<br>Item</th><th>المدة<br>Hours</th><th>السعر<br>Price</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>حجز طاولة ${b.tableNumber}<br>Table booking</td>
+      <td style="text-align:center">${b.hours ?? "-"}</td>
+      <td style="text-align:left">${total.toFixed(3)}</td>
+    </tr>
+  </tbody>
+</table></td></tr>
+<tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${total.toFixed(3)} ر.ع / OMR</span></td></tr>
+${tplFooterHtml(tpl)}
+  `;
+  openPrintWindow(`فاتورة حجز / Booking #${String(b.id).slice(-6)}`, body);
 }
 
 // ── Menu Tab ──────────────────────────────────────────────────
@@ -1633,7 +1689,7 @@ function TablesTab({ id }: { id: string }) {
     setFormErr("");
     if (!form.number || !form.capacity) return;
 
-    // Validate hourly pricing tiers (only non-empty rows count)
+    // Hourly pricing is now MANDATORY — at least one tier with valid values.
     const tiers: { hours: number; price: number }[] = [];
     for (const t of form.hourlyPricing) {
       if (!t.hours && !t.price) continue;
@@ -1643,6 +1699,10 @@ function TablesTab({ id }: { id: string }) {
         return;
       }
       tiers.push({ hours: Math.floor(h), price: p });
+    }
+    if (tiers.length === 0) {
+      setFormErr("أسعار التواقيت مطلوبة — أضف على الأقل سعر ساعة واحدة");
+      return;
     }
     tiers.sort((a, b) => a.hours - b.hours);
 
@@ -1752,8 +1812,8 @@ function TablesTab({ id }: { id: string }) {
           <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <label className="block text-xs font-semibold text-foreground">⏱️ أسعار التواقيت (اختياري)</label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">عدد الساعات والسعر المقابل لها</p>
+                <label className="block text-xs font-semibold text-foreground">⏱️ أسعار التواقيت <span className="text-red-400">*</span></label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">مطلوب — عدد الساعات والسعر المقابل لها (الزبون يختار من بين هذه التسعيرات)</p>
               </div>
               <button
                 type="button"
@@ -1764,7 +1824,7 @@ function TablesTab({ id }: { id: string }) {
               </button>
             </div>
             {form.hourlyPricing.length === 0 && (
-              <p className="text-[11px] text-muted-foreground text-center py-2">لا توجد أسعار تواقيت — اضغط "إضافة سعر" لبدء التسعير</p>
+              <p className="text-[11px] text-red-400 text-center py-2">⚠️ مطلوب — اضغط "إضافة سعر" لبدء التسعير</p>
             )}
             <div className="space-y-2">
               {form.hourlyPricing.map((tier, idx) => (
@@ -1894,11 +1954,43 @@ function aggregateExpenses(expList: any[], from: Date, to: Date) {
 }
 
 async function loadAggData(id: string) {
-  const [{ orders }, { expenses }] = await Promise.all([
+  const [{ orders }, { expenses }, bk] = await Promise.all([
     api.cafeOrders(id),
     api.expenses(id).catch(() => ({ expenses: [] })),
+    api.cafeBookings(id).catch(() => ({ bookings: [] })),
   ]);
-  return { orders: orders ?? [], expenses: expenses ?? [] };
+  return { orders: orders ?? [], expenses: expenses ?? [], bookings: bk?.bookings ?? [] };
+}
+
+// Aggregate confirmed bookings within a date window. Only "confirmed" bookings
+// count toward revenue (matches what the server stores as an Invoice on
+// confirmation). The timestamp used is `confirmedAt` if present, otherwise the
+// booking's `createdAt`.
+function aggregateBookings(bookingList: any[], from: Date, to: Date) {
+  const inRange = bookingList.filter(b => {
+    if (b.status !== "confirmed") return false;
+    const t = new Date(b.confirmedAt ?? b.createdAt).getTime();
+    return t >= from.getTime() && t < to.getTime();
+  });
+  const total = inRange.reduce((s, b) => s + (Number(b.totalPrice) || 0), 0);
+  const totalGuests = inRange.reduce((s, b) => s + (Number(b.guests) || 0), 0);
+  const totalHours  = inRange.reduce((s, b) => s + (Number(b.hours)  || 0), 0);
+  return { inRange, total, totalGuests, totalHours };
+}
+
+function bookingsBlockHtml(b: { inRange: any[]; total: number; totalGuests: number; totalHours: number }, label: string) {
+  if (b.inRange.length === 0) return "";
+  const rows = b.inRange.map(x =>
+    `<tr><td>#${String(x.id).slice(-5)}</td><td>${x.customerName ?? "-"}</td><td style="text-align:center">${x.tableNumber}</td><td style="text-align:center">${x.hours ?? "-"}س</td><td style="text-align:center">${x.guests ?? "-"}</td><td style="text-align:left">${(Number(x.totalPrice) || 0).toFixed(3)}</td></tr>`
+  ).join("");
+  return `
+<tr><td class="cell sec-title-cell">حجوزات الطاولات / Table Bookings (${label})</td></tr>
+<tr><td class="cell items-cell"><table class="items">
+  <thead><tr><th>رقم<br>No.</th><th>الزبون<br>Customer</th><th>الطاولة<br>Tbl</th><th>المدة<br>Hrs</th><th>الأشخاص<br>Pax</th><th>المبلغ<br>Amount</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">إجمالي الحجوزات / Bookings Total (${b.inRange.length})</span><span class="val">${b.total.toFixed(3)} ر.ع / OMR</span></td></tr>
+`;
 }
 
 function fmtDateAr(d: Date) { return d.toLocaleDateString("ar-OM"); }
@@ -1997,11 +2089,13 @@ ${tplFooterHtml(tpl)}
 
 async function printDailyInvoice(id: string, dateStr: string): Promise<{ from: Date; to: Date; count: number }> {
   const tpl = (await api.invoiceTemplate(id, "daily").catch(() => ({ template: null }))).template;
-  const { orders } = await loadAggData(id);
+  const { orders, bookings } = await loadAggData(id);
   const from = new Date(dateStr + "T00:00:00");
   const to   = new Date(from); to.setDate(to.getDate() + 1);
   const agg = aggregateOrders(orders, from, to);
   const { inRange, byCat, total } = agg;
+  const bookAgg = aggregateBookings(bookings, from, to);
+  const grandTotal = total + bookAgg.total;
 
   const ordersRows = inRange.map(o => {
     const pm = o.paymentMethod === "cash" ? "💵"
@@ -2027,22 +2121,26 @@ ${tplHeaderHtml(tpl, "الفاتورة اليومية / Daily Invoice", `${fmtDa
   ? `<div class="empty-inner">لا يوجد / None</div>`
   : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
 ${paymentBreakdownRows(agg)}
-<tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم / Daily Total</span><span class="val">${total.toFixed(3)} ر.ع / OMR</span></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مبيعات الطلبات / Orders Revenue</span><span class="val">${total.toFixed(3)} ر.ع / OMR</span></td></tr>
+${bookingsBlockHtml(bookAgg, "اليوم / Today")}
+<tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم / Daily Total</span><span class="val">${grandTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
   openPrintWindow(`فاتورة يومية / Daily ${dateStr}`, body);
-  return { from, to, count: inRange.length };
+  return { from, to, count: inRange.length + bookAgg.inRange.length };
 }
 
 async function printMonthlyInvoice(id: string, year: number, month: number) {
   const tpl = (await api.invoiceTemplate(id, "monthly").catch(() => ({ template: null }))).template;
-  const { orders, expenses } = await loadAggData(id);
+  const { orders, expenses, bookings } = await loadAggData(id);
   const from = new Date(year, month - 1, 1);
   const to   = new Date(year, month,     1);
   const agg = aggregateOrders(orders, from, to);
   const { inRange: ordersIn, byCat, total: ordersTotal } = agg;
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
-  const net = ordersTotal - expTotal;
+  const bookAgg = aggregateBookings(bookings, from, to);
+  const revenue = ordersTotal + bookAgg.total;
+  const net = revenue - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
     `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
   ).join("");
@@ -2059,7 +2157,9 @@ ${tplHeaderHtml(tpl, "الفاتورة الشهرية / Monthly Invoice", `${mon
   ? `<div class="empty-inner">لا يوجد / None</div>`
   : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
 ${paymentBreakdownRows(agg)}
-<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات / Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مبيعات الطلبات / Orders Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+${bookingsBlockHtml(bookAgg, monthName)}
+<tr><td class="cell row-cell"><span class="lbl">إجمالي الإيرادات / Total Revenue</span><span class="val">${revenue.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 <tr><td class="cell total-cell"><span class="lbl">الصافي / Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
@@ -2069,13 +2169,15 @@ ${tplFooterHtml(tpl)}
 
 async function printYearlyInvoice(id: string, year: number) {
   const tpl = (await api.invoiceTemplate(id, "yearly").catch(() => ({ template: null }))).template;
-  const { orders, expenses } = await loadAggData(id);
+  const { orders, expenses, bookings } = await loadAggData(id);
   const from = new Date(year, 0, 1);
   const to   = new Date(year + 1, 0, 1);
   const agg = aggregateOrders(orders, from, to);
   const { inRange: ordersIn, byCat, total: ordersTotal } = agg;
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
-  const net = ordersTotal - expTotal;
+  const bookAgg = aggregateBookings(bookings, from, to);
+  const revenue = ordersTotal + bookAgg.total;
+  const net = revenue - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
     `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
   ).join("");
@@ -2091,7 +2193,9 @@ ${tplHeaderHtml(tpl, "الفاتورة السنوية / Yearly Invoice", `سنة
   ? `<div class="empty-inner">لا يوجد / None</div>`
   : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
 ${paymentBreakdownRows(agg)}
-<tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات / Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">مبيعات الطلبات / Orders Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+${bookingsBlockHtml(bookAgg, `سنة / Year ${year}`)}
+<tr><td class="cell row-cell"><span class="lbl">إجمالي الإيرادات / Total Revenue</span><span class="val">${revenue.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 <tr><td class="cell total-cell"><span class="lbl">الصافي السنوي / Yearly Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
