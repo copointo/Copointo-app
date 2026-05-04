@@ -605,6 +605,28 @@ router.delete("/tables/:tableId", (req, res) => {
 router.get("/chat", (req: any, res) => {
   res.json({ items: chatInfos.filter(c => c.cafeId === req.params.cafeId) });
 });
+
+// Public endpoint: top-selling items by total quantity ordered.
+// Returns ONLY item name + qty count — never revenue, customer info, or
+// other sensitive cafe data. Used by the in-app chat assistant to answer
+// "what's the most popular drink?" without exposing sales/profit numbers.
+router.get("/popular-items", (req: any, res) => {
+  const cafeId = req.params.cafeId;
+  const counts = new Map<string, number>();
+  for (const o of orders) {
+    if (o.cafeId !== cafeId) continue;
+    for (const it of o.items || []) {
+      const key = String(it.name || "").trim();
+      if (!key) continue;
+      counts.set(key, (counts.get(key) || 0) + Number(it.qty || 0));
+    }
+  }
+  const items = Array.from(counts.entries())
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 5);
+  res.json({ items });
+});
 router.post("/chat", (req: any, res) => {
   const item: ChatInfo = { id: Date.now().toString(), cafeId: req.params.cafeId, createdAt: new Date().toISOString(), ...req.body };
   chatInfos.push(item);

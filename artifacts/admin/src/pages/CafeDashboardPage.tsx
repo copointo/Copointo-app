@@ -4119,8 +4119,17 @@ function ReelsTab({ id }: { id: string }) {
             <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-black/30 cursor-pointer hover:border-[#E8B86D]/50">
               <Upload className="w-4 h-4 text-[#E8B86D]" />
               <span className="text-sm text-white/70">{videoFile ? videoFile.name : "اختيار ملف…"}</span>
-              <input type="file" accept="video/*,.mkv,.avi,.wmv,.flv,.3gp,.3g2,.mts,.m2ts,.ts,.ogv,.mxf,.f4v,.vob,.hevc,.h264,.h265" className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0] ?? null)} />
+              {/*
+                accept="video/*" alone is the universally-supported value. Earlier we
+                also listed many uncommon container extensions (.mkv, .hevc, .vob, .mxf,
+                .f4v, .h264, .h265, …) which made some mobile browsers (Safari iOS,
+                some Android Chrome builds) silently refuse to open the file picker
+                because they don't recognise those extension tokens. Keep the long
+                extension fallback inside `handleFile` instead so any video the OS
+                lets the user pick is still accepted.
+              */}
+              <input type="file" accept="video/*" className="hidden"
+                onChange={(e) => { handleFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
             </label>
             {origInfo && (
               <div className="mt-2 text-xs text-white/60">

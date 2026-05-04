@@ -25,7 +25,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Features**:
   - Home screen with cafe listings, search, and category filter
   - Cafe detail with menu (hot/cold/dessert), cart, and ordering
-  - AI Chat (Copointo Bot) per cafe
+  - AI Chat (Copointo Bot) per cafe — fully data-aware assistant: on mount fetches `/cafes/:id`, `/cafe/:id/menu`, `/cafe/:id/tables`, `/cafe/:id/chat` (admin Q&A), and `/cafe/:id/popular-items` (top 5 by qty, NO revenue/customer info). Free-text mode answers Arabic+English keyword queries about menu, prices, location, hours, popular items, and admin-curated chatInfos. Two step-by-step assisted flows with quick-reply chips: (1) **Order** — pick item → qty → add more or finish → dine vs car → name → phone → table# (dine) OR plate symbol+number (car) → confirm → `POST /cafe/:id/orders` with `source:"chat"`. (2) **Booking** — pick table → pick price tier → guests (capped to capacity) → time slot → name → phone → confirm → `POST /cafe/:id/bookings`. Universal "❌ إلغاء" exits any flow. Pre-fills name/phone from previous orders via `loadSavedOrderInfo()`. NEVER exposes profit/sales counts/manager password/owner phone/customer phones.
   - Table booking with mandatory hourly pricing & approval flow
   - TikTok-style vertical video feed
   - Messaging hub (user-to-user and user-to-cafe)
