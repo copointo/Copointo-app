@@ -1,13 +1,17 @@
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -86,6 +90,7 @@ export default function HomeScreen() {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
   const r       = useResponsive();
+  const router  = useRouter();
   const { user } = useApp();
   const [search,      setSearch]      = useState("");
   const [rawCafes,    setRawCafes]    = useState<ApiCafe[]>([]);
@@ -94,7 +99,39 @@ export default function HomeScreen() {
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
   const [userLoc,     setUserLoc]     = useState<{ lat: number; lng: number } | null>(null);
+  const [openingMap,  setOpeningMap]  = useState(false);
   const locRequested = useRef(false);
+
+  // "Cafes on the map" button handler — first asks for location permission
+  // (so the map can show the user pin), then routes to /cafes-map.
+  // If the user denies permission we still proceed to the map so they can at
+  // least see all cafe pins; this matches the existing pattern in cafe/[id].tsx.
+  const openMap = useCallback(async () => {
+    if (openingMap) return;
+    setOpeningMap(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const current = await Location.getForegroundPermissionsAsync();
+      let status = current.status;
+      if (status !== "granted" && current.canAskAgain) {
+        const r = await Location.requestForegroundPermissionsAsync();
+        status = r.status;
+      }
+      if (status === "granted") {
+        try {
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        } catch { /* ignore — we still open the map */ }
+      } else if (current.status === "denied" && !current.canAskAgain) {
+        // Inform the user once but don't block them from seeing the cafe pins.
+        Alert.alert("الموقع مغلق", "فعّل صلاحية الموقع من إعدادات التطبيق لإظهار موقعك على الخريطة.");
+      }
+    } catch { /* permission API failed — proceed anyway */ }
+    finally {
+      setOpeningMap(false);
+      router.push("/cafes-map" as any);
+    }
+  }, [openingMap, router]);
 
   // Request location once on mount
   useEffect(() => {
@@ -165,6 +202,26 @@ export default function HomeScreen() {
           <SearchBar value={search} onChangeText={setSearch} placeholder="ابحث عن كوفي..." />
         </View>
 
+        {/* ── الكافيهات في الخريطة ── */}
+        <TouchableOpacity
+          onPress={openMap}
+          activeOpacity={0.85}
+          style={[styles.mapBtn, { backgroundColor: colors.card, borderColor: "rgba(232,184,109,0.35)" }]}
+        >
+          <View style={styles.mapBtnIcon}>
+            <Feather name="map" size={18} color="#000" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.mapBtnTitle, { color: colors.foreground }]}>الكافيهات في الخريطة</Text>
+            <Text style={[styles.mapBtnSub, { color: colors.mutedForeground }]}>
+              شاهد جميع الكافيهات المسجّلة على الخريطة
+            </Text>
+          </View>
+          {openingMap
+            ? <ActivityIndicator size="small" color={colors.primary ?? "#E8B86D"} />
+            : <Feather name="chevron-left" size={20} color={colors.mutedForeground} />}
+        </TouchableOpacity>
+
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الكوفيهات القريبة</Text>
           <Text style={[styles.count, { color: colors.mutedForeground }]}>{filtered.length} كوفي</Text>
@@ -210,7 +267,20 @@ const styles = StyleSheet.create({
   userName:      { fontSize: 22, fontFamily: "Inter_700Bold" },
   scroll:        { flex: 1 },
   scrollContent: { paddingHorizontal: 20 },
-  searchWrapper: { marginBottom: 16 },
+  searchWrapper: { marginBottom: 12 },
+  mapBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderWidth: 1, borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 12,
+    marginBottom: 16,
+  },
+  mapBtnIcon: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: "#E8B86D",
+    alignItems: "center", justifyContent: "center",
+  },
+  mapBtnTitle: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  mapBtnSub:   { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
   sectionTitle:  { fontSize: 18, fontFamily: "Inter_700Bold" },
   count:         { fontSize: 13, fontFamily: "Inter_400Regular" },
