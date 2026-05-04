@@ -407,6 +407,22 @@ export default function CafeLandingScreen() {
                   />
                 </Animated.View>
                 <Text style={styles.actionSquareLabel}>{a.label}</Text>
+
+                {/* Cart/history overlay button — opens past 30-day purchase
+                    history + current cart for this cafe. Stops propagation
+                    so the parent action card does not fire. */}
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    Haptics.selectionAsync();
+                    router.push(`/cafe/${id}/history` as any);
+                  }}
+                  activeOpacity={0.85}
+                  hitSlop={{ top: 8, left: 8, right: 8, bottom: 8 }}
+                  style={styles.cartBadge}
+                >
+                  <Feather name="shopping-bag" size={16} color="#FFF" />
+                </TouchableOpacity>
               </ImageBackground>
             </TouchableOpacity>
           ))}
@@ -671,6 +687,18 @@ const styles = StyleSheet.create({
 
   // Background photo image style (for ImageBackground imageStyle prop)
   actionBgImage: { borderRadius: 22 },
+
+  // Small cart/history overlay badge anchored to the top-left of each big
+  // action card (RTL → top-left visually = "leading edge").
+  cartBadge: {
+    position: "absolute", top: 10, left: 10,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "rgba(232,184,109,0.95)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.45)",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4, shadowRadius: 4, elevation: 6,
+  },
 
   // Shimmer sweep strip
   shimmerStrip: {

@@ -4,7 +4,7 @@ import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
-  bookings,
+  bookings, orders,
   usernameRegistry, cafeRatings, getCafeRatingStats,
   persistStore, type AppUser,
 } from "../store";
@@ -134,6 +134,23 @@ router.get("/bookings", (req, res) => {
     .filter(b => b.customerPhone === phone)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   res.json({ bookings: list });
+});
+
+// Public — list a customer's past orders across all cafes (mobile cafe-history
+// screen). Joins each order with its cafe name so the mobile UI can render it
+// without an extra round trip. Optional `cafeId` query filters to a single
+// café. Mobile keeps a 30-day window client-side.
+router.get("/orders", (req, res) => {
+  const phone  = String(req.query.phone ?? "").trim();
+  const cafeId = String(req.query.cafeId ?? "").trim();
+  if (!phone) { res.json({ orders: [] }); return; }
+  const cafeNameById = new Map(cafes.map(c => [c.id, c.name]));
+  const list = orders
+    .filter(o => o.customerPhone === phone)
+    .filter(o => !cafeId || o.cafeId === cafeId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(o => ({ ...o, cafeName: cafeNameById.get(o.cafeId) ?? "" }));
+  res.json({ orders: list });
 });
 
 // Public — list free coffees a user has earned (mobile notifications screen).
