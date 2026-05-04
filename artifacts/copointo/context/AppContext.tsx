@@ -33,6 +33,34 @@ export async function claimGameUsername(
 }
 
 /**
+ * Public roster of every registered player across all devices, fetched from
+ * the server. The mobile leaderboard merges this with the local
+ * `registeredUsers` so a freshly-registered user on Device A shows up in the
+ * "Oman" ranking on Device B without any manual sync.
+ *
+ * Server returns minimal safe fields (no password / friends / avatar). The
+ * merge below preserves richer local data when available.
+ */
+export interface PublicServerUser {
+  id: string;
+  username: string;
+  phone: string;
+  level: number;
+  totalOrders: number;
+  joinedAt?: string;
+}
+export async function fetchPublicUsers(): Promise<PublicServerUser[]> {
+  try {
+    const r = await fetch(`${API_BASE}/users/public`);
+    if (!r.ok) return [];
+    const data = await r.json().catch(() => ({}));
+    return Array.isArray(data?.users) ? (data.users as PublicServerUser[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Mirror a mobile-app user record into the server's `users` collection so the
  * super-admin page lists every real registered player (not just those who
  * placed an order). Idempotent: safe to call multiple times for the same id.
@@ -136,6 +164,10 @@ interface AppContextType {
   cancelFriendRequest: (targetId: string) => Promise<void>;
   /** Re-read friend + request lists from storage (call when opening notifications) */
   refreshFriendData: () => Promise<void>;
+  /** Fetch the global users roster from the server and merge into
+   *  `registeredUsers` so every device sees every registered player.
+   *  Called on mount, after registration, and on leaderboard focus. */
+  refreshAllUsers: () => Promise<void>;
   cart: CartItem[];
   addToCart: (item: Omit<CartItem, "quantity">) => void;
   removeFromCart: (itemId: string) => void;
@@ -238,6 +270,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     finally { setHydrated(true); }
   };
 
+  /**
+   * Pull the global user roster from the server and merge it into
+   * `registeredUsers`. Local profiles are authoritative (passwords, avatars,
+   * cafeProgress, friends, etc. only live on-device); for users we have no
+   * local record of, we synthesize a minimal placeholder profile good enough
+   * for the leaderboard to display.
+   *
+   * Server-side `level` / `totalOrders` win when they are higher than the
+   * local snapshot — important for accounts the player owns on multiple
+   * devices, and harmless for everyone else.
+   */
+  const refreshAllUsers = useCallback(async () => {
+    const remote = await fetchPublicUsers();
+    if (remote.length === 0) return;
+    setRegisteredUsers(prev => {
+      const byId = new Map<string, User>();
+      for (const u of prev) byId.set(u.id, u);
+      for (const r of remote) {
+        const local = byId.get(r.id);
+        if (local) {
+          // Keep local rich data; only bump level / totalOrders if server has more.
+          const merged: User = {
+            ...local,
+            level: Math.max(local.level ?? 0, r.level ?? 0),
+            totalOrders: Math.max(local.totalOrders ?? 0, r.totalOrders ?? 0),
+          };
+          byId.set(r.id, merged);
+        } else {
+          // Brand-new player from another device — synthesize a read-only profile.
+          const placeholder: User = {
+            id: r.id,
+            name: r.username,
+            phone: r.phone,
+            gameUsername: r.username,
+            // Password never leaves its origin device. The empty value is
+            // fine because remote profiles are display-only on this device.
+            password: "",
+            level: r.level ?? 0,
+            totalOrders: r.totalOrders ?? 0,
+            points: 0,
+          };
+          byId.set(r.id, placeholder);
+        }
+      }
+      const next = Array.from(byId.values());
+      AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  // Initial roster sync — runs once after AsyncStorage hydrates so the
+  // leaderboard is populated with cross-device users on first paint.
+  useEffect(() => {
+    if (!hydrated) return;
+    refreshAllUsers().catch(() => {});
+  }, [hydrated, refreshAllUsers]);
+
   // Re-read friend lists from storage (used by notifications screen on focus,
   // since requests can arrive from another logged-in user on the same device)
   const refreshFriendData = useCallback(async () => {
@@ -313,6 +402,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setFriends([]);
         setIncomingRequests([]);
         setOutgoingRequests([]);
+        // Pull the latest global roster so this new user sees everyone else
+        // (and is themselves immediately visible to other devices on their
+        // next refresh). Fire-and-forget — never block the auth flow.
+        fetchPublicUsers().then(remote => {
+          if (remote.length === 0) return;
+          setRegisteredUsers(prev => {
+            const byId = new Map<string, User>();
+            for (const u of prev) byId.set(u.id, u);
+            for (const r of remote) {
+              if (byId.has(r.id)) continue;
+              byId.set(r.id, {
+                id: r.id,
+                name: r.username,
+                phone: r.phone,
+                gameUsername: r.username,
+                password: "",
+                level: r.level ?? 0,
+                totalOrders: r.totalOrders ?? 0,
+                points: 0,
+              });
+            }
+            const next = Array.from(byId.values());
+            AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+            return next;
+          });
+        }).catch(() => {});
         return { ok: true };
       } catch {
         return { ok: false, error: "حدث خطأ أثناء التسجيل" };
@@ -669,6 +784,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         declineFriendRequest,
         cancelFriendRequest,
         refreshFriendData,
+        refreshAllUsers,
         cart,
         addToCart,
         removeFromCart,

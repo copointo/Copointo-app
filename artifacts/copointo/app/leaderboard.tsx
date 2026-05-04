@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Image,
   Modal,
@@ -49,8 +49,13 @@ export default function LeaderboardScreen() {
     user, registeredUsers, friends,
     outgoingRequests, incomingRequests,
     sendFriendRequest, cancelFriendRequest, acceptFriendRequest,
+    refreshAllUsers,
   } = useApp();
   const { rankingList } = useCommunities();
+
+  // Pull the latest cross-device user roster every time this screen mounts so
+  // players who registered on another device show up in the Oman ranking.
+  useEffect(() => { refreshAllUsers().catch(() => {}); }, [refreshAllUsers]);
   const [activeTab, setActiveTab] = useState<LeaderTab>("friends");
   // ID of the user whose detail panel is currently open (null = closed).
   const [panelUserId, setPanelUserId] = useState<string | null>(null);

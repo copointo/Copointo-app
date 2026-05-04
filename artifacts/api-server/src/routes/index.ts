@@ -372,6 +372,27 @@ router.post("/users/register", (req, res): any => {
   res.json({ ok: true, user: u });
 });
 
+// ─── Public users list (mobile leaderboard) ──────────────────────────────
+// Every mobile device should see EVERY registered player on the platform —
+// not just the accounts created on its own AsyncStorage. The leaderboard
+// hits this endpoint to merge the global roster with whatever local profile
+// data it already has. Banned / game-banned players are filtered out so
+// they don't appear in any ranking.
+router.get("/users/public", (_req, res) => {
+  res.json({
+    users: users
+      .filter(u => !u.banned && !u.gameBanned)
+      .map(u => ({
+        id: u.id,
+        username: u.username,
+        phone: u.phone,
+        level: u.level ?? 0,
+        totalOrders: u.totalOrders ?? 0,
+        joinedAt: u.joinedAt,
+      })),
+  });
+});
+
 router.post("/reels/:rid/view", (req, res): any => {
   const reel = reels.find(r => r.id === req.params.rid);
   if (!reel) return res.status(404).json({ error: "Reel not found" });
