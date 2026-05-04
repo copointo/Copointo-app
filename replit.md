@@ -45,7 +45,7 @@ The project is structured as a pnpm workspace monorepo.
 **Technical Implementations & Features:**
 
 *   **Data Persistence:** AsyncStorage for mobile app local persistence.
-*   **AI Chatbot:** Data-aware assistant for cafes, integrating menu, table, and chat info. Supports guided ordering and booking flows.
+*   **AI Chatbot:** Data-aware assistant for cafes, integrating menu, table, and chat info. Supports guided ordering and booking flows. Conversation persists per cafe in AsyncStorage (`copointo_chat_state_v1_<cafeId>`) and is restored on screen mount; a header trash button clears the saved chat after confirmation. Validation errors keep the user on the same step and reply with the prefix "🙏 الرجاء إعادة الكتابة" so the questionnaire never gets stuck. Free-mode questions with no matching keyword fall back to "🙏 لا أعلم ماذا تريد بالضبط..." with quick chips to redirect to ordering or contacting the cashier. Cross-cafe persistence guard: a `hydratedForCafeIdRef` ensures the persist effect never writes the previous cafe's state into a newly-mounted cafe's storage key.
 *   **Table Booking:** Mandatory hourly pricing, approval workflows for cafe admins, time slot management (available/blocked times), and invoice generation upon confirmation.
 *   **Order Management:** Real-time menu fetching, in-app cart wizard, order submission with status tracking, and customer loyalty point awards.
 *   **Inventory Tracking:** Admin dashboard module for tracking stock levels (coffee bags, equipment), with automatic status alerts (yellow/red for low stock) and item depletion management.

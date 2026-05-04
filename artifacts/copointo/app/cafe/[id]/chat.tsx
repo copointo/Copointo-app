@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CAFES } from "@/data/mockData";
@@ -145,7 +147,11 @@ const MAIN_QUICK: QuickReply[] = [
 const CANCEL_QUICK: QuickReply = { label: "❌ إلغاء", value: "إلغاء" };
 
 const FALLBACK_REPLY =
-  "ممتاز! تقدر تختار من الأزرار بالأسفل أو اسألني عن القائمة، الأسعار، الموقع، أو الساعات. وإذا تبي، أقدر أساعدك تطلب أو تحجز.";
+  "🙏 لا أعلم ماذا تريد بالضبط.\nيرجى طلب قهوتك مباشرة من الأزرار بالأسفل، أو التواصل مع الكاشير لمساعدتك.";
+
+// Prefix used for any "your input wasn't accepted, try again" message during a
+// step-by-step flow (order/booking). The bot continues the same step right after.
+const RETRY_PREFIX = "🙏 الرجاء إعادة الكتابة\n";
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }
 
@@ -192,15 +198,47 @@ export default function CafeChatScreen() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // True once we've finished the initial AsyncStorage load. Until then, we don't
+  // persist the in-memory state so we don't accidentally overwrite the saved chat
+  // with an empty array.
+  const [stateHydrated, setStateHydrated] = useState(false);
+  // Tracks which cafe id the current in-memory state was hydrated for. Persist
+  // only when this matches the current `id` param, so that on cafe switches we
+  // don't write the previous cafe's state into the new cafe's storage key
+  // before the new cafe's state is loaded.
+  const hydratedForCafeIdRef = useRef<string | null>(null);
+  // Pending setTimeout IDs (typing indicators, delayed bot pushes). Cleared on
+  // cafe id change / unmount so the previous cafe's bot replies can't fire
+  // into the next cafe's chat.
+  const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const scheduleTimer = (cb: () => void, ms: number) => {
+    const t = setTimeout(() => {
+      pendingTimersRef.current.delete(t);
+      cb();
+    }, ms);
+    pendingTimersRef.current.add(t);
+    return t;
+  };
   const flatListRef = useRef<FlatList>(null);
 
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
 
+  // Persistence key per cafe — keeps each cafe's chat conversation separate so
+  // the user sees their own history when re-opening the chat for the same cafe.
+  const STATE_KEY = `copointo_chat_state_v1_${id}`;
+
   // ── Fetch all cafe data on mount ─────────────────────────────
   useEffect(() => {
     let cancelled = false;
     setLoadingData(true);
+    // Reset hydration gate when cafe id changes so the persist effect doesn't
+    // write the previous cafe's in-memory state into the new cafe's key before
+    // we get a chance to read the new key. Both the state flag and the ref are
+    // reset; the ref is the authoritative guard the persist effect checks
+    // synchronously to avoid render-cycle race windows.
+    setStateHydrated(false);
+    hydratedForCafeIdRef.current = null;
     Promise.allSettled([
       apiFetch<{ cafe: CafePublic }>(`/cafes/${id}`),
       apiFetch<{ items: MenuItem[] }>(`/cafe/${id}/menu`),
@@ -208,7 +246,7 @@ export default function CafeChatScreen() {
       apiFetch<{ items: ChatInfoItem[] }>(`/cafe/${id}/chat`),
       apiFetch<{ items: PopularItem[] }>(`/cafe/${id}/popular-items`),
       apiFetch<{ bookings: any[] }>(`/cafe/${id}/bookings`),
-    ]).then((results) => {
+    ]).then(async (results) => {
       if (cancelled) return;
       const [cafeR, menuR, tablesR, infosR, popR, bookingsR] = results;
       let cafeName = cafeMock?.name ?? "الكوفي";
@@ -229,13 +267,36 @@ export default function CafeChatScreen() {
       if (popR.status === "fulfilled") setPopular(popR.value.items || []);
       if (bookingsR && bookingsR.status === "fulfilled") setBookings(bookingsR.value.bookings || []);
       setLoadingData(false);
-      // Greet after data is loaded so we can mention real cafe name.
-      setMessages([{
-        id: uid(),
-        role: "bot",
-        text: `أهلاً بك في ${cafeName} ☕\nأنا مساعدك الذكي. أقدر أساعدك تطلب قهوة أو تحجز طاولة، وأقدر أجاوب أسئلتك عن القائمة والأسعار والموقع.\nاختر من الأزرار أو اكتب سؤالك:`,
-        quickReplies: MAIN_QUICK,
-      }]);
+
+      // Try to restore previous chat state (messages + step + drafts) so the
+      // conversation survives navigating away and back.
+      let restored = false;
+      try {
+        const raw = await AsyncStorage.getItem(STATE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved && Array.isArray(saved.messages) && saved.messages.length > 0) {
+            setMessages(saved.messages);
+            if (saved.step) setStep(saved.step);
+            if (saved.order) setOrder(saved.order);
+            if (saved.book) setBook(saved.book);
+            restored = true;
+          }
+        }
+      } catch { /* ignore corrupt state */ }
+      if (cancelled) return;
+
+      if (!restored) {
+        // Fresh greet — use the real cafe name we just loaded.
+        setMessages([{
+          id: uid(),
+          role: "bot",
+          text: `أهلاً بك في ${cafeName} ☕\nأنا مساعدك الذكي. أقدر أساعدك تطلب قهوة أو تحجز طاولة، وأقدر أجاوب أسئلتك عن القائمة والأسعار والموقع.\nاختر من الأزرار أو اكتب سؤالك:`,
+          quickReplies: MAIN_QUICK,
+        }]);
+      }
+      hydratedForCafeIdRef.current = String(id);
+      setStateHydrated(true);
     });
     // Prefill name/phone from previous orders.
     loadSavedOrderInfo().then((s) => {
@@ -247,13 +308,64 @@ export default function CafeChatScreen() {
       if (name)  setBook(b => ({ ...b, customerName:  b.customerName  ?? name }));
       if (phone) setBook(b => ({ ...b, customerPhone: b.customerPhone ?? phone }));
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Cancel any pending bot/typing timers from the previous cafe so they
+      // don't fire after the id change and pollute the next cafe's chat.
+      pendingTimersRef.current.forEach((t) => clearTimeout(t));
+      pendingTimersRef.current.clear();
+    };
   }, [id]);
+
+  // ── Persist chat state on every change ──────────────────────
+  // Only persist after the initial hydration so we never overwrite a saved
+  // conversation with the temporary empty initial state.
+  useEffect(() => {
+    if (!stateHydrated) return;
+    // Extra guard: only persist when the in-memory state has been hydrated for
+    // the *current* cafe id. Protects against a render that runs after `id`
+    // changed but before the load effect cleared `stateHydrated` — in that
+    // window we would otherwise write old state into the new cafe's key.
+    if (hydratedForCafeIdRef.current !== String(id)) return;
+    AsyncStorage.setItem(STATE_KEY, JSON.stringify({
+      messages, step, order, book,
+    })).catch(() => { /* ignore quota / write errors */ });
+  }, [messages, step, order, book, stateHydrated, STATE_KEY, id]);
+
+  // Clear the saved chat and reset to a fresh greeting.
+  const clearChat = () => {
+    const reset = () => {
+      AsyncStorage.removeItem(STATE_KEY).catch(() => {});
+      setStep("free");
+      setOrder({ items: [] });
+      setBook({});
+      setMessages([{
+        id: uid(),
+        role: "bot",
+        text: `أهلاً بك في ${cafe.name} ☕\nأنا مساعدك الذكي. أقدر أساعدك تطلب قهوة أو تحجز طاولة، وأقدر أجاوب أسئلتك عن القائمة والأسعار والموقع.\nاختر من الأزرار أو اكتب سؤالك:`,
+        quickReplies: MAIN_QUICK,
+      }]);
+    };
+    if (Platform.OS === "web") {
+      // RN web doesn't show Alert, fall back to confirm.
+      const ok = (typeof window !== "undefined") ? window.confirm("هل تريد مسح المحادثة بالكامل والبدء من جديد؟") : true;
+      if (ok) reset();
+      return;
+    }
+    Alert.alert(
+      "مسح المحادثة",
+      "هل تريد مسح المحادثة بالكامل والبدء من جديد؟",
+      [
+        { text: "إلغاء", style: "cancel" },
+        { text: "نعم، امسح", style: "destructive", onPress: reset },
+      ],
+    );
+  };
 
   // ── Helpers ─────────────────────────────────────────────────
   const pushBot = (text: string, quickReplies?: QuickReply[]) => {
     setIsTyping(true);
-    setTimeout(() => {
+    scheduleTimer(() => {
       setMessages(prev => [...prev, { id: uid(), role: "bot", text, quickReplies }]);
       setIsTyping(false);
     }, 350);
@@ -452,7 +564,7 @@ export default function CafeChatScreen() {
       return x && (x === n || n.includes(x) || x.includes(n));
     });
     if (!found) {
-      pushBot("ما لقيت هذا المنتج. اختر من الأزرار أو اكتب اسم المنتج بالضبط:", [
+      pushBot(`${RETRY_PREFIX}ما لقيت هذا المنتج في القائمة. اختر منتجاً من الأزرار أدناه أو اكتب اسمه بالضبط كما يظهر:`, [
         ...menu.slice(0, 12).map(m => ({ label: m.name, value: m.name })),
         CANCEL_QUICK,
       ]);
@@ -470,29 +582,48 @@ export default function CafeChatScreen() {
   const handleOrderQty = (raw: string) => {
     const qty = parseInt(raw.replace(/\D/g, ""), 10);
     if (!qty || qty < 1 || qty > 99) {
-      pushBot("اكتب رقم بين 1 و 99 للكمية:", [
+      pushBot(`${RETRY_PREFIX}اكتب الكمية بالأرقام فقط (رقم بين 1 و 99)، أو اضغط أحد الأزرار:`, [
         { label: "1", value: "1" }, { label: "2", value: "2" },
         { label: "3", value: "3" }, { label: "4", value: "4" }, { label: "5", value: "5" },
+        CANCEL_QUICK,
       ]);
       return;
     }
-    setOrder(o => {
-      if (!o.pendingItem) return o;
-      const newItems = [...o.items];
-      const idx = newItems.findIndex(i => i.id === o.pendingItem!.id);
-      if (idx >= 0) newItems[idx] = { ...newItems[idx], qty: newItems[idx].qty + qty };
-      else newItems.push({ ...o.pendingItem, qty });
-      return { ...o, items: newItems, pendingItem: undefined };
-    });
-    setStep("order_more");
-    setTimeout(() => {
-      const summary = currentOrderSummary([...order.items, ...(order.pendingItem ? [{ ...order.pendingItem, qty }] : [])]);
-      pushBot(`تمام ✅ أُضيف للسلة.\n${summary}\n\nتبي تضيف منتج ثاني ولا نكمل الطلب؟`, [
-        { label: "➕ أضف منتج ثاني", value: "أضف" },
-        { label: "✅ أكمل الطلب",    value: "أكمل" },
-        CANCEL_QUICK,
-      ]);
-    }, 50);
+    // Compute everything synchronously so the bot reply is guaranteed to show
+    // even if the typing-delay timer is dropped by React Compiler / batching.
+    try {
+      const pending = order.pendingItem;
+      const nextItems = (() => {
+        if (!pending) return order.items;
+        const arr = [...order.items];
+        const idx = arr.findIndex(i => i.id === pending.id);
+        if (idx >= 0) arr[idx] = { ...arr[idx], qty: arr[idx].qty + qty };
+        else arr.push({ id: pending.id, name: pending.name, price: pending.price, category: pending.category, qty });
+        return arr;
+      })();
+      const summary = currentOrderSummary(nextItems);
+      const botMsg: ChatMessage = {
+        id: uid(),
+        role: "bot",
+        text: `تمام ✅ أُضيف للسلة.\n${summary}\n\nتبي تضيف منتج ثاني ولا نكمل الطلب؟`,
+        quickReplies: [
+          { label: "➕ أضف منتج ثاني", value: "أضف" },
+          { label: "✅ أكمل الطلب",    value: "أكمل" },
+          CANCEL_QUICK,
+        ],
+      };
+      setOrder(o => ({ ...o, items: nextItems, pendingItem: undefined }));
+      setStep("order_more");
+      // Push the bot message directly (no nested setTimeout). Briefly flash the
+      // typing indicator so the UX still feels conversational.
+      setIsTyping(true);
+      setMessages(prev => [...prev, botMsg]);
+      scheduleTimer(() => setIsTyping(false), 250);
+    } catch (e) {
+      // Last-ditch fallback so the user is never stranded silently.
+      pushBot(`${RETRY_PREFIX}صار خطأ غير متوقع — يرجى إعادة اختيار المنتج والكمية.`, []);
+      setStep("order_pick_item");
+    }
   };
 
   const handleOrderMore = (raw: string) => {
@@ -506,7 +637,8 @@ export default function CafeChatScreen() {
     }
     if (includesAny(raw, ["اكمل", "أكمل", "تم", "خلاص", "انهي", "أنهي", "finish", "done", "نعم"])) {
       if (order.items.length === 0) {
-        pushBot("سلة الطلب فاضية! اختر منتج أول:", [
+        // Cart empty — redirect (not a retry); send the user back to pick an item.
+        pushBot("سلة الطلب فاضية 🛒\nاختر منتجاً أولاً من الأزرار:", [
           ...menu.slice(0, 12).map(m => ({ label: m.name, value: m.name })),
           CANCEL_QUICK,
         ]);
@@ -521,7 +653,7 @@ export default function CafeChatScreen() {
       ]);
       return;
     }
-    pushBot("اختر:", [
+    pushBot(`${RETRY_PREFIX}اختر «أضف منتج ثاني» إذا تبي تزيد للطلب، أو «أكمل الطلب» إذا انتهيت:`, [
       { label: "➕ أضف منتج ثاني", value: "أضف" },
       { label: "✅ أكمل الطلب",    value: "أكمل" },
       CANCEL_QUICK,
@@ -539,7 +671,7 @@ export default function CafeChatScreen() {
       askName();
       return;
     }
-    pushBot("اختر:", [
+    pushBot(`${RETRY_PREFIX}اختر نوع الطلب من الأزرار: «جلوس داخل» إذا تبي تجلس داخل الكوفي، أو «سيارة» إذا تبي يجيك للسيارة:`, [
       { label: "🪑 جلوس داخل", value: "جلوس" },
       { label: "🚗 سيارة",      value: "سيارة" },
       CANCEL_QUICK,
@@ -653,7 +785,7 @@ export default function CafeChatScreen() {
     let chosen: Table | undefined;
     if (m) chosen = tables.find(t => t.number === parseInt(m[1], 10));
     if (!chosen) {
-      pushBot("اختر الطاولة من الأزرار:", [
+      pushBot(`${RETRY_PREFIX}اختر الطاولة من الأزرار أدناه:`, [
         ...tables.map(t => ({ label: `طاولة ${t.number} (حتى ${t.capacity}) `, value: `طاولة ${t.number}` })),
         CANCEL_QUICK,
       ]);
@@ -662,7 +794,7 @@ export default function CafeChatScreen() {
     setBook(b => ({ ...b, tableId: chosen!.id, tableNumber: chosen!.number, capacity: chosen!.capacity }));
     const tiers = chosen.hourlyPricing || [];
     if (tiers.length === 0) {
-      pushBot("هذه الطاولة بدون أسعار توقيت — اختر طاولة ثانية:", [
+      pushBot(`${RETRY_PREFIX}هذه الطاولة بدون أسعار توقيت متاحة — اختر طاولة أخرى من الأزرار:`, [
         ...tables.filter(t => (t.hourlyPricing?.length ?? 0) > 0).map(t => ({ label: `طاولة ${t.number}`, value: `طاولة ${t.number}` })),
         CANCEL_QUICK,
       ]);
@@ -683,7 +815,7 @@ export default function CafeChatScreen() {
     const hours = m ? parseInt(m[1], 10) : NaN;
     const tier = tiers.find(x => x.hours === hours);
     if (!tier) {
-      pushBot("اختر المدة من الأزرار:", [
+      pushBot(`${RETRY_PREFIX}اختر مدة الحجز من الأزرار:`, [
         ...tiers.map(x => ({ label: `${x.hours} ساعة — ${fmtPrice(x.price)}`, value: `${x.hours}` })),
         CANCEL_QUICK,
       ]);
@@ -702,7 +834,10 @@ export default function CafeChatScreen() {
     const g = parseInt(raw.replace(/\D/g, ""), 10);
     const cap = book.capacity ?? 4;
     if (!g || g < 1 || g > cap) {
-      pushBot(`اختر رقم بين 1 و ${cap}:`, Array.from({ length: cap }, (_, i) => ({ label: `${i + 1}`, value: `${i + 1}` })));
+      pushBot(`${RETRY_PREFIX}اكتب عدد الأشخاص بالأرقام (رقم بين 1 و ${cap})، أو اضغط أحد الأزرار:`, [
+        ...Array.from({ length: cap }, (_, i) => ({ label: `${i + 1}`, value: `${i + 1}` })),
+        CANCEL_QUICK,
+      ]);
       return;
     }
     setBook(b => ({ ...b, guests: g }));
@@ -732,7 +867,7 @@ export default function CafeChatScreen() {
     const slots = computeBookableSlots(tableObj as any, today, bookings);
     const found = slots.find(t => t.toLowerCase() === r.toLowerCase());
     if (!found) {
-      pushBot("اختر الوقت من الأزرار (المواعيد الأخرى محجوزة أو مغلقة):", [
+      pushBot(`${RETRY_PREFIX}اختر وقت الحجز من الأزرار أدناه فقط (المواعيد الأخرى محجوزة أو مغلقة):`, [
         ...slots.map(t => ({ label: t, value: t })),
         CANCEL_QUICK,
       ]);
@@ -834,7 +969,7 @@ export default function CafeChatScreen() {
       case "order_more":       handleOrderMore(text); return;
       case "order_type":       handleOrderType(text); return;
       case "order_name": {
-        if (text.length < 2) { pushBot("الاسم قصير جداً، اكتبه كاملاً:"); return; }
+        if (text.length < 2) { pushBot(`${RETRY_PREFIX}الاسم قصير جداً. اكتب اسمك الكامل (حرفين على الأقل):`); return; }
         setOrder(o => ({ ...o, customerName: text }));
         if (order.customerPhone) {
           if (order.type === "dine") askTable();
@@ -842,12 +977,12 @@ export default function CafeChatScreen() {
           return;
         }
         setStep("order_phone");
-        pushBot(`أهلاً ${text} 👋 اكتب رقم هاتفك:`);
+        pushBot(`أهلاً ${text} 👋 اكتب رقم هاتفك للتواصل:`);
         return;
       }
       case "order_phone": {
         const digits = text.replace(/\D/g, "");
-        if (digits.length < 7) { pushBot("الرقم قصير، اكتب رقم صحيح (٧ أرقام أو أكثر):"); return; }
+        if (digits.length < 7) { pushBot(`${RETRY_PREFIX}اكتب رقم هاتف صحيح بالأرقام فقط (٧ أرقام أو أكثر، بدون رموز):`); return; }
         setOrder(o => ({ ...o, customerPhone: digits }));
         if (order.type === "dine") askTable();
         else askPlateSym();
@@ -855,7 +990,11 @@ export default function CafeChatScreen() {
       }
       case "order_table": {
         const digits = text.replace(/\D/g, "");
-        if (!digits) { pushBot("اكتب رقم الطاولة (مثل 3):"); return; }
+        if (!digits) { pushBot(`${RETRY_PREFIX}اكتب رقم الطاولة بالأرقام فقط (مثال: 3):`, [
+          { label: "1", value: "1" }, { label: "2", value: "2" },
+          { label: "3", value: "3" }, { label: "4", value: "4" }, { label: "5", value: "5" },
+          CANCEL_QUICK,
+        ]); return; }
         const draft: OrderDraft = { ...order, tableNumber: digits };
         setOrder(draft);
         askConfirmOrder(draft);
@@ -863,15 +1002,15 @@ export default function CafeChatScreen() {
       }
       case "order_plate_sym": {
         const sym = text.trim();
-        if (!sym) { pushBot("اكتب الحروف فقط (مثال: ع أ):"); return; }
+        if (!sym) { pushBot(`${RETRY_PREFIX}اكتب حروف لوحة السيارة فقط (مثال: ع أ):`); return; }
         setOrder(o => ({ ...o, plateSymbol: sym }));
         setStep("order_plate_num");
-        pushBot("اكتب الأرقام (مثال: 1234):");
+        pushBot("اكتب أرقام اللوحة (مثال: 1234):");
         return;
       }
       case "order_plate_num": {
         const digits = text.replace(/\D/g, "");
-        if (!digits) { pushBot("اكتب أرقام اللوحة (مثال: 1234):"); return; }
+        if (!digits) { pushBot(`${RETRY_PREFIX}اكتب أرقام لوحة السيارة بالأرقام فقط (مثال: 1234):`); return; }
         const draft: OrderDraft = { ...order, plateNumber: digits };
         setOrder(draft);
         askConfirmOrder(draft);
@@ -891,19 +1030,19 @@ export default function CafeChatScreen() {
       case "book_guests": handleBookGuests(text); return;
       case "book_time":   handleBookTime(text); return;
       case "book_name": {
-        if (text.length < 2) { pushBot("الاسم قصير جداً، اكتبه كاملاً:"); return; }
+        if (text.length < 2) { pushBot(`${RETRY_PREFIX}الاسم قصير جداً. اكتب اسمك الكامل (حرفين على الأقل):`); return; }
         setBook(b => ({ ...b, customerName: text }));
         if (book.customerPhone) {
           askConfirmBook({ ...book, customerName: text });
         } else {
           setStep("book_phone");
-          pushBot(`أهلاً ${text} 👋 اكتب رقم هاتفك:`);
+          pushBot(`أهلاً ${text} 👋 اكتب رقم هاتفك للتواصل:`);
         }
         return;
       }
       case "book_phone": {
         const digits = text.replace(/\D/g, "");
-        if (digits.length < 7) { pushBot("الرقم قصير، اكتب رقم صحيح:"); return; }
+        if (digits.length < 7) { pushBot(`${RETRY_PREFIX}اكتب رقم هاتف صحيح بالأرقام فقط (٧ أرقام أو أكثر):`); return; }
         const draft: BookDraft = { ...book, customerPhone: digits };
         setBook(draft);
         askConfirmBook(draft);
@@ -950,7 +1089,7 @@ export default function CafeChatScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topPadding + 8 }]}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Feather name="arrow-left" size={22} color={PRIMARY} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
@@ -964,6 +1103,14 @@ export default function CafeChatScreen() {
             </Text>
           </View>
         </View>
+        <TouchableOpacity
+          onPress={clearChat}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.clearBtn}
+          accessibilityLabel="مسح المحادثة"
+        >
+          <Feather name="trash-2" size={18} color={MUTED} />
+        </TouchableOpacity>
         <View style={styles.onlineIndicator} />
       </View>
 
@@ -1103,6 +1250,11 @@ const styles = StyleSheet.create({
   headerSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: MUTED },
   onlineIndicator: {
     width: 10, height: 10, borderRadius: 5, backgroundColor: "#4CAF50",
+  },
+  clearBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: CARD, borderWidth: 1, borderColor: BORDER_SOFT,
   },
   messageRow: {
     flexDirection: "row",
