@@ -45,59 +45,91 @@ function playSyntheticBell() {
   } catch { /* ignore — sound is best-effort */ }
 }
 
-// ── New-order sound: cached MP3 chime uploaded by the cafe owner. ──
-// Played once per detected new order (multiple new orders in one poll →
-// the audio is restarted for each, so the cashier hears one chime per
-// pending ticket). Falls back to the synthetic bell on any failure
-// (network, codec, autoplay block).
+// ── New-order sound (Web Audio API, zero-latency) ──────────────────
+// We pre-fetch the MP3, decode it once into an AudioBuffer, and then play
+// each chime via a fresh AudioBufferSourceNode. This bypasses all the
+// latency sources that plague HTMLAudioElement.play():
+//   • no buffering delay on each play
+//   • no codec re-init
+//   • no currentTime=0 seek
+//   • leading silence in the source MP3 is trimmed via `start(when, offset)`
+// The result: chime begins on the very next audio frame after detection.
 //
-// IMPORTANT (browser autoplay policy): Chrome/Safari block `audio.play()`
-// until the user has interacted with the page. Since the polling loop runs
-// in the background, the very first ringing attempt is rejected silently.
-// We therefore install a global "first-gesture" listener that primes the
-// HTMLAudioElement (play+immediately pause) so all subsequent .play() calls
-// succeed without any further interaction. We also resume any pending
-// AudioContext for the synthetic-bell fallback.
-let _orderAudio: HTMLAudioElement | null = null;
-let _audioUnlocked = false;
-function getOrderAudio(): HTMLAudioElement | null {
-  if (typeof Audio === "undefined") return null;
-  if (_orderAudio) return _orderAudio;
+// IMPORTANT (browser autoplay policy): Chrome/Safari put the AudioContext
+// in a "suspended" state until the user interacts with the page. We install
+// a one-time global gesture listener that resumes it. After that first
+// click anywhere on the dashboard, every poll-detected order rings instantly.
+const ORDER_SOUND_LEADING_SILENCE_SEC = 0.16; // measured with ffmpeg silencedetect
+let _audioCtx: AudioContext | null = null;
+let _orderBuffer: AudioBuffer | null = null;
+let _orderBufferLoading = false;
+let _orderHtmlFallback: HTMLAudioElement | null = null;
+
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (_audioCtx) return _audioCtx;
   try {
-    // BASE_URL already ends with "/" (e.g. "/admin/"). The asset lives at
-    // <admin>/sounds/new-order.mp3 — see artifacts/admin/public/sounds/.
-    const a = new Audio(`${import.meta.env.BASE_URL}sounds/new-order.mp3`);
-    a.preload = "auto";
-    a.volume  = 1.0;
-    // Try to start fetching the file immediately so the first ring is snappy.
-    try { a.load(); } catch { /* ignore */ }
-    _orderAudio = a;
-    return a;
+    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return null;
+    _audioCtx = new Ctx();
+    return _audioCtx;
   } catch { return null; }
 }
-/** Install once: on the very first user gesture, prime the audio element so
- *  subsequent programmatic .play() calls bypass the autoplay block. */
+
+function loadOrderBuffer() {
+  if (_orderBuffer || _orderBufferLoading) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  _orderBufferLoading = true;
+  // BASE_URL already ends with "/" (e.g. "/admin/"). Asset:
+  // artifacts/admin/public/sounds/new-order.mp3
+  const url = `${import.meta.env.BASE_URL}sounds/new-order.mp3`;
+  fetch(url)
+    .then((r) => r.arrayBuffer())
+    .then((buf) => new Promise<AudioBuffer>((res, rej) => {
+      // decodeAudioData callback form for Safari compatibility.
+      try {
+        const p = ctx.decodeAudioData(buf, res, rej);
+        if (p && typeof (p as any).then === "function") (p as Promise<AudioBuffer>).then(res, rej);
+      } catch (e) { rej(e); }
+    }))
+    .then((decoded) => { _orderBuffer = decoded; })
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn("[order-sound] decode failed, falling back to <audio>:", err);
+      try {
+        _orderHtmlFallback = new Audio(url);
+        _orderHtmlFallback.preload = "auto";
+        _orderHtmlFallback.load();
+      } catch { /* ignore */ }
+    })
+    .finally(() => { _orderBufferLoading = false; });
+}
+
+/** Install once: on the very first user gesture anywhere on the page,
+ *  resume the AudioContext (Chrome/Safari autoplay block) and warm up
+ *  the buffer cache. After this, ringing is instant. */
 function installAudioUnlock() {
   if (typeof window === "undefined") return;
   if ((window as any).__copointoAudioUnlockInstalled) return;
   (window as any).__copointoAudioUnlockInstalled = true;
+  // Kick off the MP3 fetch immediately — doesn't need a gesture.
+  loadOrderBuffer();
   const unlock = () => {
-    if (_audioUnlocked) return;
-    const a = getOrderAudio();
-    if (!a) return;
-    try {
-      a.muted = true;
-      const p = a.play();
-      const finish = () => {
-        try { a.pause(); a.currentTime = 0; a.muted = false; } catch {/*ignore*/}
-        _audioUnlocked = true;
-      };
-      if (p && typeof p.then === "function") {
-        p.then(finish).catch(() => { try { a.muted = false; } catch {/*ignore*/} });
-      } else {
-        finish();
-      }
-    } catch { /* ignore */ }
+    const ctx = getAudioCtx();
+    if (ctx && ctx.state === "suspended") {
+      ctx.resume().catch(() => {/* ignore */});
+    }
+    // Also try to "tickle" the HTML fallback in case decode failed.
+    if (_orderHtmlFallback) {
+      try {
+        _orderHtmlFallback.muted = true;
+        const p = _orderHtmlFallback.play();
+        const reset = () => { try { _orderHtmlFallback!.pause(); _orderHtmlFallback!.currentTime = 0; _orderHtmlFallback!.muted = false; } catch {/*ignore*/} };
+        if (p && typeof p.then === "function") p.then(reset).catch(reset);
+        else reset();
+      } catch { /* ignore */ }
+    }
   };
   const opts: AddEventListenerOptions = { once: true, capture: true };
   window.addEventListener("pointerdown", unlock, opts);
@@ -105,38 +137,49 @@ function installAudioUnlock() {
   window.addEventListener("touchstart",  unlock, opts);
   window.addEventListener("click",       unlock, opts);
 }
+
 function playOrderSound(times: number = 1) {
-  const a = getOrderAudio();
-  if (!a) { playSyntheticBell(); return; }
-  let played = 0;
-  const playOnce = () => {
-    try {
-      a.currentTime = 0;
-      a.muted = false;
-      const p = a.play();
-      if (p && typeof p.then === "function") {
-        p.catch((err) => {
-          // Most common: NotAllowedError before first user gesture.
-          // Fall back to the synthetic bell so the cashier still hears
-          // *something*, and log so we can diagnose if needed.
-          if (played === 0) playSyntheticBell();
-          // eslint-disable-next-line no-console
-          console.warn("[order-sound] play blocked:", err?.name || err);
-        });
-      }
-    } catch (err) {
-      if (played === 0) playSyntheticBell();
-      // eslint-disable-next-line no-console
-      console.warn("[order-sound] play threw:", err);
+  const ctx = getAudioCtx();
+  // Try Web Audio first — zero-latency path.
+  if (ctx && _orderBuffer) {
+    if (ctx.state === "suspended") {
+      // Best-effort resume; if it fails the catch below covers the fallback.
+      ctx.resume().catch(() => {/* ignore */});
     }
-    played += 1;
-  };
-  playOnce();
-  // For bursts of new orders, queue additional plays ~1.2s apart so they
-  // don't clip each other.
-  for (let i = 1; i < Math.min(times, 4); i++) {
-    setTimeout(playOnce, i * 1200);
+    const ringOnce = (when: number) => {
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = _orderBuffer!;
+        const gain = ctx.createGain();
+        gain.gain.value = 1.0;
+        src.connect(gain).connect(ctx.destination);
+        // start(when, offset) skips the leading silence in the source MP3.
+        src.start(when, ORDER_SOUND_LEADING_SILENCE_SEC);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[order-sound] webaudio start failed:", err);
+      }
+    };
+    const t0 = ctx.currentTime;
+    const count = Math.min(Math.max(times, 1), 4);
+    for (let i = 0; i < count; i++) {
+      // 1.2s spacing between consecutive chimes for bursts.
+      ringOnce(t0 + i * 1.2);
+    }
+    return;
   }
+  // Buffer not ready yet (first poll after refresh) — kick off load and
+  // use the HTML <audio> fallback (or synthetic bell) so we still ring NOW.
+  if (!_orderBuffer && !_orderBufferLoading) loadOrderBuffer();
+  if (_orderHtmlFallback) {
+    try {
+      _orderHtmlFallback.currentTime = ORDER_SOUND_LEADING_SILENCE_SEC;
+      const p = _orderHtmlFallback.play();
+      if (p && typeof p.then === "function") p.catch(() => playSyntheticBell());
+    } catch { playSyntheticBell(); }
+    return;
+  }
+  playSyntheticBell();
 }
 
 /** Generic notification bell — used for bookings / reels. Orders use the
