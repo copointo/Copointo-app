@@ -50,7 +50,16 @@ function playSyntheticBell() {
 // the audio is restarted for each, so the cashier hears one chime per
 // pending ticket). Falls back to the synthetic bell on any failure
 // (network, codec, autoplay block).
+//
+// IMPORTANT (browser autoplay policy): Chrome/Safari block `audio.play()`
+// until the user has interacted with the page. Since the polling loop runs
+// in the background, the very first ringing attempt is rejected silently.
+// We therefore install a global "first-gesture" listener that primes the
+// HTMLAudioElement (play+immediately pause) so all subsequent .play() calls
+// succeed without any further interaction. We also resume any pending
+// AudioContext for the synthetic-bell fallback.
 let _orderAudio: HTMLAudioElement | null = null;
+let _audioUnlocked = false;
 function getOrderAudio(): HTMLAudioElement | null {
   if (typeof Audio === "undefined") return null;
   if (_orderAudio) return _orderAudio;
@@ -60,9 +69,41 @@ function getOrderAudio(): HTMLAudioElement | null {
     const a = new Audio(`${import.meta.env.BASE_URL}sounds/new-order.mp3`);
     a.preload = "auto";
     a.volume  = 1.0;
+    // Try to start fetching the file immediately so the first ring is snappy.
+    try { a.load(); } catch { /* ignore */ }
     _orderAudio = a;
     return a;
   } catch { return null; }
+}
+/** Install once: on the very first user gesture, prime the audio element so
+ *  subsequent programmatic .play() calls bypass the autoplay block. */
+function installAudioUnlock() {
+  if (typeof window === "undefined") return;
+  if ((window as any).__copointoAudioUnlockInstalled) return;
+  (window as any).__copointoAudioUnlockInstalled = true;
+  const unlock = () => {
+    if (_audioUnlocked) return;
+    const a = getOrderAudio();
+    if (!a) return;
+    try {
+      a.muted = true;
+      const p = a.play();
+      const finish = () => {
+        try { a.pause(); a.currentTime = 0; a.muted = false; } catch {/*ignore*/}
+        _audioUnlocked = true;
+      };
+      if (p && typeof p.then === "function") {
+        p.then(finish).catch(() => { try { a.muted = false; } catch {/*ignore*/} });
+      } else {
+        finish();
+      }
+    } catch { /* ignore */ }
+  };
+  const opts: AddEventListenerOptions = { once: true, capture: true };
+  window.addEventListener("pointerdown", unlock, opts);
+  window.addEventListener("keydown",     unlock, opts);
+  window.addEventListener("touchstart",  unlock, opts);
+  window.addEventListener("click",       unlock, opts);
 }
 function playOrderSound(times: number = 1) {
   const a = getOrderAudio();
@@ -71,11 +112,23 @@ function playOrderSound(times: number = 1) {
   const playOnce = () => {
     try {
       a.currentTime = 0;
+      a.muted = false;
       const p = a.play();
       if (p && typeof p.then === "function") {
-        p.catch(() => { if (played === 0) playSyntheticBell(); });
+        p.catch((err) => {
+          // Most common: NotAllowedError before first user gesture.
+          // Fall back to the synthetic bell so the cashier still hears
+          // *something*, and log so we can diagnose if needed.
+          if (played === 0) playSyntheticBell();
+          // eslint-disable-next-line no-console
+          console.warn("[order-sound] play blocked:", err?.name || err);
+        });
       }
-    } catch { if (played === 0) playSyntheticBell(); }
+    } catch (err) {
+      if (played === 0) playSyntheticBell();
+      // eslint-disable-next-line no-console
+      console.warn("[order-sound] play threw:", err);
+    }
     played += 1;
   };
   playOnce();
@@ -101,6 +154,11 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
   const [counts, setCounts] = useState<Record<string, number>>({ orders: 0, bookings: 0, reels: 0 });
   const seenRef = useRef<Record<string, Set<string>>>({ orders: new Set(), bookings: new Set(), reels: new Set() });
   const initedRef = useRef<Record<string, boolean>>({ orders: false, bookings: false, reels: false });
+
+  // Install the audio-unlock listener as soon as the dashboard mounts so
+  // the first user gesture (any click anywhere) primes the order chime
+  // and bypasses the browser's autoplay block.
+  useEffect(() => { installAudioUnlock(); }, []);
 
   // Hydrate seen IDs from localStorage on mount / cafe change.
   useEffect(() => {
