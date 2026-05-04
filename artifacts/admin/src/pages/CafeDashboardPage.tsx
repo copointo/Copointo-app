@@ -236,6 +236,15 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
           }
         }
         if (newCount > 0) {
+          // Fire the sound FIRST — synchronously, before any React state
+          // update — so the cashier hears the chime the exact instant the
+          // order is detected (no render-batching delay).
+          const newOrders = additions["orders"] ?? 0;
+          if (newOrders > 0) {
+            playOrderSound(newOrders);
+          } else {
+            playNotificationBell();
+          }
           setCounts((prev) => {
             const out = { ...prev };
             for (const k of Object.keys(additions)) {
@@ -243,20 +252,15 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
             }
             return out;
           });
-          // New coffee orders get the dedicated chime (one per new order,
-          // capped inside playOrderSound). Other notifications (bookings,
-          // reels) keep the synthetic bell so they remain distinguishable.
-          const newOrders = additions["orders"] ?? 0;
-          if (newOrders > 0) {
-            playOrderSound(newOrders);
-          } else {
-            playNotificationBell();
-          }
         }
       } catch { /* ignore */ }
     };
     tick();
-    const id = setInterval(tick, 5000);
+    // Poll every 1.5s so new orders feel instantaneous (max ~1.5s lag
+    // between an order being placed and the chime + badge appearing).
+    // The endpoints are tiny and respond with HTTP 304 when nothing
+    // changed, so this is cheap.
+    const id = setInterval(tick, 1500);
     return () => { cancelled = true; clearInterval(id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cafeId, activeTab]);
