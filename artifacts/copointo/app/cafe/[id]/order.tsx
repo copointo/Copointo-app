@@ -49,7 +49,9 @@ interface MenuItem {
   initialStockQty?: number | null;
 }
 
+const ALL_KEY = "الكل";
 const CATEGORIES: { key: string; icon: string }[] = [
+  { key: ALL_KEY,         icon: "🗂️" },
   { key: "مشروب ساخن",   icon: "☕" },
   { key: "مشروبات باردة", icon: "🥤" },
   { key: "حلى",          icon: "🍰" },
@@ -100,7 +102,10 @@ export default function OrderScreen() {
   }, [id]);
 
   const visibleItems = useMemo(
-    () => items.filter((i) => i.category === activeCategory),
+    () =>
+      activeCategory === ALL_KEY
+        ? items
+        : items.filter((i) => i.category === activeCategory),
     [items, activeCategory]
   );
 
