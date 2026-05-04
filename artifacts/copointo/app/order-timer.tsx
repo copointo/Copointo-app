@@ -77,9 +77,14 @@ export default function OrderTimerScreen() {
     ).start();
   }, [pulseAnim]);
 
-  // Countdown ticker — totalMin*60s split into 1000 ticks of 0.1
+  // Countdown ticker — totalMin*60s split into 1000 ticks of 0.1.
+  // Stops as soon as the order is `ready` (manager pressed "طلبك جاهز")
+  // or `done` (manager printed the invoice). We also force progress → 0
+  // when the order reaches "ready" so the ring shows the order is fulfilled
+  // even if the simulated countdown hadn't reached zero yet.
+  const isReadyOrDone = order?.status === "ready" || order?.status === "done";
   useEffect(() => {
-    if (completed) return;
+    if (completed || isReadyOrDone) return;
     const tickMs = (totalMin * 60 * 1000) / 1000; // ms per 0.1 step
     const id = setInterval(() => {
       setProgress((p) => {
@@ -88,7 +93,12 @@ export default function OrderTimerScreen() {
       });
     }, tickMs);
     return () => clearInterval(id);
-  }, [totalMin, completed]);
+  }, [totalMin, completed, isReadyOrDone]);
+
+  // Snap progress to 0 the moment the order becomes ready.
+  useEffect(() => {
+    if (isReadyOrDone) setProgress(0);
+  }, [isReadyOrDone]);
 
   // Poll server every 4s for status + pointsAwarded
   useEffect(() => {
@@ -183,8 +193,10 @@ export default function OrderTimerScreen() {
           <Text style={styles.backBtnText}>القائمة</Text>
         </TouchableOpacity>
         <View style={styles.statusPill}>
-          <View style={[styles.statusDot, confirmed && { backgroundColor: SUCCESS }]} />
-          <Text style={styles.statusText}>{confirmed ? "قيد التحضير" : "قيد الانتظار"}</Text>
+          <View style={[styles.statusDot, (confirmed || isReadyOrDone) && { backgroundColor: SUCCESS }]} />
+          <Text style={styles.statusText}>
+            {isReadyOrDone ? "جاهز للاستلام" : confirmed ? "قيد التحضير" : "قيد الانتظار"}
+          </Text>
         </View>
       </View>
 
@@ -215,9 +227,11 @@ export default function OrderTimerScreen() {
         </View>
 
         <Text style={styles.subline}>
-          {progress > 0
-            ? `سيتم تحضير طلبك خلال ${Math.ceil((progress / 100) * totalMin)} دقيقة تقريباً`
-            : "في انتظار تأكيد الكوفي..."}
+          {isReadyOrDone
+            ? "طلبك جاهز ✅ — يمكنك استلامه الآن"
+            : progress > 0
+              ? `سيتم تحضير طلبك خلال ${Math.ceil((progress / 100) * totalMin)} دقيقة تقريباً`
+              : "في انتظار تأكيد الكوفي..."}
         </Text>
 
         <View style={styles.detailsBox}>
