@@ -254,6 +254,12 @@ router.get("/orders/:orderId", (req, res): any => {
 // Award drink-count progress to the customer (idempotent — only fires once per order).
 function awardOrderProgress(order: any) {
   if (order.pointsAwarded) return;
+  // Direct in-cafe orders (placed by the cafe staff on behalf of a walk-in
+  // customer) intentionally do NOT contribute to game/loyalty progress.
+  if (order.source === "direct") {
+    order.pointsAwarded = true;
+    return;
+  }
   const drinks = (order.drinkCount != null)
     ? order.drinkCount
     : order.items.reduce((s: number, it: any) => s + (it.category === "حلى" ? 0 : it.qty), 0);

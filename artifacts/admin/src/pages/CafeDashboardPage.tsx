@@ -19,7 +19,7 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode";
+type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode";
 
 // ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
 function playSyntheticBell() {
@@ -341,6 +341,7 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"stats",     label:"الإحصائيات",       icon: LayoutDashboard  },
   { id:"orders",    label:"طلبات القهوة",      icon: ShoppingBag      },
+  { id:"direct",    label:"اطلب مباشر",        icon: Plus             },
   { id:"bookings",  label:"حجوزات الطاولة",    icon: CalendarDays     },
   { id:"menu",      label:"القائمة",           icon: UtensilsCrossed  },
   { id:"chat",      label:"معلومات الشات",     icon: MessageCircle    },
@@ -866,6 +867,269 @@ function FreeCoffeeModal({
   );
 }
 
+// ── Direct (in-cafe) Order Tab ───────────────────────────────
+// Lets the cafe staff place a walk-in order on behalf of a customer.
+// Only the customer's name is captured — no phone, no game progress.
+// The created order flows through the normal pending → preparing → ready → done
+// pipeline and shows up in the regular "طلبات القهوة" tab marked as "مباشر".
+function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }) {
+  const [items, setItems]           = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [customerName, setCustomerName] = useState("");
+  const [cart, setCart]             = useState<Record<string, number>>({});
+  const [notes, setNotes]           = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr]               = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    api.cafeMenu(id)
+      .then(d => setItems((d.menu ?? d.items ?? []).filter((m: any) => m.available !== false)))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const inc = (mid: string, max: number | null | undefined) => {
+    setCart(prev => {
+      const cur = prev[mid] ?? 0;
+      if (max != null && cur >= max) return prev;
+      return { ...prev, [mid]: cur + 1 };
+    });
+  };
+  const dec = (mid: string) => {
+    setCart(prev => {
+      const cur = prev[mid] ?? 0;
+      if (cur <= 1) {
+        const { [mid]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [mid]: cur - 1 };
+    });
+  };
+
+  const cartLines = items
+    .filter(it => (cart[it.id] ?? 0) > 0)
+    .map(it => ({ ...it, qty: cart[it.id] }));
+  const itemCount = cartLines.reduce((s, l) => s + l.qty, 0);
+  const subtotal  = cartLines.reduce((s, l) => s + (Number(l.price) || 0) * l.qty, 0);
+  const drinkCount = cartLines.reduce(
+    (s, l) => s + (l.category === "حلى" || l.category === "طعام" ? 0 : l.qty),
+    0,
+  );
+
+  const reset = () => { setCart({}); setCustomerName(""); setNotes(""); setErr(""); };
+
+  const submit = async () => {
+    setErr("");
+    const name = customerName.trim();
+    if (!name)               { setErr("أدخل اسم الزبون"); return; }
+    if (cartLines.length === 0) { setErr("اختر منتجاً واحداً على الأقل"); return; }
+    setSubmitting(true);
+    try {
+      await api.addCafeOrder(id, {
+        customerName: name,
+        customerPhone: "",
+        source: "direct",
+        type: "dine",
+        tableNumber: "",
+        items: cartLines.map(l => ({
+          name: l.name,
+          qty: l.qty,
+          price: Number(l.price) || 0,
+          category: l.category,
+        })),
+        total: +subtotal.toFixed(3),
+        drinkCount,
+        notes: notes.trim() || undefined,
+      });
+      reset();
+      onCreated();
+    } catch (e: any) {
+      setErr(e?.message ? String(e.message).slice(0, 200) : "تعذّر إنشاء الطلب");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return <Empty icon="⏳" text="جارٍ تحميل القائمة…" />;
+  }
+  if (items.length === 0) {
+    return <Empty icon="📋" text="لا توجد منتجات في القائمة بعد. أضِف منتجات من تبويب «القائمة» أولاً." />;
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ── Right column: menu picker (2/3) ── */}
+      <div className="lg:col-span-2 space-y-5">
+        {MENU_CATEGORIES.map(({ value: cat, label, Icon }) => {
+          const list = items.filter(i => i.category === cat);
+          if (list.length === 0) return null;
+          return (
+            <Card key={cat} className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Icon size={18} className="text-primary" />
+                <h3 className="font-bold text-foreground">{label}</h3>
+                <span className="text-xs text-muted-foreground">({list.length})</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {list.map(it => {
+                  const qty = cart[it.id] ?? 0;
+                  const outOfStock = it.stockQty != null && it.stockQty <= 0;
+                  return (
+                    <div
+                      key={it.id}
+                      className={`flex items-center gap-3 p-3 rounded-xl border ${
+                        qty > 0 ? "border-primary bg-primary/5" : "border-border bg-input/30"
+                      } ${outOfStock ? "opacity-50" : ""}`}
+                    >
+                      {it.image ? (
+                        <img src={it.image} alt={it.name} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-lg bg-muted/40 flex items-center justify-center text-2xl shrink-0">☕</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-foreground text-sm truncate">{it.name}</p>
+                        <p className="text-xs text-primary font-bold mt-0.5">{Number(it.price).toFixed(3)} OMR</p>
+                        {it.stockQty != null && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            المتبقّي: {it.stockQty}
+                          </p>
+                        )}
+                      </div>
+                      {outOfStock ? (
+                        <span className="text-[10px] font-bold px-2 py-1 rounded bg-red-500/15 text-red-400">نفد</span>
+                      ) : qty === 0 ? (
+                        <button
+                          onClick={() => inc(it.id, it.stockQty)}
+                          className="w-9 h-9 rounded-lg bg-primary text-primary-foreground hover:opacity-90 flex items-center justify-center"
+                          aria-label="إضافة"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => dec(it.id)}
+                            className="w-8 h-8 rounded-lg bg-muted/40 text-foreground hover:bg-muted/60 flex items-center justify-center"
+                            aria-label="إنقاص"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="w-7 text-center font-bold text-foreground">{qty}</span>
+                          <button
+                            onClick={() => inc(it.id, it.stockQty)}
+                            className="w-8 h-8 rounded-lg bg-primary text-primary-foreground hover:opacity-90 flex items-center justify-center"
+                            aria-label="زيادة"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* ── Left column: sticky summary (1/3) ── */}
+      <div className="lg:col-span-1">
+        <Card className="p-5 lg:sticky lg:top-4">
+          <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
+            <ShoppingBag size={18} className="text-primary" />
+            ملخص الطلب المباشر
+          </h3>
+
+          <div className="space-y-3 mb-4">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                اسم الزبون *
+              </label>
+              <Inp value={customerName} onChange={setCustomerName} placeholder="مثال: أحمد" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                ملاحظات (اختياري)
+              </label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="مثال: بدون سكر"
+                rows={2}
+                className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground resize-none"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-3 mb-3">
+            {cartLines.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                لم يتم اختيار منتجات بعد
+              </p>
+            ) : (
+              <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                {cartLines.map(l => (
+                  <div key={l.id} className="flex items-center justify-between text-sm gap-2">
+                    <span className="text-foreground truncate flex-1">{l.name}</span>
+                    <span className="text-muted-foreground text-xs">×{l.qty}</span>
+                    <span className="text-foreground font-medium tabular-nums shrink-0">
+                      {(Number(l.price) * l.qty).toFixed(3)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border pt-3 mb-4 space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>عدد القطع</span>
+              <span className="tabular-nums">{itemCount}</span>
+            </div>
+            <div className="flex justify-between text-base font-bold">
+              <span className="text-foreground">الإجمالي</span>
+              <span className="text-primary tabular-nums">{subtotal.toFixed(3)} OMR</span>
+            </div>
+          </div>
+
+          {err && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs">
+              {err}
+            </div>
+          )}
+
+          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 mb-4">
+            <p className="text-[11px] text-amber-300 leading-relaxed">
+              ℹ️ هذا طلب مباشر من داخل الكوفي — لن يحتسب أي تقدّم في اللعبة للزبون،
+              وستظهر الفاتورة بصيغة «طلب مباشر من الكوفي».
+            </p>
+          </div>
+
+          <button
+            onClick={submit}
+            disabled={submitting || cartLines.length === 0 || !customerName.trim()}
+            className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
+          >
+            <CheckCircle size={16} />
+            {submitting ? "جارٍ التأكيد…" : "تأكيد الطلب"}
+          </button>
+          {cartLines.length > 0 && !submitting && (
+            <button
+              onClick={reset}
+              className="w-full mt-2 text-xs text-muted-foreground hover:text-foreground py-1"
+            >
+              تفريغ السلة
+            </button>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // ── Orders Tab ────────────────────────────────────────────────
 function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
@@ -926,13 +1190,24 @@ function OrdersTab({ id }: { id: string }) {
                 ) : null}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {o.customerPhone} •{" "}
-                {o.type === "dine"
-                  ? `🪑 طاولة ${o.tableNumber}`
-                  : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
+                {o.source === "direct"
+                  ? "☕ طلب مباشر من الكوفي"
+                  : <>
+                      {o.customerPhone} •{" "}
+                      {o.type === "dine"
+                        ? `🪑 طاولة ${o.tableNumber}`
+                        : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
+                    </>}
               </p>
             </div>
-            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[o.status]}`}>{STATUS_AR[o.status]}</span>
+            <div className="flex items-center gap-2">
+              {o.source === "direct" && (
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-primary/15 text-primary border border-primary/30">
+                  مباشر
+                </span>
+              )}
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[o.status]}`}>{STATUS_AR[o.status]}</span>
+            </div>
           </div>
           <div className="space-y-1 mb-3">
             {o.items?.map((item: any, i: number) => (
@@ -2293,9 +2568,12 @@ async function printOrderInvoice(
       : "";
     return `<tr><td>${it.name}${freeNote}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`;
   }).join("");
-  const where = o.type === "dine"
-    ? `طاولة / Table ${o.tableNumber}`
-    : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`;
+  const isDirect = o.source === "direct";
+  const where = isDirect
+    ? "طلب مباشر من الكوفي / Direct in-cafe order"
+    : (o.type === "dine"
+        ? `طاولة / Table ${o.tableNumber}`
+        : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`);
 
   // Pricing breakdown — prefer the persisted order fields when available
   // (new flow), otherwise fall back to legacy single-coffee math.
@@ -2338,8 +2616,10 @@ ${freeAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم الكو
 ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 <tr><td class="cell info-cell">
   <div><b>الزبون / Customer:</b> ${o.customerName}${o.customerNameEn ? ` <span style="direction:ltr;display:inline-block">(${o.customerNameEn})</span>` : ""}</div>
-  <div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
-  <div><b>المكان / Location:</b> ${where}</div>
+  ${isDirect
+    ? `<div style="margin-top:1mm;padding:1mm 2mm;border:1px dashed #000;text-align:center;font-weight:bold">☕ طلب مباشر من الكوفي / Direct in-cafe order</div>`
+    : `<div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
+  <div><b>المكان / Location:</b> ${where}</div>`}
   <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
   <div><b>طريقة الدفع / Payment:</b> ${payLabel}</div>
 </td></tr>
@@ -3792,6 +4072,7 @@ export default function CafeDashboardPage() {
       <div className="flex-1 overflow-y-auto p-6">
         {tab === "stats"    && <StatsTab    id={id} />}
         {tab === "orders"   && <OrdersTab   id={id} />}
+        {tab === "direct"   && <DirectOrderTab id={id} onCreated={() => setTab("orders")} />}
         {tab === "bookings" && <BookingsTab id={id} />}
         {tab === "menu"     && <MenuTab     id={id} />}
         {tab === "chat"     && <ChatTab     id={id} />}
@@ -4380,7 +4661,11 @@ function ReelsTab({ id }: { id: string }) {
   // Upload phases: idle | processing (downscale) | uploading
   const [phase, setPhase] = useState<"idle" | "processing" | "uploading">("idle");
   const [progress, setProgress] = useState(0); // 0..1
-  const [origInfo, setOrigInfo] = useState<{ w: number; h: number; sizeMB: number } | null>(null);
+  const [origInfo, setOrigInfo] = useState<{ w: number; h: number; sizeMB: number; durationSec: number } | null>(null);
+  // Two-step wizard: "pick" (choose file + write description) → "preview" (full-size
+  // preview + confirm publish). The user must explicitly confirm in "preview" before
+  // any processing/upload starts, so they can verify the video is the right one.
+  const [stepView, setStepView] = useState<"pick" | "preview">("pick");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -4426,14 +4711,40 @@ function ReelsTab({ id }: { id: string }) {
     if (!looksLikeVideo) { setError("يرجى اختيار ملف فيديو"); return; }
     setVideoFile(f);
     setVideoDataUrl(URL.createObjectURL(f));
-    // Probe dimensions for the user-facing info card.
+    // Probe dimensions + duration for the user-facing info card.
     const probe = document.createElement("video");
     probe.preload = "metadata";
     probe.src = URL.createObjectURL(f);
     probe.onloadedmetadata = () => {
-      setOrigInfo({ w: probe.videoWidth, h: probe.videoHeight, sizeMB: f.size / (1024 * 1024) });
+      setOrigInfo({
+        w: probe.videoWidth,
+        h: probe.videoHeight,
+        sizeMB: f.size / (1024 * 1024),
+        durationSec: probe.duration || 0,
+      });
       URL.revokeObjectURL(probe.src);
     };
+  };
+
+  const goToPreview = () => {
+    setError("");
+    if (!videoFile) { setError("يرجى اختيار فيديو أولاً"); return; }
+    if (!description.trim()) { setError("يرجى كتابة وصف للريل"); return; }
+    setStepView("preview");
+  };
+  const backToPick = () => {
+    setStepView("pick");
+  };
+  const cancelForm = () => {
+    setShowForm(false);
+    setStepView("pick");
+    setVideoFile(null);
+    setVideoDataUrl("");
+    setDescription("");
+    setOrigInfo(null);
+    setError("");
+    setPhase("idle");
+    setProgress(0);
   };
 
   // Downscale a video to <=1080p using canvas + MediaRecorder. Returns the original
@@ -4530,7 +4841,19 @@ function ReelsTab({ id }: { id: string }) {
     try {
       setPhase("processing");
       setProgress(0);
-      const blob = await processVideo(videoFile, setProgress);
+      // processVideo only re-encodes if the source is > 1080p. For most phone
+      // videos this returns the original file untouched and is essentially
+      // instant. If re-encoding is needed it can take real-time-of-video duration,
+      // which is why the user sees a progress bar.
+      let blob: Blob;
+      try {
+        blob = await processVideo(videoFile, setProgress);
+      } catch {
+        // If the in-browser re-encode fails (codec quirks), fall back to the
+        // original file so the upload still goes through.
+        blob = videoFile;
+        setProgress(1);
+      }
       const dataUrl = await blobToDataUrl(blob);
       setPhase("uploading");
       setProgress(0);
@@ -4539,6 +4862,7 @@ function ReelsTab({ id }: { id: string }) {
         description: description.trim(),
       }, setProgress);
       setShowForm(false);
+      setStepView("pick");
       setVideoFile(null); setVideoDataUrl("");
       setDescription("");
       setOrigInfo(null);
@@ -4619,81 +4943,173 @@ function ReelsTab({ id }: { id: string }) {
         </div>
       )}
 
-      {/* Upload form */}
+      {/* Upload form (2-step wizard: pick → preview/publish) */}
       {showForm && (
         <div className="rounded-2xl border border-[#E8B86D]/30 bg-[#0A0606] p-5 space-y-4">
-          <h3 className="font-semibold">ريل جديد</h3>
-          <div>
-            <label className="block text-sm mb-2 text-white/70">ملف الفيديو (عمودي، أي جودة)</label>
-            <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-black/30 cursor-pointer hover:border-[#E8B86D]/50">
-              <Upload className="w-4 h-4 text-[#E8B86D]" />
-              <span className="text-sm text-white/70">{videoFile ? videoFile.name : "اختيار ملف…"}</span>
-              {/*
-                accept="video/*" alone is the universally-supported value. Earlier we
-                also listed many uncommon container extensions (.mkv, .hevc, .vob, .mxf,
-                .f4v, .h264, .h265, …) which made some mobile browsers (Safari iOS,
-                some Android Chrome builds) silently refuse to open the file picker
-                because they don't recognise those extension tokens. Keep the long
-                extension fallback inside `handleFile` instead so any video the OS
-                lets the user pick is still accepted.
-              */}
-              <input type="file" accept="video/*" className="hidden"
-                onChange={(e) => { handleFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
-            </label>
-            {origInfo && (
-              <div className="mt-2 text-xs text-white/60">
-                {origInfo.w}×{origInfo.h} · {origInfo.sizeMB.toFixed(1)} MB
-                {origInfo.h > 1080 && (
-                  <span className="text-[#E8B86D]"> · سيتم تقليص الجودة إلى 1080p عند النشر</span>
+          {/* Step header */}
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Video className="w-5 h-5 text-[#E8B86D]" />
+              ريل جديد
+              <span className="text-xs text-white/50 mr-2">
+                — الخطوة {stepView === "pick" ? "1" : "2"} من 2
+              </span>
+            </h3>
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className={`px-2 py-1 rounded-full ${stepView === "pick" ? "bg-[#E8B86D] text-black font-bold" : "bg-white/10 text-white/50"}`}>
+                1. اختيار + وصف
+              </span>
+              <span className="text-white/30">→</span>
+              <span className={`px-2 py-1 rounded-full ${stepView === "preview" ? "bg-[#E8B86D] text-black font-bold" : "bg-white/10 text-white/50"}`}>
+                2. معاينة + نشر
+              </span>
+            </div>
+          </div>
+
+          {/* ───────────────── STEP 1 — PICK ───────────────── */}
+          {stepView === "pick" && (
+            <>
+              <div>
+                <label className="block text-sm mb-2 text-white/70">ملف الفيديو (عمودي، أي جودة)</label>
+                <label className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-black/30 cursor-pointer hover:border-[#E8B86D]/50">
+                  <Upload className="w-4 h-4 text-[#E8B86D]" />
+                  <span className="text-sm text-white/70 truncate">{videoFile ? videoFile.name : "اختيار ملف…"}</span>
+                  {/*
+                    accept="video/*" alone is the universally-supported value. Less
+                    common container extensions are caught by `handleFile`'s regex
+                    fallback so any video the OS lets the user pick is accepted.
+                  */}
+                  <input type="file" accept="video/*" className="hidden"
+                    onChange={(e) => { handleFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                </label>
+                {origInfo && (
+                  <div className="mt-2 text-xs text-white/60 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>📐 {origInfo.w}×{origInfo.h}</span>
+                    <span>📦 {origInfo.sizeMB.toFixed(1)} MB</span>
+                    {origInfo.durationSec > 0 && <span>⏱️ {origInfo.durationSec.toFixed(1)}s</span>}
+                    {origInfo.h > 1080 && (
+                      <span className="text-[#E8B86D]">· سيتم تقليص الجودة إلى 1080p عند النشر</span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-            {videoDataUrl && (
-              <video src={videoDataUrl} controls className="mt-3 w-28 rounded-xl border border-white/10" />
-            )}
-          </div>
-          <div>
-            <label className="block text-sm mb-2 text-white/70">الوصف</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-              rows={3} className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
-              placeholder="مثال: قهوة الصباح بنكهة جديدة ☕" />
-          </div>
-          <div className="rounded-xl border border-[#E8B86D]/30 bg-[#E8B86D]/5 p-3 text-xs text-white/70 space-y-1.5">
-            <div className="flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-[#E8B86D]" />
-              <span>رابط صفحة الكوفي للطلب يُضاف تلقائياً</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[#E8B86D]" />
-              <span>موقع الكوفي على الخريطة يُضاف تلقائياً من بيانات الكوفي</span>
-            </div>
-          </div>
-          {error && <div className="text-sm text-rose-400">{error}</div>}
-          {phase !== "idle" && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-white/70">
-                <span>
-                  {phase === "processing" ? "جارٍ معالجة الفيديو وتقليص الجودة…" : "جارٍ رفع الفيديو…"}
-                </span>
-                <span>{Math.round(progress * 100)}%</span>
+              <div>
+                <label className="block text-sm mb-2 text-white/70">الوصف *</label>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+                  rows={3} className="w-full rounded-xl bg-black/30 border border-white/10 p-3 text-sm"
+                  placeholder="مثال: قهوة الصباح بنكهة جديدة ☕" />
               </div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-[#E8B86D] transition-all" style={{ width: `${progress * 100}%` }} />
+              <div className="rounded-xl border border-[#E8B86D]/30 bg-[#E8B86D]/5 p-3 text-xs text-white/70 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-4 h-4 text-[#E8B86D]" />
+                  <span>رابط صفحة الكوفي للطلب يُضاف تلقائياً</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-[#E8B86D]" />
+                  <span>موقع الكوفي على الخريطة يُضاف تلقائياً من بيانات الكوفي</span>
+                </div>
               </div>
-            </div>
+              {error && <div className="text-sm text-rose-400">{error}</div>}
+              <div className="flex gap-2">
+                <button
+                  onClick={goToPreview}
+                  disabled={!videoFile || !description.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-[#E8B86D] text-black font-semibold disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Eye className="w-4 h-4" />
+                  معاينة قبل النشر
+                </button>
+                <button onClick={cancelForm}
+                  className="px-5 py-2.5 rounded-xl border border-white/10 text-white/70">
+                  إلغاء
+                </button>
+              </div>
+            </>
           )}
-          <div className="flex gap-2">
-            <button onClick={submit} disabled={submitting}
-              className="px-5 py-2 rounded-xl bg-[#E8B86D] text-black font-semibold disabled:opacity-50">
-              {submitting
-                ? (phase === "processing" ? "جارٍ المعالجة…" : "جارٍ الرفع…")
-                : "نشر الريل"}
-            </button>
-            <button onClick={() => setShowForm(false)}
-              className="px-5 py-2 rounded-xl border border-white/10 text-white/70">
-              إلغاء
-            </button>
-          </div>
+
+          {/* ───────────────── STEP 2 — PREVIEW + PUBLISH ───────────────── */}
+          {stepView === "preview" && (
+            <>
+              <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-center">
+                <p className="text-xs text-white/60 mb-3">
+                  ✋ تحقّق من الفيديو والوصف بعناية. اضغط «نشر الريل» للنشر، أو «رجوع» للتعديل.
+                </p>
+                {videoDataUrl && (
+                  <video
+                    src={videoDataUrl}
+                    controls
+                    autoPlay={false}
+                    playsInline
+                    className="mx-auto rounded-xl border border-white/10 bg-black"
+                    style={{ maxHeight: 480, maxWidth: "100%" }}
+                  />
+                )}
+                {origInfo && (
+                  <div className="mt-3 text-xs text-white/60 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                    <span>📐 {origInfo.w}×{origInfo.h}</span>
+                    <span>📦 {origInfo.sizeMB.toFixed(1)} MB</span>
+                    {origInfo.durationSec > 0 && <span>⏱️ {origInfo.durationSec.toFixed(1)}s</span>}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                <p className="text-[11px] text-white/50 mb-1">الوصف</p>
+                <p className="text-sm text-white/90 whitespace-pre-wrap">{description}</p>
+              </div>
+
+              {origInfo && origInfo.h > 1080 && (
+                <div className="rounded-xl border border-[#E8B86D]/30 bg-[#E8B86D]/5 p-3 text-xs text-white/80">
+                  ℹ️ سيتم تقليص الجودة إلى 1080p أثناء النشر — قد يستغرق هذا
+                  وقتاً يقارب مدة الفيديو نفسه. لا تغلق الصفحة.
+                </div>
+              )}
+
+              {error && <div className="text-sm text-rose-400">{error}</div>}
+
+              {phase !== "idle" && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-white/70">
+                    <span>
+                      {phase === "processing" ? "جارٍ معالجة الفيديو…" : "جارٍ رفع الفيديو إلى الخادم…"}
+                    </span>
+                    <span>{Math.round(progress * 100)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                    <div className="h-full bg-[#E8B86D] transition-all" style={{ width: `${progress * 100}%` }} />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={submit}
+                  disabled={submitting}
+                  className="px-5 py-2.5 rounded-xl bg-[#E8B86D] text-black font-semibold disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  {submitting
+                    ? (phase === "processing" ? "جارٍ المعالجة…" : "جارٍ الرفع…")
+                    : "نشر الريل"}
+                </button>
+                <button
+                  onClick={backToPick}
+                  disabled={submitting}
+                  className="px-5 py-2.5 rounded-xl border border-white/20 text-white/80 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  رجوع للتعديل
+                </button>
+                <button
+                  onClick={cancelForm}
+                  disabled={submitting}
+                  className="px-5 py-2.5 rounded-xl border border-white/10 text-white/60 disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
