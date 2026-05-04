@@ -15,13 +15,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, type CafeProgress, type User } from "@/context/AppContext";
+import { useCommunities } from "@/context/CommunityContext";
 import { getRank } from "@/data/mockData";
 
-type LeaderTab = "friends" | "oman";
+type LeaderTab = "friends" | "oman" | "communities";
 
 const TAB_LABELS: Record<LeaderTab, string> = {
-  friends: "👥 الأصدقاء",
-  oman: "🇴🇲 عُمان",
+  friends:     "👥 الأصدقاء",
+  oman:        "🇴🇲 عُمان",
+  communities: "🏘️ المجتمعات",
 };
 
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -48,6 +50,7 @@ export default function LeaderboardScreen() {
     outgoingRequests, incomingRequests,
     sendFriendRequest, cancelFriendRequest, acceptFriendRequest,
   } = useApp();
+  const { rankingList } = useCommunities();
   const [activeTab, setActiveTab] = useState<LeaderTab>("friends");
   // ID of the user whose detail panel is currently open (null = closed).
   const [panelUserId, setPanelUserId] = useState<string | null>(null);
@@ -110,12 +113,19 @@ export default function LeaderboardScreen() {
 
   const panelUser = panelUserId ? registeredUsers.find(u => u.id === panelUserId) ?? null : null;
 
-  const emptyMsg = activeTab === "friends"
-    ? "لا يوجد أصدقاء بعد"
-    : "لا يوجد مستخدمون في عُمان بعد";
-  const emptySub = activeTab === "friends"
-    ? "أضف أصدقاءك من تبويب «عُمان» لتنافسهم هنا"
-    : "كن أول من يبدأ رحلة القهوة!";
+  const emptyMsg =
+    activeTab === "friends"     ? "لا يوجد أصدقاء بعد"
+    : activeTab === "communities" ? "لا توجد مجتمعات بعد"
+    :                               "لا يوجد مستخدمون في عُمان بعد";
+  const emptySub =
+    activeTab === "friends"     ? "أضف أصدقاءك من تبويب «عُمان» لتنافسهم هنا"
+    : activeTab === "communities" ? "أنشئ مجتمعاً أو انضم إلى واحد ليظهر هنا"
+    :                               "كن أول من يبدأ رحلة القهوة!";
+
+  const openCommunity = (cid: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: "/community-info", params: { id: cid } });
+  };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -159,7 +169,61 @@ export default function LeaderboardScreen() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 100, gap: 10 }}
         showsVerticalScrollIndicator={false}
       >
-        {entries.length === 0 ? (
+        {/* ── Communities ranking tab ───────────────────────────── */}
+        {activeTab === "communities" ? (
+          rankingList.length === 0 ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyIcon}>🏘️</Text>
+              <Text style={styles.emptyTitle}>{emptyMsg}</Text>
+              <Text style={styles.emptySub}>{emptySub}</Text>
+            </View>
+          ) : (
+            rankingList.map((r, i) => {
+              const isMine = !!user && r.community.members.includes(user.id);
+              return (
+                <TouchableOpacity
+                  key={r.community.id}
+                  activeOpacity={0.85}
+                  onPress={() => openCommunity(r.community.id)}
+                  style={[
+                    styles.entryRow,
+                    isMine && styles.entryRowMe,
+                    i === 0 && styles.entryRowFirst,
+                  ]}
+                >
+                  <Text style={[
+                    styles.entryRankNum,
+                    { color: i === 0 ? "#FFD700" : i === 1 ? "#A8A8A8" : i === 2 ? "#CD7F32" : "#999" },
+                  ]}>
+                    {MEDAL[i] ?? `#${i + 1}`}
+                  </Text>
+
+                  {r.community.avatar ? (
+                    <Image source={{ uri: r.community.avatar }} style={styles.avatarImg} />
+                  ) : (
+                    <View style={[styles.avatar, isMine && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
+                      <Text style={{ fontSize: 20 }}>🏘️</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.entryInfo}>
+                    <Text style={[styles.entryName, isMine && { color: "#E8B86D" }]} numberOfLines={1}>
+                      {r.community.name}{isMine ? " (مجتمعك)" : ""}
+                    </Text>
+                    <Text style={styles.entryLevel}>
+                      👥 {r.community.members.length} عضو
+                    </Text>
+                    <View style={styles.coffeeChip}>
+                      <Text style={styles.coffeeChipText}>☕ {r.score} كوفي</Text>
+                    </View>
+                  </View>
+
+                  <Feather name="chevron-left" size={18} color="rgba(255,255,255,0.45)" />
+                </TouchableOpacity>
+              );
+            })
+          )
+        ) : entries.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🏁</Text>
             <Text style={styles.emptyTitle}>{emptyMsg}</Text>
