@@ -111,6 +111,9 @@ export interface CartItem {
 
 interface AppContextType {
   user: User | null;
+  /** True once the initial AsyncStorage read completes (used by the global
+   *  AuthGate to avoid flashing the login screen for signed-in users). */
+  hydrated: boolean;
   setUser: (user: User | null) => void;
   register: (data: Omit<User, "id" | "level" | "totalOrders" | "points">) => Promise<AuthResult>;
   login: (phone: string, password: string) => Promise<AuthResult>;
@@ -186,6 +189,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
   const [activeOrder, setActiveOrderState] = useState<ActiveOrder | null>(null);
   const [activeGameCafeId, setActiveGameCafeIdState] = useState<string | null>(null);
+  // `hydrated` flips to true once the initial AsyncStorage read finishes.
+  // Consumers (notably the global AuthGate) wait on this flag so the
+  // login screen does not flash for users who are already signed in.
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -228,6 +235,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setOutgoingRequests(outRaw ? JSON.parse(outRaw) : []);
       }
     } catch (e) {}
+    finally { setHydrated(true); }
   };
 
   // Re-read friend lists from storage (used by notifications screen on focus,
@@ -645,6 +653,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user,
+        hydrated,
         setUser,
         register,
         login,
