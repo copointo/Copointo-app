@@ -36,11 +36,6 @@ export default function MyCafesScreen() {
     router.replace("/(tabs)");
   };
 
-  const handleEnter = (cafeId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: "/cafe/[id]", params: { id: cafeId } });
-  };
-
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.headerRow}>
@@ -52,7 +47,7 @@ export default function MyCafesScreen() {
       </View>
 
       <Text style={styles.subtitle}>
-        تقدّمك في كل كوفي منفصل — اختر كوفي لعرض مستواك في اللعبة.
+        مستواك في كل كوفي طلبت منه — اضغط على الكوفي لعرض مستواك فيه داخل اللعبة.
       </Text>
 
       <ScrollView
@@ -72,7 +67,13 @@ export default function MyCafesScreen() {
             const isActive = c.cafeId === activeGameCafeId;
             const rank = getRank(c.level);
             return (
-              <View key={c.cafeId} style={[styles.card, isActive && styles.cardActive]}>
+              <TouchableOpacity
+                key={c.cafeId}
+                style={[styles.card, isActive && styles.cardActive]}
+                onPress={() => handleSelect(c.cafeId)}
+                activeOpacity={0.85}
+                disabled={isActive}
+              >
                 <View style={styles.cardHeader}>
                   <View style={styles.cardIcon}>
                     <Feather name="coffee" size={20} color={PRIMARY} />
@@ -94,33 +95,18 @@ export default function MyCafesScreen() {
                   </View>
                 </View>
 
-                <View style={styles.actionsRow}>
-                  <TouchableOpacity
-                    style={[styles.btn, isActive ? styles.btnActive : styles.btnPrimary]}
-                    onPress={() => handleSelect(c.cafeId)}
-                    activeOpacity={0.85}
-                    disabled={isActive}
-                  >
-                    <Feather
-                      name={isActive ? "check" : "eye"}
-                      size={14}
-                      color={isActive ? PRIMARY : "#000"}
-                    />
-                    <Text style={[styles.btnText, isActive && styles.btnTextActive]}>
-                      {isActive ? "معروض حالياً" : "عرض في اللعبة"}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnGhost]}
-                    onPress={() => handleEnter(c.cafeId)}
-                    activeOpacity={0.85}
-                  >
-                    <Feather name="external-link" size={14} color={PRIMARY} />
-                    <Text style={[styles.btnText, styles.btnTextGhost]}>دخول الكوفي</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+                {isActive ? (
+                  <View style={styles.activeBadge}>
+                    <Feather name="check" size={14} color={PRIMARY} />
+                    <Text style={styles.activeBadgeText}>معروض حالياً في اللعبة</Text>
+                  </View>
+                ) : (
+                  <View style={styles.tapHint}>
+                    <Feather name="eye" size={13} color={PRIMARY} />
+                    <Text style={styles.tapHintText}>اضغط لعرض مستواك في هذا الكوفي</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             );
           })
         )}
@@ -191,15 +177,16 @@ const styles = StyleSheet.create({
   levelNum:   { fontSize: 18, fontFamily: "Inter_700Bold", color: PRIMARY, lineHeight: 22 },
   levelLabel: { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(232,184,109,0.7)" },
 
-  actionsRow: { flexDirection: "row", gap: 8 },
-  btn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+  activeBadge: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
     paddingVertical: 10, borderRadius: 12,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: PRIMARY,
   },
-  btnPrimary: { backgroundColor: PRIMARY },
-  btnActive:  { backgroundColor: "rgba(232,184,109,0.10)", borderWidth: 1, borderColor: PRIMARY },
-  btnGhost:   { backgroundColor: "transparent", borderWidth: 1, borderColor: BORDER },
-  btnText:    { fontSize: 13, fontFamily: "Inter_700Bold", color: "#000" },
-  btnTextActive: { color: PRIMARY },
-  btnTextGhost:  { color: PRIMARY },
+  activeBadgeText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  tapHint: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8,
+  },
+  tapHintText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(232,184,109,0.85)" },
 });
