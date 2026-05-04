@@ -194,6 +194,21 @@ router.patch("/orders/:orderId/status", (req, res): any => {
   return res.json({ order });
 });
 
+// Set the payment method on an order (cash | visa). Stored on the order so
+// the printed invoice and the daily/monthly/yearly aggregates can break down
+// the totals by payment method.
+router.patch("/orders/:orderId/payment", (req: any, res): any => {
+  const order = orders.find(o => o.id === req.params.orderId);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  const raw = String(req.body?.paymentMethod ?? "").trim().toLowerCase();
+  if (raw !== "cash" && raw !== "visa") {
+    return res.status(400).json({ error: "paymentMethod must be 'cash' or 'visa'" });
+  }
+  order.paymentMethod = raw;
+  persistStore();
+  return res.json({ order });
+});
+
 // Mark invoice printed → completes order. Drink progress was already awarded at
 // confirmation time (see PATCH /status); this still calls the helper so any
 // edge-case order that was printed without going through confirmation is awarded.

@@ -738,6 +738,10 @@ function OrdersTab({ id }: { id: string }) {
     await api.cafeOrderStatus(id, oid, "done");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "done" } : o));
   };
+  const setPayment = async (oid: string, method: "cash" | "visa") => {
+    await api.cafeOrderPayment(id, oid, method);
+    setOrders(prev => prev.map(o => o.id === oid ? { ...o, paymentMethod: method } : o));
+  };
   const printInvoice = async (o: any) => {
     // Award points + mark order as done (idempotent on server) — fire and forget.
     api.cafeOrderPrint(id, o.id).then(() => {
@@ -795,6 +799,23 @@ function OrdersTab({ id }: { id: string }) {
           <div className="flex items-center justify-between border-t border-border pt-3 gap-3 flex-wrap">
             <span className="font-bold text-primary">{o.total?.toFixed(3)} OMR</span>
             <div className="flex gap-2 flex-wrap">
+              {/* Existing badges (always visible once set) */}
+              {o.freeCoffeeCode && (
+                <span className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary text-xs font-semibold">
+                  <Gift size={13}/> كوفي مجاني: {o.freeCoffeeCode}
+                </span>
+              )}
+              {o.paymentMethod && (
+                <span className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold ${
+                  o.paymentMethod === "cash"
+                    ? "bg-emerald-500/15 text-emerald-400"
+                    : "bg-blue-500/15 text-blue-400"
+                }`}>
+                  {o.paymentMethod === "cash" ? "💵 كاش" : "💳 فيزا"}
+                </span>
+              )}
+
+              {/* Step 1 — pending: only the confirm-prep button */}
               {o.status === "pending" && (
                 <button
                   onClick={() => confirmPrep(o.id)}
@@ -803,41 +824,52 @@ function OrdersTab({ id }: { id: string }) {
                   <CheckCircle size={14}/> تأكيد تحضير الطلب
                 </button>
               )}
-              {!o.freeCoffeeCode && (
-                <button
-                  onClick={() => setFreeFor(o)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/60 text-primary text-xs font-semibold hover:bg-primary/10"
-                >
-                  <Gift size={13}/> كوفي مجاني
-                </button>
-              )}
-              {o.freeCoffeeCode && (
-                <span className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary text-xs font-semibold">
-                  <Gift size={13}/> كوفي مجاني: {o.freeCoffeeCode}
-                </span>
-              )}
+
+              {/* Step 2 — preparing: only the order-ready button */}
               {o.status === "preparing" && (
                 <button
                   onClick={() => markReady(o.id)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-semibold hover:bg-green-500/30"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold hover:bg-green-500/30"
                 >
-                  <CheckCircle size={13}/> الطلب جاهز
+                  <CheckCircle size={14}/> طلبك جاهز
                 </button>
               )}
-              {o.status === "ready" && (
+
+              {/* Step 3 — ready, no payment yet: choose cash/visa + optional free coffee */}
+              {o.status === "ready" && !o.paymentMethod && (
+                <>
+                  <button
+                    onClick={() => setPayment(o.id, "cash")}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold hover:bg-emerald-500/30"
+                  >
+                    💵 كاش
+                  </button>
+                  <button
+                    onClick={() => setPayment(o.id, "visa")}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/30"
+                  >
+                    💳 فيزا
+                  </button>
+                  {!o.freeCoffeeCode && (
+                    <button
+                      onClick={() => setFreeFor(o)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-primary/60 text-primary text-xs font-semibold hover:bg-primary/10"
+                    >
+                      <Gift size={13}/> كوفي مجاني
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* Step 4 — payment set (or already done): show print invoice */}
+              {((o.status === "ready" && o.paymentMethod) || o.status === "done") && (
                 <button
-                  onClick={() => markDone(o.id)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-green-500/20 text-green-400 text-xs font-semibold hover:bg-green-500/30"
+                  onClick={() => printInvoice(o)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90"
                 >
-                  <CheckCircle size={13}/> تم التسليم
+                  🖨️ طباعة الفاتورة
                 </button>
               )}
-              <button
-                onClick={() => printInvoice(o)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs font-semibold hover:bg-muted/30"
-              >
-                🖨️ طباعة فاتورة
-              </button>
             </div>
           </div>
         </Card>
@@ -1655,8 +1687,19 @@ function aggregateOrders(orderList: any[], from: Date, to: Date) {
   });
   const byCat: Record<string, { qty: number; amount: number }> = {};
   let total = 0;
+  let cashTotal = 0;
+  let visaTotal = 0;
+  let unspecifiedTotal = 0;
+  let cashCount = 0;
+  let visaCount = 0;
+  let unspecifiedCount = 0;
   for (const o of inRange) {
-    total += Number(o.total) || 0;
+    const amt = Number(o.total) || 0;
+    total += amt;
+    const pm = String(o.paymentMethod ?? "").toLowerCase();
+    if (pm === "cash")      { cashTotal += amt; cashCount++; }
+    else if (pm === "visa") { visaTotal += amt; visaCount++; }
+    else                    { unspecifiedTotal += amt; unspecifiedCount++; }
     for (const it of (o.items ?? [])) {
       const cat = classifyItem(String(it.name ?? ""), it.category);
       byCat[cat] ??= { qty: 0, amount: 0 };
@@ -1664,7 +1707,18 @@ function aggregateOrders(orderList: any[], from: Date, to: Date) {
       byCat[cat].amount += (Number(it.qty) || 0) * (Number(it.price) || 0);
     }
   }
-  return { inRange, byCat, total };
+  return { inRange, byCat, total, cashTotal, visaTotal, unspecifiedTotal, cashCount, visaCount, unspecifiedCount };
+}
+
+// Render the cash / visa / unspecified breakdown rows for an aggregated invoice.
+function paymentBreakdownRows(opts: { cashTotal: number; visaTotal: number; unspecifiedTotal: number; cashCount: number; visaCount: number; unspecifiedCount: number }) {
+  const { cashTotal, visaTotal, unspecifiedTotal, cashCount, visaCount, unspecifiedCount } = opts;
+  return `
+<tr><td class="cell sec-title-cell">طريقة الدفع / Payment Method</td></tr>
+<tr><td class="cell row-cell"><span class="lbl">💵 كاش / Cash (${cashCount})</span><span class="val">${cashTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">💳 فيزا / Visa (${visaCount})</span><span class="val">${visaTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+${unspecifiedCount > 0 ? `<tr><td class="cell row-cell"><span class="lbl">— غير محدد / Unspecified (${unspecifiedCount})</span><span class="val">${unspecifiedTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
+`;
 }
 
 function aggregateExpenses(expList: any[], from: Date, to: Date) {
@@ -1719,6 +1773,10 @@ async function printOrderInvoice(
 <tr><td class="cell row-cell"><span class="lbl">خصم الكوفي المجاني / Free coffee</span><span class="val">− ${freeAmt.toFixed(3)} ر.ع / OMR</span></td></tr>
 ` : "";
 
+  const payLabel = o.paymentMethod === "cash" ? "💵 كاش / Cash"
+                 : o.paymentMethod === "visa" ? "💳 فيزا / Visa"
+                 : "—";
+
   const body = `
 ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 <tr><td class="cell info-cell">
@@ -1726,6 +1784,7 @@ ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
   <div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
   <div><b>المكان / Location:</b> ${where}</div>
   <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
+  <div><b>طريقة الدفع / Payment:</b> ${payLabel}</div>
 </td></tr>
 <tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
 <tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
@@ -1742,11 +1801,15 @@ async function printDailyInvoice(id: string, dateStr: string): Promise<{ from: D
   const { orders } = await loadAggData(id);
   const from = new Date(dateStr + "T00:00:00");
   const to   = new Date(from); to.setDate(to.getDate() + 1);
-  const { inRange, byCat, total } = aggregateOrders(orders, from, to);
+  const agg = aggregateOrders(orders, from, to);
+  const { inRange, byCat, total } = agg;
 
-  const ordersRows = inRange.map(o =>
-    `<tr><td>#${o.id.slice(-5)}</td><td>${o.customerName ?? "-"}</td><td style="font-size:9.5px">${fmtDateTimeAr(o.createdAt)}</td><td style="text-align:left">${(Number(o.total)||0).toFixed(3)}</td></tr>`
-  ).join("");
+  const ordersRows = inRange.map(o => {
+    const pm = o.paymentMethod === "cash" ? "💵"
+             : o.paymentMethod === "visa" ? "💳"
+             : "—";
+    return `<tr><td>#${o.id.slice(-5)}</td><td>${o.customerName ?? "-"}</td><td style="font-size:9.5px">${fmtDateTimeAr(o.createdAt)}</td><td style="text-align:center">${pm}</td><td style="text-align:left">${(Number(o.total)||0).toFixed(3)}</td></tr>`;
+  }).join("");
   const catRows = Object.entries(byCat).map(([k, v]) =>
     `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
   ).join("");
@@ -1759,11 +1822,12 @@ ${tplHeaderHtml(tpl, "الفاتورة اليومية / Daily Invoice", `${fmtDa
 <tr><td class="cell sec-title-cell">جميع الطلبات / All Orders</td></tr>
 <tr><td class="cell items-cell">${inRange.length === 0
   ? `<div class="empty-inner">لا توجد طلبات / No orders</div>`
-  : `<table class="items"><thead><tr><th>رقم<br>No.</th><th>الزبون<br>Customer</th><th>الوقت<br>Time</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${ordersRows}</tbody></table>`}</td></tr>
+  : `<table class="items"><thead><tr><th>رقم<br>No.</th><th>الزبون<br>Customer</th><th>الوقت<br>Time</th><th>الدفع<br>Pay</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${ordersRows}</tbody></table>`}</td></tr>
 <tr><td class="cell sec-title-cell">المجموع حسب التصنيف / Totals by Category</td></tr>
 <tr><td class="cell items-cell">${Object.keys(byCat).length === 0
   ? `<div class="empty-inner">لا يوجد / None</div>`
   : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+${paymentBreakdownRows(agg)}
 <tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم / Daily Total</span><span class="val">${total.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
@@ -1776,7 +1840,8 @@ async function printMonthlyInvoice(id: string, year: number, month: number) {
   const { orders, expenses } = await loadAggData(id);
   const from = new Date(year, month - 1, 1);
   const to   = new Date(year, month,     1);
-  const { inRange: ordersIn, byCat, total: ordersTotal } = aggregateOrders(orders, from, to);
+  const agg = aggregateOrders(orders, from, to);
+  const { inRange: ordersIn, byCat, total: ordersTotal } = agg;
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
   const net = ordersTotal - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
@@ -1794,6 +1859,7 @@ ${tplHeaderHtml(tpl, "الفاتورة الشهرية / Monthly Invoice", `${mon
 <tr><td class="cell items-cell">${Object.keys(byCat).length === 0
   ? `<div class="empty-inner">لا يوجد / None</div>`
   : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+${paymentBreakdownRows(agg)}
 <tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات / Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 <tr><td class="cell total-cell"><span class="lbl">الصافي / Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
@@ -1807,7 +1873,8 @@ async function printYearlyInvoice(id: string, year: number) {
   const { orders, expenses } = await loadAggData(id);
   const from = new Date(year, 0, 1);
   const to   = new Date(year + 1, 0, 1);
-  const { inRange: ordersIn, byCat, total: ordersTotal } = aggregateOrders(orders, from, to);
+  const agg = aggregateOrders(orders, from, to);
+  const { inRange: ordersIn, byCat, total: ordersTotal } = agg;
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
   const net = ordersTotal - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
@@ -1824,6 +1891,7 @@ ${tplHeaderHtml(tpl, "الفاتورة السنوية / Yearly Invoice", `سنة
 <tr><td class="cell items-cell">${Object.keys(byCat).length === 0
   ? `<div class="empty-inner">لا يوجد / None</div>`
   : `<table class="items"><thead><tr><th>التصنيف<br>Category</th><th>الكمية<br>Qty</th><th>المبلغ<br>Amount</th></tr></thead><tbody>${catRows}</tbody></table>`}</td></tr>
+${paymentBreakdownRows(agg)}
 <tr><td class="cell row-cell"><span class="lbl">مجموع الإيرادات / Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 <tr><td class="cell total-cell"><span class="lbl">الصافي السنوي / Yearly Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>

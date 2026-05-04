@@ -32,6 +32,7 @@ export const api = {
   cafeStats:     (id: string)              => req<any>("GET",    `${C(id)}/stats`),
   cafeOrders:    (id: string)              => req<any>("GET",    `${C(id)}/orders`),
   cafeOrderStatus:(id:string,oid:string,status:string) => req<any>("PATCH", `${C(id)}/orders/${oid}/status`, { status }),
+  cafeOrderPayment:(id:string,oid:string,paymentMethod:"cash"|"visa") => req<any>("PATCH", `${C(id)}/orders/${oid}/payment`, { paymentMethod }),
   cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
   cafeOrdersClear: (id: string, from?: string, to?: string) => {
     const qs = new URLSearchParams();
