@@ -20,7 +20,7 @@ import { Link } from "wouter";
 type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels";
 
 // ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
-function playNotificationBell() {
+function playSyntheticBell() {
   try {
     const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
     if (!Ctx) return;
@@ -43,6 +43,53 @@ function playNotificationBell() {
     }
     setTimeout(() => { ctx.close().catch(() => {}); }, 3500);
   } catch { /* ignore — sound is best-effort */ }
+}
+
+// ── New-order sound: cached MP3 chime uploaded by the cafe owner. ──
+// Played once per detected new order (multiple new orders in one poll →
+// the audio is restarted for each, so the cashier hears one chime per
+// pending ticket). Falls back to the synthetic bell on any failure
+// (network, codec, autoplay block).
+let _orderAudio: HTMLAudioElement | null = null;
+function getOrderAudio(): HTMLAudioElement | null {
+  if (typeof Audio === "undefined") return null;
+  if (_orderAudio) return _orderAudio;
+  try {
+    // BASE_URL already ends with "/" (e.g. "/admin/"). The asset lives at
+    // <admin>/sounds/new-order.mp3 — see artifacts/admin/public/sounds/.
+    const a = new Audio(`${import.meta.env.BASE_URL}sounds/new-order.mp3`);
+    a.preload = "auto";
+    a.volume  = 1.0;
+    _orderAudio = a;
+    return a;
+  } catch { return null; }
+}
+function playOrderSound(times: number = 1) {
+  const a = getOrderAudio();
+  if (!a) { playSyntheticBell(); return; }
+  let played = 0;
+  const playOnce = () => {
+    try {
+      a.currentTime = 0;
+      const p = a.play();
+      if (p && typeof p.then === "function") {
+        p.catch(() => { if (played === 0) playSyntheticBell(); });
+      }
+    } catch { if (played === 0) playSyntheticBell(); }
+    played += 1;
+  };
+  playOnce();
+  // For bursts of new orders, queue additional plays ~1.2s apart so they
+  // don't clip each other.
+  for (let i = 1; i < Math.min(times, 4); i++) {
+    setTimeout(playOnce, i * 1200);
+  }
+}
+
+/** Generic notification bell — used for bookings / reels. Orders use the
+ *  dedicated MP3 chime via playOrderSound() below. */
+function playNotificationBell() {
+  playSyntheticBell();
 }
 
 // ── Tab notifications hook ───────────────────────────────────
@@ -138,7 +185,15 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
             }
             return out;
           });
-          playNotificationBell();
+          // New coffee orders get the dedicated chime (one per new order,
+          // capped inside playOrderSound). Other notifications (bookings,
+          // reels) keep the synthetic bell so they remain distinguishable.
+          const newOrders = additions["orders"] ?? 0;
+          if (newOrders > 0) {
+            playOrderSound(newOrders);
+          } else {
+            playNotificationBell();
+          }
         }
       } catch { /* ignore */ }
     };
