@@ -40,7 +40,7 @@ The project is structured as a pnpm workspace monorepo.
 *   **Avatar & Progress Indicators:** User profiles feature a double glowing ring around the avatar for level display. Game screens use diamond-shaped tiles with amber borders.
 *   **RTL Support:** Invoices and various UI elements are designed for Right-to-Left (RTL) Arabic text.
 *   **Mobile Layouts:** TikTok-style vertical video feed for reels, with a dedicated right rail for actions and a bottom-left view counter. Comments sheets have a semi-transparent blurred background.
-*   **Admin Dashboard:** Features a gold crown button for manager analytics, a tab-based interface for various management functions (Invoices, Expenses, Templates, Inventory, Reels, Discount Codes).
+*   **Admin Dashboard:** Features a gold crown button for manager analytics, a tab-based interface for various management functions (Invoices, Expenses, Templates, Inventory, Reels, Discount Codes, Barcode/QR codes for the dashboard and cafe page).
 
 **Technical Implementations & Features:**
 
@@ -59,6 +59,7 @@ The project is structured as a pnpm workspace monorepo.
 *   **Manager Analytics:** Password-protected full-page analytics view in the admin dashboard showing revenue, top products, order types, busiest times, booking status, and player rankings.
 *   **Invoice Templates & Expenses:** Customizable invoice templates for orders, expenses, daily, monthly, and yearly summaries. Comprehensive expense tracking module with printing capabilities.
 *   **Broadcast Notifications:** Super-admin can push system messages to all game users, displayed in the mobile notifications screen and indicated by a bell badge.
+*   **Barcode Tab (Admin):** New "الباركود" tab in `CafeDashboardPage.tsx` shows two scannable QR codes built from `window.location.origin`: a gold one for the customer-facing cafe page (`/cafe/:id`, printable on tables) and a blue one for the cafe owner's dashboard (`/admin/cafe/:id`, staff-only). Each card supports copy-link, open-link, and per-card or combined A4 print (uses `qrcode.react` on-screen and `api.qrserver.com` images for the print sheet).
 
 # External Dependencies
 

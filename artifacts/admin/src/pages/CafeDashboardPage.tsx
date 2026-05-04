@@ -10,14 +10,16 @@ import {
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
+  QrCode, Copy,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import {
   LineChart, Line, AreaChart, Area, CartesianGrid,
 } from "recharts";
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels";
+type Tab = "stats" | "orders" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode";
 
 // ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
 function playSyntheticBell() {
@@ -348,6 +350,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"inventory", label:"المخزن",            icon: Package          },
   { id:"templates", label:"تعديل الفواتير",    icon: FileText         },
   { id:"reels",     label:"كوبوينتو ريلز",     icon: Video            },
+  { id:"barcode",   label:"الباركود",          icon: QrCode           },
 ];
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
@@ -3476,6 +3479,188 @@ function Empty({ icon, text }: { icon: string; text: string }) {
   );
 }
 
+// ── Barcode / Public Links Tab ─────────────────────────────────
+// Shows two scannable QR codes: one for the cafe owner's admin dashboard
+// (so the staff can pin the cafe phone/tablet to the right page after a
+// reboot), and one for the customer-facing cafe page (printable for in-store
+// table tents so guests scan straight into the menu/booking flow).
+// Escape user/server-supplied strings before interpolating into raw HTML
+// (used by the print window). Prevents XSS if a cafe name ever contains
+// "<script>" or other markup.
+function escHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
+  // Build absolute URLs from the current origin so they work in dev and prod.
+  // encodeURIComponent on the id guards against any unexpected characters
+  // ever appearing in a cafe id (path-segment safety).
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const safeId = encodeURIComponent(id);
+  const dashboardUrl = `${origin}/admin/cafe/${safeId}`;
+  const cafePageUrl  = `${origin}/cafe/${safeId}`;
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const copy = async (label: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(label);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // Fallback for older browsers — select-and-prompt.
+      window.prompt("انسخ الرابط:", text);
+    }
+  };
+
+  // Print a clean A4 page with both QR codes (useful for printing the
+  // customer code and sticking it on the tables).
+  const printQrs = (which: "cafe" | "dashboard" | "both") => {
+    const w = window.open("", "_blank", "width=900,height=1200");
+    if (!w) { alert("المتصفّح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة"); return; }
+    // All dynamic strings are HTML-escaped before interpolation to prevent
+    // XSS from a malicious cafe name. URLs go through encodeURI for the
+    // qrserver image src and escHtml for the visible caption.
+    const safeName = escHtml(cafeName ?? "");
+    const block = (title: string, sub: string, url: string) => `
+      <section class="block">
+        <h2>${escHtml(title)}</h2>
+        <p class="sub">${escHtml(sub)}</p>
+        <div class="qr-wrap"><img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&amp;margin=10&amp;data=${encodeURIComponent(url)}" alt="QR" /></div>
+        <p class="url">${escHtml(url)}</p>
+      </section>`;
+    const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>باركود ${safeName}</title>
+      <style>
+        @page { size: A4; margin: 16mm; }
+        * { box-sizing: border-box; }
+        body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color:#111; margin:0; padding:24px; text-align:center; }
+        h1 { font-size:22px; margin:0 0 6px; }
+        .cafeName { font-size:14px; color:#666; margin-bottom:24px; }
+        .block { margin: 24px auto 32px; padding:20px; border:2px dashed #C99654; border-radius:18px; max-width:520px; page-break-inside:avoid; }
+        .block h2 { margin:0 0 6px; font-size:18px; color:#7A4F1E; }
+        .sub { margin:0 0 14px; font-size:12px; color:#555; }
+        .qr-wrap img { width: 320px; height: 320px; }
+        .url { font-size:10.5px; color:#444; word-break:break-all; margin-top:10px; }
+        @media print { .no-print { display:none; } }
+      </style></head><body>
+      <h1>📷 باركود الكوفي</h1>
+      <p class="cafeName">${safeName}</p>
+      ${which !== "dashboard" ? block("صفحة الزبائن", "اطبعه وضعه على الطاولات — يفتح صفحة الكوفي مباشرة", cafePageUrl) : ""}
+      ${which !== "cafe" ? block("لوحة التحكم", "للموظفين فقط — يفتح لوحة إدارة الكوفي", dashboardUrl) : ""}
+      <button class="no-print" onclick="window.print()" style="padding:10px 22px;font-size:14px;background:#E8B86D;border:0;border-radius:10px;cursor:pointer;font-weight:bold">🖨️ طباعة</button>
+      </body></html>`;
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 400);
+  };
+
+  const QrCard = ({ title, subtitle, url, accent, kind }: {
+    title: string; subtitle: string; url: string; accent: string; kind: "cafe" | "dashboard";
+  }) => (
+    <div className="p-6 flex flex-col items-center gap-4 bg-card border-2 rounded-2xl" style={{ borderColor: accent }}>
+      <div className="text-center">
+        <h3 className="font-extrabold text-foreground text-lg">{title}</h3>
+        <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+      </div>
+      <div className="bg-white p-4 rounded-2xl shadow-lg">
+        <QRCodeSVG value={url} size={220} level="M" includeMargin={false} />
+      </div>
+      <div className="w-full">
+        <p className="text-[10px] text-muted-foreground mb-1 font-semibold">الرابط:</p>
+        <div className="flex items-center gap-2 bg-input border border-border rounded-lg px-3 py-2">
+          <input
+            readOnly
+            value={url}
+            onFocus={(e) => e.currentTarget.select()}
+            className="flex-1 bg-transparent text-foreground text-[11px] outline-none font-mono"
+            dir="ltr"
+          />
+          <button
+            onClick={() => copy(kind, url)}
+            className="shrink-0 p-1.5 rounded-md hover:bg-muted text-primary"
+            title="نسخ الرابط"
+            aria-label="نسخ الرابط"
+          >
+            <Copy size={14} />
+          </button>
+        </div>
+        {copied === kind && (
+          <p className="text-[10px] text-green-400 mt-1 font-bold">✓ تم النسخ</p>
+        )}
+      </div>
+      <div className="flex gap-2 w-full">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-bold text-center hover:bg-muted/80"
+        >
+          🔗 فتح
+        </a>
+        <button
+          onClick={() => printQrs(kind)}
+          className="flex-1 px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1"
+          style={{ background: accent, color: "#000" }}
+        >
+          <Printer size={12} /> طباعة
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <QrCode size={22} className="text-primary" /> الباركود
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            أكواد QR لروابط الكوفي — اطبع كود الزبائن وضعه على الطاولات،
+            وكود لوحة التحكم احتفظ به لفتح الإدارة بسرعة.
+          </p>
+        </div>
+        <button
+          onClick={() => printQrs("both")}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-bold flex items-center gap-2 hover:opacity-90"
+        >
+          <Printer size={14} /> طباعة الاثنين
+        </button>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-5">
+        <QrCard
+          kind="cafe"
+          title="📷 صفحة الزبائن"
+          subtitle="يفتح صفحة الكوفي للزبائن — مناسب للطباعة على الطاولات"
+          url={cafePageUrl}
+          accent="#E8B86D"
+        />
+        <QrCard
+          kind="dashboard"
+          title="🔐 لوحة التحكم"
+          subtitle="يفتح لوحة إدارة الكوفي — للموظفين فقط"
+          url={dashboardUrl}
+          accent="#6EA8F3"
+        />
+      </div>
+
+      <Card className="p-4 bg-yellow-500/5 border border-yellow-500/30">
+        <p className="text-xs text-foreground leading-relaxed">
+          <strong className="text-yellow-500">💡 نصيحة:</strong>{" "}
+          الكود الذهبي هو الكود الذي يجب طباعته ووضعه على الطاولات —
+          الزبون يصوّره بكاميرا الجوال فيفتح صفحة الكوفي مباشرة ويطلب أو يحجز.
+          الكود الأزرق للموظفين فقط — لا تنشره خارج الكوفي.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 export default function CafeDashboardPage() {
   const params = useParams<{ id: string }>();
@@ -3616,6 +3801,7 @@ export default function CafeDashboardPage() {
         {tab === "inventory" && <InventoryTab id={id} />}
         {tab === "templates" && <TemplatesTab id={id} />}
         {tab === "reels"     && <ReelsTab     id={id} />}
+        {tab === "barcode"   && <BarcodeTab   id={id} cafeName={cafe?.name} />}
       </div>
 
     </div>
