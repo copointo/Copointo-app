@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { apiPost } from "@/constants/api";
+import { loadSavedOrderInfo, saveOrderInfo } from "@/lib/savedOrderInfo";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -116,6 +117,24 @@ export default function CartScreen() {
   // Optional free-text notes — bean type, extra heat, customizations, etc.
   const [notes, setNotes] = useState("");
 
+  // Prefill from previously saved info (after the user's first order)
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedOrderInfo().then((s) => {
+      if (cancelled) return;
+      if (s.dineName)     setDineName(s.dineName);
+      if (s.dineNameEn)   setDineNameEn(s.dineNameEn);
+      if (s.dinePhone)    setDinePhone(s.dinePhone);
+      if (s.dineTable)    setDineTable(s.dineTable);
+      if (s.carName)      setCarName(s.carName);
+      if (s.carNameEn)    setCarNameEn(s.carNameEn);
+      if (s.carPhone)     setCarPhone(s.carPhone);
+      if (s.carPlateNum)  setCarPlateNum(s.carPlateNum);
+      if (s.carPlateChar) setCarPlateChar(s.carPlateChar);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const orderSummary = cart.map(i => `${i.name} ×${i.quantity}`).join("، ");
 
   const [submitting, setSubmitting] = useState(false);
@@ -201,6 +220,23 @@ export default function CartScreen() {
       }
       const res = await apiPost<{ order: { id: string; total: number } }>(`/cafe/${cafeId}/orders`, payload);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Persist the customer info so future orders are pre-filled
+      if (isDine) {
+        saveOrderInfo({
+          dineName:   dineName.trim(),
+          dineNameEn: dineNameEn.trim(),
+          dinePhone:  dinePhone.trim(),
+          dineTable:  dineTable.trim(),
+        });
+      } else {
+        saveOrderInfo({
+          carName:      carName.trim(),
+          carNameEn:    carNameEn.trim(),
+          carPhone:     carPhone.trim(),
+          carPlateNum:  carPlateNum.trim(),
+          carPlateChar: carPlateChar.trim(),
+        });
+      }
       addOrder({
         id: res.order.id,
         cafeId,

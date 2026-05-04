@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CAFES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { apiFetch, apiPost } from "@/constants/api";
+import { loadSavedOrderInfo, saveOrderInfo } from "@/lib/savedOrderInfo";
 
 interface Table {
   id: string; cafeId: string; number: number; capacity: number; available: boolean;
@@ -60,6 +61,19 @@ export default function BookTableScreen() {
     return () => { cancelled = true; };
   }, [id]);
 
+  // Prefill from previously saved info (after the user's first order/booking)
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedOrderInfo().then((s) => {
+      if (cancelled) return;
+      if (s.bookName)  setName(s.bookName);
+      else if (s.dineName) setName(s.dineName);
+      if (s.bookPhone) setPhone(s.bookPhone);
+      else if (s.dinePhone) setPhone(s.dinePhone);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const handleBook = async () => {
     if (!selectedTable) {
       Alert.alert("تنبيه", "يرجى اختيار طاولة");
@@ -85,6 +99,11 @@ export default function BookTableScreen() {
         guests,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Persist customer info so future bookings/orders are pre-filled
+      saveOrderInfo({
+        bookName:  name.trim(),
+        bookPhone: phone.trim(),
+      });
       setIsBooked(true);
     } catch (e: any) {
       Alert.alert("تعذّر الحجز", e?.message ?? "حاول مرة أخرى");
