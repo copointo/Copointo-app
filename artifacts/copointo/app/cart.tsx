@@ -145,8 +145,11 @@ export default function CartScreen() {
     apiFetch<{ coffees: HeldFreeCoffee[] }>(`/free-coffees?phone=${encodeURIComponent(phone)}`)
       .then(r => {
         if (cancelled) return;
+        // STRICT cafe scope: only show free coffees whose earnedAtCafeId
+        // matches THIS cafe. Legacy codes with null earnedAtCafeId are not
+        // surfaced (they cannot be redeemed anywhere under the new rule).
         const eligible = (r.coffees ?? []).filter(
-          c => !c.redeemedAt && (!c.earnedAtCafeId || c.earnedAtCafeId === cartCafeId),
+          c => !c.redeemedAt && c.earnedAtCafeId === cartCafeId,
         );
         setHeldFreeCoffees(eligible);
       })

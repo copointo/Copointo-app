@@ -183,8 +183,15 @@ router.post("/orders", (req: any, res): any => {
       if (!fc)                                       return res.status(404).json({ error: `الكود ${code} غير موجود` });
       if (fc.userPhone !== customerPhone)            return res.status(403).json({ error: "هذا الكوفي المجاني ليس لك" });
       if (fc.redeemedAt)                             return res.status(400).json({ error: `الكود ${code} تم استخدامه مسبقاً` });
-      if (fc.earnedAtCafeId && fc.earnedAtCafeId !== cafeId) {
-        return res.status(400).json({ error: "هذا الكوفي المجاني يخص كوفي آخر" });
+      // STRICT cafe scope: a free coffee can ONLY be redeemed at the exact
+      // cafe where it was earned. No fallback for legacy null earnedAtCafeId
+      // — those codes simply cannot be redeemed (the user must earn a new one
+      // through the new milestone flow which always stamps the originating cafe).
+      if (fc.earnedAtCafeId !== cafeId) {
+        const where = fc.earnedAtCafeName
+          ? `هذا الكوفي المجاني يُستخدَم فقط في "${fc.earnedAtCafeName}"`
+          : "هذا الكوفي المجاني يُستخدَم فقط في الكوفي الذي حصلت منه عليه";
+        return res.status(400).json({ error: where });
       }
       const remaining = slotsByName.get(itemName) ?? 0;
       if (remaining <= 0) {

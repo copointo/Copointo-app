@@ -192,10 +192,13 @@ export default function NotificationsScreen() {
             </View>
             <Text style={styles.freeCoffeeBody}>
               {c.earnedAtCafeName
-                ? `قابل للاستبدال في ${c.earnedAtCafeName}`
-                : "قابل للاستبدال في الكوفي الذي حصلت منه على المكافأة"}
+                ? `قابل للاستبدال في ${c.earnedAtCafeName} فقط`
+                : "قابل للاستبدال في الكوفي الذي حصلت منه على المكافأة فقط"}
             </Text>
             <View style={styles.freeCoffeeRulesBox}>
+              <Text style={styles.freeCoffeeRule}>
+                • فقط في {c.earnedAtCafeName ?? "الكوفي الذي حصلت منه على المكافأة"} — لا يصلح في أي كوفي آخر
+              </Text>
               <Text style={styles.freeCoffeeRule}>• مشروبات فقط (لا أطعمة أو حلى)</Text>
               <Text style={styles.freeCoffeeRule}>• سعر المشروب ≤ 2 ر.ع.</Text>
               <Text style={styles.freeCoffeeRule}>• استخدم مرة واحدة عند الطلب التالي</Text>
