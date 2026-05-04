@@ -60,6 +60,7 @@ The project is structured as a pnpm workspace monorepo.
 *   **Invoice Templates & Expenses:** Customizable invoice templates for orders, expenses, daily, monthly, and yearly summaries. Comprehensive expense tracking module with printing capabilities.
 *   **Broadcast Notifications:** Super-admin can push system messages to all game users, displayed in the mobile notifications screen and indicated by a bell badge.
 *   **Barcode Tab (Admin):** New "الباركود" tab in `CafeDashboardPage.tsx` shows two scannable QR codes built from `window.location.origin`: a gold one for the customer-facing cafe page (`/cafe/:id`, printable on tables) and a blue one for the cafe owner's dashboard (`/admin/cafe/:id`, staff-only). Each card supports copy-link, open-link, and per-card or combined A4 print (uses `qrcode.react` on-screen and `api.qrserver.com` images for the print sheet).
+*   **Edit Cafe (Super-Admin):** Added `PATCH /api/admin/cafes/:id` endpoint and a Pencil edit button per row in `CafesPage.tsx`. Reuses the existing 3-step add-wizard modal in "edit" mode (title flips to "تعديل الكوفي", submit flips to "حفظ التعديلات"). Empty `managerPassword` keeps the existing one; `lat`/`lng` are intentionally cleared on edit so the server re-geocodes when the address changes (unless a Google Maps URL with coordinates is pasted).
 
 # External Dependencies
 

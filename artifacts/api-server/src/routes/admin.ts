@@ -68,6 +68,61 @@ router.patch("/cafes/:id/toggle", (req, res) => {
   res.json({ cafe });
 });
 
+// ── PATCH /api/admin/cafes/:id ─────────────
+// Super-admin updates editable cafe fields. Any field omitted (or empty
+// for managerPassword) is left unchanged. Immutable: id, createdAt.
+router.patch("/cafes/:id", async (req, res): Promise<any> => {
+  const cafe = cafes.find(c => c.id === req.params.id);
+  if (!cafe) return res.status(404).json({ error: "Cafe not found" });
+
+  const b = req.body ?? {};
+  // Plain string/number fields — only assign when caller actually provided them.
+  const assignIfPresent = <K extends keyof Cafe>(key: K, v: any) => {
+    if (v !== undefined && v !== null) (cafe as any)[key] = v;
+  };
+  assignIfPresent("name",      typeof b.name      === "string" ? b.name      : undefined);
+  assignIfPresent("ownerName", typeof b.ownerName === "string" ? b.ownerName : undefined);
+  assignIfPresent("ownerPhone",typeof b.ownerPhone=== "string" ? b.ownerPhone: undefined);
+  assignIfPresent("openTime",  typeof b.openTime  === "string" ? b.openTime  : undefined);
+  assignIfPresent("closeTime", typeof b.closeTime === "string" ? b.closeTime : undefined);
+  assignIfPresent("website",   typeof b.website   === "string" ? b.website   : undefined);
+  assignIfPresent("subscriptionStart", typeof b.subscriptionStart === "string" ? b.subscriptionStart : undefined);
+  assignIfPresent("subscriptionEnd",   typeof b.subscriptionEnd   === "string" ? b.subscriptionEnd   : undefined);
+  if (b.subscriptionAmount !== undefined && b.subscriptionAmount !== null && !Number.isNaN(Number(b.subscriptionAmount))) {
+    cafe.subscriptionAmount = Number(b.subscriptionAmount);
+  }
+  if (Array.isArray(b.tags)) cafe.tags = b.tags;
+  // Images — empty string from the client means "clear it".
+  if (typeof b.logo  === "string") cafe.logo  = b.logo;
+  if (typeof b.image === "string") cafe.image = b.image;
+  // Password — only update when a non-empty value is provided.
+  if (typeof b.managerPassword === "string" && b.managerPassword.trim() !== "") {
+    cafe.managerPassword = b.managerPassword;
+  }
+
+  // Address + coordinates: same logic as POST. If lat/lng provided & valid,
+  // use them. Otherwise, when the address actually changed, re-geocode it.
+  // Capture the OLD address BEFORE mutating it so the change-detection
+  // works correctly.
+  const oldAddress = cafe.address;
+  const newAddress = (typeof b.address === "string" && b.address.trim() !== "")
+    ? b.address
+    : oldAddress;
+  if (newAddress !== oldAddress) cafe.address = newAddress;
+
+  const manualLat = b.lat !== undefined && b.lat !== null && b.lat !== "" ? Number(b.lat) : NaN;
+  const manualLng = b.lng !== undefined && b.lng !== null && b.lng !== "" ? Number(b.lng) : NaN;
+  if (Number.isFinite(manualLat) && Number.isFinite(manualLng)) {
+    cafe.lat = manualLat; cafe.lng = manualLng;
+  } else if (newAddress !== oldAddress) {
+    // Address changed and no manual coords supplied — re-geocode.
+    const geo = await geocodeAddress(newAddress);
+    if (geo) { cafe.lat = geo.lat; cafe.lng = geo.lng; }
+  }
+
+  res.json({ cafe });
+});
+
 // ── DELETE /api/admin/cafes/:id ────────────
 router.delete("/cafes/:id", (req, res) => {
   const idx = cafes.findIndex(c => c.id === req.params.id);

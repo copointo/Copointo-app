@@ -16,6 +16,7 @@ export const api = {
   getStats:   ()           => req<any>("GET",   `${A}/stats`),
   getCafes:   ()           => req<any>("GET",   `${A}/cafes`),
   addCafe:    (body: any)  => req<any>("POST",  `${A}/cafes`, body),
+  updateCafe: (id: string, body: any) => req<any>("PATCH", `${A}/cafes/${id}`, body),
   toggleCafe: (id: string) => req<any>("PATCH", `${A}/cafes/${id}/toggle`),
   deleteCafe: (id: string) => req<any>("DELETE",`${A}/cafes/${id}`),
   getUsers:   ()           => req<any>("GET",   `${A}/users`),

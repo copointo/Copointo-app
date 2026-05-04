@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, Globe, Download, Coffee, User as UserIcon } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, Globe, Download, Coffee, User as UserIcon, Pencil } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -30,12 +30,17 @@ function customerUrl(id: string) {
 }
 
 export default function CafesPage() {
-  const [cafes,   setCafes]   = useState<Cafe[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modal,   setModal]   = useState(false);
-  const [form,    setForm]    = useState({ ...EMPTY });
-  const [saving,  setSaving]  = useState(false);
-  const [err,     setErr]     = useState("");
+  const [cafes,     setCafes]     = useState<Cafe[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [modal,     setModal]     = useState(false);
+  const [form,      setForm]      = useState({ ...EMPTY });
+  const [saving,    setSaving]    = useState(false);
+  const [err,       setErr]       = useState("");
+  // When set, the modal acts as an "edit" form for this cafe id (otherwise
+  // it acts as an "add" wizard). Edit mode keeps the same UI but tweaks
+  // labels, validation (password optional), and the submit endpoint.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const isEditing = editingId !== null;
 
   // Logo file state
   const [logoPreview, setLogoPreview] = useState("");
@@ -170,7 +175,9 @@ export default function CafesPage() {
   const goNext = () => {
     setErr("");
     if (step === 1) {
-      if (!form.name || !form.ownerName || !form.ownerPhone || !form.managerPassword) {
+      // In edit mode, managerPassword is optional (empty = keep existing).
+      const pwOk = isEditing ? true : !!form.managerPassword;
+      if (!form.name || !form.ownerName || !form.ownerPhone || !pwOk) {
         setErr("يرجى تعبئة جميع الحقول المطلوبة"); return;
       }
       setStep(2); return;
@@ -183,11 +190,46 @@ export default function CafesPage() {
     }
   };
   const goBack = () => { setErr(""); setStep(s => (s === 3 ? 2 : 1)); };
-  const resetWizard = () => { setStep(1); setErr(""); setForm({ ...EMPTY }); resetLogo(); resetCover(); };
+  const resetWizard = () => { setStep(1); setErr(""); setForm({ ...EMPTY }); resetLogo(); resetCover(); setEditingId(null); };
+
+  // Open the modal in EDIT mode for an existing cafe — pre-fills the form
+  // from the cafe row and remembers the id so submit() will PATCH instead
+  // of POST.
+  const openEdit = (c: Cafe) => {
+    setEditingId(c.id);
+    setForm({
+      name:               c.name              ?? "",
+      ownerName:          c.ownerName         ?? "",
+      ownerPhone:         c.ownerPhone        ?? "",
+      logo:               c.logo              ?? "",
+      image:              c.image             ?? "",
+      openTime:           c.openTime          ?? "07:00",
+      closeTime:          c.closeTime         ?? "23:00",
+      managerPassword:    "",                                     // leave blank = keep existing
+      address:            c.address           ?? "",
+      tags:               (c.tags ?? []).join("، "),
+      subscriptionStart:  c.subscriptionStart ?? today,
+      subscriptionEnd:    c.subscriptionEnd   ?? nextYearStr,
+      subscriptionAmount: String(c.subscriptionAmount ?? "300"),
+      website:            c.website           ?? "",
+      // Leave lat/lng blank so editing the address triggers re-geocoding on
+      // the server. The server will only override when the user pastes a
+      // Google Maps URL with embedded coordinates (parseLatLng below).
+      lat:                "",
+      lng:                "",
+    });
+    setLogoPreview(c.logo  ?? "");
+    setCoverPreview(c.image ?? "");
+    setStep(1);
+    setErr("");
+    setModal(true);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.ownerName || !form.ownerPhone || !form.openTime || !form.closeTime || !form.managerPassword) {
+    // Password is required only when ADDING a new cafe.
+    const pwOk = isEditing ? true : !!form.managerPassword;
+    if (!form.name || !form.ownerName || !form.ownerPhone || !form.openTime || !form.closeTime || !pwOk) {
       setErr("يرجى تعبئة جميع الحقول المطلوبة"); return;
     }
     setSaving(true);
@@ -197,20 +239,38 @@ export default function CafesPage() {
       const coords = (!form.lat || !form.lng) ? parseLatLng(form.website) : null;
       const lat = coords?.lat ?? form.lat;
       const lng = coords?.lng ?? form.lng;
-      await api.addCafe({ ...form, lat, lng, tags: form.tags.split("،").map(t => t.trim()).filter(Boolean), subscriptionStart: form.subscriptionStart, subscriptionEnd: form.subscriptionEnd, subscriptionAmount: Number(form.subscriptionAmount) || 0 });
+      const payload = {
+        ...form,
+        lat,
+        lng,
+        tags: form.tags.split("،").map(t => t.trim()).filter(Boolean),
+        subscriptionStart: form.subscriptionStart,
+        subscriptionEnd:   form.subscriptionEnd,
+        subscriptionAmount: Number(form.subscriptionAmount) || 0,
+      };
+      if (isEditing && editingId) {
+        // Don't send empty password — server treats empty as "keep existing".
+        if (!payload.managerPassword) delete (payload as any).managerPassword;
+        await api.updateCafe(editingId, payload);
+      } else {
+        await api.addCafe(payload);
+      }
       const res = await api.getCafes();
       setCafes(res.cafes);
-      // Find the newly created cafe (last one with matching name)
-      const created = [...res.cafes].reverse().find(c => c.name === form.name) ?? null;
+      const wasEditing = isEditing;
+      // Find the newly created cafe (only used when ADDING) so we can show
+      // the QR success modal afterwards.
+      const created = wasEditing ? null : ([...res.cafes].reverse().find(c => c.name === form.name) ?? null);
       setModal(false);
-      setNewCafe(created);
+      setEditingId(null);
+      if (created) setNewCafe(created);
       setForm({ ...EMPTY });
       setLogoPreview("");
       setCoverPreview("");
       setStep(1);
       setErr("");
     } catch (e: any) {
-      const msg = e?.message ? `خطأ: ${e.message.substring(0, 200)}` : "حدث خطأ أثناء الإضافة";
+      const msg = e?.message ? `خطأ: ${e.message.substring(0, 200)}` : isEditing ? "حدث خطأ أثناء التعديل" : "حدث خطأ أثناء الإضافة";
       console.error("[submit] error:", e);
       setErr(msg);
     }
@@ -378,6 +438,14 @@ export default function CafesPage() {
                         <LayoutDashboard size={16} />
                       </Link>
                       <button
+                        onClick={() => openEdit(cafe)}
+                        title="تعديل معلومات الكوفي"
+                        aria-label="تعديل معلومات الكوفي"
+                        className="p-2 rounded-lg hover:bg-blue-500/15 text-blue-400 transition-colors"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
                         onClick={() => toggle(cafe.id)}
                         title={cafe.active ? "إيقاف" : "تفعيل"}
                         className={`p-2 rounded-lg transition-colors ${cafe.active ? "hover:bg-red-500/15 text-red-400" : "hover:bg-green-500/15 text-green-400"}`}
@@ -413,7 +481,7 @@ export default function CafesPage() {
             <div className="px-6 py-5 border-b border-border">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-foreground">إضافة كوفي جديد</h2>
+                  <h2 className="text-xl font-bold text-foreground">{isEditing ? "تعديل الكوفي" : "إضافة كوفي جديد"}</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">
                     {step === 1 && "الخطوة 1 من 3 — معلومات الكوفي والمالك"}
                     {step === 2 && "الخطوة 2 من 3 — الموقع وتواقيت العمل"}
@@ -454,8 +522,8 @@ export default function CafesPage() {
                   <Field label="رقم هاتف الصاحب *" icon={<Phone size={15} />}>
                     <input value={form.ownerPhone} onChange={f("ownerPhone")} placeholder="9XXXXXXXX" className={inp} dir="ltr" />
                   </Field>
-                  <Field label="باسورد مدير الكوفي *" icon={<Lock size={15} />}>
-                    <input type="password" value={form.managerPassword} onChange={f("managerPassword")} placeholder="••••••••" className={inp} dir="ltr" />
+                  <Field label={isEditing ? "باسورد مدير الكوفي (اتركه فارغاً للإبقاء عليه)" : "باسورد مدير الكوفي *"} icon={<Lock size={15} />}>
+                    <input type="password" value={form.managerPassword} onChange={f("managerPassword")} placeholder={isEditing ? "اتركه فارغاً للإبقاء على القديم" : "••••••••"} className={inp} dir="ltr" />
                   </Field>
                 </>
               )}
@@ -613,7 +681,11 @@ export default function CafesPage() {
                 )}
                 {step === 3 && (
                   <button type="submit" disabled={saving || coverProcessing} className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-semibold text-sm disabled:opacity-50 hover:opacity-90">
-                    {saving ? "جاري الإضافة..." : coverProcessing ? "جاري تحميل الصورة..." : "إضافة الكوفي"}
+                    {saving
+                      ? (isEditing ? "جاري الحفظ..." : "جاري الإضافة...")
+                      : coverProcessing
+                        ? "جاري تحميل الصورة..."
+                        : (isEditing ? "حفظ التعديلات" : "إضافة الكوفي")}
                   </button>
                 )}
                 {step === 1 && (
