@@ -3777,13 +3777,24 @@ function escHtml(s: string): string {
 }
 
 function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
-  // Build absolute URLs from the current origin so they work in dev and prod.
+  // Build absolute URLs from the fixed production domain (copointo.com) — NOT
+  // from window.location.origin — so QR codes printed in dev/staging keep
+  // working after deploy and don't expose the internal Replit dev URL.
   // encodeURIComponent on the id guards against any unexpected characters
-  // ever appearing in a cafe id (path-segment safety).
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  // ever appearing in a cafe id (path-segment safety). The cafe name is
+  // appended as a query param so the URL stays human-readable when scanned/
+  // copied without breaking the existing `/cafe/:id` route matchers.
+  const PROD_DOMAIN = "https://copointo.com";
   const safeId = encodeURIComponent(id);
-  const dashboardUrl = `${origin}/admin/cafe/${safeId}`;
-  const cafePageUrl  = `${origin}/cafe/${safeId}`;
+  const slug = (cafeName ?? "")
+    .trim()
+    .replace(/[\s/\\?#&=]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  const nameQs = slug ? `?name=${encodeURIComponent(slug)}` : "";
+  const dashboardUrl = `${PROD_DOMAIN}/admin/cafe/${safeId}${nameQs}`;
+  const cafePageUrl  = `${PROD_DOMAIN}/cafe/${safeId}${nameQs}`;
+  const superAdminUrl = `${PROD_DOMAIN}/admin`;
   const [copied, setCopied] = useState<string | null>(null);
 
   const copy = async (label: string, text: string) => {
@@ -3928,6 +3939,46 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
           accent="#6EA8F3"
         />
       </div>
+
+      {/* Super-admin (platform owner) panel link — derived from copointo.com,
+          NOT from window.location, so it stays correct in dev/staging too. */}
+      <Card className="p-4 bg-purple-500/5 border border-purple-500/30">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-lg shrink-0">👑</div>
+          <div className="flex-1 min-w-[180px]">
+            <p className="text-sm font-bold text-foreground">رابط السوبر مدير</p>
+            <p className="text-[11px] text-muted-foreground">لوحة الإدارة العامة لـ Copointo</p>
+          </div>
+          <div className="flex items-center gap-2 bg-input border border-border rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+            <input
+              readOnly
+              value={superAdminUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              className="flex-1 bg-transparent text-foreground text-[11px] outline-none font-mono"
+              dir="ltr"
+            />
+            <button
+              onClick={() => copy("super", superAdminUrl)}
+              className="shrink-0 p-1.5 rounded-md hover:bg-muted text-purple-400"
+              title="نسخ الرابط"
+              aria-label="نسخ الرابط"
+            >
+              <Copy size={14} />
+            </button>
+          </div>
+          <a
+            href={superAdminUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 rounded-lg bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 hover:opacity-90"
+          >
+            🔗 فتح
+          </a>
+        </div>
+        {copied === "super" && (
+          <p className="text-[10px] text-green-400 mt-2 font-bold">✓ تم النسخ</p>
+        )}
+      </Card>
 
       <Card className="p-4 bg-yellow-500/5 border border-yellow-500/30">
         <p className="text-xs text-foreground leading-relaxed">

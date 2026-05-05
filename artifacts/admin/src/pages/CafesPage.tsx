@@ -19,15 +19,37 @@ const nextYearStr = nextYear.toISOString().split("T")[0];
 
 const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, subscriptionAmount: "300", website: "", lat: "", lng: "" };
 
-// Manager dashboard URL  →  /admin/cafe/:id
-function managerUrl(id: string) {
-  const base = window.location.origin + (import.meta.env.BASE_URL ?? "/admin").replace(/\/$/, "");
-  return `${base}/cafe/${id}`;
+// Public production domain — all generated links (QRs, copy-link, print) are
+// derived from this fixed domain, NOT from window.location.origin, so the
+// printed/scanned links keep working after deploy and don't expose the
+// internal Replit dev URL.
+const PROD_DOMAIN = "https://copointo.com";
+
+// Convert a cafe display name into a URL-safe slug. Keeps Arabic letters
+// (so QR captions stay readable) but replaces whitespace and stripping
+// characters that would break a URL.
+function slugifyName(name: string): string {
+  return (name ?? "")
+    .trim()
+    .replace(/[\s/\\?#&=]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
-// Customer-facing cafe page URL  →  same origin root + /cafe/:id
-function customerUrl(id: string) {
-  return `${window.location.origin}/cafe/${id}`;
+
+// Manager dashboard URL  →  https://copointo.com/admin/cafe/:id?name=<slug>
+function managerUrl(id: string, name?: string) {
+  const url = `${PROD_DOMAIN}/admin/cafe/${encodeURIComponent(id)}`;
+  const slug = slugifyName(name ?? "");
+  return slug ? `${url}?name=${encodeURIComponent(slug)}` : url;
 }
+// Customer-facing cafe page URL  →  https://copointo.com/cafe/:id?name=<slug>
+function customerUrl(id: string, name?: string) {
+  const url = `${PROD_DOMAIN}/cafe/${encodeURIComponent(id)}`;
+  const slug = slugifyName(name ?? "");
+  return slug ? `${url}?name=${encodeURIComponent(slug)}` : url;
+}
+// Super admin (platform owner) panel URL — derived from the same prod domain.
+const SUPER_ADMIN_URL = `${PROD_DOMAIN}/admin`;
 
 export default function CafesPage() {
   const [cafes,     setCafes]     = useState<Cafe[]>([]);
@@ -311,13 +333,13 @@ export default function CafesPage() {
 
   const copyManagerLink = () => {
     if (!newCafe) return;
-    navigator.clipboard.writeText(managerUrl(newCafe.id)).then(() => {
+    navigator.clipboard.writeText(managerUrl(newCafe.id, newCafe.name)).then(() => {
       setCopiedManager(true); setTimeout(() => setCopiedManager(false), 2000);
     });
   };
   const copyCustomerLink = () => {
     if (!newCafe) return;
-    navigator.clipboard.writeText(customerUrl(newCafe.id)).then(() => {
+    navigator.clipboard.writeText(customerUrl(newCafe.id, newCafe.name)).then(() => {
       setCopiedCustomer(true); setTimeout(() => setCopiedCustomer(false), 2000);
     });
   };
@@ -732,16 +754,16 @@ export default function CafesPage() {
                     </div>
                   </div>
                   <div ref={qrManagerRef} className="bg-white rounded-xl p-3 shadow flex items-center justify-center">
-                    <QRCodeSVG value={managerUrl(newCafe.id)} size={150} level="H" includeMargin={false} />
+                    <QRCodeSVG value={managerUrl(newCafe.id, newCafe.name)} size={150} level="H" includeMargin={false} />
                   </div>
                   <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
-                    <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{managerUrl(newCafe.id)}</span>
+                    <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{managerUrl(newCafe.id, newCafe.name)}</span>
                     <button onClick={copyManagerLink} className="shrink-0 text-muted-foreground hover:text-foreground" title="نسخ">
                       {copiedManager ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <a href={managerUrl(newCafe.id)} target="_blank" rel="noreferrer"
+                    <a href={managerUrl(newCafe.id, newCafe.name)} target="_blank" rel="noreferrer"
                       className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 text-white py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
                       <ExternalLink size={12} /> فتح الداشبورد
                     </a>
@@ -762,16 +784,16 @@ export default function CafesPage() {
                     </div>
                   </div>
                   <div ref={qrCustomerRef} className="bg-white rounded-xl p-3 shadow flex items-center justify-center">
-                    <QRCodeSVG value={customerUrl(newCafe.id)} size={150} level="H" includeMargin={false} />
+                    <QRCodeSVG value={customerUrl(newCafe.id, newCafe.name)} size={150} level="H" includeMargin={false} />
                   </div>
                   <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
-                    <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{customerUrl(newCafe.id)}</span>
+                    <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{customerUrl(newCafe.id, newCafe.name)}</span>
                     <button onClick={copyCustomerLink} className="shrink-0 text-muted-foreground hover:text-foreground" title="نسخ">
                       {copiedCustomer ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <a href={customerUrl(newCafe.id)} target="_blank" rel="noreferrer"
+                    <a href={customerUrl(newCafe.id, newCafe.name)} target="_blank" rel="noreferrer"
                       className="flex-1 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
                       <ExternalLink size={12} /> فتح صفحة الكوفي
                     </a>
@@ -782,6 +804,33 @@ export default function CafesPage() {
                   </div>
                 </div>
 
+              </div>
+
+              {/* ── Super-admin (platform owner) link ── derived from copointo.com ── */}
+              <div className="mt-5 flex items-center gap-3 flex-wrap p-4 border border-purple-500/30 rounded-2xl bg-purple-500/5">
+                <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-base shrink-0">👑</div>
+                <div className="flex-1 min-w-[160px]">
+                  <p className="text-sm font-bold text-foreground">رابط السوبر مدير</p>
+                  <p className="text-[11px] text-muted-foreground">لوحة الإدارة العامة لـ Copointo</p>
+                </div>
+                <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2 flex-1 min-w-[200px]">
+                  <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{SUPER_ADMIN_URL}</span>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(SUPER_ADMIN_URL)}
+                    className="shrink-0 text-muted-foreground hover:text-foreground"
+                    title="نسخ"
+                  >
+                    <Copy size={13} />
+                  </button>
+                </div>
+                <a
+                  href={SUPER_ADMIN_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-lg bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90"
+                >
+                  <ExternalLink size={12} /> فتح
+                </a>
               </div>
             </div>
           </div>
