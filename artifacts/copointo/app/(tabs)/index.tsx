@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CafeCard } from "@/components/CafeCard";
 import { SearchBar } from "@/components/SearchBar";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
 import { apiFetch } from "@/constants/api";
@@ -58,15 +59,15 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function formatDist(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} م`;
-  return `${km.toFixed(1)} كم`;
+function formatDist(km: number, kmLabel: string, mLabel: string): string {
+  if (km < 1) return `${Math.round(km * 1000)} ${mLabel}`;
+  return `${km.toFixed(1)} ${kmLabel}`;
 }
 
-function mapCafe(c: ApiCafe, userLat?: number, userLng?: number): Cafe {
+function mapCafe(c: ApiCafe, kmLabel: string, mLabel: string, userLat?: number, userLng?: number): Cafe {
   let distance = "";
   if (userLat != null && userLng != null && c.lat != null && c.lng != null) {
-    distance = formatDist(haversineKm(userLat, userLng, c.lat, c.lng));
+    distance = formatDist(haversineKm(userLat, userLng, c.lat, c.lng), kmLabel, mLabel);
   }
   return {
     id:          c.id,
@@ -92,6 +93,7 @@ export default function HomeScreen() {
   const r       = useResponsive();
   const router  = useRouter();
   const { user } = useApp();
+  const { t, lang, toggle } = useT();
   const [search,      setSearch]      = useState("");
   const [rawCafes,    setRawCafes]    = useState<ApiCafe[]>([]);
   const [apiCafes,    setApiCafes]    = useState<Cafe[]>([]);
@@ -124,14 +126,14 @@ export default function HomeScreen() {
         } catch { /* ignore — we still open the map */ }
       } else if (current.status === "denied" && !current.canAskAgain) {
         // Inform the user once but don't block them from seeing the cafe pins.
-        Alert.alert("الموقع مغلق", "فعّل صلاحية الموقع من إعدادات التطبيق لإظهار موقعك على الخريطة.");
+        Alert.alert(t("home.locationOff"), t("home.locationOffMsg"));
       }
     } catch { /* permission API failed — proceed anyway */ }
     finally {
       setOpeningMap(false);
       router.push("/cafes-map" as any);
     }
-  }, [openingMap, router]);
+  }, [openingMap, router, t]);
 
   // Request location once on mount
   useEffect(() => {
@@ -147,10 +149,12 @@ export default function HomeScreen() {
     })();
   }, []);
 
-  // Re-map cafes whenever raw data or user location changes
+  // Re-map cafes whenever raw data, user location, or language changes
   useEffect(() => {
-    setApiCafes(rawCafes.map(c => mapCafe(c, userLoc?.lat, userLoc?.lng)));
-  }, [rawCafes, userLoc]);
+    const kmLabel = t("common.km");
+    const mLabel = t("common.m");
+    setApiCafes(rawCafes.map(c => mapCafe(c, kmLabel, mLabel, userLoc?.lat, userLoc?.lng)));
+  }, [rawCafes, userLoc, t]);
 
   const fetchCafes = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -159,12 +163,12 @@ export default function HomeScreen() {
       const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
       setRawCafes(data.cafes);
     } catch {
-      setError("تعذّر تحميل الكافيهات");
+      setError(t("home.errorLoadingCafes"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { fetchCafes(); }, [fetchCafes]);
 
@@ -183,11 +187,22 @@ export default function HomeScreen() {
      <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
       <View style={[styles.header, { paddingTop: topPadding + 12, paddingHorizontal: r.hPad }]}>
         <View>
-          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>صباح الخير،</Text>
+          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{t("home.greetingMorning")}</Text>
           <Text style={[styles.userName, { color: colors.foreground }]}>
-            {user?.name?.split(" ")[0] ?? "ضيف"} ☕
+            {user?.name?.split(" ")[0] ?? t("common.guest")} ☕
           </Text>
         </View>
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggle(); }}
+          activeOpacity={0.85}
+          style={[styles.langBtn, { borderColor: "rgba(232,184,109,0.35)", backgroundColor: colors.card }]}
+          accessibilityLabel="Toggle language"
+        >
+          <Feather name="globe" size={14} color="#E8B86D" />
+          <Text style={styles.langBtnText}>
+            {lang === "ar" ? t("lang.toggleToEn") : t("lang.toggleToAr")}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -199,10 +214,10 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.searchWrapper}>
-          <SearchBar value={search} onChangeText={setSearch} placeholder="ابحث عن كوفي..." />
+          <SearchBar value={search} onChangeText={setSearch} placeholder={t("home.searchPlaceholder")} />
         </View>
 
-        {/* ── الكافيهات في الخريطة ── */}
+        {/* ── Cafes on the map ── */}
         <TouchableOpacity
           onPress={openMap}
           activeOpacity={0.85}
@@ -212,19 +227,19 @@ export default function HomeScreen() {
             <Feather name="map" size={18} color="#000" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.mapBtnTitle, { color: colors.foreground }]}>الكافيهات في الخريطة</Text>
+            <Text style={[styles.mapBtnTitle, { color: colors.foreground }]}>{t("home.mapBtnTitle")}</Text>
             <Text style={[styles.mapBtnSub, { color: colors.mutedForeground }]}>
-              شاهد جميع الكافيهات المسجّلة على الخريطة
+              {t("home.mapBtnSub")}
             </Text>
           </View>
           {openingMap
             ? <ActivityIndicator size="small" color={colors.primary ?? "#E8B86D"} />
-            : <Feather name="chevron-left" size={20} color={colors.mutedForeground} />}
+            : <Feather name={lang === "ar" ? "chevron-left" : "chevron-right"} size={20} color={colors.mutedForeground} />}
         </TouchableOpacity>
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>الكافيهات القريبة</Text>
-          <Text style={[styles.count, { color: colors.mutedForeground }]}>{filtered.length} كوفي</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("home.nearbyCafes")}</Text>
+          <Text style={[styles.count, { color: colors.mutedForeground }]}>{t("home.cafeCount", { count: filtered.length })}</Text>
         </View>
 
         {loading ? (
@@ -240,7 +255,7 @@ export default function HomeScreen() {
           <View style={styles.empty}>
             <Feather name="coffee" size={40} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              {apiCafes.length === 0 ? "لا توجد كافيهات بعد" : "لا توجد نتائج"}
+              {apiCafes.length === 0 ? t("home.noCafesYet") : t("home.noResults")}
             </Text>
           </View>
         ) : (
@@ -265,6 +280,12 @@ const styles = StyleSheet.create({
   header:        { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", paddingHorizontal: 20, paddingBottom: 12 },
   greeting:      { fontSize: 13, fontFamily: "Inter_400Regular", marginBottom: 2 },
   userName:      { fontSize: 22, fontFamily: "Inter_700Bold" },
+  langBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 12, borderWidth: 1,
+  },
+  langBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E8B86D", letterSpacing: 0.5 },
   scroll:        { flex: 1 },
   scrollContent: { paddingHorizontal: 20 },
   searchWrapper: { marginBottom: 12 },

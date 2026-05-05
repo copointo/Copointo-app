@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { getRank } from "@/data/mockData";
 
 const BG      = "#000000";
@@ -24,6 +25,7 @@ export default function MyCafesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, activeGameCafeId, setActiveGameCafeId } = useApp();
+  const { t } = useT();
 
   const cafes = Object.values(user?.cafeProgress ?? {})
     .sort((a, b) => b.level - a.level);
@@ -42,12 +44,12 @@ export default function MyCafesScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.85}>
           <Feather name="arrow-right" size={18} color={CREAM} />
         </TouchableOpacity>
-        <Text style={styles.title}>كافيهاتي</Text>
+        <Text style={styles.title}>{t("myCafes.title")}</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <Text style={styles.subtitle}>
-        مستواك في كل كوفي طلبت منه — اضغط على الكوفي لعرض مستواك فيه داخل اللعبة.
+        {t("myCafes.subtitle")}
       </Text>
 
       <ScrollView
@@ -57,9 +59,9 @@ export default function MyCafesScreen() {
         {cafes.length === 0 ? (
           <View style={styles.emptyBox}>
             <Feather name="coffee" size={42} color={PRIMARY} />
-            <Text style={styles.emptyTitle}>لم تطلب من أي كوفي بعد</Text>
+            <Text style={styles.emptyTitle}>{t("myCafes.emptyTitle")}</Text>
             <Text style={styles.emptyHint}>
-              ابدأ بطلب من أحد المقاهي ليبدأ تقدّمك في اللعبة.
+              {t("myCafes.emptyHint")}
             </Text>
           </View>
         ) : (
@@ -85,25 +87,25 @@ export default function MyCafesScreen() {
                       <Text style={styles.rankName}>{rank.name}</Text>
                       <View style={styles.dot} />
                       <Text style={styles.metaText}>
-                        {c.totalOrders} طلب
+                        {t("myCafes.orderCount", { count: c.totalOrders })}
                       </Text>
                     </View>
                   </View>
                   <View style={styles.levelBox}>
                     <Text style={styles.levelNum}>{c.level}</Text>
-                    <Text style={styles.levelLabel}>المستوى</Text>
+                    <Text style={styles.levelLabel}>{t("myCafes.level")}</Text>
                   </View>
                 </View>
 
                 {isActive ? (
                   <View style={styles.activeBadge}>
                     <Feather name="check" size={14} color={PRIMARY} />
-                    <Text style={styles.activeBadgeText}>معروض حالياً في اللعبة</Text>
+                    <Text style={styles.activeBadgeText}>{t("myCafes.activeBadge")}</Text>
                   </View>
                 ) : (
                   <View style={styles.tapHint}>
                     <Feather name="eye" size={13} color={PRIMARY} />
-                    <Text style={styles.tapHintText}>اضغط لعرض مستواك في هذا الكوفي</Text>
+                    <Text style={styles.tapHintText}>{t("myCafes.tapHint")}</Text>
                   </View>
                 )}
               </TouchableOpacity>

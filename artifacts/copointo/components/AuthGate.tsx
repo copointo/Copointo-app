@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { AuthModal } from "@/components/AuthModal";
 
 const BG      = "#000000";
@@ -19,6 +20,7 @@ const PRIMARY = "#E8B86D";
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, hydrated } = useApp();
+  const { t } = useT();
 
   if (!hydrated) {
     return (
@@ -35,11 +37,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <View style={styles.logo}>
             <Text style={{ fontSize: 44 }}>☕</Text>
           </View>
-          <Text style={styles.brandName}>كوبوينتو</Text>
-          <Text style={styles.brandSub}>سجّل دخولك للاستفادة من جميع المزايا</Text>
+          <Text style={styles.brandName}>{t("auth.brandName")}</Text>
+          <Text style={styles.brandSub}>{t("auth.brandSub")}</Text>
           <View style={styles.lockHint}>
             <Feather name="lock" size={14} color={PRIMARY} />
-            <Text style={styles.lockHintText}>الدخول مطلوب لاستخدام التطبيق</Text>
+            <Text style={styles.lockHintText}>{t("auth.lockHint")}</Text>
           </View>
         </View>
         {/* Always-on, non-dismissible auth modal so the gate cannot be

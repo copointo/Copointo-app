@@ -17,6 +17,7 @@ import { AuthGate } from "@/components/AuthGate";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { CommunityProvider } from "@/context/CommunityContext";
+import { LanguageProvider } from "@/context/LanguageContext";
 import { MessagesProvider } from "@/context/MessagesContext";
 
 SplashScreen.preventAutoHideAsync();
@@ -56,6 +57,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
+         <LanguageProvider>
           <AppProvider>
             <MessagesProvider>
               <CommunityProvider>
@@ -71,6 +73,7 @@ export default function RootLayout() {
               </CommunityProvider>
             </MessagesProvider>
           </AppProvider>
+         </LanguageProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

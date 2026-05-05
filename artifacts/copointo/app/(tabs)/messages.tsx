@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Message } from "@/data/mockData";
 import { useMessages } from "@/context/MessagesContext";
+import { useT } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
 
@@ -135,7 +136,7 @@ export default function MessagesScreen() {
           activeOpacity={0.85}
         >
           <Feather name="users" size={14} color="#000" />
-          <Text style={styles.newGroupText}>مجموعة جديدة</Text>
+          <Text style={styles.newGroupText}>{t("messages.newGroup")}</Text>
         </TouchableOpacity>
       </View>
 

@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 
 const BORDER  = "rgba(232,184,109,0.35)";
 const PRIMARY = "#E8B86D";
@@ -35,6 +36,7 @@ export function AuthModal({
   dismissible?: boolean;
 }) {
   const { register, login } = useApp();
+  const { t } = useT();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
@@ -60,7 +62,7 @@ export function AuthModal({
 
   const pickRegAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { setErr("نحتاج إذن الوصول للصور"); return; }
+    if (status !== "granted") { setErr(t("auth.errPhotoPerm")); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true, aspect: [1, 1], quality: 0.7,
@@ -73,7 +75,7 @@ export function AuthModal({
 
   const submitLogin = async () => {
     setErr("");
-    if (!logPhone.trim() || !logPass.trim()) { setErr("يرجى تعبئة جميع الحقول"); return; }
+    if (!logPhone.trim() || !logPass.trim()) { setErr(t("auth.errFillAll")); return; }
     setBusy(true);
     const r = await login(logPhone.trim(), logPass);
     setBusy(false);
@@ -85,10 +87,10 @@ export function AuthModal({
   const submitRegister = async () => {
     setErr("");
     if (!name.trim() || !phone.trim() || !gameUser.trim() || !pass) {
-      setErr("يرجى تعبئة جميع الحقول"); return;
+      setErr(t("auth.errFillAll")); return;
     }
-    if (!regGender) { setErr("الرجاء اختيار الجنس"); return; }
-    if (pass.length < 6) { setErr("كلمة المرور يجب أن تكون 6 أحرف على الأقل"); return; }
+    if (!regGender) { setErr(t("auth.errPickGender")); return; }
+    if (pass.length < 6) { setErr(t("auth.errPasswordShort")); return; }
     setBusy(true);
     const r = await register({
       name: name.trim(),
@@ -123,9 +125,9 @@ export function AuthModal({
             <View style={styles.authLogo}>
               <Text style={{ fontSize: 32 }}>☕</Text>
             </View>
-            <Text style={styles.authBrandName}>كوبوينتو</Text>
+            <Text style={styles.authBrandName}>{t("auth.brandName")}</Text>
             <Text style={styles.authBrandSub}>
-              {mode === "login" ? "أهلاً بعودتك!" : "ابدأ رحلتك مع القهوة"}
+              {mode === "login" ? t("auth.welcomeBack") : t("auth.startJourney")}
             </Text>
           </View>
 
@@ -136,7 +138,7 @@ export function AuthModal({
               activeOpacity={0.85}
             >
               <Text style={[styles.authTabText, mode === "login" && styles.authTabTextActive]}>
-                دخول
+                {t("auth.tabLogin")}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -145,7 +147,7 @@ export function AuthModal({
               activeOpacity={0.85}
             >
               <Text style={[styles.authTabText, mode === "register" && styles.authTabTextActive]}>
-                حساب جديد
+                {t("auth.tabRegister")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -157,8 +159,8 @@ export function AuthModal({
           >
             {mode === "login" ? (
               <>
-                <AuthField icon="phone" placeholder="رقم الهاتف" value={logPhone} onChange={setLogPhone} keyboardType="phone-pad" />
-                <AuthField icon="lock" placeholder="كلمة المرور" value={logPass} onChange={setLogPass} secure />
+                <AuthField icon="phone" placeholder={t("auth.fieldPhone")} value={logPhone} onChange={setLogPhone} keyboardType="phone-pad" />
+                <AuthField icon="lock" placeholder={t("auth.fieldPassword")} value={logPass} onChange={setLogPass} secure />
               </>
             ) : (
               <>
@@ -174,15 +176,15 @@ export function AuthModal({
                     </View>
                   </TouchableOpacity>
                   <Text style={styles.regAvatarHint}>
-                    {regAvatar ? "اضغط لتغيير الصورة" : "أضف صورة (اختياري)"}
+                    {regAvatar ? t("auth.changeAvatar") : t("auth.addAvatar")}
                   </Text>
                 </View>
 
-                <AuthField icon="user" placeholder="الاسم الكامل" value={name} onChange={setName} />
-                <AuthField icon="phone" placeholder="رقم الهاتف" value={phone} onChange={setPhone} keyboardType="phone-pad" />
+                <AuthField icon="user" placeholder={t("auth.fieldName")} value={name} onChange={setName} />
+                <AuthField icon="phone" placeholder={t("auth.fieldPhone")} value={phone} onChange={setPhone} keyboardType="phone-pad" />
 
                 <View>
-                  <Text style={styles.fieldLabel}>الجنس</Text>
+                  <Text style={styles.fieldLabel}>{t("auth.fieldGenderLabel")}</Text>
                   <View style={styles.genderRow}>
                     <TouchableOpacity
                       onPress={() => { setRegGender("male"); Haptics.selectionAsync(); }}
@@ -190,7 +192,7 @@ export function AuthModal({
                       activeOpacity={0.85}
                     >
                       <Text style={styles.genderEmoji}>🧑</Text>
-                      <Text style={[styles.genderText, regGender === "male" && { color: "#FFF" }]}>ذكر</Text>
+                      <Text style={[styles.genderText, regGender === "male" && { color: "#FFF" }]}>{t("auth.genderMale")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => { setRegGender("female"); Haptics.selectionAsync(); }}
@@ -198,13 +200,13 @@ export function AuthModal({
                       activeOpacity={0.85}
                     >
                       <Text style={styles.genderEmoji}>👩</Text>
-                      <Text style={[styles.genderText, regGender === "female" && { color: "#FFF" }]}>أنثى</Text>
+                      <Text style={[styles.genderText, regGender === "female" && { color: "#FFF" }]}>{t("auth.genderFemale")}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                <AuthField icon="award" placeholder="يوزر اللعبة" value={gameUser} onChange={setGameUser} />
-                <AuthField icon="lock" placeholder="كلمة المرور (6 أحرف على الأقل)" value={pass} onChange={setPass} secure />
+                <AuthField icon="award" placeholder={t("auth.fieldGameUser")} value={gameUser} onChange={setGameUser} />
+                <AuthField icon="lock" placeholder={t("auth.fieldPasswordMin")} value={pass} onChange={setPass} secure />
               </>
             )}
 
@@ -217,7 +219,7 @@ export function AuthModal({
               disabled={busy}
             >
               <Text style={styles.authPrimaryText}>
-                {busy ? "جارٍ المعالجة..." : mode === "login" ? "دخول" : "إنشاء الحساب"}
+                {busy ? t("auth.busy") : mode === "login" ? t("auth.btnLogin") : t("auth.btnRegister")}
               </Text>
               {!busy && <Feather name="arrow-left" size={18} color="#FFF" />}
             </TouchableOpacity>
@@ -227,9 +229,9 @@ export function AuthModal({
               style={{ paddingVertical: 8, alignItems: "center" }}
             >
               <Text style={styles.authSwitchText}>
-                {mode === "login" ? "ليس لديك حساب؟ " : "لديك حساب؟ "}
+                {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}
                 <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>
-                  {mode === "login" ? "سجّل الآن" : "ادخل"}
+                  {mode === "login" ? t("auth.signupNow") : t("auth.loginNow")}
                 </Text>
               </Text>
             </TouchableOpacity>
