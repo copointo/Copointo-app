@@ -103,6 +103,7 @@ export default function MessagesScreen() {
   const router = useRouter();
   const r = useResponsive();
   const { convList, refreshChats } = useMessages();
+  const { t } = useT();
   const [search, setSearch] = useState("");
 
   // Pick up mirrored cross-user messages each time the screen is focused
