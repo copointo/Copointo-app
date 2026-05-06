@@ -1425,6 +1425,7 @@ const DEFAULT_CATEGORY = MENU_CATEGORIES[0].value;
 const MAX_IMAGE_BYTES = 600 * 1024; // 600KB cap on upload
 
 type PromoMode = "none" | "discount" | "bundle";
+type SizeRow   = { label: string; extraPrice: string };
 type MenuForm = {
   name: string; price: string; category: string; description: string; image: string;
   promoMode: PromoMode;
@@ -1432,11 +1433,15 @@ type MenuForm = {
   promoBuyQty: string;
   promoGetQty: string;
   stockQty: string;          // empty string = not tracked
+  beans: string[];           // optional bean types (customer picks at order time)
+  sizes: SizeRow[];          // optional sizes with extra price (added to base)
 };
 const emptyForm = (): MenuForm => ({
   name: "", price: "", category: DEFAULT_CATEGORY, description: "", image: "",
   promoMode: "none", originalPrice: "", promoBuyQty: "", promoGetQty: "",
   stockQty: "",
+  beans: [],
+  sizes: [],
 });
 
 function menuStockStatus(item: { stockQty?: number | null; initialStockQty?: number | null }) {
@@ -1455,6 +1460,24 @@ function MenuTab({ id }: { id: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [imgErr, setImgErr] = useState<string>("");
+  // Temp input for the "add bean" chip-builder (kept local so typing doesn't
+  // pollute the main form state until the user actually hits "إضافة").
+  const [beanDraft, setBeanDraft] = useState<string>("");
+
+  const addBean = () => {
+    const t = beanDraft.trim();
+    if (!t) return;
+    setForm(p => p.beans.includes(t) ? p : ({ ...p, beans: [...p.beans, t] }));
+    setBeanDraft("");
+  };
+  const removeBean = (idx: number) =>
+    setForm(p => ({ ...p, beans: p.beans.filter((_, i) => i !== idx) }));
+  const addSize = () =>
+    setForm(p => ({ ...p, sizes: [...p.sizes, { label: "", extraPrice: "" }] }));
+  const updateSize = (idx: number, patch: Partial<SizeRow>) =>
+    setForm(p => ({ ...p, sizes: p.sizes.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
+  const removeSize = (idx: number) =>
+    setForm(p => ({ ...p, sizes: p.sizes.filter((_, i) => i !== idx) }));
 
   const load = useCallback(() => api.cafeMenu(id).then(d => setItems(d.items)), [id]);
   useEffect(() => { load(); }, [load]);
@@ -1498,6 +1521,14 @@ function MenuTab({ id }: { id: string }) {
         const sq = Math.floor(Number(form.stockQty));
         stockQty = (Number.isFinite(sq) && sq >= 0) ? sq : null;
       }
+      // Beans: dedupe + drop empty
+      const beans = Array.from(new Set(
+        form.beans.map(b => b.trim()).filter(b => b.length > 0)
+      ));
+      // Sizes: keep only rows that have a non-empty label and a valid (≥0) extraPrice
+      const sizes = form.sizes
+        .map(s => ({ label: s.label.trim(), extraPrice: Number(s.extraPrice) }))
+        .filter(s => s.label.length > 0 && Number.isFinite(s.extraPrice) && s.extraPrice >= 0);
       const body = {
         name: form.name,
         price,
@@ -1508,6 +1539,10 @@ function MenuTab({ id }: { id: string }) {
         promoBuyQty,
         promoGetQty,
         stockQty,
+        // Send `null` (not undefined) when cleared so PATCH sees the removal
+        // and `normalizeVariants` on the server clears the field.
+        beans: beans.length > 0 ? beans : null,
+        sizes: sizes.length > 0 ? sizes : null,
       };
       if (editingId) {
         await api.updateMenuItem(id, editingId, body);
@@ -1540,6 +1575,10 @@ function MenuTab({ id }: { id: string }) {
       promoBuyQty: item.promoBuyQty ? String(item.promoBuyQty) : "",
       promoGetQty: item.promoGetQty ? String(item.promoGetQty) : "",
       stockQty: (item.stockQty != null) ? String(item.stockQty) : "",
+      beans: Array.isArray(item.beans) ? [...item.beans] : [],
+      sizes: Array.isArray(item.sizes)
+        ? item.sizes.map((s: any) => ({ label: String(s.label ?? ""), extraPrice: String(s.extraPrice ?? 0) }))
+        : [],
     });
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1715,6 +1754,105 @@ function MenuTab({ id }: { id: string }) {
                   </p>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* ── Bean types (optional) ─────────────────────────── */}
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+              ☕ أنواع البن (اختياري)
+              <span className="text-[10px] font-normal"> — يقدر الزبون يختار النوع وقت الطلب</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={beanDraft}
+                onChange={(e) => setBeanDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBean(); } }}
+                placeholder="مثال: إثيوبي، كولومبي، برازيلي…"
+                className="flex-1 bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50"
+              />
+              <button
+                type="button"
+                onClick={addBean}
+                disabled={!beanDraft.trim()}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-primary/15 text-primary border border-primary/30 hover:bg-primary/25 disabled:opacity-40"
+              >
+                <Plus size={14} className="inline -mt-0.5 mr-1" /> إضافة
+              </button>
+            </div>
+            {form.beans.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {form.beans.map((b, i) => (
+                  <span key={`${b}-${i}`} className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-full pl-3 pr-2 py-1.5">
+                    {b}
+                    <button type="button" onClick={() => removeBean(i)} className="w-5 h-5 rounded-full bg-primary/20 hover:bg-red-500/30 hover:text-red-300 flex items-center justify-center" aria-label="حذف">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Sizes (optional, with extra price) ────────────── */}
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+              📏 الأحجام (اختياري)
+              <span className="text-[10px] font-normal"> — السعر الإضافي يُضاف فوق السعر الأساسي</span>
+            </label>
+            {form.sizes.length === 0 && (
+              <p className="text-[11px] text-muted-foreground/70 mb-2">لا توجد أحجام — اضغط «إضافة حجم» لإضافة أول حجم.</p>
+            )}
+            <div className="space-y-2">
+              {form.sizes.map((s, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center p-2 rounded-xl bg-primary/5 border border-primary/20">
+                  <input
+                    type="text"
+                    value={s.label}
+                    onChange={(e) => updateSize(i, { label: e.target.value })}
+                    placeholder="اسم الحجم (مثال: صغير / وسط / كبير)"
+                    className="col-span-6 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50"
+                  />
+                  <div className="col-span-5 relative">
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={s.extraPrice}
+                      onChange={(e) => updateSize(i, { extraPrice: e.target.value.replace(/[^0-9.]/g, "") })}
+                      placeholder="0.000"
+                      className="w-full bg-card border border-border rounded-lg pl-3 pr-12 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary/50"
+                    />
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">+OMR</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeSize(i)}
+                    className="col-span-1 w-8 h-8 mx-auto rounded-lg bg-red-500/15 text-red-300 hover:bg-red-500/25 flex items-center justify-center"
+                    aria-label="حذف الحجم"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addSize}
+              className="mt-2 text-xs font-semibold text-primary hover:text-primary/80 inline-flex items-center gap-1"
+            >
+              <Plus size={13} /> إضافة حجم
+            </button>
+            {form.sizes.length > 0 && form.price && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                السعر الأساسي: <b className="text-primary">{(+form.price).toFixed(3)} OMR</b>
+                {" — "}
+                مع الأحجام: {form.sizes.filter(s => s.label.trim()).map((s, i) => {
+                  const ep = Number(s.extraPrice) || 0;
+                  return <span key={i} className="ml-1 mr-1">{s.label.trim()} <b className="text-primary">{((+form.price) + ep).toFixed(3)}</b></span>;
+                })}
+              </p>
             )}
           </div>
 

@@ -535,9 +535,40 @@ function normalizeStock(body: any) {
   }
 }
 
+// Normalize the optional `beans` and `sizes` fields coming from the admin UI
+// so the server stores well-shaped data even if the client sends junk.
+//   beans:  string[]  — non-empty trimmed strings, deduped, capped at 12
+//   sizes:  { label, extraPrice }[] — label non-empty, extraPrice numeric ≥ 0
+// When the field is `null` or `[]`, we coerce it to `undefined` so the menu
+// item simply has no picker (instead of an empty-but-truthy array).
+function normalizeVariants(body: any) {
+  if (Object.prototype.hasOwnProperty.call(body, "beans")) {
+    const raw = Array.isArray(body.beans) ? body.beans : [];
+    const cleaned = Array.from(new Set(
+      raw.map((b: any) => (typeof b === "string" ? b.trim() : ""))
+         .filter((b: string) => b.length > 0)
+    )).slice(0, 12);
+    body.beans = cleaned.length > 0 ? cleaned : undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "sizes")) {
+    const raw = Array.isArray(body.sizes) ? body.sizes : [];
+    const cleaned = raw
+      .map((s: any) => ({
+        label: typeof s?.label === "string" ? s.label.trim() : "",
+        extraPrice: Number(s?.extraPrice),
+      }))
+      .filter((s: { label: string; extraPrice: number }) =>
+        s.label.length > 0 && Number.isFinite(s.extraPrice) && s.extraPrice >= 0
+      )
+      .slice(0, 8);
+    body.sizes = cleaned.length > 0 ? cleaned : undefined;
+  }
+}
+
 router.post("/menu", (req: any, res) => {
   const body = req.body ?? {};
   normalizeStock(body);
+  normalizeVariants(body);
   const item: MenuItem = {
     id: Date.now().toString(),
     cafeId: req.params.cafeId,
@@ -555,6 +586,7 @@ router.patch("/menu/:itemId", (req, res) => {
   if (!item) return res.status(404).json({ error: "Not found" });
   const body = req.body ?? {};
   normalizeStock(body);
+  normalizeVariants(body);
   // Recompute initialStockQty (the alert-threshold baseline) only when stockQty
   // is actually being changed, so editing other fields (name/price/desc) via
   // the menu form does NOT silently clear low/critical alerts.

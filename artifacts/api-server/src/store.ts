@@ -30,6 +30,10 @@ export interface MenuItem {
   stockQty?: number | null;
   /** Snapshot of last "restock" total — used as denominator for low/critical alerts. */
   initialStockQty?: number | null;
+  /** Optional bean types the customer can pick from at order time. Empty/undefined = no bean picker. */
+  beans?: string[];
+  /** Optional sizes the customer can pick from at order time. extraPrice is added to base price. */
+  sizes?: { label: string; extraPrice: number }[];
 }
 export interface CafeTable {
   id: string; cafeId: string; number: number; capacity: number;
@@ -50,7 +54,15 @@ export interface CafeTable {
 }
 export interface Order {
   id: string; cafeId: string; customerName: string; customerNameEn?: string; customerPhone: string;
-  items: { name: string; qty: number; price: number; category?: string }[];
+  items: {
+    name: string; qty: number; price: number; category?: string;
+    /** Customer-selected bean type (when the menu item defined `beans`). */
+    selectedBean?: string;
+    /** Customer-selected size label (when the menu item defined `sizes`). */
+    selectedSize?: string;
+    /** Snapshot of the size's extraPrice at the moment of order (already included in `price`). */
+    sizeExtraPrice?: number;
+  }[];
   subtotal?: number;
   discountCode?: string;
   discountPercent?: number;
