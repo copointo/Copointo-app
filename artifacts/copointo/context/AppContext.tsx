@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { API_BASE } from "@/constants/api";
@@ -156,6 +157,9 @@ interface AppContextType {
   outgoingRequests: string[];
   /** Friend requests sent to me that are still pending (sender user IDs) */
   incomingRequests: string[];
+  /** Server-issued receipts for requests I sent that the other user declined.
+   *  Shown once in the notifications screen, then dismissed via `ackRejection`. */
+  rejectionNotifications: { id: string; toUserId: string; decidedAt?: string }[];
   /** Send a friend request from current user to targetId (waits for accept) */
   sendFriendRequest: (targetId: string) => Promise<void>;
   /** Accept a pending request from senderId — adds to friends on both sides */
@@ -164,7 +168,10 @@ interface AppContextType {
   declineFriendRequest: (senderId: string) => Promise<void>;
   /** Cancel a request I previously sent to targetId */
   cancelFriendRequest: (targetId: string) => Promise<void>;
-  /** Re-read friend + request lists from storage (call when opening notifications) */
+  /** Dismiss a "your request was declined" receipt (by request id from
+   *  `rejectionNotifications`). */
+  ackRejection: (requestId: string) => Promise<void>;
+  /** Re-read friend + request lists from the server (call when opening notifications) */
   refreshFriendData: () => Promise<void>;
   /** Fetch the global users roster from the server and merge into
    *  `registeredUsers` so every device sees every registered player.
@@ -218,6 +225,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [friends, setFriends] = useState<string[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<string[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<string[]>([]);
+  const [rejectionNotifications, setRejectionNotifications] = useState<
+    { id: string; toUserId: string; decidedAt?: string }[]
+  >([]);
+  // Lookup maps: server keys requests by `id`, but the app's UI talks in
+  // user IDs (senderId / targetId). These refs let accept/decline/cancel
+  // resolve the underlying server request id without an extra round-trip.
+  const incomingMap = useRef<Map<string, string>>(new Map()); // fromUserId → requestId
+  const outgoingMap = useRef<Map<string, string>>(new Map()); // toUserId   → requestId
   const [cart, setCart] = useState<CartItem[]>([]);
   const [likedVideos, setLikedVideos] = useState<string[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
@@ -329,21 +344,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     refreshAllUsers().catch(() => {});
   }, [hydrated, refreshAllUsers]);
 
-  // Re-read friend lists from storage (used by notifications screen on focus,
-  // since requests can arrive from another logged-in user on the same device)
+  // Pull the authoritative friend snapshot from the server. Used on login,
+  // on notifications-screen focus, and on a polling interval while signed in
+  // so cross-device requests / accept / decline reach both sides quickly.
   const refreshFriendData = useCallback(async () => {
     if (!user) return;
     try {
-      const [fRaw, inRaw, outRaw] = await Promise.all([
-        AsyncStorage.getItem(`friends:${user.id}`),
-        AsyncStorage.getItem(`friend_requests_in:${user.id}`),
-        AsyncStorage.getItem(`friend_requests_out:${user.id}`),
-      ]);
-      setFriends(fRaw ? JSON.parse(fRaw) : []);
-      setIncomingRequests(inRaw ? JSON.parse(inRaw) : []);
-      setOutgoingRequests(outRaw ? JSON.parse(outRaw) : []);
-    } catch {}
+      const r = await fetch(
+        `${API_BASE}/friends?userId=${encodeURIComponent(user.id)}`,
+      );
+      if (!r.ok) return;
+      const data = await r.json().catch(() => ({}));
+      const friendsList: string[] = Array.isArray(data?.friends) ? data.friends : [];
+      const incoming: { id: string; fromUserId: string }[] = Array.isArray(data?.incoming) ? data.incoming : [];
+      const outgoing: { id: string; toUserId: string }[]   = Array.isArray(data?.outgoing) ? data.outgoing : [];
+      const rejections: { id: string; toUserId: string; decidedAt?: string }[] =
+        Array.isArray(data?.rejections) ? data.rejections : [];
+
+      // Refresh lookup maps so accept/decline/cancel can resolve the
+      // server request id from the user id the UI knows about.
+      incomingMap.current = new Map(incoming.map(r => [r.fromUserId, r.id]));
+      outgoingMap.current = new Map(outgoing.map(r => [r.toUserId,   r.id]));
+
+      setFriends(friendsList);
+      setIncomingRequests(incoming.map(r => r.fromUserId));
+      setOutgoingRequests(outgoing.map(r => r.toUserId));
+      setRejectionNotifications(rejections);
+
+      // Mirror into AsyncStorage as an offline cache so the lists are
+      // visible immediately on cold-start before the next refresh resolves.
+      AsyncStorage.setItem(`friends:${user.id}`, JSON.stringify(friendsList)).catch(() => {});
+    } catch {
+      /* network errors are non-fatal — the cached lists remain */
+    }
   }, [user]);
+
+  // Poll the friend snapshot every 10 s while a user is signed in so
+  // incoming requests / accepts / declines from other devices show up
+  // without the user having to manually pull-to-refresh.
+  useEffect(() => {
+    if (!user) return;
+    refreshFriendData();
+    const handle = setInterval(() => { refreshFriendData(); }, 10000);
+    return () => clearInterval(handle);
+  }, [user, refreshFriendData]);
 
   const setUser = useCallback((u: User | null) => {
     setUserState(u);
@@ -480,156 +524,93 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removeFriend = useCallback((userId: string) => {
     if (!user) return;
-    setFriends(prev => {
-      const updated = prev.filter(id => id !== userId);
-      AsyncStorage.setItem(`friends:${user.id}`, JSON.stringify(updated)).catch(() => {});
-      return updated;
-    });
-    // Also clear any stale pending-request state on either side
-    setOutgoingRequests(prev => {
-      const updated = prev.filter(id => id !== userId);
-      AsyncStorage.setItem(`friend_requests_out:${user.id}`, JSON.stringify(updated)).catch(() => {});
-      return updated;
-    });
-    setIncomingRequests(prev => {
-      const updated = prev.filter(id => id !== userId);
-      AsyncStorage.setItem(`friend_requests_in:${user.id}`, JSON.stringify(updated)).catch(() => {});
-      return updated;
-    });
-    // Mock cross-device cleanup on the other side
-    (async () => {
-      try {
-        const [oFriendsRaw, oInRaw, oOutRaw] = await Promise.all([
-          AsyncStorage.getItem(`friends:${userId}`),
-          AsyncStorage.getItem(`friend_requests_in:${userId}`),
-          AsyncStorage.getItem(`friend_requests_out:${userId}`),
-        ]);
-        const oFriends: string[] = oFriendsRaw ? JSON.parse(oFriendsRaw) : [];
-        const oIn:      string[] = oInRaw      ? JSON.parse(oInRaw)      : [];
-        const oOut:     string[] = oOutRaw     ? JSON.parse(oOutRaw)     : [];
-        await Promise.all([
-          AsyncStorage.setItem(`friends:${userId}`, JSON.stringify(oFriends.filter(id => id !== user.id))),
-          AsyncStorage.setItem(`friend_requests_in:${userId}`, JSON.stringify(oIn.filter(id => id !== user.id))),
-          AsyncStorage.setItem(`friend_requests_out:${userId}`, JSON.stringify(oOut.filter(id => id !== user.id))),
-        ]);
-      } catch {}
-    })();
-  }, [user]);
+    // Optimistic local update — the polling refresh will reconcile.
+    setFriends(prev => prev.filter(id => id !== userId));
+    setOutgoingRequests(prev => prev.filter(id => id !== userId));
+    setIncomingRequests(prev => prev.filter(id => id !== userId));
+    // Server delete (also clears any lingering pending requests between us).
+    fetch(`${API_BASE}/friendships`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, otherId: userId }),
+    })
+      .catch(() => {})
+      .finally(() => { refreshFriendData(); });
+  }, [user, refreshFriendData]);
 
-  // ─── Friend requests ──────────────────────────────────────────────────────
-  // Cross-user storage layout (single device with multiple registered users):
-  //   friend_requests_in:<userId>   = list of senderIds whose requests await me
-  //   friend_requests_out:<userId>  = list of targetIds I have pending
-  //   friends:<userId>              = accepted friend ids
-  // Send: append me → other's "in" list, append other → my "out" list.
-  // Accept: remove me from other's "out", remove other from my "in",
-  //         add other → my friends, add me → other's friends.
+  // ─── Friend requests (server-backed, cross-device) ────────────────────────
+  // The mobile UI keeps `incomingRequests` / `outgoingRequests` as user-id
+  // arrays for backward compat. Server requests are keyed by their own id —
+  // we resolve those via the `incomingMap` / `outgoingMap` refs that
+  // `refreshFriendData` keeps in sync.
 
   const sendFriendRequest = useCallback(async (targetId: string) => {
     if (!user || targetId === user.id) return;
+    if (friends.includes(targetId)) return;
+    if (outgoingRequests.includes(targetId)) return;
     try {
-      // Already friends? no-op
-      if (friends.includes(targetId)) return;
-
-      // If the other user already sent ME a request, treat this as an accept
-      // (checked BEFORE the outgoing-already-sent guard so the cross-pending
-      // edge case doesn't get short-circuited as no-op).
-      if (incomingRequests.includes(targetId)) {
-        await acceptInternal(targetId);
-        return;
-      }
-
-      // Already requested? no-op
-      if (outgoingRequests.includes(targetId)) return;
-
-      // Append to my outgoing
-      const newOut = [...outgoingRequests, targetId];
-      await AsyncStorage.setItem(`friend_requests_out:${user.id}`, JSON.stringify(newOut));
-      setOutgoingRequests(newOut);
-
-      // Append me → target's incoming
-      const targetInRaw = await AsyncStorage.getItem(`friend_requests_in:${targetId}`);
-      const targetIn: string[] = targetInRaw ? JSON.parse(targetInRaw) : [];
-      if (!targetIn.includes(user.id)) {
-        targetIn.push(user.id);
-        await AsyncStorage.setItem(`friend_requests_in:${targetId}`, JSON.stringify(targetIn));
-      }
+      await fetch(`${API_BASE}/friend-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromUserId: user.id, toUserId: targetId }),
+      });
     } catch {}
-  }, [user, friends, outgoingRequests, incomingRequests]);
-
-  // Internal acceptance helper used by both acceptFriendRequest and the
-  // sendFriendRequest "they already asked me" shortcut.
-  const acceptInternal = async (senderId: string) => {
-    if (!user) return;
-    // 1. Remove from my incoming
-    const newIn = incomingRequests.filter(id => id !== senderId);
-    await AsyncStorage.setItem(`friend_requests_in:${user.id}`, JSON.stringify(newIn));
-    setIncomingRequests(newIn);
-
-    // 2. Remove me from sender's outgoing
-    try {
-      const senderOutRaw = await AsyncStorage.getItem(`friend_requests_out:${senderId}`);
-      const senderOut: string[] = senderOutRaw ? JSON.parse(senderOutRaw) : [];
-      const filtered = senderOut.filter(id => id !== user.id);
-      await AsyncStorage.setItem(`friend_requests_out:${senderId}`, JSON.stringify(filtered));
-    } catch {}
-
-    // 3. Add sender → my friends
-    const newFriends = friends.includes(senderId) ? friends : [...friends, senderId];
-    await AsyncStorage.setItem(`friends:${user.id}`, JSON.stringify(newFriends));
-    setFriends(newFriends);
-
-    // 4. Add me → sender's friends
-    try {
-      const senderFRaw = await AsyncStorage.getItem(`friends:${senderId}`);
-      const senderF: string[] = senderFRaw ? JSON.parse(senderFRaw) : [];
-      if (!senderF.includes(user.id)) {
-        senderF.push(user.id);
-        await AsyncStorage.setItem(`friends:${senderId}`, JSON.stringify(senderF));
-      }
-    } catch {}
-
-    // 5. Also clear any stale outgoing entry I had toward sender (edge case)
-    if (outgoingRequests.includes(senderId)) {
-      const newOut = outgoingRequests.filter(id => id !== senderId);
-      await AsyncStorage.setItem(`friend_requests_out:${user.id}`, JSON.stringify(newOut));
-      setOutgoingRequests(newOut);
-    }
-  };
+    refreshFriendData();
+  }, [user, friends, outgoingRequests, refreshFriendData]);
 
   const acceptFriendRequest = useCallback(async (senderId: string) => {
     if (!user) return;
-    if (!incomingRequests.includes(senderId)) return;
-    try { await acceptInternal(senderId); } catch {}
-  }, [user, incomingRequests, friends, outgoingRequests]);
+    const requestId = incomingMap.current.get(senderId);
+    if (!requestId) return;
+    try {
+      await fetch(`${API_BASE}/friend-requests/${encodeURIComponent(requestId)}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+    } catch {}
+    refreshFriendData();
+  }, [user, refreshFriendData]);
 
   const declineFriendRequest = useCallback(async (senderId: string) => {
     if (!user) return;
+    const requestId = incomingMap.current.get(senderId);
+    if (!requestId) return;
     try {
-      const newIn = incomingRequests.filter(id => id !== senderId);
-      await AsyncStorage.setItem(`friend_requests_in:${user.id}`, JSON.stringify(newIn));
-      setIncomingRequests(newIn);
-      // Also clear from sender's outgoing
-      const senderOutRaw = await AsyncStorage.getItem(`friend_requests_out:${senderId}`);
-      const senderOut: string[] = senderOutRaw ? JSON.parse(senderOutRaw) : [];
-      const filtered = senderOut.filter(id => id !== user.id);
-      await AsyncStorage.setItem(`friend_requests_out:${senderId}`, JSON.stringify(filtered));
+      await fetch(`${API_BASE}/friend-requests/${encodeURIComponent(requestId)}/decline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
     } catch {}
-  }, [user, incomingRequests]);
+    refreshFriendData();
+  }, [user, refreshFriendData]);
 
   const cancelFriendRequest = useCallback(async (targetId: string) => {
     if (!user) return;
+    const requestId = outgoingMap.current.get(targetId);
+    if (!requestId) return;
     try {
-      const newOut = outgoingRequests.filter(id => id !== targetId);
-      await AsyncStorage.setItem(`friend_requests_out:${user.id}`, JSON.stringify(newOut));
-      setOutgoingRequests(newOut);
-      // Remove me from target's incoming
-      const targetInRaw = await AsyncStorage.getItem(`friend_requests_in:${targetId}`);
-      const targetIn: string[] = targetInRaw ? JSON.parse(targetInRaw) : [];
-      const filtered = targetIn.filter(id => id !== user.id);
-      await AsyncStorage.setItem(`friend_requests_in:${targetId}`, JSON.stringify(filtered));
+      await fetch(
+        `${API_BASE}/friend-requests/${encodeURIComponent(requestId)}?userId=${encodeURIComponent(user.id)}`,
+        { method: "DELETE" },
+      );
     } catch {}
-  }, [user, outgoingRequests]);
+    refreshFriendData();
+  }, [user, refreshFriendData]);
+
+  const ackRejection = useCallback(async (requestId: string) => {
+    if (!user) return;
+    // Optimistic remove so the card disappears immediately.
+    setRejectionNotifications(prev => prev.filter(r => r.id !== requestId));
+    try {
+      await fetch(`${API_BASE}/friend-requests/${encodeURIComponent(requestId)}/ack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+    } catch {}
+  }, [user]);
 
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem("currentUser");
@@ -637,6 +618,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setFriends([]);
     setIncomingRequests([]);
     setOutgoingRequests([]);
+    setRejectionNotifications([]);
+    incomingMap.current = new Map();
+    outgoingMap.current = new Map();
     setActiveGameCafeIdState(null);
   }, []);
 
@@ -781,10 +765,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeFriend,
         outgoingRequests,
         incomingRequests,
+        rejectionNotifications,
         sendFriendRequest,
         acceptFriendRequest,
         declineFriendRequest,
         cancelFriendRequest,
+        ackRejection,
         refreshFriendData,
         refreshAllUsers,
         cart,

@@ -72,6 +72,7 @@ export default function NotificationsScreen() {
   const {
     user,
     incomingRequests, registeredUsers,
+    rejectionNotifications, ackRejection,
     acceptFriendRequest, declineFriendRequest, refreshFriendData,
   } = useApp();
 
@@ -224,7 +225,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
-        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && bookings.length === 0 && (
+        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && bookings.length === 0 && rejectionNotifications.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🔔</Text>
             <Text style={styles.emptyTitle}>لا توجد إشعارات</Text>
@@ -347,6 +348,44 @@ export default function NotificationsScreen() {
             <Text style={styles.broadcastBody}>{b.message}</Text>
           </View>
         ))}
+
+        {/* "Your friend request was declined" receipts (sender side) */}
+        {rejectionNotifications.map((rej) => {
+          const u = registeredUsers.find(r => r.id === rej.toUserId);
+          const name = u?.name ?? "صديق";
+          return (
+            <View
+              key={`rej-${rej.id}`}
+              style={[styles.card, { borderColor: "rgba(229,83,83,0.45)" }]}
+            >
+              <View style={styles.cardTop}>
+                <View style={[styles.avatar, { borderColor: "rgba(229,83,83,0.45)", backgroundColor: "rgba(229,83,83,0.10)" }]}>
+                  <Text style={{ fontSize: 22 }}>✕</Text>
+                </View>
+                <View style={styles.cardInfo}>
+                  <Text style={styles.cardTitle}>{`تم رفض طلب الصداقة من ${name}`}</Text>
+                  {u?.gameUsername && (
+                    <Text style={styles.cardSub}>@{u.gameUsername}</Text>
+                  )}
+                  {rej.decidedAt && (
+                    <Text style={styles.cardHint}>{fmtRelative(rej.decidedAt)}</Text>
+                  )}
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.rejectBtn}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  ackRejection(rej.id);
+                }}
+                activeOpacity={0.85}
+              >
+                <Feather name="x" size={15} color="#E8B86D" />
+                <Text style={styles.rejectBtnText}>إخفاء</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
 
         {/* Pending friend requests */}
         {rows.map((r) => {

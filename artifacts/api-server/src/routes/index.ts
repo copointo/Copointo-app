@@ -14,7 +14,8 @@ import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
   bookings, orders,
   usernameRegistry, cafeRatings, getCafeRatingStats,
-  persistStore, type AppUser,
+  friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
+  persistStore, type AppUser, type FriendRequest,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -475,6 +476,150 @@ router.post("/reels/:rid/view", (req, res): any => {
   }
   reel.views += 1;
   res.json({ views: reel.views });
+});
+
+// ─── Friend requests + friendships ──────────────────────────────────────
+// Cross-device friend system. The mobile client polls these endpoints to
+// see incoming requests, friendships, and decline receipts (so a sender
+// gets notified once the other user rejects their request).
+
+/** Get full friend snapshot for a user. */
+router.get("/friends", (req, res): any => {
+  const userId = String(req.query.userId ?? "").trim();
+  if (!userId) return res.status(400).json({ error: "userId required" });
+  const incoming = friendRequests
+    .filter(r => r.toUserId === userId && r.status === "pending")
+    .map(r => ({ id: r.id, fromUserId: r.fromUserId, createdAt: r.createdAt }));
+  const outgoingPending = friendRequests
+    .filter(r => r.fromUserId === userId && r.status === "pending")
+    .map(r => ({ id: r.id, toUserId: r.toUserId, createdAt: r.createdAt }));
+  // Decline receipts the sender has not yet seen — show once, then ack.
+  const rejections = friendRequests
+    .filter(r => r.fromUserId === userId && r.status === "declined")
+    .map(r => ({ id: r.id, toUserId: r.toUserId, decidedAt: r.decidedAt }));
+  res.json({
+    friends: friendsOf(userId),
+    incoming,
+    outgoing: outgoingPending,
+    rejections,
+  });
+});
+
+/** Send a friend request (or auto-accept if the other user already sent one). */
+router.post("/friend-requests", (req, res): any => {
+  const fromUserId = String(req.body?.fromUserId ?? "").trim();
+  const toUserId   = String(req.body?.toUserId   ?? "").trim();
+  if (!fromUserId || !toUserId) return res.status(400).json({ error: "fromUserId/toUserId required" });
+  if (fromUserId === toUserId)  return res.status(400).json({ error: "self request" });
+  if (areFriends(fromUserId, toUserId)) return res.json({ ok: true, alreadyFriends: true });
+
+  // If the other user already requested me, treat this as accept.
+  const reverse = friendRequests.find(
+    r => r.fromUserId === toUserId && r.toUserId === fromUserId && r.status === "pending",
+  );
+  if (reverse) {
+    addFriendship(fromUserId, toUserId);
+    // Drop the reverse pending row — they're now friends.
+    const idx = friendRequests.indexOf(reverse);
+    if (idx !== -1) friendRequests.splice(idx, 1);
+    persistStore();
+    return res.json({ ok: true, accepted: true });
+  }
+
+  // Already have an outgoing pending? no-op.
+  const existing = friendRequests.find(
+    r => r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "pending",
+  );
+  if (existing) return res.json({ ok: true, request: existing });
+
+  // Drop any stale declined receipt for this same pair (sender resending).
+  for (let i = friendRequests.length - 1; i >= 0; i--) {
+    const r = friendRequests[i]!;
+    if (r.fromUserId === fromUserId && r.toUserId === toUserId && r.status === "declined") {
+      friendRequests.splice(i, 1);
+    }
+  }
+
+  const fr: FriendRequest = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+    fromUserId, toUserId, status: "pending",
+    createdAt: new Date().toISOString(),
+  };
+  friendRequests.push(fr);
+  persistStore();
+  res.status(201).json({ ok: true, request: fr });
+});
+
+/** Accept a pending request — only the recipient may accept. */
+router.post("/friend-requests/:id/accept", (req, res): any => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const fr = friendRequests.find(r => r.id === req.params.id);
+  if (!fr) return res.status(404).json({ error: "request not found" });
+  if (fr.toUserId !== userId) return res.status(403).json({ error: "not the recipient" });
+  if (fr.status !== "pending") return res.status(400).json({ error: "already decided" });
+  addFriendship(fr.fromUserId, fr.toUserId);
+  // Accepted requests are removed entirely (no receipt needed — the sender
+  // sees the new friendship in their friends list).
+  const idx = friendRequests.indexOf(fr);
+  if (idx !== -1) friendRequests.splice(idx, 1);
+  persistStore();
+  res.json({ ok: true });
+});
+
+/** Decline a pending request — keeps a receipt so the sender gets notified. */
+router.post("/friend-requests/:id/decline", (req, res): any => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const fr = friendRequests.find(r => r.id === req.params.id);
+  if (!fr) return res.status(404).json({ error: "request not found" });
+  if (fr.toUserId !== userId) return res.status(403).json({ error: "not the recipient" });
+  if (fr.status !== "pending") return res.status(400).json({ error: "already decided" });
+  fr.status = "declined";
+  fr.decidedAt = new Date().toISOString();
+  persistStore();
+  res.json({ ok: true });
+});
+
+/** Sender acknowledges a "your request was declined" receipt — removes it. */
+router.post("/friend-requests/:id/ack", (req, res): any => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const fr = friendRequests.find(r => r.id === req.params.id);
+  if (!fr) return res.json({ ok: true });
+  if (fr.fromUserId !== userId) return res.status(403).json({ error: "not the sender" });
+  const idx = friendRequests.indexOf(fr);
+  if (idx !== -1) friendRequests.splice(idx, 1);
+  persistStore();
+  res.json({ ok: true });
+});
+
+/** Cancel an outgoing pending request (sender deletes it before decision). */
+router.delete("/friend-requests/:id", (req, res): any => {
+  const userId = String(req.query.userId ?? req.body?.userId ?? "").trim();
+  const fr = friendRequests.find(r => r.id === req.params.id);
+  if (!fr) return res.json({ ok: true });
+  if (fr.fromUserId !== userId) return res.status(403).json({ error: "not the sender" });
+  if (fr.status !== "pending") return res.status(400).json({ error: "already decided" });
+  const idx = friendRequests.indexOf(fr);
+  if (idx !== -1) friendRequests.splice(idx, 1);
+  persistStore();
+  res.json({ ok: true });
+});
+
+/** Unfriend — either side may remove the friendship. */
+router.delete("/friendships", (req, res): any => {
+  const userId  = String(req.query.userId  ?? req.body?.userId  ?? "").trim();
+  const otherId = String(req.query.otherId ?? req.body?.otherId ?? "").trim();
+  if (!userId || !otherId) return res.status(400).json({ error: "userId/otherId required" });
+  removeFriendship(userId, otherId);
+  // Also clear any lingering pending requests between them.
+  for (let i = friendRequests.length - 1; i >= 0; i--) {
+    const r = friendRequests[i]!;
+    if ((r.fromUserId === userId && r.toUserId === otherId) ||
+        (r.fromUserId === otherId && r.toUserId === userId)) {
+      friendRequests.splice(i, 1);
+    }
+  }
+  persistStore();
+  res.json({ ok: true });
 });
 
 export default router;

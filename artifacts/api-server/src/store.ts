@@ -283,6 +283,56 @@ export interface UsernameClaim {
 }
 export const usernameRegistry: UsernameClaim[] = [];
 
+// ─── Friend requests + friendships (cross-device) ───────────────────────
+// The mobile client used to keep friend lists in AsyncStorage only, which
+// meant a request never reached a user on another device. We now mirror
+// pending requests, accepted friendships, and "your request was declined"
+// receipts on the server so the flow works across devices.
+export interface FriendRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  /** "pending" → awaiting decision. "declined" → kept until the sender's
+   *  client acks it (so we can show a one-time toast/notification). */
+  status: "pending" | "declined";
+  createdAt: string;
+  decidedAt?: string;
+}
+export const friendRequests: FriendRequest[] = [];
+
+export interface Friendship {
+  /** Lexicographically smaller user id (canonicalised so each pair is unique). */
+  a: string;
+  b: string;
+  createdAt: string;
+}
+export const friendships: Friendship[] = [];
+
+/** Canonical (a,b) ordering so each pair has exactly one row. */
+export function pairKey(u1: string, u2: string): { a: string; b: string } {
+  return u1 < u2 ? { a: u1, b: u2 } : { a: u2, b: u1 };
+}
+export function areFriends(u1: string, u2: string): boolean {
+  const { a, b } = pairKey(u1, u2);
+  return friendships.some(f => f.a === a && f.b === b);
+}
+export function addFriendship(u1: string, u2: string): void {
+  if (u1 === u2 || areFriends(u1, u2)) return;
+  const { a, b } = pairKey(u1, u2);
+  friendships.push({ a, b, createdAt: new Date().toISOString() });
+}
+export function removeFriendship(u1: string, u2: string): void {
+  const { a, b } = pairKey(u1, u2);
+  for (let i = friendships.length - 1; i >= 0; i--) {
+    if (friendships[i]!.a === a && friendships[i]!.b === b) friendships.splice(i, 1);
+  }
+}
+export function friendsOf(userId: string): string[] {
+  return friendships
+    .filter(f => f.a === userId || f.b === userId)
+    .map(f => (f.a === userId ? f.b : f.a));
+}
+
 // ─── Disk persistence ────────────────────────────────────────────────────
 // In-memory state is great for fast prototyping, but every server restart
 // (hot reload during development, deploy, crash) wiped all cafés/reels and
@@ -296,7 +346,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
-  usernameRegistry, cafeRatings,
+  usernameRegistry, cafeRatings, friendRequests, friendships,
 };
 
 function loadFromDisk() {
