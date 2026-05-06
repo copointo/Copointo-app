@@ -52,8 +52,8 @@ interface MenuItem {
 const ALL_KEY = "الكل";
 const CATEGORIES: { key: string; icon: string }[] = [
   { key: ALL_KEY,         icon: "🗂️" },
-  { key: "مشروب ساخن",   icon: "☕" },
   { key: "مشروبات باردة", icon: "🥤" },
+  { key: "مشروب ساخن",   icon: "☕" },
   { key: "حلى",          icon: "🍰" },
   { key: "طعام",         icon: "🍽️" },
 ];
