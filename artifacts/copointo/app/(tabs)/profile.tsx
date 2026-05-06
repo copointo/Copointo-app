@@ -239,7 +239,7 @@ export default function ProfileScreen() {
           <View style={styles.emptyIconWrap}>
             <Feather name="user" size={56} color={PRIMARY} />
           </View>
-          <Text style={styles.emptyTitle}>مرحباً بك في كوبوينتو</Text>
+          <Text style={styles.emptyTitle}>مرحباً بك في Copointo</Text>
           <Text style={styles.emptySub}>سجّل دخولك الآن للاستفادة من كامل ميزات التطبيق</Text>
           <TouchableOpacity
             style={styles.loginBtn}

@@ -45,7 +45,7 @@ export const translations: Record<Lang, Dict> = {
     "myCafes.activeBadge": "معروض حالياً في اللعبة",
     "myCafes.tapHint": "اضغط لعرض مستواك في هذا الكوفي",
 
-    "auth.brandName": "كوبوينتو",
+    "auth.brandName": "Copointo",
     "auth.brandSub": "سجّل دخولك للاستفادة من جميع المزايا",
     "auth.lockHint": "الدخول مطلوب لاستخدام التطبيق",
     "auth.welcomeBack": "أهلاً بعودتك!",

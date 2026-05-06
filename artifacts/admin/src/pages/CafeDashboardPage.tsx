@@ -350,7 +350,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"expenses",  label:"المصاريف",          icon: Wallet           },
   { id:"inventory", label:"المخزن",            icon: Package          },
   { id:"templates", label:"تعديل الفواتير",    icon: FileText         },
-  { id:"reels",     label:"كوبوينتو ريلز",     icon: Video            },
+  { id:"reels",     label:"Copointo ريلز",     icon: Video            },
   { id:"barcode",   label:"الباركود",          icon: QrCode           },
 ];
 
@@ -3713,7 +3713,7 @@ function TemplateForm({ id, type }: { id: string; type: string }) {
         <div className="md:col-span-2 space-y-3">
           <div>
             <label className="block text-xs font-semibold text-muted-foreground mb-1">اسم الكوفي</label>
-            <Inp value={form.cafeName} onChange={(v: string) => setForm((f: any) => ({ ...f, cafeName: v }))} placeholder="مثال: كوفي كوبوينتو" />
+            <Inp value={form.cafeName} onChange={(v: string) => setForm((f: any) => ({ ...f, cafeName: v }))} placeholder="مثال: كوفي Copointo" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-muted-foreground mb-1">السجل التجاري</label>
@@ -4957,7 +4957,7 @@ function ReelsTab({ id }: { id: string }) {
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Video className="w-6 h-6 text-[#E8B86D]" />
-            كوبوينتو ريلز
+            Copointo ريلز
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             ارفع فيديوهات قصيرة عمودية لتظهر في تبويب الفيديوهات بالتطبيق
