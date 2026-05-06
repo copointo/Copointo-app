@@ -7,6 +7,7 @@ import UsersPage         from "@/pages/UsersPage";
 import CopointoHubPage   from "@/pages/CopointoHubPage";
 import CafeDashboardPage, { ManagerAnalyticsPage } from "@/pages/CafeDashboardPage";
 import { LayoutDashboard, Coffee, Users, Gamepad2, ArrowRight } from "lucide-react";
+import logoUrl from "@/assets/copointo-logo.png";
 
 const queryClient = new QueryClient();
 
@@ -51,8 +52,8 @@ function HomePage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6" dir="rtl">
       {/* Logo */}
       <div className="text-center mb-14">
-        <div className="mx-auto mb-5 w-20 h-20 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 shadow-lg shadow-[#E8B86D]/15">
-          <Coffee size={42} className="text-[#E8B86D]" />
+        <div className="mx-auto mb-5 w-20 h-20 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 shadow-lg shadow-[#E8B86D]/15 overflow-hidden">
+          <img src={logoUrl} alt="Copointo" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-4xl font-bold text-foreground">Copointo</h1>
         <p className="text-muted-foreground mt-2 text-lg">لوحة تحكم المدير</p>
@@ -91,7 +92,7 @@ export function PageLayout({ title, children }: { title: string; children: React
           الرئيسية
         </Link>
         <div className="w-px h-5 bg-border" />
-        <Coffee size={18} className="text-[#E8B86D]" />
+        <img src={logoUrl} alt="" className="w-6 h-6 object-contain" />
         <h1 className="font-bold text-foreground text-lg">{title}</h1>
       </header>
 

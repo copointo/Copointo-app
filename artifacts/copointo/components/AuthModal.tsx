@@ -123,7 +123,10 @@ export function AuthModal({
 
           <View style={styles.authBrand}>
             <View style={styles.authLogo}>
-              <Text style={{ fontSize: 32 }}>☕</Text>
+              <Image
+                source={require("../assets/images/copointo-logo.png")}
+                style={{ width: 56, height: 56, resizeMode: "contain" }}
+              />
             </View>
             <Text style={styles.authBrandName}>{t("auth.brandName")}</Text>
             <Text style={styles.authBrandSub}>

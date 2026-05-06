@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { AuthModal } from "@/components/AuthModal";
@@ -35,7 +35,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <View style={styles.splash}>
         <View style={styles.brand}>
           <View style={styles.logo}>
-            <Text style={{ fontSize: 44 }}>☕</Text>
+            <Image
+              source={require("../assets/images/copointo-logo.png")}
+              style={{ width: 76, height: 76, resizeMode: "contain" }}
+            />
           </View>
           <Text style={styles.brandName}>{t("auth.brandName")}</Text>
           <Text style={styles.brandSub}>{t("auth.brandSub")}</Text>

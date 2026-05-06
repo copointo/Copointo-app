@@ -36,6 +36,7 @@ The project is structured as a pnpm workspace monorepo.
 
 **UI/UX Decisions:**
 
+*   **Brand Logo:** Copointo droplet logo lives at `artifacts/admin/src/assets/copointo-logo.png` (Vite import) and `artifacts/copointo/assets/images/copointo-logo.png` (Expo `require()`). Replaces the legacy `☕` emoji and `Coffee` lucide icon as the brand mark in: Admin → `App.tsx` (home + page header), `Sidebar.tsx`, `LoginPage.tsx`; Mobile → `AuthGate.tsx` (splash brand), `AuthModal.tsx` (login/register header). To use it elsewhere in admin: `import logoUrl from "@/assets/copointo-logo.png";` then `<img src={logoUrl} className="object-contain" />`. In Expo: `<Image source={require("../assets/images/copointo-logo.png")} style={{ resizeMode: "contain" }} />`.
 *   **Color Scheme:** Pure-black background with an amber-glow (#E8B86D) theme throughout the mobile application. Specific components like the Cart, Cafe detail, Order, Conversation, and Profile screens maintain this theme with specific dark background and border colors.
 *   **Avatar & Progress Indicators:** User profiles feature a double glowing ring around the avatar for level display. Game screens use diamond-shaped tiles with amber borders.
 *   **RTL Support:** Invoices and various UI elements are designed for Right-to-Left (RTL) Arabic text.

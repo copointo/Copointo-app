@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Lock, Eye, EyeOff } from "lucide-react";
+import logoUrl from "@/assets/copointo-logo.png";
 
 export default function LoginPage({ onLogin, password }: { onLogin: () => void; password: string }) {
   const [pass,    setPass]    = useState("");
@@ -21,7 +22,7 @@ export default function LoginPage({ onLogin, password }: { onLogin: () => void; 
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-6xl mb-3">☕</div>
+          <img src={logoUrl} alt="Copointo" className="mx-auto mb-3 w-20 h-20 object-contain" />
           <h1 className="text-2xl font-bold text-foreground">Copointo Admin</h1>
           <p className="text-muted-foreground text-sm mt-1">لوحة تحكم المدير</p>
         </div>
