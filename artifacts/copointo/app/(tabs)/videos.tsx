@@ -23,6 +23,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useApp } from "@/context/AppContext";
 import { formatNumber } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { useResponsive } from "@/hooks/useResponsive";
 import { apiFetch, apiPost, API_BASE } from "@/constants/api";
 
 // Per-device anonymous identifier so logged-out viewers each count once for
@@ -40,13 +41,13 @@ async function getAnonId(): Promise<string> {
   }
 }
 
-// VIDEO_HEIGHT used to be derived from `Dimensions.get("window")` minus a
-// hard-coded 84px for the bottom tab bar. That height almost never matched
-// the actual FlatList container, which caused two visible bugs: the snap
-// stopped between two reels and the bottom of one reel "bled" into the top
-// of the next. We now MEASURE the FlatList wrapper's real height with
-// `onLayout` and use that value as both the `snapToInterval` and the card
-// height, so each reel fills exactly one page no matter the device chrome.
+// On web, the bottom tab bar is `position:"absolute"` and floats over the
+// screen content, so a FlatList that "fills" the tabs layout actually
+// reports the FULL window height in `onLayout` — NOT the visible region
+// above the tab bar. That mismatch caused snap to skip past the visible
+// page boundary, so the bottom of one reel bled into the top of the next.
+// Fix: compute the effective page height as window.height minus the same
+// `tabBarHeight` value the tab bar itself uses (from `useResponsive`).
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 const FALLBACK_VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 : SCREEN_HEIGHT;
 
@@ -274,6 +275,7 @@ function ReelCard({
 export default function VideosScreen() {
   const colors = useColors();
   const router = useRouter();
+  const r = useResponsive();
   const { user: currentUser } = useApp();
 
   const [reels, setReels] = useState<Reel[]>([]);
@@ -323,10 +325,31 @@ export default function VideosScreen() {
   // mid-reel. We intercept wheel events and snap to the next/previous reel.
   const listRef = useRef<FlatList<Reel> | null>(null);
   const wheelLockRef = useRef(false);
-  // Real measured height of the FlatList wrapper. Until we get the first
-  // layout we fall back to the screen-minus-tabbar estimate so reels still
-  // render at roughly the right size on the very first frame.
-  const [videoHeight, setVideoHeight] = useState(FALLBACK_VIDEO_HEIGHT);
+  // Effective per-reel page height = window height − floating tab bar height
+  // (web only — on native the tab bar takes its own space so the wrapper's
+  // onLayout already reports the correct value). We seed with a sensible
+  // estimate, then refine from the wrapper's onLayout AFTER subtracting the
+  // tab bar so the snap interval always matches what the user can actually
+  // see between the top of the screen and the top of the tab bar.
+  const tabBarH = Platform.OS === "web" ? r.tabBarHeight : 0;
+  const [videoHeight, setVideoHeight] = useState(
+    Math.max(200, (Platform.OS === "web" ? r.height : SCREEN_HEIGHT) - tabBarH),
+  );
+  // Whenever the responsive tab-bar height changes (resize / breakpoint),
+  // recompute the video height from the latest window size so existing reels
+  // re-snap to the new viewport height.
+  useEffect(() => {
+    const next = Math.max(200, (Platform.OS === "web" ? r.height : SCREEN_HEIGHT) - tabBarH);
+    setVideoHeight(next);
+  }, [r.height, tabBarH]);
+  // When videoHeight changes (initial layout, window resize), realign the
+  // currently active reel so we don't get stuck between two pages.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { listRef.current?.scrollToOffset({ offset: activeIndex * videoHeight, animated: false }); } catch { /* ignore */ }
+    }, 0);
+    return () => clearTimeout(t);
+  }, [videoHeight, activeIndex]);
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const onWheel = (e: WheelEvent) => {
@@ -436,10 +459,15 @@ export default function VideosScreen() {
 
   return (
     <View
-      style={{ flex: 1, backgroundColor: "#000", overflow: "hidden" }}
+      style={{ height: videoHeight, width: "100%", backgroundColor: "#000", overflow: "hidden" }}
       onLayout={(e) => {
-        const h = Math.round(e.nativeEvent.layout.height);
-        if (h > 0 && h !== videoHeight) setVideoHeight(h);
+        // The wrapper itself is now sized to videoHeight, so onLayout just
+        // confirms it. We also defensively subtract the tab bar height again
+        // in case the parent layout doesn't honor the explicit height (older
+        // Expo web behaviour) and gives us the full screen instead.
+        const measured = Math.round(e.nativeEvent.layout.height);
+        const effective = measured > videoHeight + 20 ? measured - tabBarH : measured;
+        if (effective > 0 && Math.abs(effective - videoHeight) > 2) setVideoHeight(effective);
       }}
     >
       <FlatList
@@ -452,8 +480,13 @@ export default function VideosScreen() {
         snapToAlignment="start"
         disableIntervalMomentum
         decelerationRate="fast"
+        // Force a fresh internal scroll state whenever the page height
+        // changes so the FlatList recomputes content offsets / snap points
+        // from scratch instead of carrying over stale values.
+        key={`reels-${videoHeight}`}
+        style={{ height: videoHeight }}
         onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 80 }}
         getItemLayout={(_, index) => ({ length: videoHeight, offset: videoHeight * index, index })}
         renderItem={({ item, index }) => (
           <ReelCard
