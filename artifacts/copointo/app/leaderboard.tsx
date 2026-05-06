@@ -53,9 +53,15 @@ export default function LeaderboardScreen() {
   } = useApp();
   const { rankingList } = useCommunities();
 
-  // Pull the latest cross-device user roster every time this screen mounts so
-  // players who registered on another device show up in the Oman ranking.
-  useEffect(() => { refreshAllUsers().catch(() => {}); }, [refreshAllUsers]);
+  // Pull the latest cross-device user roster on mount AND poll every 6 s
+  // while this screen is open, so level-ups happening on other devices
+  // appear live (a player's level rises and their rank moves up if they
+  // pass someone above them) without the user pulling to refresh.
+  useEffect(() => {
+    refreshAllUsers().catch(() => {});
+    const handle = setInterval(() => { refreshAllUsers().catch(() => {}); }, 6000);
+    return () => clearInterval(handle);
+  }, [refreshAllUsers]);
   const [activeTab, setActiveTab] = useState<LeaderTab>("friends");
   // ID of the user whose detail panel is currently open (null = closed).
   const [panelUserId, setPanelUserId] = useState<string | null>(null);

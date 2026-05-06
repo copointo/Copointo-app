@@ -465,6 +465,32 @@ router.get("/users/public", (_req, res) => {
   });
 });
 
+// ─── Game progress sync (level + totalOrders) ────────────────────────────
+// The mobile client increments per-cafe progress locally on `addCafeOrder`,
+// then mirrors the new global level + totalOrders here so OTHER devices see
+// the bump on the leaderboard within their next refresh. We only ever
+// INCREASE the stored values (never roll back) so a stale device that
+// reconnects can't undo real progress earned on another device.
+router.post("/users/progress", (req, res): any => {
+  const id          = String(req.body?.id ?? "").trim();
+  const level       = Number(req.body?.level ?? 0);
+  const totalOrders = Number(req.body?.totalOrders ?? 0);
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ ok: false, error: "user not found" });
+  let changed = false;
+  if (Number.isFinite(level) && level > (u.level ?? 0)) {
+    u.level = Math.min(999, Math.floor(level));
+    changed = true;
+  }
+  if (Number.isFinite(totalOrders) && totalOrders > (u.totalOrders ?? 0)) {
+    u.totalOrders = Math.floor(totalOrders);
+    changed = true;
+  }
+  if (changed) persistStore();
+  res.json({ ok: true, user: { id: u.id, level: u.level, totalOrders: u.totalOrders } });
+});
+
 router.post("/reels/:rid/view", (req, res): any => {
   const reel = reels.find(r => r.id === req.params.rid);
   if (!reel) return res.status(404).json({ error: "Reel not found" });

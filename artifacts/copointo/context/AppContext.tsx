@@ -743,6 +743,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem(`activeGameCafeId:${updated.id}`, cafeId).catch(() => {});
         return cafeId;
       });
+      // Mirror the new global level + totalOrders to the server so OTHER
+      // devices see this user's bump on the leaderboard within their next
+      // refresh. Fire-and-forget — failure just delays cross-device sync.
+      fetch(`${API_BASE}/users/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: updated.id,
+          level: updated.level,
+          totalOrders: updated.totalOrders,
+        }),
+      }).catch(() => {});
       return updated;
     });
   }, []);
