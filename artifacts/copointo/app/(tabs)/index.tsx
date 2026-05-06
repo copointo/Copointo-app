@@ -60,8 +60,10 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 function formatDist(km: number, kmLabel: string, mLabel: string): string {
+  // Sub-kilometre → exact metres (e.g. "742 م"). Above 1 km we show two
+  // decimal places so distances like 1.24 km don't get rounded down to 1.2.
   if (km < 1) return `${Math.round(km * 1000)} ${mLabel}`;
-  return `${km.toFixed(1)} ${kmLabel}`;
+  return `${km.toFixed(2)} ${kmLabel}`;
 }
 
 function mapCafe(c: ApiCafe, kmLabel: string, mLabel: string, userLat?: number, userLng?: number): Cafe {
@@ -121,7 +123,7 @@ export default function HomeScreen() {
       }
       if (status === "granted") {
         try {
-          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         } catch { /* ignore — we still open the map */ }
       } else if (current.status === "denied" && !current.canAskAgain) {

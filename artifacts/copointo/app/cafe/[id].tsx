@@ -79,7 +79,7 @@ export default function CafeLandingScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") { hidePrompt(); return; }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
     } catch { /* unavailable */ }
     finally { setLocLoading(false); hidePrompt(); }
@@ -92,7 +92,7 @@ export default function CafeLandingScreen() {
       if (status === "granted") {
         // Already granted — silently get location
         try {
-          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
           setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         } catch { /* ignore */ }
       } else if (status === "undetermined") {
@@ -327,8 +327,10 @@ export default function CafeLandingScreen() {
           const dist = (userLoc && cafe.lat && cafe.lng)
             ? haversineKm(userLoc.lat, userLoc.lng, cafe.lat, cafe.lng)
             : null;
+          // Sub-km → exact metres; otherwise km with 2 decimals so we don't
+          // round 1.24 km down to 1.2 km. The user wants precise numbers.
           const distStr = dist === null ? null
-            : dist < 1 ? `${Math.round(dist * 1000)} م` : `${dist.toFixed(1)} كم`;
+            : dist < 1 ? `${Math.round(dist * 1000)} م` : `${dist.toFixed(2)} كم`;
           const openMaps = () => {
             const q = cafe.lat && cafe.lng
               ? `${cafe.lat},${cafe.lng}`

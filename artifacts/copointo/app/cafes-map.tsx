@@ -173,7 +173,7 @@ export default function CafesMapScreen() {
         try {
           const { status } = await Location.getForegroundPermissionsAsync();
           if (status === "granted") {
-            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
             if (alive) setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           }
         } catch { /* ignore */ }
