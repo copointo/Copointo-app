@@ -1,7 +1,15 @@
 import { Router, type IRouter } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
+
+const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
+const MIME_BY_EXT: Record<string, string> = {
+  ".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime",
+  ".webm": "video/webm", ".mkv": "video/x-matroska", ".ogv": "video/ogg",
+};
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
   bookings, orders,
@@ -204,16 +212,50 @@ router.get("/reels", (req, res) => {
 router.get("/reels/:rid/video", (req, res): any => {
   const r = reels.find(x => x.id === req.params.rid);
   if (!r || !r.videoUrl) return res.status(404).end();
-  // Accept data URLs with optional codec parameters, e.g.
-  // "data:video/webm;codecs=vp9,opus;base64,..." (codec list itself contains
-  // commas, so we anchor on the literal ";base64," separator instead).
+
+  // Mode A: on-disk file ("file:<filename>") — preferred, used by all new
+  // uploads. Stream from disk with HTTP Range support.
+  if (r.videoUrl.startsWith("file:")) {
+    const filename = r.videoUrl.slice(5);
+    // Defence-in-depth: prevent path traversal via crafted filenames.
+    const safe = path.basename(filename);
+    const filePath = path.join(REELS_DIR, safe);
+    let stat: fs.Stats;
+    try { stat = fs.statSync(filePath); }
+    catch { return res.status(404).end(); }
+    const total = stat.size;
+    const ext = path.extname(safe).toLowerCase();
+    const mime = MIME_BY_EXT[ext] || "video/mp4";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    const range = req.headers.range;
+    if (range) {
+      const parts = /bytes=(\d*)-(\d*)/.exec(String(range));
+      if (parts) {
+        const start = parts[1] ? parseInt(parts[1], 10) : 0;
+        const end   = parts[2] ? parseInt(parts[2], 10) : total - 1;
+        if (start >= total || end >= total) {
+          res.status(416).setHeader("Content-Range", `bytes */${total}`);
+          return res.end();
+        }
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+        res.setHeader("Content-Length", String(end - start + 1));
+        return fs.createReadStream(filePath, { start, end }).pipe(res);
+      }
+    }
+    res.setHeader("Content-Length", String(total));
+    return fs.createReadStream(filePath).pipe(res);
+  }
+
+  // Mode B (legacy): inline data URL kept for backward compatibility with
+  // reels created before the disk-storage migration.
   const idx = r.videoUrl.indexOf(";base64,");
   const m = idx > 5 && r.videoUrl.startsWith("data:")
     ? [r.videoUrl, r.videoUrl.slice(5, idx), r.videoUrl.slice(idx + 8)] as const
     : null;
   if (!m) return res.status(415).end();
-  // Strip codec parameters for the response Content-Type — most browsers
-  // handle the bare type more reliably for <video> playback.
   const mime = m[1].split(";")[0].trim() || "video/mp4";
   const buf = Buffer.from(m[2], "base64");
   const total = buf.length;

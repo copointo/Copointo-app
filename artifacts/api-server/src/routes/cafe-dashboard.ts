@@ -1,10 +1,30 @@
 import { Router } from "express";
+import multer from "multer";
+import fs from "node:fs";
+import path from "node:path";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
   expenses, invoiceTemplates, freeCoffees, inventoryItems,
   reels, reelLikes, reelComments, reelViews,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
   type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem,
   type Reel, persistStore } from "../store";
+
+// ── Reel video uploads ────────────────────────────────────────────────
+// Videos are large, so we stream them to disk via multer (multipart) instead
+// of base64-encoding them through the JSON body. The file path lives on the
+// reel record as "file:<filename>"; the streaming endpoint reads from disk.
+const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
+fs.mkdirSync(REELS_DIR, { recursive: true });
+const reelUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, REELS_DIR),
+    filename:    (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".mp4";
+      cb(null, `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB hard cap
+});
 
 // ── Free-coffee code helpers ─────────────────────────────────
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
@@ -260,9 +280,17 @@ function awardOrderProgress(order: any) {
     order.pointsAwarded = true;
     return;
   }
-  const drinks = (order.drinkCount != null)
-    ? order.drinkCount
-    : order.items.reduce((s: number, it: any) => s + (it.category === "حلى" ? 0 : it.qty), 0);
+  // Always recompute drinks server-side from items so we cannot be over-credited
+  // by a client (chat / mobile / direct) that sent an inflated `drinkCount`.
+  // Only drinks count toward game progress. Anything explicitly tagged as a
+  // non-drink category (food/dessert) is excluded.
+  const drinks = Array.isArray(order.items)
+    ? order.items.reduce((s: number, it: any) => {
+        const cat = String(it.category ?? "");
+        if (cat === "حلى" || cat === "طعام") return s;
+        return s + (Number(it.qty) || 0);
+      }, 0)
+    : 0;
   if (drinks > 0) {
     const u = users.find(u => u.phone === order.customerPhone);
     if (u) {
@@ -1181,12 +1209,24 @@ router.get("/reels", (req: any, res) => {
   res.json({ reels: list });
 });
 
-router.post("/reels", (req: any, res) => {
+router.post("/reels", reelUpload.single("video"), (req: any, res) => {
   const cid  = req.params.cafeId;
   const cafe = cafes.find(c => c.id === cid);
-  if (!cafe) return res.status(404).json({ error: "Cafe not found" });
+  if (!cafe) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } }
+    return res.status(404).json({ error: "Cafe not found" });
+  }
   const body = req.body ?? {};
-  const videoUrl    = String(body.videoUrl    ?? "").trim();
+  // Two upload modes:
+  //  1) multipart/form-data with a "video" file (preferred — used by the admin
+  //     dashboard so the video bytes never go through JSON parsing).
+  //  2) JSON body with `videoUrl: "data:video/...;base64,..."` (legacy).
+  let videoUrl = "";
+  if (req.file) {
+    videoUrl = `file:${req.file.filename}`;
+  } else {
+    videoUrl = String(body.videoUrl ?? "").trim();
+  }
   const description = String(body.description ?? "").trim();
   const orderLink   = String(body.orderLink   ?? "").trim() || `copointo://cafe/${cid}`;
   // Auto-derive map location URL from cafe coordinates (fallback: address search).
@@ -1194,8 +1234,14 @@ router.post("/reels", (req: any, res) => {
     ? `https://www.google.com/maps/search/?api=1&query=${cafe.lat},${cafe.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cafe.address || cafe.name)}`;
   const locationUrl = String(body.locationUrl ?? "").trim() || fallbackLocation;
-  if (!videoUrl)    return res.status(400).json({ error: "الرجاء رفع فيديو" });
-  if (!description) return res.status(400).json({ error: "الوصف مطلوب" });
+  if (!videoUrl) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } }
+    return res.status(400).json({ error: "الرجاء رفع فيديو" });
+  }
+  if (!description) {
+    if (req.file) { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } }
+    return res.status(400).json({ error: "الوصف مطلوب" });
+  }
   const r: Reel = {
     id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
     cafeId: cid,
@@ -1206,6 +1252,7 @@ router.post("/reels", (req: any, res) => {
     createdAt: new Date().toISOString(),
   };
   reels.push(r);
+  persistStore();
   res.status(201).json({ reel: r });
 });
 
@@ -1214,6 +1261,19 @@ router.delete("/reels/:rid", (req: any, res) => {
   const idx = reels.findIndex(r => r.id === req.params.rid && r.cafeId === cid);
   if (idx === -1) return res.status(404).json({ error: "Reel not found" });
   const [removed] = reels.splice(idx, 1);
+  // Best-effort cleanup of the on-disk video file.
+  // Hard sanitize: take basename only and verify the resolved path stays
+  // strictly inside REELS_DIR. This prevents a crafted `file:../...` value
+  // (possible via the legacy JSON upload mode) from deleting unrelated files.
+  if (removed?.videoUrl?.startsWith("file:")) {
+    const safe = path.basename(removed.videoUrl.slice(5));
+    if (safe && safe !== "." && safe !== "..") {
+      const filePath = path.resolve(REELS_DIR, safe);
+      if (filePath.startsWith(path.resolve(REELS_DIR) + path.sep)) {
+        try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+      }
+    }
+  }
   // Cascade-cleanup likes/comments/views.
   for (let i = reelLikes.length - 1; i >= 0; i--) {
     if (reelLikes[i]!.reelId === removed!.id) reelLikes.splice(i, 1);

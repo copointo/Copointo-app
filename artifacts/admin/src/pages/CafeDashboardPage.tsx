@@ -4925,19 +4925,11 @@ function ReelsTab({ id }: { id: string }) {
     setProgress(0);
   };
 
-  const blobToDataUrl = (b: Blob): Promise<string> =>
-    new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(String(r.result ?? ""));
-      r.onerror = () => rej(r.error ?? new Error("read error"));
-      r.readAsDataURL(b);
-    });
-
-  const xhrUpload = (path: string, body: any, onP: (p: number) => void) =>
+  const xhrUploadFile = (path: string, fd: FormData, onP: (p: number) => void) =>
     new Promise<any>((res, rej) => {
       const xhr = new XMLHttpRequest();
       xhr.open("POST", path);
-      xhr.setRequestHeader("Content-Type", "application/json");
+      // Don't set Content-Type — the browser supplies it with the multipart boundary.
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) onP(e.loaded / e.total); };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -4949,7 +4941,7 @@ function ReelsTab({ id }: { id: string }) {
         }
       };
       xhr.onerror = () => rej(new Error("خطأ في الشبكة"));
-      xhr.send(JSON.stringify(body));
+      xhr.send(fd);
     });
 
   const submit = async () => {
@@ -4958,17 +4950,16 @@ function ReelsTab({ id }: { id: string }) {
     if (!description.trim()) { setError("الوصف مطلوب"); return; }
     setSubmitting(true);
     try {
-      // Upload the source file as-is — no downscaling, no re-encoding —
-      // so the published reel keeps the original resolution and quality.
-      // The progress bar reflects the real network upload, so the user
-      // waits for completion before the form closes.
+      // Upload the source file as-is via multipart/form-data — no downscaling,
+      // no base64 in JSON. The bytes stream straight to disk on the server,
+      // so even large videos (hundreds of MB) upload reliably without the
+      // "0 bytes" failure that base64-in-JSON used to hit.
       setPhase("uploading");
       setProgress(0);
-      const dataUrl = await blobToDataUrl(videoFile);
-      await xhrUpload(`/api/cafe/${id}/reels`, {
-        videoUrl: dataUrl,
-        description: description.trim(),
-      }, setProgress);
+      const fd = new FormData();
+      fd.append("video", videoFile, videoFile.name || "reel.mp4");
+      fd.append("description", description.trim());
+      await xhrUploadFile(`/api/cafe/${id}/reels`, fd, setProgress);
       setShowForm(false);
       setStepView("pick");
       setVideoFile(null); setVideoDataUrl("");
