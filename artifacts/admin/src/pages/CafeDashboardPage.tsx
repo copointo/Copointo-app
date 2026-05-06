@@ -4668,8 +4668,10 @@ function ReelsTab({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [commentsByReel, setCommentsByReel] = useState<Record<string, any[]>>({});
   const [notifs, setNotifs] = useState<any[]>([]);
-  // Upload phases: idle | processing (downscale) | uploading
-  const [phase, setPhase] = useState<"idle" | "processing" | "uploading">("idle");
+  // Upload phases: idle | uploading. Downscaling/re-encoding was removed —
+  // we now upload the source video at its original resolution & quality so
+  // the user sees the same frame they recorded.
+  const [phase, setPhase] = useState<"idle" | "uploading">("idle");
   const [progress, setProgress] = useState(0); // 0..1
   const [origInfo, setOrigInfo] = useState<{ w: number; h: number; sizeMB: number; durationSec: number } | null>(null);
   // Two-step wizard: "pick" (choose file + write description) → "preview" (full-size
@@ -4757,65 +4759,6 @@ function ReelsTab({ id }: { id: string }) {
     setProgress(0);
   };
 
-  // Downscale a video to <=1080p using canvas + MediaRecorder. Returns the original
-  // file untouched if it's already within the cap, so we don't waste CPU/quality.
-  const processVideo = async (f: File, onP: (p: number) => void): Promise<Blob> => {
-    const MAX_H = 1080;
-    const url = URL.createObjectURL(f);
-    const v = document.createElement("video");
-    v.src = url; v.muted = true; (v as any).playsInline = true; v.preload = "auto";
-    await new Promise<void>((res, rej) => {
-      v.onloadedmetadata = () => res();
-      v.onerror = () => rej(new Error("تعذّر قراءة الفيديو"));
-    });
-    const sH = v.videoHeight, sW = v.videoWidth;
-    if (sH <= MAX_H) { URL.revokeObjectURL(url); onP(1); return f; }
-
-    const dH = MAX_H;
-    const dW = Math.max(2, Math.round((sW * MAX_H / sH) / 2) * 2);
-    const canvas = document.createElement("canvas");
-    canvas.width = dW; canvas.height = dH;
-    const ctx = canvas.getContext("2d")!;
-    const cStream = (canvas as any).captureStream(30) as MediaStream;
-    // Try to also include the source's audio.
-    try {
-      const vAny = v as any;
-      if (typeof vAny.captureStream === "function") {
-        const vs = vAny.captureStream() as MediaStream;
-        vs.getAudioTracks().forEach(t => cStream.addTrack(t));
-      }
-    } catch { /* ignore */ }
-
-    const candidates = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
-    let mime = "video/webm";
-    for (const c of candidates) {
-      if ((window as any).MediaRecorder?.isTypeSupported?.(c)) { mime = c; break; }
-    }
-    const rec = new MediaRecorder(cStream, { mimeType: mime, videoBitsPerSecond: 4_000_000 });
-    const chunks: Blob[] = [];
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    const stopped = new Promise<Blob>((res) => { rec.onstop = () => res(new Blob(chunks, { type: mime })); });
-
-    rec.start();
-    v.currentTime = 0;
-    await v.play();
-    const dur = v.duration || 0;
-    let raf = 0;
-    const tick = () => {
-      ctx.drawImage(v, 0, 0, dW, dH);
-      if (dur > 0) onP(Math.min(0.99, v.currentTime / dur));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    await new Promise<void>((res) => { v.onended = () => res(); });
-    cancelAnimationFrame(raf);
-    rec.stop();
-    const out = await stopped;
-    URL.revokeObjectURL(url);
-    onP(1);
-    return out;
-  };
-
   const blobToDataUrl = (b: Blob): Promise<string> =>
     new Promise((res, rej) => {
       const r = new FileReader();
@@ -4849,24 +4792,13 @@ function ReelsTab({ id }: { id: string }) {
     if (!description.trim()) { setError("الوصف مطلوب"); return; }
     setSubmitting(true);
     try {
-      setPhase("processing");
-      setProgress(0);
-      // processVideo only re-encodes if the source is > 1080p. For most phone
-      // videos this returns the original file untouched and is essentially
-      // instant. If re-encoding is needed it can take real-time-of-video duration,
-      // which is why the user sees a progress bar.
-      let blob: Blob;
-      try {
-        blob = await processVideo(videoFile, setProgress);
-      } catch {
-        // If the in-browser re-encode fails (codec quirks), fall back to the
-        // original file so the upload still goes through.
-        blob = videoFile;
-        setProgress(1);
-      }
-      const dataUrl = await blobToDataUrl(blob);
+      // Upload the source file as-is — no downscaling, no re-encoding —
+      // so the published reel keeps the original resolution and quality.
+      // The progress bar reflects the real network upload, so the user
+      // waits for completion before the form closes.
       setPhase("uploading");
       setProgress(0);
+      const dataUrl = await blobToDataUrl(videoFile);
       await xhrUpload(`/api/cafe/${id}/reels`, {
         videoUrl: dataUrl,
         description: description.trim(),
@@ -5068,10 +5000,10 @@ function ReelsTab({ id }: { id: string }) {
                 <p className="text-sm text-white/90 whitespace-pre-wrap">{description}</p>
               </div>
 
-              {origInfo && origInfo.h > 1080 && (
+              {origInfo && origInfo.sizeMB > 30 && (
                 <div className="rounded-xl border border-[#E8B86D]/30 bg-[#E8B86D]/5 p-3 text-xs text-white/80">
-                  ℹ️ سيتم تقليص الجودة إلى 1080p أثناء النشر — قد يستغرق هذا
-                  وقتاً يقارب مدة الفيديو نفسه. لا تغلق الصفحة.
+                  ℹ️ حجم الفيديو {origInfo.sizeMB.toFixed(1)} MB — سيتم رفعه بنفس
+                  الجودة الأصلية. الرفع قد يستغرق دقائق حسب سرعة الإنترنت. لا تغلق الصفحة.
                 </div>
               )}
 
@@ -5080,9 +5012,7 @@ function ReelsTab({ id }: { id: string }) {
               {phase !== "idle" && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs text-white/70">
-                    <span>
-                      {phase === "processing" ? "جارٍ معالجة الفيديو…" : "جارٍ رفع الفيديو إلى الخادم…"}
-                    </span>
+                    <span>جارٍ رفع الفيديو إلى الخادم…</span>
                     <span>{Math.round(progress * 100)}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-white/10 overflow-hidden">
@@ -5098,9 +5028,7 @@ function ReelsTab({ id }: { id: string }) {
                   className="px-5 py-2.5 rounded-xl bg-[#E8B86D] text-black font-semibold disabled:opacity-50 flex items-center gap-2"
                 >
                   <Upload className="w-4 h-4" />
-                  {submitting
-                    ? (phase === "processing" ? "جارٍ المعالجة…" : "جارٍ الرفع…")
-                    : "نشر الريل"}
+                  {submitting ? "جارٍ الرفع…" : "نشر الريل"}
                 </button>
                 <button
                   onClick={backToPick}

@@ -40,8 +40,15 @@ async function getAnonId(): Promise<string> {
   }
 }
 
+// VIDEO_HEIGHT used to be derived from `Dimensions.get("window")` minus a
+// hard-coded 84px for the bottom tab bar. That height almost never matched
+// the actual FlatList container, which caused two visible bugs: the snap
+// stopped between two reels and the bottom of one reel "bled" into the top
+// of the next. We now MEASURE the FlatList wrapper's real height with
+// `onLayout` and use that value as both the `snapToInterval` and the card
+// height, so each reel fills exactly one page no matter the device chrome.
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 : SCREEN_HEIGHT;
+const FALLBACK_VIDEO_HEIGHT = Platform.OS === "web" ? SCREEN_HEIGHT - 84 : SCREEN_HEIGHT;
 
 interface Reel {
   id: string;
@@ -134,6 +141,7 @@ function ReelCard({
   onOrder,
   onLocation,
   onView,
+  videoHeight,
 }: {
   reel: Reel;
   isActive: boolean;
@@ -144,6 +152,7 @@ function ReelCard({
   onOrder: () => void;
   onLocation: () => void;
   onView: () => void;
+  videoHeight: number;
 }) {
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 34 : insets.bottom;
@@ -160,7 +169,7 @@ function ReelCard({
   }, [isActive, onView]);
 
   return (
-    <View style={[styles.card, { height: VIDEO_HEIGHT }]}>
+    <View style={[styles.card, { height: videoHeight }]}>
       <View style={styles.videoLayer}>
         <ReelVideo src={reel.videoUrl} isActive={isActive} muted={muted} />
         <View style={styles.scrim} />
@@ -314,6 +323,10 @@ export default function VideosScreen() {
   // mid-reel. We intercept wheel events and snap to the next/previous reel.
   const listRef = useRef<FlatList<Reel> | null>(null);
   const wheelLockRef = useRef(false);
+  // Real measured height of the FlatList wrapper. Until we get the first
+  // layout we fall back to the screen-minus-tabbar estimate so reels still
+  // render at roughly the right size on the very first frame.
+  const [videoHeight, setVideoHeight] = useState(FALLBACK_VIDEO_HEIGHT);
   useEffect(() => {
     if (Platform.OS !== "web") return;
     const onWheel = (e: WheelEvent) => {
@@ -422,20 +435,26 @@ export default function VideosScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
+    <View
+      style={{ flex: 1, backgroundColor: "#000", overflow: "hidden" }}
+      onLayout={(e) => {
+        const h = Math.round(e.nativeEvent.layout.height);
+        if (h > 0 && h !== videoHeight) setVideoHeight(h);
+      }}
+    >
       <FlatList
         ref={listRef}
         data={reels}
         keyExtractor={(r) => r.id}
         pagingEnabled
         showsVerticalScrollIndicator={false}
-        snapToInterval={VIDEO_HEIGHT}
+        snapToInterval={videoHeight}
         snapToAlignment="start"
         disableIntervalMomentum
         decelerationRate="fast"
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-        getItemLayout={(_, index) => ({ length: VIDEO_HEIGHT, offset: VIDEO_HEIGHT * index, index })}
+        getItemLayout={(_, index) => ({ length: videoHeight, offset: videoHeight * index, index })}
         renderItem={({ item, index }) => (
           <ReelCard
             reel={item}
@@ -447,6 +466,7 @@ export default function VideosScreen() {
             onOrder={() => handleOrder(item)}
             onLocation={() => handleLocation(item)}
             onView={() => handleView(item.id)}
+            videoHeight={videoHeight}
           />
         )}
       />
