@@ -3807,45 +3807,73 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
     }
   };
 
-  // Print a clean A4 page with both QR codes (useful for printing the
-  // customer code and sticking it on the tables).
+  // Print one or both QR codes on a sticker-sized page that matches the
+  // QR exactly — no long A4 with empty space. Single-QR prints use an
+  // 80×100mm page, "both" stacks two on an 80×200mm strip. The QR image
+  // itself is sized to nearly fill the page width (≈70mm) for maximum
+  // scannability when stuck on tables.
   const printQrs = (which: "cafe" | "dashboard" | "both") => {
-    const w = window.open("", "_blank", "width=900,height=1200");
+    const w = window.open("", "_blank", "width=420,height=720");
     if (!w) { alert("المتصفّح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة"); return; }
     // All dynamic strings are HTML-escaped before interpolation to prevent
     // XSS from a malicious cafe name. URLs go through encodeURI for the
     // qrserver image src and escHtml for the visible caption.
     const safeName = escHtml(cafeName ?? "");
-    const block = (title: string, sub: string, url: string) => `
+    // Each QR block is sized to fit exactly inside one 80×100mm sticker.
+    // Using `size=800x800` from the QR service guarantees a sharp image
+    // at 70mm print size (≈265dpi).
+    const block = (title: string, url: string) => `
       <section class="block">
+        ${safeName ? `<p class="cafeName">${safeName}</p>` : ""}
         <h2>${escHtml(title)}</h2>
-        <p class="sub">${escHtml(sub)}</p>
-        <div class="qr-wrap"><img src="https://api.qrserver.com/v1/create-qr-code/?size=400x400&amp;margin=10&amp;data=${encodeURIComponent(url)}" alt="QR" /></div>
-        <p class="url">${escHtml(url)}</p>
+        <div class="qr-wrap"><img src="https://api.qrserver.com/v1/create-qr-code/?size=800x800&amp;margin=0&amp;ecc=M&amp;data=${encodeURIComponent(url)}" alt="QR" /></div>
       </section>`;
+    const blocks =
+      which === "cafe"      ? block("صفحة الزبائن", cafePageUrl)
+    : which === "dashboard" ? block("لوحة التحكم",   dashboardUrl)
+    :                          block("صفحة الزبائن", cafePageUrl) + block("لوحة التحكم", dashboardUrl);
+    // Page height: single QR = 100mm, both = 200mm. Width fixed at 80mm.
+    const pageHeight = which === "both" ? 200 : 100;
     const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>باركود ${safeName}</title>
       <style>
-        @page { size: A4; margin: 16mm; }
+        @page { size: 80mm ${pageHeight}mm; margin: 0; }
         * { box-sizing: border-box; }
-        body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color:#111; margin:0; padding:24px; text-align:center; }
-        h1 { font-size:22px; margin:0 0 6px; }
-        .cafeName { font-size:14px; color:#666; margin-bottom:24px; }
-        .block { margin: 24px auto 32px; padding:20px; border:2px dashed #C99654; border-radius:18px; max-width:520px; page-break-inside:avoid; }
-        .block h2 { margin:0 0 6px; font-size:18px; color:#7A4F1E; }
-        .sub { margin:0 0 14px; font-size:12px; color:#555; }
-        .qr-wrap img { width: 320px; height: 320px; }
-        .url { font-size:10.5px; color:#444; word-break:break-all; margin-top:10px; }
-        @media print { .no-print { display:none; } }
+        html, body { margin:0; padding:0; }
+        body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color:#000; background:#fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .block {
+          width: 80mm; height: 100mm;
+          padding: 4mm 4mm 3mm;
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          page-break-after: always; break-after: page;
+          text-align: center;
+        }
+        .block:last-child { page-break-after: auto; break-after: auto; }
+        .cafeName { font-size: 10pt; font-weight: 700; margin: 0 0 1mm; color:#000; }
+        .block h2 { margin: 0 0 2mm; font-size: 9pt; font-weight: 600; color:#444; }
+        .qr-wrap { width: 70mm; height: 70mm; display:flex; align-items:center; justify-content:center; }
+        .qr-wrap img { width: 70mm; height: 70mm; image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges; }
+        .toolbar { padding: 12px; text-align:center; }
+        @media print { .toolbar { display:none; } }
       </style></head><body>
-      <h1>📷 باركود الكوفي</h1>
-      <p class="cafeName">${safeName}</p>
-      ${which !== "dashboard" ? block("صفحة الزبائن", "اطبعه وضعه على الطاولات — يفتح صفحة الكوفي مباشرة", cafePageUrl) : ""}
-      ${which !== "cafe" ? block("لوحة التحكم", "للموظفين فقط — يفتح لوحة إدارة الكوفي", dashboardUrl) : ""}
-      <button class="no-print" onclick="window.print()" style="padding:10px 22px;font-size:14px;background:#E8B86D;border:0;border-radius:10px;cursor:pointer;font-weight:bold">🖨️ طباعة</button>
+      ${blocks}
+      <div class="toolbar">
+        <button onclick="window.print()" style="padding:10px 22px;font-size:14px;background:#E8B86D;border:0;border-radius:10px;cursor:pointer;font-weight:bold">🖨️ طباعة</button>
+      </div>
       </body></html>`;
     w.document.write(html);
     w.document.close();
-    setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 400);
+    // Wait for the QR images to load before triggering print, otherwise
+    // the print preview can show a blank/broken image.
+    const trigger = () => { try { w.focus(); w.print(); } catch {} };
+    const imgs = w.document.images;
+    let pending = imgs.length;
+    if (pending === 0) { setTimeout(trigger, 300); return; }
+    const done = () => { if (--pending <= 0) setTimeout(trigger, 200); };
+    for (let i = 0; i < imgs.length; i++) {
+      const img = imgs[i];
+      if (img.complete) done();
+      else { img.addEventListener("load", done); img.addEventListener("error", done); }
+    }
   };
 
   const QrCard = ({ title, subtitle, url, accent, kind }: {
