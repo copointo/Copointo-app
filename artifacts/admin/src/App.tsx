@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation, Link } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -133,13 +134,61 @@ function AdminApp() {
   );
 }
 
+// ── Splash Screen ─────────────────────────────────────────────
+// Shown once per browser tab on first load: logo + "Copointo" fade in
+// together, hold briefly, then fade out. The user sees it before the
+// dashboard appears. We use sessionStorage so HMR / route changes don't
+// re-trigger it during the same session — only a fresh tab/reload does.
+function SplashScreen({ onDone }: { onDone: () => void }) {
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const showTimer = setTimeout(() => setLeaving(true), 1600);
+    const doneTimer = setTimeout(() => onDone(), 2200);
+    return () => { clearTimeout(showTimer); clearTimeout(doneTimer); };
+  }, [onDone]);
+
+  return (
+    <div
+      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background transition-opacity duration-500 ${leaving ? "opacity-0 pointer-events-none" : "opacity-100"}`}
+      aria-hidden="true"
+    >
+      <div className="flex flex-col items-center gap-6 splash-rise">
+        <div className="w-32 h-32 rounded-3xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 shadow-2xl shadow-[#E8B86D]/30 overflow-hidden">
+          <img src={logoUrl} alt="Copointo" className="w-full h-full object-contain" />
+        </div>
+        <h1 className="text-5xl font-bold tracking-wide text-foreground">Copointo</h1>
+        <div className="mt-2 w-10 h-10 rounded-full border-2 border-[#E8B86D]/30 border-t-[#E8B86D] animate-spin" />
+      </div>
+      <style>{`
+        @keyframes splashRise {
+          0%   { opacity: 0; transform: translateY(18px) scale(0.94); }
+          60%  { opacity: 1; transform: translateY(0)     scale(1.02); }
+          100% { opacity: 1; transform: translateY(0)     scale(1); }
+        }
+        .splash-rise { animation: splashRise 900ms cubic-bezier(.2,.7,.2,1) both; }
+      `}</style>
+    </div>
+  );
+}
+
 export default function App() {
+  // Only run the splash once per tab session — back/forward navigation
+  // inside the SPA shouldn't replay it.
+  const [showSplash, setShowSplash] = useState(() => {
+    try { return !sessionStorage.getItem("copointo_splash_seen_v1"); }
+    catch { return true; }
+  });
+  const finishSplash = () => {
+    try { sessionStorage.setItem("copointo_splash_seen_v1", "1"); } catch { /* ignore */ }
+    setShowSplash(false);
+  };
   return (
     <QueryClientProvider client={queryClient}>
       <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
         <AdminApp />
       </WouterRouter>
       <Toaster />
+      {showSplash && <SplashScreen onDone={finishSplash} />}
     </QueryClientProvider>
   );
 }
