@@ -48,9 +48,6 @@ function customerUrl(id: string, name?: string) {
   const slug = slugifyName(name ?? "");
   return slug ? `${url}?name=${encodeURIComponent(slug)}` : url;
 }
-// Super admin (platform owner) panel URL — derived from the same prod domain.
-const SUPER_ADMIN_URL = `${PROD_DOMAIN}/admin`;
-
 export default function CafesPage() {
   const [cafes,     setCafes]     = useState<Cafe[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -804,33 +801,6 @@ export default function CafesPage() {
                   </div>
                 </div>
 
-              </div>
-
-              {/* ── Super-admin (platform owner) link ── derived from copointo.com ── */}
-              <div className="mt-5 flex items-center gap-3 flex-wrap p-4 border border-purple-500/30 rounded-2xl bg-purple-500/5">
-                <div className="w-9 h-9 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-base shrink-0">👑</div>
-                <div className="flex-1 min-w-[160px]">
-                  <p className="text-sm font-bold text-foreground">رابط السوبر مدير</p>
-                  <p className="text-[11px] text-muted-foreground">لوحة الإدارة العامة لـ Copointo</p>
-                </div>
-                <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-                  <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{SUPER_ADMIN_URL}</span>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(SUPER_ADMIN_URL)}
-                    className="shrink-0 text-muted-foreground hover:text-foreground"
-                    title="نسخ"
-                  >
-                    <Copy size={13} />
-                  </button>
-                </div>
-                <a
-                  href={SUPER_ADMIN_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-4 py-2 rounded-lg bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90"
-                >
-                  <ExternalLink size={12} /> فتح
-                </a>
               </div>
             </div>
           </div>
