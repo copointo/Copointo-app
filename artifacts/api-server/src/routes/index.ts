@@ -16,7 +16,7 @@ import {
   usernameRegistry, cafeRatings, getCafeRatingStats,
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
-  persistStore, type AppUser, type FriendRequest, type ChatMsg,
+  persistStore, type AppUser, type FriendRequest, type ChatMsg, type Broadcast,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -182,6 +182,31 @@ router.get("/broadcasts", (req, res) => {
     ? broadcasts.filter(b => b.createdAt > since)
     : broadcasts;
   res.json({ broadcasts: items });
+});
+
+// Super-admin → push a new system announcement to every game user.
+// The list is kept newest-first so the mobile unread-badge logic
+// (`r.broadcasts[0].createdAt`) reflects the latest one.
+router.post("/broadcasts", (req, res): any => {
+  const message = String(req.body?.message ?? "").trim();
+  if (!message) return res.status(400).json({ ok: false, error: "الرسالة مطلوبة" });
+  const b: Broadcast = {
+    id:        `bc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    message,
+    createdAt: new Date().toISOString(),
+  };
+  broadcasts.unshift(b);
+  persistStore();
+  res.json({ ok: true, broadcast: b });
+});
+
+router.delete("/broadcasts/:id", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  const idx = broadcasts.findIndex(b => b.id === id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: "not found" });
+  broadcasts.splice(idx, 1);
+  persistStore();
+  res.json({ ok: true });
 });
 
 // ─── Public Reels endpoints ─────────────────────────────────────────────
