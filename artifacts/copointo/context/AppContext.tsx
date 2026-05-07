@@ -339,9 +339,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Initial roster sync — runs once after AsyncStorage hydrates so the
   // leaderboard is populated with cross-device users on first paint.
+  // Then keeps polling every 10 s so brand-new sign-ups and any level/
+  // order-count bumps from other devices appear here in near real-time —
+  // the leaderboard, friends list, and game tab all read from this state.
   useEffect(() => {
     if (!hydrated) return;
     refreshAllUsers().catch(() => {});
+    const t = setInterval(() => { refreshAllUsers().catch(() => {}); }, 10000);
+    return () => clearInterval(t);
   }, [hydrated, refreshAllUsers]);
 
   // Pull the authoritative friend snapshot from the server. Used on login,
