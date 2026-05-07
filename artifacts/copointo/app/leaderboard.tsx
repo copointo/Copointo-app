@@ -152,7 +152,7 @@ export default function LeaderboardScreen() {
         >
           <Feather name="arrow-left" size={22} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🏆 Leaderboard</Text>
+        <Text style={styles.headerTitle}>🏆 التصنيف</Text>
       </View>
 
       {/* Tabs */}

@@ -537,7 +537,7 @@ export default function GameScreen() {
           activeOpacity={0.85}
         >
           <FontAwesome5 name="trophy" size={26} color="#FFF" />
-          <Text style={styles.fabLeaderboardLabel}>Leaderboard</Text>
+          <Text style={styles.fabLeaderboardLabel}>التصنيف</Text>
         </TouchableOpacity>
 
       </View>
