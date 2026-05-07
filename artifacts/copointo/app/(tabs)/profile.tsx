@@ -441,6 +441,16 @@ export default function ProfileScreen() {
           <Text style={styles.supportText}>الدعم</Text>
         </TouchableOpacity>
 
+        {/* ── Privacy & Governance button (above logout) ── */}
+        <TouchableOpacity
+          style={styles.privacyBtn}
+          onPress={() => router.push("/privacy")}
+          activeOpacity={0.85}
+        >
+          <Feather name="shield" size={17} color={PRIMARY} />
+          <Text style={styles.privacyText}>الخصوصية والحوكمة</Text>
+        </TouchableOpacity>
+
         {/* ── Logout button ── */}
         <TouchableOpacity
           style={styles.logoutBtn}
@@ -653,6 +663,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: 16, marginTop: 4, marginBottom: 10,
   },
   supportText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Privacy & Governance
+  privacyBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: `${PRIMARY}30`,
+    paddingVertical: 14, borderRadius: 16, marginBottom: 10,
+  },
+  privacyText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Modal
   modalOverlay: {
