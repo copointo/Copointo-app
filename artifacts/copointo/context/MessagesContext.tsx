@@ -1,9 +1,30 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
-  createContext, useContext, useEffect, useMemo, useState, useCallback,
+  createContext, useContext, useEffect, useMemo, useRef, useState, useCallback,
 } from "react";
 import { ChatMessage, Group, Message } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
+import { API_BASE } from "@/constants/api";
+
+/** Format an ISO timestamp as the same Arabic "h:mm ص/م" used elsewhere. */
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, "0");
+  const period = h >= 12 ? "م" : "ص";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m} ${period}`;
+}
+
+interface ServerMsg {
+  id: string;
+  kind: "friend" | "group";
+  scope: string;
+  senderId: string;
+  text: string;
+  createdAt: string;
+  seenBy: string[];
+}
 
 const STORAGE_KEY_CHATS  = "copointo_chats_v2";
 const STORAGE_KEY_UNREAD = "copointo_unread_v2";
@@ -145,86 +166,176 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     return out;
   }, [user, friends, registeredUsers, chats, unreadMap, groups]);
 
-  // Mark a conversation as read (clear unread badge)
+  // Mark a conversation as read (clear unread badge) AND tell the server
+  // I've seen every message in it so the original sender's bubble flips
+  // from ✓ to ✓✓ on their next poll.
   const markRead = useCallback((id: string) => {
     setUnreadMap(prev => (prev[id] ? { ...prev, [id]: 0 } : prev));
-  }, []);
+    if (!user) return;
+    let body: Record<string, string> | null = null;
+    if (id.startsWith("friend_")) {
+      body = { userId: user.id, kind: "friend", otherId: id.slice("friend_".length) };
+    } else if (id.startsWith("group_")) {
+      body = { userId: user.id, kind: "group", groupId: id.slice("group_".length) };
+    }
+    if (!body) return;
+    fetch(`${API_BASE}/messages/seen`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }, [user?.id]);
 
   /**
-   * Append a new message to a conversation.
-   * For outgoing messages (fromMe=true) we ALSO write a mirrored copy into
-   * each recipient's AsyncStorage so they see it on their side. This mocks
-   * a real backend message sync since the device is shared between users.
+   * Append a new message to a conversation. Outgoing messages (fromMe=true)
+   * are POSTed to the server so OTHER devices receive them via their poll
+   * loop — this is the real-time, cross-device path that replaces the old
+   * AsyncStorage mirror. Incoming messages (fromMe=false) are appended
+   * locally only (the server already stored them; the poll added them here).
    */
   const appendMsg = useCallback((convId: string, msg: ChatMessage) => {
-    setChats(prev => ({
-      ...prev,
-      [convId]: [...(prev[convId] ?? []), msg],
-    }));
+    setChats(prev => {
+      const existing = prev[convId] ?? [];
+      // Idempotency guard: poll might have already inserted this id.
+      if (existing.some(m => m.id === msg.id)) return prev;
+      return { ...prev, [convId]: [...existing, msg] };
+    });
     if (!msg.fromMe) {
       setUnreadMap(prev => ({ ...prev, [convId]: (prev[convId] ?? 0) + 1 }));
     }
     if (!msg.fromMe || !user) return;
 
-    // Determine recipient list + the convId each recipient should see
-    let recipients: { uid: string; convId: string }[] = [];
-
+    // Push to the server so the recipient(s) see it on their next poll.
+    let body: Record<string, string> | null = null;
     if (convId.startsWith("friend_")) {
       const recipientId = convId.slice("friend_".length);
-      recipients = [{ uid: recipientId, convId: `friend_${user.id}` }];
+      body = { id: msg.id, senderId: user.id, kind: "friend", recipientId, text: msg.text };
     } else if (convId.startsWith("group_")) {
       const groupId = convId.slice("group_".length);
-      const grp = groups.find(g => g.id === groupId);
-      if (grp) {
-        // Same convId on every side, but skip myself
-        recipients = grp.members
-          .filter(mid => mid !== user.id)
-          .map(mid => ({ uid: mid, convId }));
-      }
+      body = { id: msg.id, senderId: user.id, kind: "group", groupId, text: msg.text };
     }
-    if (recipients.length === 0) return;
+    if (!body) return;
+    fetch(`${API_BASE}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  }, [user?.id]);
 
-    const mirroredBase: ChatMessage = {
-      ...msg,
-      fromMe: false,
-      seen: false,
-      senderId: user.id,
-      senderName: user.name,
-    };
-    if (user.avatar) mirroredBase.senderAvatar = user.avatar;
-
-    (async () => {
-      for (const r of recipients) {
-        try {
-          const [chatsRaw, unreadRaw] = await Promise.all([
-            AsyncStorage.getItem(chatsKey(r.uid)),
-            AsyncStorage.getItem(unreadKey(r.uid)),
-          ]);
-          const recipChats: Record<string, ChatMessage[]> =
-            chatsRaw ? JSON.parse(chatsRaw) : {};
-          const recipUnread: Record<string, number> =
-            unreadRaw ? JSON.parse(unreadRaw) : {};
-          recipChats[r.convId] = [
-            ...(recipChats[r.convId] ?? []),
-            mirroredBase,
-          ];
-          recipUnread[r.convId] = (recipUnread[r.convId] ?? 0) + 1;
-          await Promise.all([
-            AsyncStorage.setItem(chatsKey(r.uid), JSON.stringify(recipChats)),
-            AsyncStorage.setItem(unreadKey(r.uid), JSON.stringify(recipUnread)),
-          ]);
-        } catch (_) {}
-      }
-    })();
-  }, [user?.id, user?.name, groups]);
-
-  // Mark a specific sent message as seen (✓✓)
+  // Mark a specific sent message as seen (✓✓) — local-only fallback. The
+  // authoritative ✓✓ flip happens via the server poll below when the
+  // recipient calls markRead on their device.
   const markSeen = useCallback((convId: string, msgId: string) => {
     setChats(prev => ({
       ...prev,
       [convId]: (prev[convId] ?? []).map(m => m.id === msgId ? { ...m, seen: true } : m),
     }));
   }, []);
+
+  // ─── Real-time poll loop ────────────────────────────────────────────────
+  // Pulls every message visible to me from the server and merges into the
+  // local chat state. New messages from other users appear within ~3 s and
+  // ✓✓ ticks update on the sender's side once the recipient opens the chat.
+  // We dedupe by message id so locally-appended sends never duplicate.
+  const groupsRef          = useRef<Group[]>([]);
+  const registeredUsersRef = useRef(registeredUsers);
+  const lastSyncRef        = useRef<string>("");
+  useEffect(() => { groupsRef.current          = groups;          }, [groups]);
+  useEffect(() => { registeredUsersRef.current = registeredUsers; }, [registeredUsers]);
+
+  useEffect(() => {
+    if (!user || !ready) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const sync = async () => {
+      try {
+        const groupIds = groupsRef.current.map(g => g.id).join(",");
+        const params = new URLSearchParams({ userId: user.id });
+        if (groupIds) params.set("groupIds", groupIds);
+        if (lastSyncRef.current) params.set("since", lastSyncRef.current);
+        const res = await fetch(`${API_BASE}/messages?${params.toString()}`);
+        if (!res.ok || cancelled) return;
+        const data: { messages: ServerMsg[]; now?: string } = await res.json();
+        if (cancelled) return;
+        if (data.now) lastSyncRef.current = data.now;
+        if (!Array.isArray(data.messages) || data.messages.length === 0) return;
+
+        // Bucket server messages by client convId.
+        const byConv: Record<string, ServerMsg[]> = {};
+        for (const m of data.messages) {
+          let convId: string;
+          if (m.kind === "friend") {
+            const [a, b] = m.scope.split("|");
+            const other = a === user.id ? (b ?? a) : a;
+            convId = `friend_${other}`;
+          } else {
+            convId = `group_${m.scope}`;
+          }
+          (byConv[convId] ||= []).push(m);
+        }
+
+        const unreadInc: Record<string, number> = {};
+
+        setChats(prev => {
+          const merged: Record<string, ChatMessage[]> = { ...prev };
+          for (const [convId, msgs] of Object.entries(byConv)) {
+            const existing = merged[convId] ?? [];
+            const idMap = new Map(existing.map(m => [m.id, m]));
+            const additions: ChatMessage[] = [];
+            const updatesById = new Map<string, ChatMessage>();
+            for (const sm of msgs) {
+              const isMine = sm.senderId === user.id;
+              const seen   = isMine
+                ? sm.seenBy.some(uid => uid !== user.id)
+                : true;
+              const old = idMap.get(sm.id);
+              if (old) {
+                // Existing — only update the ✓✓ tick if it just flipped.
+                if (seen && !old.seen) {
+                  updatesById.set(sm.id, { ...old, seen: true });
+                }
+              } else {
+                const cm: ChatMessage = {
+                  id:     sm.id,
+                  text:   sm.text,
+                  fromMe: isMine,
+                  time:   formatTime(sm.createdAt),
+                  seen,
+                };
+                if (!isMine) {
+                  cm.senderId = sm.senderId;
+                  const sender = registeredUsersRef.current.find(u => u.id === sm.senderId);
+                  if (sender) {
+                    cm.senderName = sender.name;
+                    if (sender.avatar) cm.senderAvatar = sender.avatar;
+                  }
+                  unreadInc[convId] = (unreadInc[convId] ?? 0) + 1;
+                }
+                additions.push(cm);
+              }
+            }
+            if (updatesById.size === 0 && additions.length === 0) continue;
+            const next = existing.map(m => updatesById.get(m.id) ?? m);
+            merged[convId] = additions.length > 0 ? [...next, ...additions] : next;
+          }
+          return merged;
+        });
+
+        if (Object.keys(unreadInc).length > 0) {
+          setUnreadMap(prev => {
+            const next = { ...prev };
+            for (const [k, v] of Object.entries(unreadInc)) next[k] = (next[k] ?? 0) + v;
+            return next;
+          });
+        }
+      } catch { /* network blip — try again next tick */ }
+    };
+
+    sync();
+    timer = setInterval(sync, 3500);
+    return () => { cancelled = true; if (timer) clearInterval(timer); };
+  }, [user?.id, ready]);
 
   /**
    * Manual refresh (e.g. on Messages tab focus) to pick up mirrored

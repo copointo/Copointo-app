@@ -15,7 +15,8 @@ import {
   bookings, orders,
   usernameRegistry, cafeRatings, getCafeRatingStats,
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
-  persistStore, type AppUser, type FriendRequest,
+  chatMessages, friendScope,
+  persistStore, type AppUser, type FriendRequest, type ChatMsg,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -646,6 +647,107 @@ router.delete("/friendships", (req, res): any => {
   }
   persistStore();
   res.json({ ok: true });
+});
+
+// ─── Cross-device chat messages ──────────────────────────────────────────
+// Real WhatsApp-style messaging: clients POST every outgoing message here
+// and poll GET /messages to pick up incoming ones from other devices. The
+// server is the single source of truth so a message sent from device A
+// appears on device B within the next poll cycle.
+
+/** Send a new message. Idempotent on `id` so retries are safe. */
+router.post("/messages", (req, res): any => {
+  const id          = String(req.body?.id ?? "").trim();
+  const senderId    = String(req.body?.senderId ?? "").trim();
+  const kind        = req.body?.kind === "group" ? "group" : "friend";
+  const text        = String(req.body?.text ?? "").trim();
+  const recipientId = String(req.body?.recipientId ?? "").trim();
+  const groupId     = String(req.body?.groupId ?? "").trim();
+  if (!id || !senderId || !text) {
+    return res.status(400).json({ error: "id/senderId/text required" });
+  }
+  // Dedupe — if this id already exists, just return the stored row.
+  const existing = chatMessages.find(m => m.id === id);
+  if (existing) return res.json({ ok: true, message: existing });
+
+  let scope: string;
+  if (kind === "friend") {
+    if (!recipientId) return res.status(400).json({ error: "recipientId required" });
+    scope = friendScope(senderId, recipientId);
+  } else {
+    if (!groupId) return res.status(400).json({ error: "groupId required" });
+    scope = groupId;
+  }
+  const msg: ChatMsg = {
+    id, kind, scope, senderId, text,
+    createdAt: new Date().toISOString(),
+    seenBy: [senderId],   // sender has implicitly "seen" their own message
+  };
+  chatMessages.push(msg);
+  persistStore();
+  res.status(201).json({ ok: true, message: msg });
+});
+
+/**
+ * Pull all messages visible to a user (both sides of every friend chat
+ * the user is in, plus every group the user names in `groupIds`). Returns
+ * a flat list sorted oldest → newest. The client merges by id and updates
+ * its UI; passing `since=<ISO>` filters to messages newer than that to keep
+ * payloads small. Even with `since` we always include unseen-by-me sender
+ * messages so ✓✓ updates propagate back to the original sender.
+ */
+router.get("/messages", (req, res): any => {
+  const userId   = String(req.query.userId ?? "").trim();
+  const groupIds = String(req.query.groupIds ?? "").split(",").map(s => s.trim()).filter(Boolean);
+  const since    = String(req.query.since ?? "").trim();
+  if (!userId) return res.status(400).json({ error: "userId required" });
+  const groupSet = new Set(groupIds);
+
+  const visible = chatMessages.filter(m => {
+    if (m.kind === "friend") {
+      const [a, b] = m.scope.split("|");
+      return a === userId || b === userId;
+    }
+    return groupSet.has(m.scope);
+  });
+
+  const filtered = since
+    ? visible.filter(m => m.createdAt > since || (m.senderId === userId && m.seenBy.length > 1))
+    : visible;
+
+  filtered.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  res.json({ messages: filtered, now: new Date().toISOString() });
+});
+
+/**
+ * Mark every message in a conversation scope as seen by `userId`. The
+ * recipient calls this when they open the chat — the sender will see ✓✓
+ * after their next poll picks up the updated `seenBy` list.
+ */
+router.post("/messages/seen", (req, res): any => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const kind   = req.body?.kind === "group" ? "group" : "friend";
+  const otherId = String(req.body?.otherId ?? "").trim();   // for friend scope
+  const groupId = String(req.body?.groupId ?? "").trim();   // for group scope
+  if (!userId) return res.status(400).json({ error: "userId required" });
+
+  let scope: string;
+  if (kind === "friend") {
+    if (!otherId) return res.status(400).json({ error: "otherId required" });
+    scope = friendScope(userId, otherId);
+  } else {
+    if (!groupId) return res.status(400).json({ error: "groupId required" });
+    scope = groupId;
+  }
+  let changed = 0;
+  for (const m of chatMessages) {
+    if (m.scope === scope && !m.seenBy.includes(userId)) {
+      m.seenBy.push(userId);
+      changed++;
+    }
+  }
+  if (changed > 0) persistStore();
+  res.json({ ok: true, updated: changed });
 });
 
 export default router;

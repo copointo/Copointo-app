@@ -95,8 +95,10 @@ export default function ConversationScreen() {
     if (!trimmed || !id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     playSendMessageSound();
+    // Globally-unique id (sender + ms + random) so two devices can never
+    // collide and the server's `id`-based dedupe stays safe.
     const newMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       text: trimmed,
       fromMe: true,
       time: now(),
@@ -104,11 +106,7 @@ export default function ConversationScreen() {
     };
     appendMsg(id, newMsg);
     setText("");
-
-    // Simulate "seen" after 2 s
-    setTimeout(() => {
-      markSeen(id, newMsg.id);
-    }, 2000);
+    // ✓✓ ticks now flip via the real server "seen" sync — no fake delay.
   };
 
   const isCafe = type === "cafe";

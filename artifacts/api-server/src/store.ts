@@ -308,6 +308,29 @@ export interface Friendship {
 }
 export const friendships: Friendship[] = [];
 
+// ─── Cross-device chat messages ─────────────────────────────────────────
+// 1:1 friend chats and group chats both flow through this single table so
+// every device sees the same source of truth. `scope` identifies the
+// conversation: for friend chats it's the canonical pair "a|b" (a < b);
+// for group chats it's the groupId. `seenBy` lists user ids that have
+// opened the conversation since the message arrived (for ✓✓ ticks).
+export interface ChatMsg {
+  id: string;
+  kind: "friend" | "group";
+  scope: string;
+  senderId: string;
+  text: string;
+  createdAt: string;
+  seenBy: string[];
+}
+export const chatMessages: ChatMsg[] = [];
+
+/** Build the canonical scope string for a friend chat between two users. */
+export function friendScope(u1: string, u2: string): string {
+  const { a, b } = pairKey(u1, u2);
+  return `${a}|${b}`;
+}
+
 /** Canonical (a,b) ordering so each pair has exactly one row. */
 export function pairKey(u1: string, u2: string): { a: string; b: string } {
   return u1 < u2 ? { a: u1, b: u2 } : { a: u2, b: u1 };
@@ -346,7 +369,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
-  usernameRegistry, cafeRatings, friendRequests, friendships,
+  usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
 };
 
 function loadFromDisk() {
