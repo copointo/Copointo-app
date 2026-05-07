@@ -53,7 +53,7 @@ export default function ConversationScreen() {
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type: string }>();
 
-  const { chats, markRead, appendMsg, markSeen, getGroup } = useMessages();
+  const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv } = useMessages();
   const { registeredUsers } = useApp();
   const convMsgs = chats[id ?? ""] ?? [];
 
@@ -67,10 +67,16 @@ export default function ConversationScreen() {
   const listRef = useRef<FlatList>(null);
   const [text, setText] = useState("");
 
-  // Mark conversation as read + scroll to bottom on open
+  // Mark conversation as read + scroll to bottom on open. Also register
+  // this convId as "active" so the global poll loop won't bump the unread
+  // badge for messages that arrive while the screen is on top — instead
+  // it auto-tells the server we've seen them so ✓✓ flips on the sender.
   useEffect(() => {
-    if (id) markRead(id);
+    if (!id) return;
+    markRead(id);
+    setActiveConv(id);
     setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 150);
+    return () => { setActiveConv(null); };
   }, [id]);
 
   // Auto-scroll when new messages arrive

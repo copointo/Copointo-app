@@ -482,13 +482,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const login = useCallback(async (phone: string, password: string): Promise<AuthResult> => {
+  // Login accepts EITHER the phone number OR the game username (case-
+  // insensitive on the username side). This matches the UX the user asked
+  // for: "خليه ينفع يسجل ب رقم الهاتف او اليوزر".
+  const login = useCallback(async (identifier: string, password: string): Promise<AuthResult> => {
     try {
       const raw = await AsyncStorage.getItem("registeredUsers");
       const users: User[] = raw ? JSON.parse(raw) : [];
       setRegisteredUsers(users);
-      const found = users.find(u => u.phone === phone && u.password === password);
-      if (!found) return { ok: false, error: "رقم الهاتف أو كلمة المرور غير صحيحة" };
+      const id = identifier.trim();
+      const idLower = id.toLowerCase();
+      const found = users.find(u =>
+        u.password === password &&
+        (u.phone === id || (u.gameUsername ?? "").toLowerCase() === idLower)
+      );
+      if (!found) return { ok: false, error: "رقم الهاتف/اليوزر أو كلمة المرور غير صحيحة" };
       await AsyncStorage.setItem("currentUser", JSON.stringify(found));
       const [fRaw, inRaw, outRaw] = await Promise.all([
         AsyncStorage.getItem(`friends:${found.id}`),

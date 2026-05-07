@@ -162,7 +162,7 @@ export function AuthModal({
           >
             {mode === "login" ? (
               <>
-                <AuthField icon="phone" placeholder={t("auth.fieldPhone")} value={logPhone} onChange={setLogPhone} keyboardType="phone-pad" />
+                <AuthField icon="user" placeholder={t("auth.fieldPhoneOrUser")} value={logPhone} onChange={setLogPhone} />
                 <AuthField icon="lock" placeholder={t("auth.fieldPassword")} value={logPass} onChange={setLogPass} secure />
               </>
             ) : (

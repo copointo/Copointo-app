@@ -42,6 +42,9 @@ interface MessagesCtx {
   appendMsg:   (convId: string, msg: ChatMessage) => void;
   markSeen:    (convId: string, msgId: string) => void;
   refreshChats: () => Promise<void>;
+  /** Tell the provider which conversation is currently open so the poll
+   *  loop can skip the unread-badge bump for it and auto-flip ✓✓. */
+  setActiveConv: (convId: string | null) => void;
   /** Group helpers */
   getGroup:        (groupId: string) => Group | undefined;
   createGroup:     (name: string, memberIds: string[], avatar?: string) => Promise<Group>;
@@ -240,11 +243,21 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const groupsRef          = useRef<Group[]>([]);
   const registeredUsersRef = useRef(registeredUsers);
   const lastSyncRef        = useRef<string>("");
+  const activeConvRef      = useRef<string | null>(null);
   useEffect(() => { groupsRef.current          = groups;          }, [groups]);
   useEffect(() => { registeredUsersRef.current = registeredUsers; }, [registeredUsers]);
 
+  // Public setter for the conversation screen to register itself as "open".
+  const setActiveConv = useCallback((convId: string | null) => {
+    activeConvRef.current = convId;
+  }, []);
+
   useEffect(() => {
     if (!user || !ready) return;
+    // Reset the cursor on every account switch so the new user gets the
+    // FULL visible history, not just messages newer than the previous
+    // user's last sync timestamp.
+    lastSyncRef.current = "";
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -276,6 +289,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         }
 
         const unreadInc: Record<string, number> = {};
+        // Conversations that received a brand-new incoming message AND are
+        // currently open on screen → auto-mark seen on the server so the
+        // sender's ✓✓ updates without forcing the recipient to leave/reopen.
+        const autoSeenScopes = new Set<string>();
 
         setChats(prev => {
           const merged: Record<string, ChatMessage[]> = { ...prev };
@@ -310,7 +327,13 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                     cm.senderName = sender.name;
                     if (sender.avatar) cm.senderAvatar = sender.avatar;
                   }
-                  unreadInc[convId] = (unreadInc[convId] ?? 0) + 1;
+                  if (activeConvRef.current === convId) {
+                    // The user is reading this chat right now — don't bump
+                    // the unread badge, and tell the server we've seen it.
+                    autoSeenScopes.add(convId);
+                  } else {
+                    unreadInc[convId] = (unreadInc[convId] ?? 0) + 1;
+                  }
                 }
                 additions.push(cm);
               }
@@ -328,6 +351,21 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             for (const [k, v] of Object.entries(unreadInc)) next[k] = (next[k] ?? 0) + v;
             return next;
           });
+        }
+        for (const convId of autoSeenScopes) {
+          let body: Record<string, string> | null = null;
+          if (convId.startsWith("friend_")) {
+            body = { userId: user.id, kind: "friend", otherId: convId.slice("friend_".length) };
+          } else if (convId.startsWith("group_")) {
+            body = { userId: user.id, kind: "group", groupId: convId.slice("group_".length) };
+          }
+          if (body) {
+            fetch(`${API_BASE}/messages/seen`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }).catch(() => {});
+          }
         }
       } catch { /* network blip — try again next tick */ }
     };
@@ -538,7 +576,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{
       convList, chats, groups,
-      markRead, appendMsg, markSeen, refreshChats,
+      markRead, appendMsg, markSeen, refreshChats, setActiveConv,
       getGroup, createGroup, updateGroup,
       addGroupMember, removeGroupMember, leaveGroup,
     }}>
