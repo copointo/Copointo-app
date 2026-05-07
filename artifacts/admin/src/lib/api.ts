@@ -21,6 +21,9 @@ export const api = {
   deleteCafe: (id: string) => req<any>("DELETE",`${A}/cafes/${id}`),
   getUsers:   ()           => req<any>("GET",   `${A}/users`),
   toggleBan:  (id: string) => req<any>("PATCH", `${A}/users/${id}/ban`),
+  // Super-admin sends a direct message to ONE user (delivered to that user
+  // only, appears in their Messages tab as a conversation from "كوبوينتو").
+  sendUserMessage: (id: string, message: string) => req<any>("POST", `${A}/users/${id}/message`, { message }),
   gameBan:     (id: string, reason: string)              => req<any>("POST", `${A}/users/${id}/game-ban`,     { reason }),
   gameSuspend: (id: string, days: number, reason: string) => req<any>("POST", `${A}/users/${id}/game-suspend`, { days, reason }),
   gameClear:   (id: string)                              => req<any>("POST", `${A}/users/${id}/game-clear`),

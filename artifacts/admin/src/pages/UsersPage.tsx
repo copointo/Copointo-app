@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Ban, CheckCircle, Search } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface AppUser {
@@ -12,11 +12,56 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [query,   setQuery]   = useState("");
 
-  useEffect(() => { api.getUsers().then(d => setUsers(d.users)).finally(() => setLoading(false)); }, []);
+  // ─── Live polling ──────────────────────────────────────────────────────
+  // Re-fetch the user list every 5 s so accounts created from the mobile
+  // app appear in the super-admin without requiring a page refresh.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      api.getUsers()
+        .then(d => { if (!cancelled) setUsers(d.users); })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false); });
+    };
+    load();
+    const t = setInterval(load, 5000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   const toggleBan = async (id: string) => {
     await api.toggleBan(id);
     setUsers(prev => prev.map(u => u.id === id ? { ...u, banned: !u.banned } : u));
+  };
+
+  // ─── Send-message modal state ──────────────────────────────────────────
+  const [msgTarget,  setMsgTarget]  = useState<AppUser | null>(null);
+  const [msgText,    setMsgText]    = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const [msgSent,    setMsgSent]    = useState(false);
+  const [msgErr,     setMsgErr]     = useState("");
+  const msgInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const openMessage = (u: AppUser) => {
+    setMsgTarget(u); setMsgText(""); setMsgSent(false); setMsgErr("");
+    setTimeout(() => msgInputRef.current?.focus(), 50);
+  };
+  const closeMessage = () => {
+    if (msgSending) return;
+    setMsgTarget(null); setMsgText(""); setMsgSent(false); setMsgErr("");
+  };
+  const sendMessage = async () => {
+    const text = msgText.trim();
+    if (!text || !msgTarget) return;
+    setMsgSending(true); setMsgErr("");
+    try {
+      await api.sendUserMessage(msgTarget.id, text);
+      setMsgSent(true); setMsgText("");
+      setTimeout(() => closeMessage(), 1200);
+    } catch (e: any) {
+      setMsgErr(e?.message?.substring(0, 200) || "تعذّر إرسال الرسالة");
+    } finally {
+      setMsgSending(false);
+    }
   };
 
   const filtered = users.filter(u =>
@@ -33,7 +78,12 @@ export default function UsersPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">المستخدمون</h1>
-        <p className="text-muted-foreground mt-1">{users.length} مستخدم مسجل • {users.filter(u => u.banned).length} محظور</p>
+        <p className="text-muted-foreground mt-1 flex items-center gap-2">
+          {users.length} مستخدم مسجل • {users.filter(u => u.banned).length} محظور
+          <span className="inline-flex items-center gap-1.5 text-xs text-green-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> تحديث تلقائي
+          </span>
+        </p>
       </div>
 
       {/* Search */}
@@ -88,16 +138,25 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4">
-                    <button
-                      onClick={() => toggleBan(user.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        user.banned
-                          ? "bg-green-500/15 text-green-400 hover:bg-green-500/25"
-                          : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
-                      }`}
-                    >
-                      {user.banned ? <><CheckCircle size={14} /> رفع الحظر</> : <><Ban size={14} /> حظر</>}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openMessage(user)}
+                        title="إرسال رسالة"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
+                      >
+                        <MessageSquare size={14} /> رسالة
+                      </button>
+                      <button
+                        onClick={() => toggleBan(user.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          user.banned
+                            ? "bg-green-500/15 text-green-400 hover:bg-green-500/25"
+                            : "bg-red-500/15 text-red-400 hover:bg-red-500/25"
+                        }`}
+                      >
+                        {user.banned ? <><CheckCircle size={14} /> رفع الحظر</> : <><Ban size={14} /> حظر</>}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -111,6 +170,65 @@ export default function UsersPage() {
           )}
         </div>
       </div>
+
+      {/* ── Send-message modal ── */}
+      {msgTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeMessage} />
+          <div className="relative bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl z-10 overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-amber-900/20 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-bold">
+                  {msgTarget.username[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">{msgTarget.username}</p>
+                  <p className="text-xs text-muted-foreground" dir="ltr">{msgTarget.phone}</p>
+                </div>
+              </div>
+              <button onClick={closeMessage} className="text-muted-foreground hover:text-foreground" disabled={msgSending}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs text-muted-foreground mb-2">
+                ستظهر الرسالة في تبويب "Messages" في تطبيق المستخدم باسم <span className="text-primary font-semibold">كوبوينتو</span>.
+              </p>
+              <textarea
+                ref={msgInputRef}
+                value={msgText}
+                onChange={e => setMsgText(e.target.value)}
+                placeholder="اكتب رسالتك هنا..."
+                rows={5}
+                maxLength={1000}
+                disabled={msgSending || msgSent}
+                className="w-full bg-input border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground resize-none"
+              />
+              <div className="flex items-center justify-between mt-1.5 text-xs text-muted-foreground">
+                <span>{msgText.length} / 1000</span>
+                {msgErr && <span className="text-red-400">{msgErr}</span>}
+                {msgSent && <span className="text-green-400 flex items-center gap-1"><CheckCircle size={12} /> تم الإرسال</span>}
+              </div>
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  onClick={closeMessage}
+                  disabled={msgSending}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={sendMessage}
+                  disabled={msgSending || msgSent || !msgText.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send size={14} /> {msgSending ? "جاري الإرسال..." : "إرسال"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

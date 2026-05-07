@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, ExternalLink, Upload, ImageIcon, Globe, Download, Coffee, User as UserIcon, Pencil } from "lucide-react";
+import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboard, Copy, Check, CheckCircle, ExternalLink, Upload, ImageIcon, Globe, Download, Coffee, User as UserIcon, Pencil } from "lucide-react";
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
@@ -718,42 +718,112 @@ export default function CafesPage() {
         </div>
       )}
 
-      {/* ── QR Code Modal (two separate QRs) ── */}
+      {/* ── QR Code Modal (two separate QRs) — large hero layout ── */}
       {newCafe && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setNewCafe(null)} />
-          <div className="relative bg-card border border-border rounded-2xl w-full max-w-2xl shadow-2xl z-10 overflow-hidden" dir="rtl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => setNewCafe(null)} />
+          <div className="relative bg-card border border-border rounded-3xl w-full max-w-4xl shadow-2xl z-10 overflow-hidden my-6" dir="rtl">
 
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-gradient-to-l from-amber-900/30 to-transparent">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-xl">☕</div>
-                <div>
-                  <h2 className="text-lg font-bold text-foreground">تم إضافة الكوفي بنجاح!</h2>
-                  <p className="text-sm text-muted-foreground">{newCafe.name}</p>
+            {/* ── Hero banner: cover image + logo overlay + cafe info ── */}
+            <div className="relative">
+              {newCafe.image ? (
+                <div className="relative h-44 w-full overflow-hidden">
+                  <img src={newCafe.image} alt="" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-card/10" />
                 </div>
-              </div>
-              <button onClick={() => setNewCafe(null)} className="text-muted-foreground hover:text-foreground">
-                <X size={20} />
+              ) : (
+                <div className="h-44 w-full bg-gradient-to-br from-amber-900/40 via-amber-700/20 to-amber-500/10 flex items-center justify-center">
+                  <span className="text-7xl opacity-30">☕</span>
+                </div>
+              )}
+
+              {/* Close button overlay */}
+              <button
+                onClick={() => setNewCafe(null)}
+                className="absolute top-4 left-4 w-9 h-9 rounded-full bg-black/50 backdrop-blur text-white hover:bg-black/70 flex items-center justify-center transition-colors"
+              >
+                <X size={18} />
               </button>
+
+              {/* Success badge */}
+              <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-green-500/20 backdrop-blur border border-green-400/40 px-3 py-1.5 rounded-full">
+                <CheckCircle size={14} className="text-green-400" />
+                <span className="text-xs font-bold text-green-300">تم بنجاح</span>
+              </div>
+
+              {/* Logo + name floating over banner */}
+              <div className="absolute -bottom-10 right-8 flex items-end gap-4">
+                {newCafe.logo ? (
+                  <img src={newCafe.logo} alt="" className="w-24 h-24 rounded-2xl object-cover border-4 border-card shadow-2xl" />
+                ) : (
+                  <div className="w-24 h-24 rounded-2xl border-4 border-card shadow-2xl bg-amber-500/30 flex items-center justify-center text-4xl">☕</div>
+                )}
+              </div>
             </div>
 
-            <div className="px-6 py-6">
-              <div className="grid grid-cols-2 gap-5">
+            {/* Cafe name + meta row */}
+            <div className="px-8 pt-14 pb-4">
+              <h2 className="text-2xl font-bold text-foreground">{newCafe.name}</h2>
+              <p className="text-sm text-muted-foreground mt-1">تم تسجيل الكوفي وأصبح جاهزاً للعمل</p>
+
+              {/* Meta chips */}
+              <div className="flex flex-wrap items-center gap-2 mt-4">
+                {newCafe.address && (
+                  <div className="inline-flex items-center gap-1.5 bg-muted/40 border border-border px-3 py-1.5 rounded-full text-xs">
+                    <MapPin size={12} className="text-primary" />
+                    <span className="text-foreground">{newCafe.address}</span>
+                  </div>
+                )}
+                <div className="inline-flex items-center gap-1.5 bg-muted/40 border border-border px-3 py-1.5 rounded-full text-xs">
+                  <Clock size={12} className="text-primary" />
+                  <span className="text-foreground" dir="ltr">{newCafe.openTime} – {newCafe.closeTime}</span>
+                </div>
+                {newCafe.ownerName && (
+                  <div className="inline-flex items-center gap-1.5 bg-muted/40 border border-border px-3 py-1.5 rounded-full text-xs">
+                    <UserIcon size={12} className="text-primary" />
+                    <span className="text-foreground">{newCafe.ownerName}</span>
+                  </div>
+                )}
+                {newCafe.ownerPhone && (
+                  <div className="inline-flex items-center gap-1.5 bg-muted/40 border border-border px-3 py-1.5 rounded-full text-xs">
+                    <Phone size={12} className="text-primary" />
+                    <span className="text-foreground font-mono" dir="ltr">{newCafe.ownerPhone}</span>
+                  </div>
+                )}
+                <div className="inline-flex items-center gap-1.5 bg-green-500/15 border border-green-400/30 px-3 py-1.5 rounded-full text-xs">
+                  <span className="text-green-400 font-bold">{newCafe.subscriptionAmount} OMR</span>
+                  <span className="text-green-300/70">/ سنة</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="px-8">
+              <div className="border-t border-border" />
+            </div>
+
+            {/* QR section title */}
+            <div className="px-8 pt-5">
+              <h3 className="text-base font-bold text-foreground">روابط الكوفي والباركود</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">اطبع الباركود وضعه في الكوفي ليتمكن الزبائن وفريقك من الوصول مباشرة</p>
+            </div>
+
+            <div className="px-8 py-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
                 {/* ── Manager QR ── */}
-                <div className="flex flex-col gap-3 p-4 border border-amber-500/30 rounded-2xl bg-amber-500/5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-sm">🔐</div>
+                <div className="flex flex-col gap-3 p-5 border border-amber-500/30 rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/25 flex items-center justify-center text-base">🔐</div>
                     <div>
                       <p className="text-sm font-bold text-foreground">رابط المدير</p>
-                      <p className="text-xs text-muted-foreground">لوحة إدارة الكوفي</p>
+                      <p className="text-xs text-muted-foreground">لوحة إدارة الكوفي (للموظفين)</p>
                     </div>
                   </div>
-                  <div ref={qrManagerRef} className="bg-white rounded-xl p-3 shadow flex items-center justify-center">
-                    <QRCodeSVG value={managerUrl(newCafe.id, newCafe.name)} size={150} level="H" includeMargin={false} />
+                  <div ref={qrManagerRef} className="bg-white rounded-xl p-4 shadow-lg flex items-center justify-center">
+                    <QRCodeSVG value={managerUrl(newCafe.id, newCafe.name)} size={170} level="H" includeMargin={false} />
                   </div>
-                  <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5 bg-background/60 border border-border rounded-lg px-3 py-2">
                     <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{managerUrl(newCafe.id, newCafe.name)}</span>
                     <button onClick={copyManagerLink} className="shrink-0 text-muted-foreground hover:text-foreground" title="نسخ">
                       {copiedManager ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
@@ -761,29 +831,29 @@ export default function CafesPage() {
                   </div>
                   <div className="flex gap-2">
                     <a href={managerUrl(newCafe.id, newCafe.name)} target="_blank" rel="noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 text-white py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500 text-white py-2.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
                       <ExternalLink size={12} /> فتح الداشبورد
                     </a>
                     <button onClick={() => downloadQR(qrManagerRef, "manager")}
-                      className="px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs hover:bg-muted/30 transition-colors">
+                      className="px-3 py-2.5 rounded-lg border border-border text-muted-foreground text-xs hover:bg-muted/30 transition-colors">
                       <Download size={13} />
                     </button>
                   </div>
                 </div>
 
                 {/* ── Customer QR ── */}
-                <div className="flex flex-col gap-3 p-4 border border-primary/30 rounded-2xl bg-primary/5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-sm">👤</div>
+                <div className="flex flex-col gap-3 p-5 border border-primary/30 rounded-2xl bg-gradient-to-br from-primary/10 to-transparent">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-primary/25 flex items-center justify-center text-base">👤</div>
                     <div>
                       <p className="text-sm font-bold text-foreground">رابط الزبائن</p>
-                      <p className="text-xs text-muted-foreground">صفحة الكوفي للمستخدمين</p>
+                      <p className="text-xs text-muted-foreground">صفحة الكوفي العامة (للطباعة على الطاولات)</p>
                     </div>
                   </div>
-                  <div ref={qrCustomerRef} className="bg-white rounded-xl p-3 shadow flex items-center justify-center">
-                    <QRCodeSVG value={customerUrl(newCafe.id, newCafe.name)} size={150} level="H" includeMargin={false} />
+                  <div ref={qrCustomerRef} className="bg-white rounded-xl p-4 shadow-lg flex items-center justify-center">
+                    <QRCodeSVG value={customerUrl(newCafe.id, newCafe.name)} size={170} level="H" includeMargin={false} />
                   </div>
-                  <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-1.5 bg-background/60 border border-border rounded-lg px-3 py-2">
                     <span className="flex-1 text-[10px] text-foreground truncate font-mono" dir="ltr">{customerUrl(newCafe.id, newCafe.name)}</span>
                     <button onClick={copyCustomerLink} className="shrink-0 text-muted-foreground hover:text-foreground" title="نسخ">
                       {copiedCustomer ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
@@ -791,16 +861,28 @@ export default function CafesPage() {
                   </div>
                   <div className="flex gap-2">
                     <a href={customerUrl(newCafe.id, newCafe.name)} target="_blank" rel="noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground py-2 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
+                      className="flex-1 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground py-2.5 rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity">
                       <ExternalLink size={12} /> فتح صفحة الكوفي
                     </a>
                     <button onClick={() => downloadQR(qrCustomerRef, "customer")}
-                      className="px-3 py-2 rounded-lg border border-border text-muted-foreground text-xs hover:bg-muted/30 transition-colors">
+                      className="px-3 py-2.5 rounded-lg border border-border text-muted-foreground text-xs hover:bg-muted/30 transition-colors">
                       <Download size={13} />
                     </button>
                   </div>
                 </div>
 
+              </div>
+
+              {/* Footer hint */}
+              <div className="mt-5 text-center">
+                <Link
+                  href={`/cafe/${newCafe.id}`}
+                  onClick={() => setNewCafe(null)}
+                  className="inline-flex items-center gap-2 bg-muted/40 hover:bg-muted/60 border border-border text-foreground px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                >
+                  <LayoutDashboard size={14} className="text-primary" />
+                  افتح داشبورد الكوفي الآن
+                </Link>
               </div>
             </div>
           </div>

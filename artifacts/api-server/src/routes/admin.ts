@@ -1,6 +1,11 @@
 import { Router } from "express";
-import { cafes, users, broadcasts, type Cafe, type Broadcast } from "../store";
+import { cafes, users, broadcasts, chatMessages, friendScope, persistStore, type Cafe, type Broadcast, type ChatMsg } from "../store";
 import { geocodeAddress } from "../utils/geocode";
+
+// Special "sender id" used when the super-admin direct-messages a user.
+// The mobile app recognizes this id and renders the conversation as
+// coming from "كوبوينتو" with a brand avatar.
+export const COPOINTO_ADMIN_ID = "copointo-admin";
 
 const router = Router();
 
@@ -189,6 +194,32 @@ router.post("/users/:id/game-clear", (req, res) => {
   user.gameSuspendReason = null;
   user.gameSuspendedAt = null;
   res.json({ user });
+});
+
+// ── POST /api/admin/users/:id/message ──────
+// Body: { message: string }
+// Super-admin sends a direct message to ONE user. Stored as a regular
+// chatMessage with senderId = COPOINTO_ADMIN_ID so the mobile app picks
+// it up via its existing /messages poll loop and renders it as a
+// conversation from "كوبوينتو".
+router.post("/users/:id/message", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const text = String(req.body?.message ?? "").trim();
+  if (!text)            return res.status(400).json({ error: "الرسالة مطلوبة" });
+  if (text.length > 1000) return res.status(400).json({ error: "الرسالة طويلة جداً (الحد الأقصى 1000 حرف)" });
+  const msg: ChatMsg = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+    kind: "friend",
+    scope: friendScope(COPOINTO_ADMIN_ID, user.id),
+    senderId: COPOINTO_ADMIN_ID,
+    text,
+    createdAt: new Date().toISOString(),
+    seenBy: [COPOINTO_ADMIN_ID],
+  };
+  chatMessages.push(msg);
+  persistStore();
+  res.json({ ok: true, message: msg });
 });
 
 // ── POST /api/admin/broadcasts ─────────────

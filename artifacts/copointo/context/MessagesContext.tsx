@@ -30,6 +30,14 @@ const STORAGE_KEY_CHATS  = "copointo_chats_v2";
 const STORAGE_KEY_UNREAD = "copointo_unread_v2";
 const STORAGE_KEY_GROUPS = "copointo_groups_v2";
 
+// Reserved sender id used by the super-admin direct-message endpoint
+// (`POST /api/admin/users/:id/message`). Conversations whose convId is
+// `friend_${COPOINTO_ADMIN_ID}` are rendered as coming from "كوبوينتو".
+export const COPOINTO_ADMIN_ID = "copointo-admin";
+const COPOINTO_ADMIN_CONV      = `friend_${COPOINTO_ADMIN_ID}`;
+const COPOINTO_ADMIN_NAME      = "كوبوينتو";
+const COPOINTO_ADMIN_AVATAR    = "☕";
+
 const chatsKey  = (uid: string) => `${STORAGE_KEY_CHATS}:${uid}`;
 const unreadKey = (uid: string) => `${STORAGE_KEY_UNREAD}:${uid}`;
 const groupsKey = (uid: string) => `${STORAGE_KEY_GROUPS}:${uid}`;
@@ -124,6 +132,24 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const convList = useMemo<Message[]>(() => {
     if (!user) return [];
     const out: Message[] = [];
+
+    // System "Copointo" conversation: appears whenever the super-admin has
+    // ever sent a direct message to this user. Pinned to the top so the
+    // brand message is impossible to miss.
+    const adminHistory = chats[COPOINTO_ADMIN_CONV] ?? [];
+    if (adminHistory.length > 0) {
+      const last = adminHistory[adminHistory.length - 1];
+      out.push({
+        id: COPOINTO_ADMIN_CONV,
+        senderId: COPOINTO_ADMIN_ID,
+        senderName: COPOINTO_ADMIN_NAME,
+        senderAvatar: COPOINTO_ADMIN_AVATAR,
+        preview: last ? last.text : "رسالة من كوبوينتو",
+        timestamp: last ? last.time : "الآن",
+        unread: unreadMap[COPOINTO_ADMIN_CONV] ?? 0,
+        type: "user",
+      });
+    }
 
     // Friends
     for (const fid of friends) {
