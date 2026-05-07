@@ -43,6 +43,7 @@ function HomePage() {
     {
       href:    "/copointo-hub",
       Icon:    Gamepad2,
+      iconImg: logoUrl,
       label:   "Copointo Hub",
       sub:     "إدارة لاعبي اللعبة وإيقافهم",
       grad:    "from-[#0A0606] via-[#050303] to-black",
@@ -71,11 +72,13 @@ function HomePage() {
 
       {/* Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-4xl">
-        {cards.map(({ href, Icon, label, sub, grad, border }) => (
+        {cards.map(({ href, Icon, iconImg, label, sub, grad, border }) => (
           <Link key={href} href={href}
             className={`group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 group-hover:bg-[#E8B86D]/20 transition-colors">
-              <Icon size={32} className="text-[#E8B86D]" strokeWidth={1.75} />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 group-hover:bg-[#E8B86D]/20 transition-colors overflow-hidden">
+              {iconImg
+                ? <img src={iconImg} alt="" className="w-full h-full object-contain p-1.5" />
+                : <Icon size={32} className="text-[#E8B86D]" strokeWidth={1.75} />}
             </div>
             <div className="text-center">
               <p className="text-[#E8B86D] font-bold text-lg">{label}</p>
