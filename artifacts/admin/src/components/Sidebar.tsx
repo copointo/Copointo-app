@@ -1,11 +1,12 @@
 import { Link } from "wouter";
-import { LayoutDashboard, Coffee, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Coffee, Users, AlertCircle, LogOut } from "lucide-react";
 import logoUrl from "@/assets/copointo-logo.png";
 
 const nav = [
   { href: "/",       icon: LayoutDashboard, label: "لوحة التحكم" },
   { href: "/cafes",  icon: Coffee,          label: "الكافيهات"   },
   { href: "/users",  icon: Users,           label: "المستخدمون"  },
+  { href: "/reports",icon: AlertCircle,     label: "البلاغات"    },
 ];
 
 export default function Sidebar({ active }: { active: string }) {

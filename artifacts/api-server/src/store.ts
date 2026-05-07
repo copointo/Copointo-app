@@ -242,6 +242,26 @@ export interface Broadcast {
 }
 export const broadcasts: Broadcast[] = [];
 
+// ─── User-submitted reports (problem / cafe complaint) ───────────────────
+// Two flavours, both visible to the super-admin in the "البلاغات" tab:
+//   - kind: "problem" → general support / bug report from the support screen
+//   - kind: "cafe"    → complaint about a specific cafe (cafeId required)
+export interface Report {
+  id: string;
+  kind: "problem" | "cafe";
+  name: string;
+  phone: string;
+  description: string;
+  /** Only set when kind === "cafe". */
+  cafeId?: string;
+  cafeName?: string;
+  /** Reporter user id snapshot (if logged in). */
+  reporterUserId?: string;
+  status: "open" | "resolved";
+  createdAt: string;
+}
+export const reports: Report[] = [];
+
 // ─── Cafe ratings (1-5 stars, one per user per cafe) ────────────────────
 // Each user may rate any cafe once; submitting again UPSERTS their rating.
 // The cafe's displayed rating is the average of all entries here (rounded
@@ -370,6 +390,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
+  reports,
 };
 
 function loadFromDisk() {

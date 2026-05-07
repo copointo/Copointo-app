@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { cafes, users, broadcasts, chatMessages, friendScope, persistStore, type Cafe, type Broadcast, type ChatMsg } from "../store";
+import { cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports, type Cafe, type Broadcast, type ChatMsg, type Report } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 // Special "sender id" used when the super-admin direct-messages a user.
@@ -249,6 +249,48 @@ router.delete("/broadcasts/:id", (req, res): any => {
   const i = broadcasts.findIndex(b => b.id === req.params.id);
   if (i === -1) return res.status(404).json({ error: "Broadcast not found" });
   broadcasts.splice(i, 1);
+  res.json({ ok: true });
+});
+
+// ── GET /api/admin/reports ─────────────────
+// Returns every user-submitted report (newest first). For "cafe" reports we
+// enrich with the live cafe details so the super-admin can act on the
+// complaint without a second lookup.
+router.get("/reports", (_req, res) => {
+  const enriched = [...reports]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(r => {
+      if (r.kind !== "cafe" || !r.cafeId) return r;
+      const cafe = cafes.find(c => c.id === r.cafeId);
+      return {
+        ...r,
+        cafe: cafe ? {
+          id: cafe.id, name: cafe.name, logo: cafe.logo, image: cafe.image,
+          ownerName: cafe.ownerName, ownerPhone: cafe.ownerPhone,
+          address: cafe.address, active: cafe.active,
+        } : null,
+      };
+    });
+  res.json({ reports: enriched });
+});
+
+// ── PATCH /api/admin/reports/:id ────────────
+// Toggle status open ↔ resolved.
+router.patch("/reports/:id", (req, res): any => {
+  const r = reports.find(x => x.id === req.params.id);
+  if (!r) return res.status(404).json({ error: "Report not found" });
+  const next = req.body?.status === "resolved" ? "resolved" : "open";
+  r.status = next;
+  persistStore();
+  res.json({ report: r });
+});
+
+// ── DELETE /api/admin/reports/:id ───────────
+router.delete("/reports/:id", (req, res): any => {
+  const i = reports.findIndex(x => x.id === req.params.id);
+  if (i === -1) return res.status(404).json({ error: "Report not found" });
+  reports.splice(i, 1);
+  persistStore();
   res.json({ ok: true });
 });
 

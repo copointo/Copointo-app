@@ -16,7 +16,8 @@ import {
   usernameRegistry, cafeRatings, getCafeRatingStats,
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
-  persistStore, type AppUser, type FriendRequest, type ChatMsg, type Broadcast,
+  reports,
+  persistStore, type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -773,6 +774,46 @@ router.post("/messages/seen", (req, res): any => {
   }
   if (changed > 0) persistStore();
   res.json({ ok: true, updated: changed });
+});
+
+// ─── Public report submission (mobile app) ─────────────────────────────
+// Body: { kind: "problem" | "cafe", name, phone, description, cafeId?, reporterUserId? }
+// Stored in `reports` and shown to the super-admin in the "البلاغات" tab.
+router.post("/reports", (req, res): any => {
+  const kind = req.body?.kind === "cafe" ? "cafe" : "problem";
+  const name = String(req.body?.name ?? "").trim();
+  const phone = String(req.body?.phone ?? "").trim();
+  const description = String(req.body?.description ?? "").trim();
+  if (!name)        return res.status(400).json({ error: "الاسم مطلوب" });
+  if (!phone)       return res.status(400).json({ error: "رقم الهاتف مطلوب" });
+  if (!description) return res.status(400).json({ error: "وصف المشكلة مطلوب" });
+  if (description.length > 2000) return res.status(400).json({ error: "الوصف طويل جداً" });
+
+  let cafeId: string | undefined;
+  let cafeName: string | undefined;
+  if (kind === "cafe") {
+    cafeId = String(req.body?.cafeId ?? "").trim();
+    if (!cafeId) return res.status(400).json({ error: "cafeId مطلوب لبلاغ الكوفي" });
+    const cafe = cafes.find(c => c.id === cafeId);
+    if (!cafe) return res.status(404).json({ error: "الكوفي غير موجود" });
+    cafeName = cafe.name;
+  }
+
+  const r: Report = {
+    id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+    kind,
+    name,
+    phone,
+    description,
+    cafeId,
+    cafeName,
+    reporterUserId: String(req.body?.reporterUserId ?? "").trim() || undefined,
+    status: "open",
+    createdAt: new Date().toISOString(),
+  };
+  reports.push(r);
+  persistStore();
+  res.json({ ok: true, report: r });
 });
 
 export default router;

@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -217,6 +218,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const r = useResponsive();
   const { user, setUser, logout, friends, registeredUsers } = useApp();
+  const router = useRouter();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [authOpen,    setAuthOpen]    = useState(false);
@@ -429,6 +431,16 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ── Support button (above logout) ── */}
+        <TouchableOpacity
+          style={styles.supportBtn}
+          onPress={() => router.push("/support")}
+          activeOpacity={0.85}
+        >
+          <Feather name="help-circle" size={17} color={PRIMARY} />
+          <Text style={styles.supportText}>الدعم</Text>
+        </TouchableOpacity>
+
         {/* ── Logout button ── */}
         <TouchableOpacity
           style={styles.logoutBtn}
@@ -633,6 +645,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: 16, marginTop: 4,
   },
   logoutText: { fontSize: 15, fontFamily: "Inter_700Bold", color: DANGER },
+
+  // Support
+  supportBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: `${PRIMARY}12`, borderWidth: 1, borderColor: `${PRIMARY}40`,
+    paddingVertical: 14, borderRadius: 16, marginTop: 4, marginBottom: 10,
+  },
+  supportText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Modal
   modalOverlay: {

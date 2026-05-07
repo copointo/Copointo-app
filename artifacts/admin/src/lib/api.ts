@@ -27,6 +27,12 @@ export const api = {
   gameBan:     (id: string, reason: string)              => req<any>("POST", `${A}/users/${id}/game-ban`,     { reason }),
   gameSuspend: (id: string, days: number, reason: string) => req<any>("POST", `${A}/users/${id}/game-suspend`, { days, reason }),
   gameClear:   (id: string)                              => req<any>("POST", `${A}/users/${id}/game-clear`),
+  // User-submitted reports (problem / cafe complaint)
+  getReports:        ()              => req<any>("GET",    `${A}/reports`),
+  resolveReport:     (id: string, status: "open" | "resolved") =>
+                                        req<any>("PATCH",  `${A}/reports/${id}`, { status }),
+  deleteReport:      (id: string)    => req<any>("DELETE", `${A}/reports/${id}`),
+
   // Broadcast notifications to all game users
   getBroadcasts:    ()                  => req<any>("GET",    `${A}/broadcasts`),
   sendBroadcast:    (message: string)   => req<any>("POST",   `${A}/broadcasts`, { message }),

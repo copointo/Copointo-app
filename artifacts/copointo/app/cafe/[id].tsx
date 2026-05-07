@@ -6,16 +6,19 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Image,
   ImageBackground,
+  KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -57,6 +60,45 @@ export default function CafeLandingScreen() {
   // Rating panel state
   const [myStars, setMyStars] = useState(0);          // current user's rating (0 = not rated yet)
   const [submitting, setSubmitting] = useState(false);
+
+  // Cafe-report modal state. Pre-fills name + phone from the logged-in user
+  // (still editable). Posts to /api/reports with kind="cafe" and the cafe id
+  // so the super-admin can see the full cafe details next to the report.
+  const [reportOpen, setReportOpen]       = useState(false);
+  const [reportName, setReportName]       = useState("");
+  const [reportPhone, setReportPhone]     = useState("");
+  const [reportDesc, setReportDesc]       = useState("");
+  const [reportSending, setReportSending] = useState(false);
+  const openReport = () => {
+    setReportName(user?.name ?? "");
+    setReportPhone(user?.phone ?? "");
+    setReportDesc("");
+    setReportOpen(true);
+  };
+  const submitReport = async () => {
+    const name = reportName.trim();
+    const phone = reportPhone.trim();
+    const description = reportDesc.trim();
+    if (!name || !phone || !description) {
+      Alert.alert("بيانات ناقصة", "الرجاء تعبئة الاسم ورقم الهاتف ووصف المشكلة.");
+      return;
+    }
+    setReportSending(true);
+    try {
+      await apiPost("/reports", {
+        kind: "cafe",
+        cafeId: id,
+        name, phone, description,
+        reporterUserId: user?.id,
+      });
+      setReportOpen(false);
+      Alert.alert("تم الإرسال", "تم استلام بلاغك وسيتم مراجعته قريباً. شكراً لك.");
+    } catch {
+      Alert.alert("تعذر الإرسال", "حدث خطأ أثناء إرسال البلاغ. حاول لاحقاً.");
+    } finally {
+      setReportSending(false);
+    }
+  };
 
   // User location states
   const [userLoc,        setUserLoc]        = useState<{ lat: number; lng: number } | null>(null);
@@ -523,7 +565,86 @@ export default function CafeLandingScreen() {
                 : "التقييم اختياري — اضغط على عدد النجوم"}
           </Text>
         </View>
+
+        {/* ── Report cafe button ── */}
+        <TouchableOpacity
+          style={styles.reportBtn}
+          activeOpacity={0.85}
+          onPress={openReport}
+        >
+          <Feather name="flag" size={15} color="#E55353" />
+          <Text style={styles.reportBtnText}>الإبلاغ عن هذا الكوفي</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* ── Report modal ── */}
+      <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.reportOverlay}>
+          <View style={styles.reportCard}>
+            <TouchableOpacity style={styles.reportClose} onPress={() => setReportOpen(false)}>
+              <Feather name="x" size={20} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+            <View style={styles.reportHeader}>
+              <View style={styles.reportIconWrap}>
+                <Feather name="flag" size={20} color="#E55353" />
+              </View>
+              <Text style={styles.reportTitle}>الإبلاغ عن الكوفي</Text>
+              <Text style={styles.reportSub}>{cafe.name}</Text>
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.reportLabel}>الاسم</Text>
+              <TextInput
+                style={styles.reportInput}
+                value={reportName}
+                onChangeText={setReportName}
+                placeholder="اسمك الكامل"
+                placeholderTextColor="rgba(255,255,255,0.30)"
+                textAlign="right"
+              />
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.reportLabel}>رقم الهاتف</Text>
+              <TextInput
+                style={styles.reportInput}
+                value={reportPhone}
+                onChangeText={setReportPhone}
+                placeholder="9XXXXXXX"
+                placeholderTextColor="rgba(255,255,255,0.30)"
+                keyboardType="phone-pad"
+                textAlign="right"
+              />
+            </View>
+
+            <View style={styles.reportField}>
+              <Text style={styles.reportLabel}>وصف المشكلة</Text>
+              <TextInput
+                style={[styles.reportInput, styles.reportTextarea]}
+                value={reportDesc}
+                onChangeText={setReportDesc}
+                placeholder="اشرح ما الذي حصل بالضبط…"
+                placeholderTextColor="rgba(255,255,255,0.30)"
+                multiline
+                textAlignVertical="top"
+                textAlign="right"
+                maxLength={2000}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[styles.reportSubmit, reportSending && { opacity: 0.6 }]}
+              activeOpacity={0.85}
+              disabled={reportSending}
+              onPress={submitReport}
+            >
+              {reportSending
+                ? <ActivityIndicator color="#FFF" />
+                : <Text style={styles.reportSubmitText}>إرسال البلاغ</Text>}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -604,6 +725,53 @@ const styles = StyleSheet.create({
   },
   starBtn: { padding: 4 },
   ratingHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)", textAlign: "center", marginTop: 2 },
+
+  // Report cafe button + modal
+  reportBtn: {
+    marginTop: 6, marginBottom: 4,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "rgba(229,83,83,0.10)",
+    borderWidth: 1, borderColor: "rgba(229,83,83,0.35)",
+    paddingVertical: 12, borderRadius: 14,
+  },
+  reportBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E55353" },
+  reportOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.78)",
+    alignItems: "center", justifyContent: "center", padding: 20,
+  },
+  reportCard: {
+    width: "100%", maxWidth: 440, backgroundColor: "#0F0606",
+    borderRadius: 24, padding: 22, gap: 14,
+    borderWidth: 1, borderColor: BORDER, position: "relative",
+  },
+  reportClose: {
+    position: "absolute", top: 10, left: 10, zIndex: 10,
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+  },
+  reportHeader: { alignItems: "center", gap: 6, marginBottom: 4 },
+  reportIconWrap: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: "rgba(229,83,83,0.15)",
+    borderWidth: 1, borderColor: "rgba(229,83,83,0.40)",
+    alignItems: "center", justifyContent: "center",
+  },
+  reportTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
+  reportSub:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)" },
+  reportField: { gap: 6 },
+  reportLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
+  reportInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1, borderColor: BORDER, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 11,
+    fontSize: 14, fontFamily: "Inter_500Medium", color: "#FFF",
+  },
+  reportTextarea: { minHeight: 110, paddingTop: 12 },
+  reportSubmit: {
+    backgroundColor: "#E55353", borderRadius: 14,
+    paddingVertical: 14, alignItems: "center", marginTop: 4,
+  },
+  reportSubmitText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
 
   // Location permission prompt (bottom sheet)
   promptBackdrop: {
