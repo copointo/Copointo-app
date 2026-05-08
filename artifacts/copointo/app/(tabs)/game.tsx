@@ -530,6 +530,24 @@ export default function GameScreen() {
           )}
         </TouchableOpacity>
 
+        {/* Store */}
+        <TouchableOpacity
+          style={styles.fabSmall}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/store"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="shopping-bag" size={22} color={PRIMARY} />
+        </TouchableOpacity>
+
+        {/* My Collection */}
+        <TouchableOpacity
+          style={styles.fabSmall}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="package" size={22} color={PRIMARY} />
+        </TouchableOpacity>
+
         {/* Leaderboard - purple distinctive */}
         <TouchableOpacity
           style={styles.fabLeaderboard}
