@@ -268,6 +268,20 @@ export default function GameScreen() {
     <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
      <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
 
+      {/* ── Notifications bell (top-left) ── */}
+      <TouchableOpacity
+        style={[styles.bellTopLeft, { top: topPad + 8 }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
+        activeOpacity={0.85}
+      >
+        <Feather name="bell" size={20} color={PRIMARY} />
+        {(incomingRequests.length + unreadBroadcasts + unreadFreeCoffees) > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{incomingRequests.length + unreadBroadcasts + unreadFreeCoffees}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
       {/* ── Header ── */}
       <View style={styles.header}>
         <Text style={styles.headerLevel}>
@@ -479,20 +493,6 @@ export default function GameScreen() {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
       }]}>
 
-        {/* Notifications */}
-        <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="bell" size={22} color={PRIMARY} />
-          {(incomingRequests.length + unreadBroadcasts + unreadFreeCoffees) > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{incomingRequests.length + unreadBroadcasts + unreadFreeCoffees}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
         {/* Add Friends */}
         <TouchableOpacity
           style={styles.fabSmall}
@@ -688,6 +688,17 @@ const styles = StyleSheet.create({
   overtakeSub: {
     fontSize: 11, fontFamily: "Inter_500Medium",
     color: "rgba(0,0,0,0.75)",
+  },
+  bellTopLeft: {
+    position: "absolute",
+    left: 16,
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#0A0606",
+    borderWidth: 1.5, borderColor: PRIMARY_DIM,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
+    zIndex: 50,
   },
   fabSmall: {
     width: 54, height: 54, borderRadius: 16,
