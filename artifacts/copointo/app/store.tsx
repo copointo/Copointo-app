@@ -24,8 +24,14 @@ export default function StoreScreen() {
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Feather name="arrow-right" size={20} color="#FFF" />
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/");
+          }}
+        >
+          <Feather name="arrow-right" size={20} color={PRIMARY} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>المتجر</Text>
         <View style={styles.balancePanel}>
