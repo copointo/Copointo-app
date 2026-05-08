@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCoins } from "../hooks/useCoins";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -105,6 +106,18 @@ export default function BuyCoinsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const { balance, addCoins } = useCoins();
+
+  const handleBuy = (p: Pack) => {
+    Alert.alert(
+      "تأكيد الشراء",
+      `هل تريد شراء ${fmt(p.coins)} عملة مقابل $${p.price.toFixed(2)}؟`,
+      [
+        { text: "إلغاء", style: "cancel" },
+        { text: "شراء", onPress: async () => { await addCoins(p.coins); } },
+      ],
+    );
+  };
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -113,7 +126,10 @@ export default function BuyCoinsScreen() {
           <Feather name="arrow-right" size={20} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>شراء عملات Copointo</Text>
-        <View style={{ width: 36 }} />
+        <View style={styles.balancePanel}>
+          <Image source={COPOINTO_COIN} style={styles.balanceCoin} />
+          <Text style={styles.balanceText}>{fmt(balance)}</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -121,7 +137,7 @@ export default function BuyCoinsScreen() {
 
         <View style={styles.grid}>
           {PACKS.map(p => (
-            <TouchableOpacity key={p.id} style={styles.tile} activeOpacity={0.85}>
+            <TouchableOpacity key={p.id} style={styles.tile} activeOpacity={0.85} onPress={() => handleBuy(p)}>
               {p.badge ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{p.badge}</Text>
@@ -156,6 +172,17 @@ const styles = StyleSheet.create({
     transform: [{ scaleX: -1 }],
   },
   headerTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
+
+  balancePanel: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1, borderColor: PRIMARY,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14,
+    minWidth: 72, justifyContent: "center",
+  },
+  balanceCoin: { width: 18, height: 18, resizeMode: "contain" },
+  balanceText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   scroll: { padding: 20, paddingBottom: 60 },
   intro: {
