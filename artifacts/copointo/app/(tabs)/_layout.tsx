@@ -25,7 +25,7 @@ function NativeTabLayout() {
         <Label>Videos</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="game">
-        <Icon sf={{ default: "gamecontroller", selected: "gamecontroller.fill" }} />
+        <Icon sf={{ default: "trophy", selected: "trophy.fill" }} />
         <Label>Copointo Hub</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
@@ -127,7 +127,7 @@ function ClassicTabLayout() {
           title: "Copointo Hub",
           tabBarIcon: ({ color }) =>
             isIOS ? (
-              <SymbolView name="gamecontroller" tintColor={color} size={icSize} />
+              <SymbolView name="trophy" tintColor={color} size={icSize} />
             ) : (
               <Feather name="award" size={icSize} color={color} />
             ),
