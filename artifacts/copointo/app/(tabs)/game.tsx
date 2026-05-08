@@ -555,6 +555,16 @@ export default function GameScreen() {
           <Feather name="package" size={22} color={PRIMARY} />
         </TouchableOpacity>
 
+        {/* Levels - gold, same size as leaderboard */}
+        <TouchableOpacity
+          style={styles.fabLevels}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="award" size={26} color="#000" />
+          <Text style={styles.fabLevelsLabel}>المستويات</Text>
+        </TouchableOpacity>
+
         {/* Leaderboard - purple distinctive */}
         <TouchableOpacity
           style={styles.fabLeaderboard}
@@ -567,18 +577,6 @@ export default function GameScreen() {
 
       </View>
      </View>
-
-      {/* Levels - mirrors leaderboard on the left side, outside the centered content */}
-      <TouchableOpacity
-        style={[styles.fabLevels, {
-          bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
-        }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
-        activeOpacity={0.85}
-      >
-        <Feather name="award" size={26} color="#000" />
-        <Text style={styles.fabLevelsLabel}>المستويات</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -824,15 +822,12 @@ const styles = StyleSheet.create({
     color: "#FFF", textAlign: "center",
   },
   fabLevels: {
-    position: "absolute",
-    left: 20,
     width: 88, height: 88, borderRadius: 22,
     alignItems: "center", justifyContent: "center", gap: 4,
     backgroundColor: PRIMARY,
     borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
-    zIndex: 60,
   },
   fabLevelsLabel: {
     fontSize: 11, fontFamily: "Inter_700Bold",
