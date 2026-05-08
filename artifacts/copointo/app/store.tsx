@@ -26,10 +26,7 @@ export default function StoreScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => {
-            if (router.canGoBack()) router.back();
-            else router.replace("/");
-          }}
+          onPress={() => router.replace("/(tabs)/game")}
         >
           <Feather name="arrow-right" size={20} color={PRIMARY} />
         </TouchableOpacity>
