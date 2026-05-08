@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useCoins } from "@/hooks/useCoins";
+
+const COPOINTO_COIN = require("../../assets/images/copointo-coin.png");
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, DAILY_LEVEL_CAP } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
@@ -63,6 +67,7 @@ export default function GameScreen() {
     (activeGameCafeId && cafeProgress[activeGameCafeId]) ? activeGameCafeId
     : (cafeIds[0] ?? null);
   const activeCafe = effectiveCafeId ? cafeProgress[effectiveCafeId] : null;
+  const { balance: coinBalance } = useCoins();
 
   // Auto-heal stale activeGameCafeId (e.g. after data wipe).
   useEffect(() => {
@@ -317,12 +322,14 @@ export default function GameScreen() {
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
-          style={styles.cafePillEmpty}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
+          style={styles.coinsPill}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/buy-coins"); }}
           activeOpacity={0.85}
         >
-          <Feather name="coffee" size={14} color={PRIMARY} />
-          <Text style={styles.cafePillText}>اطلب من أحد المقاهي لبدء التقدم</Text>
+          <Image source={COPOINTO_COIN} style={styles.coinsPillImg} />
+          <Text style={styles.coinsPillText}>{coinBalance.toLocaleString("en-US")}</Text>
+          <Text style={styles.coinsPillLabel}>عملة Copointo</Text>
+          <Feather name="plus-circle" size={14} color={PRIMARY} />
         </TouchableOpacity>
       )}
 
@@ -759,6 +766,18 @@ const styles = StyleSheet.create({
     fontSize: 12, fontFamily: "Inter_600SemiBold",
     color: PRIMARY, maxWidth: 220,
   },
+  coinsPill: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    alignSelf: "center",
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.08)",
+    marginBottom: 6, maxWidth: "90%",
+  },
+  coinsPillImg: { width: 18, height: 18, resizeMode: "contain" },
+  coinsPillText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
+  coinsPillLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)" },
   dailyCapPill: {
     flexDirection: "row", alignItems: "center", gap: 6,
     alignSelf: "center",
