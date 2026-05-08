@@ -555,6 +555,16 @@ export default function GameScreen() {
           <Feather name="package" size={22} color={PRIMARY} />
         </TouchableOpacity>
 
+        {/* Levels */}
+        <TouchableOpacity
+          style={styles.fabSmall}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/levels"); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="award" size={22} color={PRIMARY} />
+          <Text style={styles.fabSmallLabel}>المستويات</Text>
+        </TouchableOpacity>
+
         {/* Leaderboard - purple distinctive */}
         <TouchableOpacity
           style={styles.fabLeaderboard}
@@ -725,6 +735,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: PRIMARY_DIM,
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
+  },
+  fabSmallLabel: {
+    fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY,
+    marginTop: 2,
   },
   badge: {
     position: "absolute", top: -5, right: -5,
