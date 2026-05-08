@@ -64,7 +64,7 @@ export default function CollectionScreen() {
         {/* ════════ FRAMES ════════ */}
         <View style={styles.sectionRow}>
           <View>
-            <Text style={styles.sectionTitle}>الإطارات</Text>
+            <Text style={styles.sectionTitle}>الشارات</Text>
             <Text style={styles.sectionHint}>تلتفّ حول صورة الملف الشخصي</Text>
           </View>
           {equippedFrame && (
@@ -131,7 +131,7 @@ export default function CollectionScreen() {
         {/* ════════ BADGES ════════ */}
         <View style={[styles.sectionRow, { marginTop: 8 }]}>
           <View>
-            <Text style={styles.sectionTitle}>الشارات</Text>
+            <Text style={styles.sectionTitle}>الأوسمة</Text>
             <Text style={styles.sectionHint}>تظهر بجانب اسمك في التصنيف والملف</Text>
           </View>
           {equippedBadge && (
