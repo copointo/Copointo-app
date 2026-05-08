@@ -282,6 +282,15 @@ export default function GameScreen() {
         )}
       </TouchableOpacity>
 
+      {/* ── Add friend (top-right) ── */}
+      <TouchableOpacity
+        style={[styles.addFriendTopRight, { top: topPad + 8 }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
+        activeOpacity={0.85}
+      >
+        <Feather name="user-plus" size={20} color={PRIMARY} />
+      </TouchableOpacity>
+
       {/* ── Header ── */}
       <View style={styles.header}>
         <Text style={styles.headerLevel}>
@@ -493,15 +502,6 @@ export default function GameScreen() {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
       }]}>
 
-        {/* Add Friends */}
-        <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="user-plus" size={22} color={PRIMARY} />
-        </TouchableOpacity>
-
         {/* Communities */}
         <TouchableOpacity
           style={styles.fabSmall}
@@ -692,6 +692,17 @@ const styles = StyleSheet.create({
   bellTopLeft: {
     position: "absolute",
     left: 16,
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#0A0606",
+    borderWidth: 1.5, borderColor: PRIMARY_DIM,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
+    zIndex: 50,
+  },
+  addFriendTopRight: {
+    position: "absolute",
+    right: 16,
     width: 42, height: 42, borderRadius: 21,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#0A0606",
