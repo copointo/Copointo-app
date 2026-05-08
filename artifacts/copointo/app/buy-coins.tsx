@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
-import { Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Alert, Animated, Easing, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCoins } from "../hooks/useCoins";
 
@@ -102,8 +102,78 @@ const visualStyles = StyleSheet.create({
   },
 });
 
+function AnimatedTile({ p, index, onPress }: { p: Pack; index: number; onPress: () => void }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(24)).current;
+  const scale = useRef(new Animated.Value(0.7)).current;
+  const glow = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const delay = index * 110;
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1, duration: 420, delay, useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0, duration: 520, delay,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1, delay, friction: 6, tension: 80, useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(delay + 200),
+        Animated.timing(glow, {
+          toValue: 1, duration: 350, useNativeDriver: false,
+        }),
+        Animated.timing(glow, {
+          toValue: 0.4, duration: 600, useNativeDriver: false,
+        }),
+      ]),
+    ]).start();
+  }, [index, opacity, translateY, scale, glow]);
+
+  const shadowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.85] });
+  const shadowRadius = glow.interpolate({ inputRange: [0, 1], outputRange: [10, 22] });
+
+  return (
+    <Animated.View style={{
+      width: "48%",
+      opacity,
+      transform: [{ translateY }, { scale }],
+    }}>
+      <Animated.View style={[styles.tile, { shadowOpacity, shadowRadius }]}>
+        <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.tileTouch}>
+          {p.badge ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{p.badge}</Text>
+            </View>
+          ) : null}
+          <CoinVisual tier={p.tier} />
+          <View style={styles.coinsRow}>
+            <Text style={styles.coinsText}>{fmt(p.coins)}</Text>
+            <Text style={styles.coinsLabel}>عملة</Text>
+          </View>
+          <View style={styles.priceBtn}>
+            <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
+  const introOpacity = useRef(new Animated.Value(0)).current;
+  const introTranslate = useRef(new Animated.Value(-10)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(introOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.timing(introTranslate, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [introOpacity, introTranslate]);
 
   const handleBuy = (p: Pack) => {
     Alert.alert(
@@ -118,24 +188,12 @@ export function BuyCoinsPanel() {
 
   return (
     <View>
-      <Text style={styles.intro}>اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً</Text>
+      <Animated.Text style={[styles.intro, { opacity: introOpacity, transform: [{ translateY: introTranslate }] }]}>
+        اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً
+      </Animated.Text>
       <View style={styles.grid}>
-        {PACKS.map(p => (
-          <TouchableOpacity key={p.id} style={styles.tile} activeOpacity={0.85} onPress={() => handleBuy(p)}>
-            {p.badge ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{p.badge}</Text>
-              </View>
-            ) : null}
-            <CoinVisual tier={p.tier} />
-            <View style={styles.coinsRow}>
-              <Text style={styles.coinsText}>{fmt(p.coins)}</Text>
-              <Text style={styles.coinsLabel}>عملة</Text>
-            </View>
-            <View style={styles.priceBtn}>
-              <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
-            </View>
-          </TouchableOpacity>
+        {PACKS.map((p, i) => (
+          <AnimatedTile key={p.id} p={p} index={i} onPress={() => handleBuy(p)} />
         ))}
       </View>
     </View>
@@ -202,15 +260,13 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 14 },
   tile: {
-    width: "48%",
     backgroundColor: "#0A0606",
-    borderRadius: 18, padding: 14,
+    borderRadius: 18,
     borderWidth: 1, borderColor: BORDER,
-    alignItems: "center",
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.25, shadowRadius: 14, elevation: 4,
-    paddingTop: 18,
   },
+  tileTouch: { padding: 14, paddingTop: 18, alignItems: "center" },
   badge: {
     position: "absolute", top: -8, alignSelf: "center",
     backgroundColor: PRIMARY,
