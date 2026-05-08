@@ -566,8 +566,9 @@ export default function GameScreen() {
         </TouchableOpacity>
 
       </View>
+     </View>
 
-      {/* Levels - mirrors leaderboard on the left side */}
+      {/* Levels - mirrors leaderboard on the left side, outside the centered content */}
       <TouchableOpacity
         style={[styles.fabLevels, {
           bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
@@ -578,7 +579,6 @@ export default function GameScreen() {
         <Feather name="award" size={26} color="#000" />
         <Text style={styles.fabLevelsLabel}>المستويات</Text>
       </TouchableOpacity>
-     </View>
     </View>
   );
 }
@@ -832,6 +832,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
+    zIndex: 60,
   },
   fabLevelsLabel: {
     fontSize: 11, fontFamily: "Inter_700Bold",
