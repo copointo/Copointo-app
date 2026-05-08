@@ -102,11 +102,8 @@ const visualStyles = StyleSheet.create({
   },
 });
 
-export default function BuyCoinsScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const { balance, addCoins } = useCoins();
+export function BuyCoinsPanel() {
+  const { addCoins } = useCoins();
 
   const handleBuy = (p: Pack) => {
     Alert.alert(
@@ -118,6 +115,38 @@ export default function BuyCoinsScreen() {
       ],
     );
   };
+
+  return (
+    <View>
+      <Text style={styles.intro}>اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً</Text>
+      <View style={styles.grid}>
+        {PACKS.map(p => (
+          <TouchableOpacity key={p.id} style={styles.tile} activeOpacity={0.85} onPress={() => handleBuy(p)}>
+            {p.badge ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{p.badge}</Text>
+              </View>
+            ) : null}
+            <CoinVisual tier={p.tier} />
+            <View style={styles.coinsRow}>
+              <Text style={styles.coinsText}>{fmt(p.coins)}</Text>
+              <Text style={styles.coinsLabel}>عملة</Text>
+            </View>
+            <View style={styles.priceBtn}>
+              <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export default function BuyCoinsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const { balance } = useCoins();
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -133,27 +162,7 @@ export default function BuyCoinsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.intro}>اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً</Text>
-
-        <View style={styles.grid}>
-          {PACKS.map(p => (
-            <TouchableOpacity key={p.id} style={styles.tile} activeOpacity={0.85} onPress={() => handleBuy(p)}>
-              {p.badge ? (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{p.badge}</Text>
-                </View>
-              ) : null}
-              <CoinVisual tier={p.tier} />
-              <View style={styles.coinsRow}>
-                <Text style={styles.coinsText}>{fmt(p.coins)}</Text>
-                <Text style={styles.coinsLabel}>عملة</Text>
-              </View>
-              <View style={styles.priceBtn}>
-                <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <BuyCoinsPanel />
       </ScrollView>
     </View>
   );
