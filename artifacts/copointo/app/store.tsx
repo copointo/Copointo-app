@@ -38,6 +38,18 @@ export default function StoreScreen() {
           </View>
           <Feather name="chevron-left" size={22} color={PRIMARY} />
         </TouchableOpacity>
+
+        {/* Item Shop card */}
+        <TouchableOpacity style={styles.card} activeOpacity={0.85}>
+          <View style={styles.iconWrap}>
+            <Feather name="shopping-bag" size={28} color={PRIMARY} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Item Shop</Text>
+            <Text style={styles.cardSub}>تصفّح العناصر والمزايا المتاحة للشراء</Text>
+          </View>
+          <Feather name="chevron-left" size={22} color={PRIMARY} />
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -72,6 +84,12 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   coinImg: { width: 64, height: 64, resizeMode: "contain" },
+  iconWrap: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", justifyContent: "center",
+  },
   cardTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4 },
   cardSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", lineHeight: 18 },
 });
