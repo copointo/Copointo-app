@@ -29,7 +29,7 @@ export default function StoreScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.row}>
           {/* Buy Coins card */}
-          <TouchableOpacity style={styles.tile} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.tile} activeOpacity={0.85} onPress={() => router.push("/buy-coins")}>
             <View style={styles.tileIconWrap}>
               <Image source={COPOINTO_COIN} style={styles.tileCoin} />
             </View>
