@@ -17,7 +17,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
-import { COMMUNITY_MAX_MEMBERS } from "@/data/mockData";
+import {
+  COMMUNITY_MAX_MEMBERS,
+  COMMUNITY_ROLE_LABEL_AR,
+  CommunityRole,
+  getCommunityRole,
+} from "@/data/mockData";
 
 const BG     = "#000000";
 const CARD   = "#0A0606";
@@ -34,6 +39,7 @@ export default function CommunityInfoScreen() {
   const {
     getCommunity, getCommunityScore, rankingList,
     updateCommunity, removeMember, leaveCommunity, inviteToCommunity,
+    setMemberRole,
     refresh,
   } = useCommunities();
 
@@ -91,8 +97,36 @@ export default function CommunityInfoScreen() {
     );
   }
 
-  const isCreator = community.createdBy === user?.id;
+  const myRole: CommunityRole | null = user ? getCommunityRole(community, user.id) : null;
+  const isLeader = myRole === "leader";
+  const isVice   = myRole === "vice";
+  const isCreator = isLeader; // backward-compat alias used in styling/permissions
   const score = getCommunityScore(community.id);
+
+  const roleColor = (role: CommunityRole): string => {
+    switch (role) {
+      case "leader": return "#FFD700";
+      case "vice":   return "#E8B86D";
+      case "senior": return "#7FB7E8";
+      default:       return "rgba(255,255,255,0.55)";
+    }
+  };
+  const roleIcon = (role: CommunityRole): string => {
+    switch (role) {
+      case "leader": return "👑";
+      case "vice":   return "⭐";
+      case "senior": return "🎖️";
+      default:       return "👤";
+    }
+  };
+
+  const handleSetRole = async (mid: string, next: CommunityRole) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setErr("");
+    const r = await setMemberRole(community.id, mid, next);
+    if (!r.ok) setErr(r.error);
+    else Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
 
   const pickAvatar = async () => {
     if (!isCreator) return;
@@ -241,7 +275,7 @@ export default function CommunityInfoScreen() {
         {/* Members */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>الأعضاء</Text>
-          {isCreator && invitableFriends.length > 0 && community.members.length < COMMUNITY_MAX_MEMBERS && (
+          {(isLeader || isVice) && invitableFriends.length > 0 && community.members.length < COMMUNITY_MAX_MEMBERS && (
             <TouchableOpacity
               style={styles.addMemberBtn}
               onPress={() => {
@@ -258,10 +292,35 @@ export default function CommunityInfoScreen() {
 
         {memberUsers
           .slice()
-          .sort((a, b) => (b.totalOrders ?? 0) - (a.totalOrders ?? 0))
+          .sort((a, b) => {
+            // Sort by role weight first (leader → vice → senior → member), then by orders
+            const order: Record<CommunityRole, number> = { leader: 0, vice: 1, senior: 2, member: 3 };
+            const ra = order[getCommunityRole(community, a.id)];
+            const rb = order[getCommunityRole(community, b.id)];
+            if (ra !== rb) return ra - rb;
+            return (b.totalOrders ?? 0) - (a.totalOrders ?? 0);
+          })
           .map(m => {
-            const isMe   = m.id === user?.id;
-            const isOwn  = m.id === community.createdBy;
+            const isMe        = m.id === user?.id;
+            const targetRole  = getCommunityRole(community, m.id);
+            const tColor      = roleColor(targetRole);
+            // Permission to act on this member
+            const canPromote =
+              !isMe && (
+                (isLeader && targetRole !== "leader" && targetRole !== "vice") ||
+                (isVice   && targetRole === "member")
+              );
+            const canDemote =
+              !isMe && isLeader && (targetRole === "vice" || targetRole === "senior");
+            const promoteNext: CommunityRole | null =
+              targetRole === "member" ? "senior"
+              : targetRole === "senior" ? "vice"
+              : null;
+            const demoteNext: CommunityRole | null =
+              targetRole === "vice" ? "senior"
+              : targetRole === "senior" ? "member"
+              : null;
+
             return (
               <View key={m.id} style={styles.row}>
                 {m.avatar ? (
@@ -276,28 +335,52 @@ export default function CommunityInfoScreen() {
                 <View style={{ flex: 1 }}>
                   <View style={styles.rowNameRow}>
                     <Text style={styles.rowName}>{isMe ? "أنت" : m.name}</Text>
-                    {isOwn && (
-                      <View style={styles.creatorTag}>
-                        <Text style={styles.creatorTagText}>المنشئ</Text>
-                      </View>
-                    )}
+                    <View style={[styles.roleTag, { backgroundColor: tColor + "22", borderColor: tColor + "55" }]}>
+                      <Text style={[styles.roleTagText, { color: tColor }]}>
+                        {roleIcon(targetRole)} {COMMUNITY_ROLE_LABEL_AR[targetRole]}
+                      </Text>
+                    </View>
                   </View>
                   <Text style={styles.rowSub}>
                     @{m.gameUsername} · ☕ {m.totalOrders ?? 0}
                   </Text>
                 </View>
-                {isCreator && !isMe && (
-                  <TouchableOpacity
-                    style={styles.removeBtn}
-                    onPress={() => handleRemove(m.id)}
-                    activeOpacity={0.8}
-                  >
-                    <Feather name="user-minus" size={14} color="#E8B86D" />
-                  </TouchableOpacity>
-                )}
+
+                {/* Action buttons (promote / demote / remove) */}
+                <View style={styles.actionsCol}>
+                  {canPromote && promoteNext && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.promoteBtn]}
+                      onPress={() => handleSetRole(m.id, promoteNext)}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="chevron-up" size={16} color="#000" />
+                    </TouchableOpacity>
+                  )}
+                  {canDemote && demoteNext && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.demoteBtn]}
+                      onPress={() => handleSetRole(m.id, demoteNext)}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="chevron-down" size={16} color="#E8B86D" />
+                    </TouchableOpacity>
+                  )}
+                  {isLeader && !isMe && (
+                    <TouchableOpacity
+                      style={[styles.actionBtn, styles.removeBtn]}
+                      onPress={() => handleRemove(m.id)}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="user-minus" size={14} color="#FF6B6B" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             );
           })}
+
+        {!!err && <Text style={styles.err}>{err}</Text>}
 
         <TouchableOpacity style={styles.leaveBtn} onPress={handleLeave} activeOpacity={0.85}>
           <Feather name="log-out" size={14} color="#E8B86D" />
@@ -484,17 +567,26 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.45)",
     marginTop: 2,
   },
-  creatorTag: {
-    backgroundColor: ACCENT + "33",
-    borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2,
+  roleTag: {
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+    borderWidth: 1,
   },
-  creatorTagText: {
-    fontSize: 10, fontFamily: "Inter_700Bold", color: ACCENT,
+  roleTagText: {
+    fontSize: 10, fontFamily: "Inter_700Bold",
+  },
+  actionsCol: { flexDirection: "row", gap: 6, alignItems: "center" },
+  actionBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+  },
+  promoteBtn: { backgroundColor: ACCENT },
+  demoteBtn: {
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.45)",
   },
   removeBtn: {
-    width: 32, height: 32, borderRadius: 16,
     backgroundColor: "rgba(255,107,107,0.10)",
-    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,107,107,0.35)",
   },
 
   leaveBtn: {

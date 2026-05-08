@@ -74,6 +74,23 @@ export interface Group {
   createdAt: number;
 }
 
+/** Member roles inside a community. */
+export type CommunityRole = "leader" | "vice" | "senior" | "member";
+
+/** Arabic labels for roles (UI). */
+export const COMMUNITY_ROLE_LABEL_AR: Record<CommunityRole, string> = {
+  leader: "قائد",
+  vice:   "قائد مساعد",
+  senior: "عضو كبير",
+  member: "عضو",
+};
+export const COMMUNITY_ROLE_LABEL_EN: Record<CommunityRole, string> = {
+  leader: "Leader",
+  vice:   "Vice Leader",
+  senior: "Senior Member",
+  member: "Member",
+};
+
 /** A game community / clan. 2-50 members. Score is the sum of members' totalOrders. */
 export interface Community {
   id: string;
@@ -84,10 +101,19 @@ export interface Community {
   members: string[];
   createdBy: string;
   createdAt: number;
+  /** Per-member role. If absent for some user, fallback rule:
+   *  createdBy → "leader", everyone else → "member". */
+  roles?: Record<string, CommunityRole>;
 }
 
 export const COMMUNITY_MIN_MEMBERS = 2;
 export const COMMUNITY_MAX_MEMBERS = 50;
+
+/** Resolve a member's role with backward-compatible fallback. */
+export function getCommunityRole(c: Community, userId: string): CommunityRole {
+  if (c.roles && c.roles[userId]) return c.roles[userId];
+  return userId === c.createdBy ? "leader" : "member";
+}
 
 /** A pending invitation for a user to join a community. */
 export interface CommunityInvite {

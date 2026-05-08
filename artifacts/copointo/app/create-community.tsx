@@ -29,7 +29,8 @@ export default function CreateCommunityScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const { user, friends, registeredUsers } = useApp();
-  const { createCommunity } = useCommunities();
+  const { createCommunity, myActiveCommunity } = useCommunities();
+  const alreadyInOne = !!myActiveCommunity;
 
   const [name, setName]       = useState("");
   const [avatar, setAvatar]   = useState<string | null>(null);
@@ -82,6 +83,10 @@ export default function CreateCommunityScreen() {
 
   const submit = async () => {
     setErr("");
+    if (alreadyInOne) {
+      setErr("أنت بالفعل في مجتمع. غادر المجتمع الحالي أولاً.");
+      return;
+    }
     if (!name.trim()) { setErr("الرجاء إدخال اسم للمجتمع"); return; }
     if (selected.size < 1) { setErr("اختر عضواً واحداً على الأقل"); return; }
     setBusy(true);
@@ -119,6 +124,15 @@ export default function CreateCommunityScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {alreadyInOne && (
+          <View style={[styles.infoBox, { borderColor: "#FF6B6B55", backgroundColor: "rgba(255,107,107,0.10)" }]}>
+            <Feather name="alert-triangle" size={14} color="#FF6B6B" />
+            <Text style={[styles.infoText, { color: "#FFD3D3" }]}>
+              أنت بالفعل عضو في مجتمع ({myActiveCommunity?.name}). لا يمكن الانضمام أو إنشاء أكثر من مجتمع واحد. غادر المجتمع الحالي أولاً.
+            </Text>
+          </View>
+        )}
+
         {/* Avatar picker */}
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={pickAvatar} activeOpacity={0.85} style={styles.avatarWrap}>
@@ -208,10 +222,10 @@ export default function CreateCommunityScreen() {
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
         <TouchableOpacity
-          style={[styles.submitBtn, (busy || friendList.length === 0) && { opacity: 0.5 }]}
+          style={[styles.submitBtn, (busy || friendList.length === 0 || alreadyInOne) && { opacity: 0.5 }]}
           onPress={submit}
           activeOpacity={0.85}
-          disabled={busy || friendList.length === 0}
+          disabled={busy || friendList.length === 0 || alreadyInOne}
         >
           <Feather name="check" size={16} color="#000" />
           <Text style={styles.submitText}>{busy ? "جارٍ الإنشاء..." : "إنشاء وإرسال الدعوات"}</Text>

@@ -11,8 +11,10 @@ import React, {
 import {
   Community,
   CommunityInvite,
+  CommunityRole,
   COMMUNITY_MIN_MEMBERS,
   COMMUNITY_MAX_MEMBERS,
+  getCommunityRole,
 } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 
@@ -30,6 +32,8 @@ export type CommunityActionResult =
 interface CommunityContextValue {
   /** Communities the current user is a confirmed member of (mirrored from creator). */
   myCommunities: Community[];
+  /** The single community the user belongs to (or null). A user can only be in ONE. */
+  myActiveCommunity: Community | null;
   /** Pending invitations for the current user. */
   incomingInvites: CommunityInvite[];
 
@@ -65,6 +69,13 @@ interface CommunityContextValue {
     patch: Partial<Pick<Community, "name" | "avatar">>,
   ) => Promise<CommunityActionResult>;
 
+  /** Promote / demote a member. Permission rules enforced server-side here. */
+  setMemberRole: (
+    communityId: string,
+    userId: string,
+    nextRole: CommunityRole,
+  ) => Promise<CommunityActionResult>;
+
   /** Re-read storage to pick up cross-user changes. */
   refresh: () => Promise<void>;
 }
@@ -98,6 +109,21 @@ function upsertCommunity(list: Community[], c: Community): Community[] {
   const next = [...list];
   next[i] = c;
   return next;
+}
+
+/** Strip a userId from a roles map (return new map). */
+function withoutUserRole(
+  roles: Record<string, CommunityRole> | undefined,
+  userId: string,
+): Record<string, CommunityRole> {
+  const next: Record<string, CommunityRole> = { ...(roles || {}) };
+  delete next[userId];
+  return next;
+}
+
+/** Find the unique vice (or undefined). */
+function findVice(c: Community): string | undefined {
+  return c.members.find(m => getCommunityRole(c, m) === "vice");
 }
 
 export function CommunityProvider({ children }: { children: ReactNode }) {
@@ -171,6 +197,9 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const createCommunity = useCallback(
     async (name: string, inviteUserIds: string[], avatar?: string): Promise<CommunityCreateResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
+      if (myCommunities.length > 0) {
+        return { ok: false, error: "أنت بالفعل في مجتمع. غادر المجتمع الحالي أولاً." };
+      }
       const trimmed = name.trim();
       if (!trimmed) return { ok: false, error: "اسم المجتمع مطلوب" };
       // Final size after everyone accepts. Creator counts as a member.
@@ -189,6 +218,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         members: [user.id], // creator joins immediately; invitees join on accept
         createdBy: user.id,
         createdAt: Date.now(),
+        roles: { [user.id]: "leader" },
       };
 
       // Save locally
@@ -214,17 +244,18 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
 
       return { ok: true, community };
     },
-    [user?.id, user?.name],
+    [user?.id, user?.name, myCommunities],
   );
 
-  /** ────────── inviteToCommunity (add later) — creator only ────────── */
+  /** ────────── inviteToCommunity (add later) — leader/vice can invite ────────── */
   const inviteToCommunity = useCallback(
     async (communityId: string, userIds: string[]): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
       const community = myCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
-      if (community.createdBy !== user.id) {
-        return { ok: false, error: "المنشئ فقط يمكنه إرسال الدعوات" };
+      const myRole = getCommunityRole(community, user.id);
+      if (myRole !== "leader" && myRole !== "vice") {
+        return { ok: false, error: "القائد أو القائد المساعد فقط يمكنه إرسال الدعوات" };
       }
 
       // Dedupe input + drop existing members FIRST, then check the cap.
@@ -260,6 +291,10 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const acceptInvite = useCallback(
     async (communityId: string): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
+      // One-community-per-user rule
+      if (myCommunities.length > 0) {
+        return { ok: false, error: "أنت بالفعل في مجتمع. غادر المجتمع الحالي أولاً لقبول دعوة جديدة." };
+      }
       const invite = incomingInvites.find(i => i.communityId === communityId);
       if (!invite) return { ok: false, error: "الدعوة غير موجودة" };
 
@@ -299,6 +334,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       const updated: Community = {
         ...community,
         members: [...community.members, user.id],
+        roles: { ...(community.roles || {}), [user.id]: "member" },
       };
       // Mirror to all members (including me, via local state)
       await propagate(updated);
@@ -306,7 +342,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
       return { ok: true };
     },
-    [user?.id, incomingInvites, propagate, registeredUsers],
+    [user?.id, incomingInvites, propagate, registeredUsers, myCommunities],
   );
 
   /** ────────── declineInvite ────────── */
@@ -331,12 +367,21 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // If the creator leaves, promote the oldest remaining member to creator
-      const newCreator = community.createdBy === user.id ? remaining[0] : community.createdBy;
+      // If the leader leaves, promote vice (if any) → leader, otherwise oldest remaining member.
+      const leaverIsLeader = getCommunityRole(community, user.id) === "leader";
+      let nextRoles = withoutUserRole(community.roles, user.id);
+      let newCreator = community.createdBy;
+      if (leaverIsLeader) {
+        const vice = findVice(community);
+        const promoted = vice && remaining.includes(vice) ? vice : remaining[0];
+        nextRoles[promoted] = "leader";
+        newCreator = promoted;
+      }
       const updated: Community = {
         ...community,
         members: remaining,
         createdBy: newCreator,
+        roles: nextRoles,
       };
       // Update mirrors for remaining members
       for (const uid of remaining) {
@@ -349,14 +394,14 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     [user?.id, myCommunities, removeFromUser],
   );
 
-  /** ────────── removeMember (creator only) ────────── */
+  /** ────────── removeMember (leader only) ────────── */
   const removeMember = useCallback(
     async (communityId: string, userId: string): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
       const community = myCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
-      if (community.createdBy !== user.id) {
-        return { ok: false, error: "المنشئ فقط يمكنه إزالة الأعضاء" };
+      if (getCommunityRole(community, user.id) !== "leader") {
+        return { ok: false, error: "القائد فقط يمكنه إزالة الأعضاء" };
       }
       if (userId === user.id) {
         return { ok: false, error: "استخدم زر المغادرة" };
@@ -373,7 +418,11 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         return { ok: true };
       }
 
-      const updated: Community = { ...community, members: remaining };
+      const updated: Community = {
+        ...community,
+        members: remaining,
+        roles: withoutUserRole(community.roles, userId),
+      };
       // Update remaining mirrors
       for (const uid of remaining) {
         const existing = await readCommunities(uid);
@@ -388,7 +437,67 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     [user?.id, myCommunities, removeFromUser],
   );
 
-  /** ────────── updateCommunity (creator only) ────────── */
+  /** ────────── setMemberRole ────────── */
+  const setMemberRole = useCallback(
+    async (
+      communityId: string,
+      userId: string,
+      nextRole: CommunityRole,
+    ): Promise<CommunityActionResult> => {
+      if (!user) return { ok: false, error: "غير مسجل دخول" };
+      const community = myCommunities.find(c => c.id === communityId);
+      if (!community) return { ok: false, error: "المجتمع غير موجود" };
+      if (!community.members.includes(userId)) {
+        return { ok: false, error: "العضو غير موجود" };
+      }
+      if (userId === user.id) {
+        return { ok: false, error: "لا يمكنك تغيير رتبتك" };
+      }
+
+      const myRole     = getCommunityRole(community, user.id);
+      const targetRole = getCommunityRole(community, userId);
+
+      if (nextRole === targetRole) return { ok: true };
+      if (nextRole === "leader") {
+        return { ok: false, error: "لا يمكن تعيين قائد آخر" };
+      }
+
+      // Permission matrix
+      if (myRole === "leader") {
+        // Leader can set member ↔ senior ↔ vice (cap one vice).
+        if (targetRole === "leader") {
+          return { ok: false, error: "لا يمكن تخفيض القائد" };
+        }
+      } else if (myRole === "vice") {
+        // Vice can ONLY promote member → senior.
+        if (!(targetRole === "member" && nextRole === "senior")) {
+          return { ok: false, error: "القائد المساعد يستطيع فقط ترقية الأعضاء إلى أعضاء كبار" };
+        }
+      } else {
+        return { ok: false, error: "لا تملك صلاحية تغيير الرتب" };
+      }
+
+      // Build new roles map
+      const newRoles: Record<string, CommunityRole> = { ...(community.roles || {}) };
+
+      // If promoting to vice, demote any existing vice → senior (only one vice).
+      if (nextRole === "vice") {
+        for (const m of community.members) {
+          if (m !== userId && getCommunityRole(community, m) === "vice") {
+            newRoles[m] = "senior";
+          }
+        }
+      }
+      newRoles[userId] = nextRole;
+
+      const updated: Community = { ...community, roles: newRoles };
+      await propagate(updated);
+      return { ok: true };
+    },
+    [user?.id, myCommunities, propagate],
+  );
+
+  /** ────────── updateCommunity (leader only) ────────── */
   const updateCommunity = useCallback(
     async (
       communityId: string,
@@ -397,8 +506,8 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
       const community = myCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
-      if (community.createdBy !== user.id) {
-        return { ok: false, error: "المنشئ فقط يمكنه التعديل" };
+      if (getCommunityRole(community, user.id) !== "leader") {
+        return { ok: false, error: "القائد فقط يمكنه التعديل" };
       }
       const updated: Community = {
         ...community,
@@ -455,8 +564,11 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       .sort((a, b) => b.score - a.score);
   }, [myCommunities, registeredUsers]);
 
+  const myActiveCommunity = myCommunities[0] ?? null;
+
   const value: CommunityContextValue = {
     myCommunities,
+    myActiveCommunity,
     incomingInvites,
     getCommunity,
     getCommunityScore,
@@ -468,6 +580,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     leaveCommunity,
     removeMember,
     updateCommunity,
+    setMemberRole,
     refresh,
   };
 

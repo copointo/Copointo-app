@@ -24,7 +24,8 @@ export default function CommunityInvitesScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const { incomingInvites, acceptInvite, declineInvite, refresh } = useCommunities();
+  const { incomingInvites, acceptInvite, declineInvite, refresh, myActiveCommunity } = useCommunities();
+  const alreadyInOne = !!myActiveCommunity;
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr]       = useState("");
@@ -65,6 +66,14 @@ export default function CommunityInvitesScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
       >
+        {alreadyInOne && (
+          <View style={styles.warnBox}>
+            <Feather name="alert-triangle" size={14} color="#FF6B6B" />
+            <Text style={styles.warnText}>
+              أنت بالفعل في مجتمع ({myActiveCommunity?.name}). غادر مجتمعك الحالي أولاً لقبول دعوة جديدة.
+            </Text>
+          </View>
+        )}
         {!!err && <Text style={styles.err}>{err}</Text>}
 
         {incomingInvites.length === 0 ? (
@@ -94,9 +103,9 @@ export default function CommunityInvitesScreen() {
 
               <View style={styles.actions}>
                 <TouchableOpacity
-                  style={[styles.acceptBtn, busyId === inv.communityId && { opacity: 0.5 }]}
+                  style={[styles.acceptBtn, (busyId === inv.communityId || alreadyInOne) && { opacity: 0.5 }]}
                   onPress={() => handleAccept(inv.communityId)}
-                  disabled={busyId === inv.communityId}
+                  disabled={busyId === inv.communityId || alreadyInOne}
                   activeOpacity={0.85}
                 >
                   <Feather name="check" size={14} color="#000" />
@@ -189,5 +198,17 @@ const styles = StyleSheet.create({
   err: {
     color: "#FF6B6B", textAlign: "center",
     marginBottom: 10, fontSize: 13, fontFamily: "Inter_500Medium",
+  },
+  warnBox: {
+    flexDirection: "row-reverse", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: "rgba(255,107,107,0.10)",
+    borderRadius: 12, marginBottom: 12,
+    borderWidth: 1, borderColor: "rgba(255,107,107,0.35)",
+  },
+  warnText: {
+    flex: 1, color: "#FFD3D3",
+    fontSize: 12, fontFamily: "Inter_500Medium",
+    textAlign: "right",
   },
 });

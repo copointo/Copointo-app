@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
+import { COMMUNITY_ROLE_LABEL_AR, getCommunityRole } from "@/data/mockData";
 
 const BG     = "#000000";
 const CARD   = "#0A0606";
@@ -30,11 +31,13 @@ export default function CommunitiesScreen() {
   const { user } = useApp();
   const {
     myCommunities,
+    myActiveCommunity,
     rankingList,
     incomingInvites,
     getCommunityScore,
     refresh,
   } = useCommunities();
+  const alreadyInOne = !!myActiveCommunity;
 
   const [tab, setTab] = useState<Tab>("mine");
 
@@ -105,9 +108,10 @@ export default function CommunitiesScreen() {
                 ابدأ بإنشاء مجتمع وادعُ أصدقاءك لمنافسة المجتمعات الأخرى.
               </Text>
               <TouchableOpacity
-                style={styles.emptyCta}
-                onPress={() => router.push("/create-community")}
+                style={[styles.emptyCta, alreadyInOne && { opacity: 0.5 }]}
+                onPress={() => { if (!alreadyInOne) router.push("/create-community"); }}
                 activeOpacity={0.85}
+                disabled={alreadyInOne}
               >
                 <Feather name="plus" size={14} color="#000" />
                 <Text style={styles.emptyCtaText}>إنشاء مجتمع</Text>
@@ -119,7 +123,12 @@ export default function CommunitiesScreen() {
               .sort((a, b) => getCommunityScore(b.id) - getCommunityScore(a.id))
               .map(c => {
                 const score = getCommunityScore(c.id);
-                const isOwn = c.createdBy === user?.id;
+                const myRole = user ? getCommunityRole(c, user.id) : null;
+                const roleColor =
+                  myRole === "leader" ? "#FFD700" :
+                  myRole === "vice"   ? "#E8B86D" :
+                  myRole === "senior" ? "#7FB7E8" :
+                  "rgba(255,255,255,0.55)";
                 return (
                   <TouchableOpacity
                     key={c.id}
@@ -140,9 +149,11 @@ export default function CommunitiesScreen() {
                     <View style={{ flex: 1 }}>
                       <View style={styles.rowNameRow}>
                         <Text style={styles.commName} numberOfLines={1}>{c.name}</Text>
-                        {isOwn && (
-                          <View style={styles.creatorTag}>
-                            <Text style={styles.creatorTagText}>المنشئ</Text>
+                        {myRole && (
+                          <View style={[styles.creatorTag, { backgroundColor: roleColor + "22", borderColor: roleColor + "55", borderWidth: 1 }]}>
+                            <Text style={[styles.creatorTagText, { color: roleColor }]}>
+                              {COMMUNITY_ROLE_LABEL_AR[myRole]}
+                            </Text>
                           </View>
                         )}
                       </View>
@@ -209,18 +220,20 @@ export default function CommunitiesScreen() {
         )}
       </ScrollView>
 
-      {/* FAB - create */}
-      <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 20 }]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          router.push("/create-community");
-        }}
-        activeOpacity={0.85}
-      >
-        <Feather name="plus" size={20} color="#000" />
-        <Text style={styles.fabText}>إنشاء مجتمع</Text>
-      </TouchableOpacity>
+      {/* FAB - create (hidden when user is already in a community) */}
+      {!alreadyInOne && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 20 }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            router.push("/create-community");
+          }}
+          activeOpacity={0.85}
+        >
+          <Feather name="plus" size={20} color="#000" />
+          <Text style={styles.fabText}>إنشاء مجتمع</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
