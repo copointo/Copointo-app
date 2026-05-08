@@ -15,16 +15,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, type CafeProgress, type User } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { getRank } from "@/data/mockData";
 
 type LeaderTab = "friends" | "oman" | "communities";
-
-const TAB_LABELS: Record<LeaderTab, string> = {
-  friends:     "👥 الأصدقاء",
-  oman:        "🇴🇲 عُمان",
-  communities: "🏘️ المجتمعات",
-};
 
 const MEDAL = ["🥇", "🥈", "🥉"];
 
@@ -52,6 +47,12 @@ export default function LeaderboardScreen() {
     refreshAllUsers,
   } = useApp();
   const { rankingList } = useCommunities();
+  const { t } = useT();
+  const TAB_LABELS: Record<LeaderTab, string> = {
+    friends:     t("lb.tabFriends"),
+    oman:        t("lb.tabOman"),
+    communities: t("lb.tabCommunities"),
+  };
 
   // Pull the latest cross-device user roster on mount AND poll every 6 s
   // while this screen is open, so level-ups happening on other devices
@@ -125,13 +126,13 @@ export default function LeaderboardScreen() {
   const panelUser = panelUserId ? registeredUsers.find(u => u.id === panelUserId) ?? null : null;
 
   const emptyMsg =
-    activeTab === "friends"     ? "لا يوجد أصدقاء بعد"
-    : activeTab === "communities" ? "لا توجد مجتمعات بعد"
-    :                               "لا يوجد مستخدمون في عُمان بعد";
+    activeTab === "friends"     ? t("lb.emptyFriends")
+    : activeTab === "communities" ? t("lb.emptyCommunities")
+    :                               t("lb.emptyOman");
   const emptySub =
-    activeTab === "friends"     ? "أضف أصدقاءك من تبويب «عُمان» لتنافسهم هنا"
-    : activeTab === "communities" ? "أنشئ مجتمعاً أو انضم إلى واحد ليظهر هنا"
-    :                               "كن أول من يبدأ رحلة القهوة!";
+    activeTab === "friends"     ? t("lb.emptyFriendsSub")
+    : activeTab === "communities" ? t("lb.emptyCommunitiesSub")
+    :                               t("lb.emptyOmanSub");
 
   const openCommunity = (cid: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -152,7 +153,7 @@ export default function LeaderboardScreen() {
         >
           <Feather name="arrow-left" size={22} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🏆 التصنيف</Text>
+        <Text style={styles.headerTitle}>{t("lb.title")}</Text>
       </View>
 
       {/* Tabs */}
@@ -219,13 +220,13 @@ export default function LeaderboardScreen() {
 
                   <View style={styles.entryInfo}>
                     <Text style={[styles.entryName, isMine && { color: "#E8B86D" }]} numberOfLines={1}>
-                      {r.community.name}{isMine ? " (مجتمعك)" : ""}
+                      {r.community.name}{isMine ? t("lb.yourCommunity") : ""}
                     </Text>
                     <Text style={styles.entryLevel}>
-                      👥 {r.community.members.length} عضو
+                      {t("lb.communityMembers", { n: String(r.community.members.length) })}
                     </Text>
                     <View style={styles.coffeeChip}>
-                      <Text style={styles.coffeeChipText}>☕ {r.score} كوفي</Text>
+                      <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(r.score) })}</Text>
                     </View>
                   </View>
 
@@ -272,13 +273,13 @@ export default function LeaderboardScreen() {
 
               <View style={styles.entryInfo}>
                 <Text style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}>
-                  {entry.name}{entry.isMe ? " (أنت)" : ""}
+                  {entry.name}{entry.isMe ? t("lb.youSuffix") : ""}
                 </Text>
                 <Text style={styles.entryLevel}>
-                  Level {entry.level} · {rankInfo.nameEn} {rankInfo.icon}
+                  {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
                 </Text>
                 <View style={styles.coffeeChip}>
-                  <Text style={styles.coffeeChipText}>☕ {entry.totalOrders} كوفي</Text>
+                  <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(entry.totalOrders) })}</Text>
                 </View>
               </View>
 
@@ -306,12 +307,12 @@ export default function LeaderboardScreen() {
                   onPress={() => handleCancelRequest(entry.id)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.pendingTagText}>⏳ معلّق</Text>
+                  <Text style={styles.pendingTagText}>{t("lb.pendingTag")}</Text>
                 </TouchableOpacity>
               )}
               {entry.isFriend && !entry.isMe && (
                 <View style={styles.friendTag}>
-                  <Text style={styles.friendTagText}>صديق</Text>
+                  <Text style={styles.friendTagText}>{t("lb.friendTag")}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -355,6 +356,7 @@ interface PanelProps {
 
 function UserDetailPanel(p: PanelProps) {
   const insets = useSafeAreaInsets();
+  const { t } = useT();
   const open = !!p.targetUser;
   const u = p.targetUser;
   const isMe = !!(u && p.myId && u.id === p.myId);
@@ -402,7 +404,7 @@ function UserDetailPanel(p: PanelProps) {
                     </Text>
                   </View>
                 )}
-                <Text style={panelStyles.name}>{u.name}{isMe ? " (أنت)" : ""}</Text>
+                <Text style={panelStyles.name}>{u.name}{isMe ? t("lb.youSuffix") : ""}</Text>
                 <Text style={panelStyles.username}>@{u.gameUsername}</Text>
               </View>
 
@@ -410,17 +412,17 @@ function UserDetailPanel(p: PanelProps) {
               <View style={panelStyles.statsRow}>
                 <View style={panelStyles.statBox}>
                   <Text style={panelStyles.statValue}>{p.omanRank ? `#${p.omanRank}` : "—"}</Text>
-                  <Text style={panelStyles.statLabel}>تصنيف عُمان</Text>
+                  <Text style={panelStyles.statLabel}>{t("lb.panelOmanRank")}</Text>
                 </View>
                 <View style={panelStyles.statDivider} />
                 <View style={panelStyles.statBox}>
                   <Text style={[panelStyles.statValue, { color: "#E8B86D" }]}>{u.level}</Text>
-                  <Text style={panelStyles.statLabel}>المستوى</Text>
+                  <Text style={panelStyles.statLabel}>{t("lb.panelLevel")}</Text>
                 </View>
                 <View style={panelStyles.statDivider} />
                 <View style={panelStyles.statBox}>
                   <Text style={[panelStyles.statValue, { color: "#4FC3F7" }]}>{grandTotal}</Text>
-                  <Text style={panelStyles.statLabel}>إجمالي القهوة</Text>
+                  <Text style={panelStyles.statLabel}>{t("lb.panelTotalCoffee")}</Text>
                 </View>
               </View>
 
@@ -433,11 +435,11 @@ function UserDetailPanel(p: PanelProps) {
               )}
 
               {/* Per-cafe breakdown */}
-              <Text style={panelStyles.sectionTitle}>☕ قهوة من كل كوفي</Text>
+              <Text style={panelStyles.sectionTitle}>{t("lb.panelPerCafe")}</Text>
               {cafes.length === 0 ? (
                 <View style={panelStyles.emptyCafes}>
                   <Text style={panelStyles.emptyCafesText}>
-                    لم يطلب من أي كوفي بعد
+                    {t("lb.panelEmptyCafes")}
                   </Text>
                 </View>
               ) : (
@@ -454,7 +456,7 @@ function UserDetailPanel(p: PanelProps) {
                   ))}
                   {/* Grand total row */}
                   <View style={[panelStyles.cafeRow, panelStyles.totalRow]}>
-                    <Text style={panelStyles.totalLabel}>المجموع الكلي</Text>
+                    <Text style={panelStyles.totalLabel}>{t("lb.panelTotal")}</Text>
                     <View style={[panelStyles.cafeQtyPill, { backgroundColor: "#E8B86D" }]}>
                       <Text style={[panelStyles.cafeQtyText, { color: "#000" }]}>{grandTotal}</Text>
                     </View>
@@ -468,7 +470,7 @@ function UserDetailPanel(p: PanelProps) {
                   {p.isFriend ? (
                     <View style={[panelStyles.actionBtn, { backgroundColor: "#4CAF50" }]}>
                       <Feather name="check" size={16} color="#FFF" />
-                      <Text style={[panelStyles.actionText, { color: "#FFF" }]}>صديق</Text>
+                      <Text style={[panelStyles.actionText, { color: "#FFF" }]}>{t("lb.friendTag")}</Text>
                     </View>
                   ) : p.hasIncoming ? (
                     <TouchableOpacity
@@ -477,7 +479,7 @@ function UserDetailPanel(p: PanelProps) {
                       activeOpacity={0.85}
                     >
                       <Feather name="check" size={16} color="#FFF" />
-                      <Text style={[panelStyles.actionText, { color: "#FFF" }]}>قبول الطلب</Text>
+                      <Text style={[panelStyles.actionText, { color: "#FFF" }]}>{t("lb.panelAcceptRequest")}</Text>
                     </TouchableOpacity>
                   ) : p.isPending ? (
                     <TouchableOpacity
@@ -486,7 +488,7 @@ function UserDetailPanel(p: PanelProps) {
                       activeOpacity={0.85}
                     >
                       <Feather name="clock" size={16} color="#E8B86D" />
-                      <Text style={[panelStyles.actionText, { color: "#E8B86D" }]}>طلب معلّق · إلغاء</Text>
+                      <Text style={[panelStyles.actionText, { color: "#E8B86D" }]}>{t("lb.panelPendingCancel")}</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
@@ -495,7 +497,7 @@ function UserDetailPanel(p: PanelProps) {
                       activeOpacity={0.85}
                     >
                       <Feather name="user-plus" size={16} color="#000" />
-                      <Text style={panelStyles.actionText}>إضافة صديق</Text>
+                      <Text style={panelStyles.actionText}>{t("lb.panelAddFriend")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>

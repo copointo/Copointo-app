@@ -127,7 +127,7 @@ export default function MessagesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background, alignItems: "center" }]}>
      <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
       <View style={[styles.header, { paddingTop: topPadding + 12 }]}>
-        <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{t("messages.title")}</Text>
         <TouchableOpacity
           style={[styles.newGroupBtn, { backgroundColor: colors.primary }]}
           onPress={() => {
@@ -145,7 +145,7 @@ export default function MessagesScreen() {
         <Feather name="search" size={16} color={colors.mutedForeground} />
         <TextInput
           style={[styles.searchInput, { color: colors.foreground }]}
-          placeholder="Search messages..."
+          placeholder={t("messages.searchPlaceholder")}
           placeholderTextColor={colors.mutedForeground}
           value={search}
           onChangeText={setSearch}
@@ -161,7 +161,7 @@ export default function MessagesScreen() {
           <View style={styles.empty}>
             <Feather name="message-circle" size={40} color={colors.mutedForeground} />
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              No messages yet
+              {t("messages.empty")}
             </Text>
           </View>
         }

@@ -11,98 +11,55 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useT } from "@/context/LanguageContext";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
 const BORDER  = "rgba(232,184,109,0.25)";
 const PRIMARY = "#E8B86D";
 
-interface Section {
+interface SectionDef {
   icon: keyof typeof Feather.glyphMap;
-  title: string;
-  body?: string;
-  bullets?: string[];
-  extraTitle?: string;
-  extraBullets?: string[];
+  titleKey: string;
+  bodyKey?: string;
+  bulletKeys?: string[];
+  extraTitleKey?: string;
+  extraBulletKeys?: string[];
 }
 
-const SECTIONS: Section[] = [
+const SECTIONS: SectionDef[] = [
   {
     icon: "lock",
-    title: "خصوصية الرسائل",
-    bullets: [
-      "الرسائل الخاصة بين المستخدمين تعتبر خاصة وسرية.",
-      "لا تقوم إدارة Copointo بقراءة الرسائل أو التجسس عليها.",
-      "يتم استخدام أنظمة حماية للمساعدة في الحفاظ على أمان المحادثات.",
-      "قد يتم مراجعة الرسائل فقط في حال وجود بلاغ رسمي أو مخالفة واضحة تهدد أمان المستخدمين أو تخالف القوانين.",
-    ],
+    titleKey: "privacy.s1.title",
+    bulletKeys: ["privacy.s1.b1", "privacy.s1.b2", "privacy.s1.b3", "privacy.s1.b4"],
   },
   {
     icon: "video",
-    title: "المحتوى والريلز",
-    body: "يستطيع المستخدمون نشر الريلز والمحتوى داخل المنصة، ويُمنع نشر:",
-    bullets: [
-      "المحتوى المسيء أو غير الأخلاقي",
-      "خطاب الكراهية أو التنمر",
-      "المحتوى المخالف للقوانين",
-      "المحتوى الذي ينتهك حقوق الآخرين",
-    ],
-    extraTitle: "ويحق لإدارة Copointo:",
-    extraBullets: [
-      "حذف الريلز المخالفة",
-      "تقييد الوصول للمحتوى",
-      "حظر الحسابات المخالفة مؤقتًا أو دائمًا",
-    ],
+    titleKey: "privacy.s2.title",
+    bodyKey: "privacy.s2.body",
+    bulletKeys: ["privacy.s2.b1", "privacy.s2.b2", "privacy.s2.b3", "privacy.s2.b4"],
+    extraTitleKey: "privacy.s2.extraTitle",
+    extraBulletKeys: ["privacy.s2.e1", "privacy.s2.e2", "privacy.s2.e3"],
   },
   {
     icon: "flag",
-    title: "نظام البلاغات",
-    body: "يوفر Copointo زر \"إبلاغ\" للإبلاغ عن:",
-    bullets: [
-      "المحتوى المسيء",
-      "الحسابات الوهمية",
-      "التحرش أو الإزعاج",
-      "السبام أو الاحتيال",
-    ],
-    extraBullets: ["وسيتم مراجعة البلاغات واتخاذ الإجراء المناسب بأسرع وقت ممكن."],
+    titleKey: "privacy.s3.title",
+    bodyKey: "privacy.s3.body",
+    bulletKeys: ["privacy.s3.b1", "privacy.s3.b2", "privacy.s3.b3", "privacy.s3.b4"],
+    extraBulletKeys: ["privacy.s3.e1"],
   },
-  {
-    icon: "star",
-    title: "التقييمات والتعليقات",
-    body: "يمكن للمستخدمين إضافة تقييمات وتعليقات للكوفيهات والخدمات، ويجب أن تكون التقييمات حقيقية ومحترمة وغير مضللة.",
-  },
-  {
-    icon: "map-pin",
-    title: "خرائط Google والموقع",
-    body: "قد يستخدم Copointo خدمات خرائط Google لعرض الكوفيهات والمواقع القريبة وتحسين تجربة المستخدم.",
-  },
-  {
-    icon: "play",
-    title: "لعبة Copointo",
-    body: "قد تتضمن المنصة لعبة أو أنشطة ترفيهية داخل التطبيق، ويتم استخدامها وفق قوانين المنصة وسياسة الاستخدام.",
-  },
+  { icon: "star",          titleKey: "privacy.s4.title", bodyKey: "privacy.s4.body" },
+  { icon: "map-pin",       titleKey: "privacy.s5.title", bodyKey: "privacy.s5.body" },
+  { icon: "play",          titleKey: "privacy.s6.title", bodyKey: "privacy.s6.body" },
   {
     icon: "alert-octagon",
-    title: "العقوبات والحظر",
-    body: "يحق لإدارة Copointo اتخاذ الإجراءات التالية عند مخالفة القوانين:",
-    bullets: [
-      "حذف المحتوى",
-      "تقييد الحساب",
-      "الحظر المؤقت",
-      "الحظر الدائم",
-    ],
-    extraBullets: ["وذلك للحفاظ على بيئة آمنة ومحترمة لجميع المستخدمين."],
+    titleKey: "privacy.s7.title",
+    bodyKey: "privacy.s7.body",
+    bulletKeys: ["privacy.s7.b1", "privacy.s7.b2", "privacy.s7.b3", "privacy.s7.b4"],
+    extraBulletKeys: ["privacy.s7.e1"],
   },
-  {
-    icon: "shield",
-    title: "حماية البيانات",
-    body: "نستخدم تقنيات وإجراءات أمنية للمساعدة في حماية بيانات المستخدمين ومنع الوصول غير المصرح به.",
-  },
-  {
-    icon: "refresh-cw",
-    title: "التعديلات",
-    body: "قد يتم تحديث سياسة الخصوصية من وقت لآخر، واستمرار استخدام Copointo يعني الموافقة على أي تحديثات مستقبلية.",
-  },
+  { icon: "shield",        titleKey: "privacy.s8.title", bodyKey: "privacy.s8.body" },
+  { icon: "refresh-cw",    titleKey: "privacy.s9.title", bodyKey: "privacy.s9.body" },
 ];
 
 const SUPPORT_PHONE = "76611997";
@@ -112,6 +69,7 @@ export default function PrivacyScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const { t } = useT();
 
   const openWhatsApp = () => {
     const intl = "968" + SUPPORT_PHONE.replace(/^\+?968/, "").replace(/^0+/, "");
@@ -123,57 +81,52 @@ export default function PrivacyScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-right" size={20} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>الخصوصية والحوكمة</Text>
+        <Text style={styles.headerTitle}>{t("privacy.headerTitle")}</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
             <Feather name="shield" size={28} color={PRIMARY} />
           </View>
-          <Text style={styles.heroTitle}>سياسة الخصوصية والحوكمة</Text>
-          <Text style={styles.heroSub}>
-            في Copointo نحترم خصوصية جميع المستخدمين ونلتزم بحماية البيانات والمحتوى داخل المنصة.
-          </Text>
+          <Text style={styles.heroTitle}>{t("privacy.heroTitle")}</Text>
+          <Text style={styles.heroSub}>{t("privacy.heroSub")}</Text>
         </View>
 
-        {/* Sections */}
         {SECTIONS.map((s, i) => (
           <View key={i} style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionIconWrap}>
                 <Feather name={s.icon} size={16} color={PRIMARY} />
               </View>
-              <Text style={styles.sectionTitle}>{s.title}</Text>
+              <Text style={styles.sectionTitle}>{t(s.titleKey)}</Text>
             </View>
 
-            {s.body && <Text style={styles.bodyText}>{s.body}</Text>}
+            {s.bodyKey && <Text style={styles.bodyText}>{t(s.bodyKey)}</Text>}
 
-            {s.bullets && s.bullets.length > 0 && (
+            {s.bulletKeys && s.bulletKeys.length > 0 && (
               <View style={styles.bulletList}>
-                {s.bullets.map((b, j) => (
+                {s.bulletKeys.map((k, j) => (
                   <View key={j} style={styles.bulletRow}>
                     <View style={styles.bulletDot} />
-                    <Text style={styles.bulletText}>{b}</Text>
+                    <Text style={styles.bulletText}>{t(k)}</Text>
                   </View>
                 ))}
               </View>
             )}
 
-            {s.extraTitle && <Text style={[styles.bodyText, { marginTop: 6 }]}>{s.extraTitle}</Text>}
-            {s.extraBullets && s.extraBullets.length > 0 && (
+            {s.extraTitleKey && <Text style={[styles.bodyText, { marginTop: 6 }]}>{t(s.extraTitleKey)}</Text>}
+            {s.extraBulletKeys && s.extraBulletKeys.length > 0 && (
               <View style={styles.bulletList}>
-                {s.extraBullets.map((b, j) => (
+                {s.extraBulletKeys.map((k, j) => (
                   <View key={j} style={styles.bulletRow}>
                     <View style={styles.bulletDot} />
-                    <Text style={styles.bulletText}>{b}</Text>
+                    <Text style={styles.bulletText}>{t(k)}</Text>
                   </View>
                 ))}
               </View>
@@ -181,16 +134,15 @@ export default function PrivacyScreen() {
           </View>
         ))}
 
-        {/* Contact card */}
         <View style={styles.contactCard}>
-          <Text style={styles.contactTitle}>للتواصل والدعم</Text>
+          <Text style={styles.contactTitle}>{t("privacy.contactTitle")}</Text>
 
           <TouchableOpacity style={styles.contactRow} activeOpacity={0.85} onPress={openWhatsApp}>
             <View style={[styles.contactIconWrap, { backgroundColor: "#25D36622", borderColor: "#25D36655" }]}>
               <Feather name="message-circle" size={16} color="#25D366" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.contactLabel}>واتساب</Text>
+              <Text style={styles.contactLabel}>{t("privacy.contactWhatsapp")}</Text>
               <Text style={styles.contactValue} numberOfLines={1}>{SUPPORT_PHONE}</Text>
             </View>
             <Feather name="external-link" size={16} color="rgba(255,255,255,0.45)" />
@@ -201,14 +153,14 @@ export default function PrivacyScreen() {
               <Feather name="mail" size={16} color={PRIMARY} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.contactLabel}>الإيميل</Text>
+              <Text style={styles.contactLabel}>{t("privacy.contactEmail")}</Text>
               <Text style={styles.contactValue} numberOfLines={1}>{SUPPORT_EMAIL}</Text>
             </View>
             <Feather name="external-link" size={16} color="rgba(255,255,255,0.45)" />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>© Copointo — جميع الحقوق محفوظة</Text>
+        <Text style={styles.footer}>{t("privacy.footer")}</Text>
       </ScrollView>
     </View>
   );

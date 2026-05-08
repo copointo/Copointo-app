@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatMessage } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { useMessages } from "@/context/MessagesContext";
 import { playReceiveMessageSound, playSendMessageSound } from "@/lib/notification-sound";
 
@@ -27,11 +28,11 @@ const PRIMARY = "#E8B86D";
 const BORDER  = "rgba(232,184,109,0.30)";
 const BORDER_SOFT = "rgba(232,184,109,0.18)";
 
-function now(): string {
+function buildNow(amLabel: string, pmLabel: string): string {
   const d = new Date();
   const h = d.getHours();
   const m = d.getMinutes().toString().padStart(2, "0");
-  const period = h >= 12 ? "م" : "ص";
+  const period = h >= 12 ? pmLabel : amLabel;
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${m} ${period}`;
 }
@@ -55,6 +56,7 @@ export default function ConversationScreen() {
 
   const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv } = useMessages();
   const { registeredUsers } = useApp();
+  const { t } = useT();
   const convMsgs = chats[id ?? ""] ?? [];
 
   const isGroup = type === "group";
@@ -107,7 +109,7 @@ export default function ConversationScreen() {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       text: trimmed,
       fromMe: true,
-      time: now(),
+      time: buildNow(t("conv.amPm.am"), t("conv.amPm.pm")),
       seen: false,
     };
     appendMsg(id, newMsg);
@@ -216,10 +218,10 @@ export default function ConversationScreen() {
             </Text>
             <Text style={styles.headerSub}>
               {isCafe
-                ? "مقهى"
+                ? t("conv.cafeRole")
                 : isGroup
-                  ? `${group?.members.length ?? 0} أعضاء · اضغط للتفاصيل`
-                  : "صديق"}
+                  ? t("conv.groupSubtitle", { n: String(group?.members.length ?? 0) })
+                  : t("conv.friendRole")}
             </Text>
           </View>
         </TouchableOpacity>
@@ -241,7 +243,7 @@ export default function ConversationScreen() {
           style={styles.inputField}
           value={text}
           onChangeText={setText}
-          placeholder="اكتب رسالة..."
+          placeholder={t("conv.inputPlaceholder")}
           placeholderTextColor="rgba(232,184,109,0.40)"
           multiline
           maxLength={500}

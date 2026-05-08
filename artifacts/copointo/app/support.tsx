@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiPost } from "@/constants/api";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -33,6 +34,7 @@ export default function SupportScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const { user } = useApp();
+  const { t } = useT();
 
   // Report-problem modal
   const [open, setOpen] = useState(false);
@@ -53,7 +55,7 @@ export default function SupportScreen() {
     const p = phone.trim();
     const d = description.trim();
     if (!n || !p || !d) {
-      Alert.alert("بيانات ناقصة", "الرجاء تعبئة الاسم ورقم الهاتف ووصف المشكلة.");
+      Alert.alert(t("common.error"), t("support.fillAll"));
       return;
     }
     setSending(true);
@@ -64,9 +66,9 @@ export default function SupportScreen() {
         reporterUserId: user?.id,
       });
       setOpen(false);
-      Alert.alert("تم الإرسال", "تم استلام بلاغك وسيتم مراجعته قريباً. شكراً لك.");
+      Alert.alert(t("common.success"), t("support.reportSent"));
     } catch {
-      Alert.alert("تعذر الإرسال", "حدث خطأ أثناء إرسال البلاغ. حاول لاحقاً.");
+      Alert.alert(t("common.error"), t("support.reportError"));
     } finally {
       setSending(false);
     }
@@ -79,7 +81,7 @@ export default function SupportScreen() {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert("تعذر فتح واتساب", `الرجاء التواصل على الرقم: ${SUPPORT_PHONE}`);
+      Alert.alert(t("common.error"), `${SUPPORT_PHONE}`);
     }
   };
 
@@ -90,7 +92,7 @@ export default function SupportScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-right" size={20} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>الدعم</Text>
+        <Text style={styles.headerTitle}>{t("support.title")}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -100,9 +102,9 @@ export default function SupportScreen() {
           <View style={styles.heroIconWrap}>
             <Feather name="headphones" size={28} color={PRIMARY} />
           </View>
-          <Text style={styles.heroTitle}>كيف يمكننا مساعدتك؟</Text>
+          <Text style={styles.heroTitle}>{t("support.helloLine")}</Text>
           <Text style={styles.heroSub}>
-            تواصل معنا عبر واتساب أو أرسل بلاغاً عن مشكلة وسنقوم بمراجعته في أقرب وقت
+            {t("support.whatsappSub")}
           </Text>
         </View>
 
@@ -112,11 +114,11 @@ export default function SupportScreen() {
             <Feather name="message-circle" size={22} color="#FFF" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.waTitle}>التواصل عبر واتساب</Text>
+            <Text style={styles.waTitle}>{t("support.whatsappTitle")}</Text>
             <Text style={styles.waPhone} numberOfLines={1}>
               <Text style={{ fontFamily: "Inter_700Bold" }}>{SUPPORT_PHONE}</Text>
             </Text>
-            <Text style={styles.waSub}>تواصل مباشر مع فريق كوبوينتو</Text>
+            <Text style={styles.waSub}>{t("support.openWhatsapp")}</Text>
           </View>
           <Feather name="external-link" size={18} color="rgba(255,255,255,0.55)" />
         </TouchableOpacity>
@@ -124,17 +126,17 @@ export default function SupportScreen() {
         {/* Divider */}
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>أو</Text>
+          <Text style={styles.dividerText}>{t("support.or")}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         {/* Report problem button (above logout style — appears prominent here) */}
         <TouchableOpacity style={styles.reportBtn} activeOpacity={0.85} onPress={openReport}>
           <Feather name="alert-triangle" size={18} color={DANGER} />
-          <Text style={styles.reportBtnText}>إبلاغ عن مشكلة</Text>
+          <Text style={styles.reportBtnText}>{t("support.reportProblem")}</Text>
         </TouchableOpacity>
         <Text style={styles.reportHint}>
-          أرسل وصفاً مفصّلاً للمشكلة وسيتم تحويله إلى الإدارة فوراً
+          {t("support.reportProblem")}
         </Text>
       </ScrollView>
 
@@ -150,24 +152,24 @@ export default function SupportScreen() {
               <View style={styles.modalIconWrap}>
                 <Feather name="alert-triangle" size={20} color={DANGER} />
               </View>
-              <Text style={styles.modalTitle}>إبلاغ عن مشكلة</Text>
-              <Text style={styles.modalSub}>أخبرنا ماذا حدث وسنتواصل معك</Text>
+              <Text style={styles.modalTitle}>{t("support.reportTitle")}</Text>
+              <Text style={styles.modalSub}>{t("support.reportProblem")}</Text>
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>الاسم</Text>
+              <Text style={styles.label}>{t("support.reportName")}</Text>
               <TextInput
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="اسمك الكامل"
+                placeholder={t("support.reportName")}
                 placeholderTextColor="rgba(255,255,255,0.30)"
                 textAlign="right"
               />
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>رقم الهاتف</Text>
+              <Text style={styles.label}>{t("support.reportPhone")}</Text>
               <TextInput
                 style={styles.input}
                 value={phone}
@@ -180,12 +182,12 @@ export default function SupportScreen() {
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>وصف المشكلة</Text>
+              <Text style={styles.label}>{t("support.reportDescription")}</Text>
               <TextInput
                 style={[styles.input, styles.textarea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="اشرح ما الذي حصل بالضبط…"
+                placeholder={t("support.reportDescription")}
                 placeholderTextColor="rgba(255,255,255,0.30)"
                 multiline
                 textAlignVertical="top"
@@ -202,7 +204,7 @@ export default function SupportScreen() {
             >
               {sending
                 ? <ActivityIndicator color="#FFF" />
-                : <Text style={styles.submitText}>إرسال البلاغ</Text>}
+                : <Text style={styles.submitText}>{t("support.reportSubmit")}</Text>}
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>

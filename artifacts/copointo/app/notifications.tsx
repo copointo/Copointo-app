@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 
@@ -46,15 +47,15 @@ const BROADCAST_LAST_SEEN_KEY    = "copointo_broadcast_last_seen_v1";
 const FREE_COFFEE_LAST_SEEN_KEY  = "copointo_free_coffee_last_seen_v1";
 const BOOKING_LAST_SEEN_KEY      = "copointo_booking_last_seen_v1";
 
-const fmtRelative = (iso: string): string => {
+const buildFmtRelative = (t: (k: string, v?: Record<string, string>) => string) => (iso: string): string => {
   const ms = Date.now() - new Date(iso).getTime();
   const m = Math.floor(ms / 60000);
-  if (m < 1)   return "الآن";
-  if (m < 60)  return `قبل ${m} د`;
+  if (m < 1)   return t("common.now");
+  if (m < 60)  return t("common.minAgo", { n: String(m) });
   const h = Math.floor(m / 60);
-  if (h < 24)  return `قبل ${h} س`;
+  if (h < 24)  return t("common.hoursAgo", { n: String(h) });
   const d = Math.floor(h / 24);
-  return `قبل ${d} يوم`;
+  return t("common.daysAgo", { n: String(d) });
 };
 
 const BG     = "#000000";
@@ -75,6 +76,8 @@ export default function NotificationsScreen() {
     rejectionNotifications, ackRejection,
     acceptFriendRequest, declineFriendRequest, refreshFriendData,
   } = useApp();
+  const { t } = useT();
+  const fmtRelative = buildFmtRelative(t);
 
   // Track recent decisions so the row stays visible briefly with status
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
@@ -218,7 +221,7 @@ export default function NotificationsScreen() {
         >
           <Feather name="arrow-left" size={22} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>الإشعارات</Text>
+        <Text style={styles.headerTitle}>{t("notif.title")}</Text>
       </View>
 
       <ScrollView
@@ -228,9 +231,9 @@ export default function NotificationsScreen() {
         {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && bookings.length === 0 && rejectionNotifications.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🔔</Text>
-            <Text style={styles.emptyTitle}>لا توجد إشعارات</Text>
+            <Text style={styles.emptyTitle}>{t("notif.empty")}</Text>
             <Text style={styles.emptySub}>
-              عندما يرسل لك أحد طلب صداقة سيظهر هنا
+              {t("notif.emptySub")}
             </Text>
           </View>
         )}
@@ -245,9 +248,9 @@ export default function NotificationsScreen() {
           const icon        = isConfirmed ? "✅"
                             : isPending   ? "⏳"
                             : "❌";
-          const title       = isConfirmed ? "تم تأكيد حجزك"
-                            : isPending   ? "في انتظار موافقة الكوفي"
-                            : "تم إلغاء طلب الحجز";
+          const title       = isConfirmed ? t("notif.bookingConfirmed")
+                            : isPending   ? t("notif.bookingPending")
+                            : t("notif.bookingCancelled");
           const ts = b.confirmedAt ?? b.createdAt;
           return (
             <View
@@ -267,28 +270,34 @@ export default function NotificationsScreen() {
               </View>
               <View style={styles.bookingDetailsBox}>
                 <Text style={styles.bookingDetail}>
-                  🪑 طاولة {b.tableNumber}{b.tableCapacity ? ` (${b.tableCapacity} أشخاص)` : ""}
+                  {b.tableCapacity
+                    ? t("notif.bookingTableCap", { n: String(b.tableNumber), cap: String(b.tableCapacity) })
+                    : t("notif.bookingTable", { n: String(b.tableNumber) })}
                 </Text>
                 <Text style={styles.bookingDetail}>
-                  📅 {b.date} • ⏰ {b.time}{b.hours ? ` • ${b.hours} ساعة` : ""}
+                  {b.hours
+                    ? t("notif.bookingDateTimeHrs", { date: b.date, time: b.time, hours: String(b.hours) })
+                    : t("notif.bookingDateTime", { date: b.date, time: b.time })}
                 </Text>
                 <Text style={styles.bookingDetail}>
-                  👥 {b.guests} {b.guests === 1 ? "شخص" : "أشخاص"}
+                  {b.guests === 1
+                    ? t("notif.bookingGuestsOne", { n: String(b.guests) })
+                    : t("notif.bookingGuestsMany", { n: String(b.guests) })}
                 </Text>
                 {typeof b.totalPrice === "number" && (
                   <Text style={[styles.bookingDetail, { color: accent, fontFamily: "Inter_700Bold" }]}>
-                    💰 {Number(b.totalPrice).toFixed(3)} ر.ع
+                    {t("notif.bookingPrice", { price: Number(b.totalPrice).toFixed(3) })}
                   </Text>
                 )}
               </View>
               {isPending && (
                 <Text style={styles.bookingHint}>
-                  ستصلك رسالة فور موافقة الكوفي على حجزك
+                  {t("notif.bookingPendingHint")}
                 </Text>
               )}
               {isConfirmed && (
                 <Text style={styles.bookingHint}>
-                  نراك قريباً 🌟
+                  {t("notif.bookingConfirmedHint")}
                 </Text>
               )}
             </View>
@@ -303,27 +312,29 @@ export default function NotificationsScreen() {
                 <Text style={styles.freeCoffeeBadgeIcon}>🎁</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.freeCoffeeTitle}>حصلت على كوفي مجاني!</Text>
+                <Text style={styles.freeCoffeeTitle}>{t("notif.freeCoffeeTitle")}</Text>
                 <Text style={styles.freeCoffeeTime}>
-                  {fmtRelative(c.earnedAt)}  •  مكافأة مستوى {c.earnedAtLevel}
+                  {t("notif.freeCoffeeMeta", { rel: fmtRelative(c.earnedAt), level: String(c.earnedAtLevel) })}
                 </Text>
               </View>
             </View>
             <Text style={styles.freeCoffeeBody}>
               {c.earnedAtCafeName
-                ? `قابل للاستبدال في ${c.earnedAtCafeName} فقط`
-                : "قابل للاستبدال في الكوفي الذي حصلت منه على المكافأة فقط"}
+                ? t("notif.freeCoffeeAt", { cafe: c.earnedAtCafeName })
+                : t("notif.freeCoffeeAtFallback")}
             </Text>
             <View style={styles.freeCoffeeRulesBox}>
               <Text style={styles.freeCoffeeRule}>
-                • فقط في {c.earnedAtCafeName ?? "الكوفي الذي حصلت منه على المكافأة"} — لا يصلح في أي كوفي آخر
+                {c.earnedAtCafeName
+                  ? t("notif.freeCoffeeRule1", { cafe: c.earnedAtCafeName })
+                  : t("notif.freeCoffeeRule1Fallback")}
               </Text>
-              <Text style={styles.freeCoffeeRule}>• مشروبات فقط (لا أطعمة أو حلى)</Text>
-              <Text style={styles.freeCoffeeRule}>• سعر المشروب ≤ 2 ر.ع.</Text>
-              <Text style={styles.freeCoffeeRule}>• استخدم مرة واحدة عند الطلب التالي</Text>
+              <Text style={styles.freeCoffeeRule}>{t("notif.freeCoffeeRule2")}</Text>
+              <Text style={styles.freeCoffeeRule}>{t("notif.freeCoffeeRule3")}</Text>
+              <Text style={styles.freeCoffeeRule}>{t("notif.freeCoffeeRule4")}</Text>
             </View>
             <View style={styles.freeCoffeeCodeBox}>
-              <Text style={styles.freeCoffeeCodeLabel}>الرمز</Text>
+              <Text style={styles.freeCoffeeCodeLabel}>{t("notif.freeCoffeeCodeLabel")}</Text>
               <Text style={styles.freeCoffeeCode}>{c.code}</Text>
             </View>
           </View>
@@ -338,9 +349,9 @@ export default function NotificationsScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.broadcastTitleRow}>
-                  <Text style={styles.broadcastSender}>Copointo</Text>
+                  <Text style={styles.broadcastSender}>{t("notif.officialSender")}</Text>
                   <View style={styles.officialDot} />
-                  <Text style={styles.broadcastOfficial}>رسمي</Text>
+                  <Text style={styles.broadcastOfficial}>{t("notif.officialBadge")}</Text>
                 </View>
                 <Text style={styles.broadcastTime}>{fmtRelative(b.createdAt)}</Text>
               </View>
@@ -352,7 +363,7 @@ export default function NotificationsScreen() {
         {/* "Your friend request was declined" receipts (sender side) */}
         {rejectionNotifications.map((rej) => {
           const u = registeredUsers.find(r => r.id === rej.toUserId);
-          const name = u?.name ?? "صديق";
+          const name = u?.name ?? t("common.friend");
           return (
             <View
               key={`rej-${rej.id}`}
@@ -363,7 +374,7 @@ export default function NotificationsScreen() {
                   <Text style={{ fontSize: 22 }}>✕</Text>
                 </View>
                 <View style={styles.cardInfo}>
-                  <Text style={styles.cardTitle}>{`تم رفض طلب الصداقة من ${name}`}</Text>
+                  <Text style={styles.cardTitle}>{t("notif.requestRejected", { name })}</Text>
                   {u?.gameUsername && (
                     <Text style={styles.cardSub}>@{u.gameUsername}</Text>
                   )}
@@ -381,7 +392,7 @@ export default function NotificationsScreen() {
                 activeOpacity={0.85}
               >
                 <Feather name="x" size={15} color="#E8B86D" />
-                <Text style={styles.rejectBtnText}>إخفاء</Text>
+                <Text style={styles.rejectBtnText}>{t("common.hide")}</Text>
               </TouchableOpacity>
             </View>
           );
@@ -399,9 +410,9 @@ export default function NotificationsScreen() {
                 <View style={styles.cardInfo}>
                   <Text style={styles.cardTitle}>{r.name}</Text>
                   <Text style={styles.cardSub}>
-                    @{r.username} · مستوى {r.level} · {rankInfo.icon}
+                    {t("notif.userMeta", { user: r.username, level: String(r.level), icon: rankInfo.icon })}
                   </Text>
-                  <Text style={styles.cardHint}>أرسل لك طلب صداقة</Text>
+                  <Text style={styles.cardHint}>{t("notif.requestSent")}</Text>
                 </View>
               </View>
 
@@ -412,7 +423,7 @@ export default function NotificationsScreen() {
                   activeOpacity={0.85}
                 >
                   <Feather name="check" size={15} color="#000" />
-                  <Text style={styles.acceptBtnText}>قبول</Text>
+                  <Text style={styles.acceptBtnText}>{t("common.accept")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.rejectBtn}
@@ -420,7 +431,7 @@ export default function NotificationsScreen() {
                   activeOpacity={0.85}
                 >
                   <Feather name="x" size={15} color="#E8B86D" />
-                  <Text style={styles.rejectBtnText}>رفض</Text>
+                  <Text style={styles.rejectBtnText}>{t("common.reject")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -450,7 +461,7 @@ export default function NotificationsScreen() {
                   styles.statusText,
                   { color: decision === "accepted" ? "#7DD87D" : "#E55353" },
                 ]}>
-                  {decision === "accepted" ? "✓ أصبحتما صديقَين" : "✕ تم رفض الطلب"}
+                  {decision === "accepted" ? t("notif.becameFriends") : t("notif.requestRejectedShort")}
                 </Text>
               </View>
             </View>

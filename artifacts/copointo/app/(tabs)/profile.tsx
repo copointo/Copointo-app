@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, claimGameUsername } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
@@ -38,6 +39,7 @@ function EditModal({
 }) {
   const [text, setText] = useState(value);
   const [show, setShow]  = useState(false);
+  const { t } = useT();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -66,14 +68,14 @@ function EditModal({
           </View>
           <View style={styles.modalBtns}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.85}>
-              <Text style={styles.cancelText}>إلغاء</Text>
+              <Text style={styles.cancelText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.saveBtn}
               onPress={() => { onSave(text); onClose(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); }}
               activeOpacity={0.85}
             >
-              <Text style={styles.saveText}>حفظ</Text>
+              <Text style={styles.saveText}>{t("common.save")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -85,6 +87,7 @@ function EditModal({
 
 // ─── Logout Confirm Modal ────────────────────────────────────
 function LogoutConfirmModal({ visible, onClose, onConfirm }: { visible: boolean; onClose: () => void; onConfirm: () => void }) {
+  const { t } = useT();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -93,19 +96,19 @@ function LogoutConfirmModal({ visible, onClose, onConfirm }: { visible: boolean;
             <View style={styles.warnIcon}>
               <Feather name="log-out" size={26} color={DANGER} />
             </View>
-            <Text style={styles.modalTitle}>تأكيد تسجيل الخروج</Text>
-            <Text style={styles.confirmSub}>هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟</Text>
+            <Text style={styles.modalTitle}>{t("profile.logoutConfirmTitle")}</Text>
+            <Text style={styles.confirmSub}>{t("profile.logoutConfirmMsg")}</Text>
           </View>
           <View style={styles.modalBtns}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose} activeOpacity={0.85}>
-              <Text style={styles.cancelText}>إلغاء</Text>
+              <Text style={styles.cancelText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.saveBtn, { backgroundColor: DANGER }]}
               onPress={() => { onConfirm(); Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); }}
               activeOpacity={0.85}
             >
-              <Text style={styles.saveText}>تسجيل الخروج</Text>
+              <Text style={styles.saveText}>{t("profile.logout")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -119,6 +122,7 @@ function RanksModal({
   visible, onClose, currentLevel,
 }: { visible: boolean; onClose: () => void; currentLevel: number }) {
   const currentRank = getRank(currentLevel);
+  const { t } = useT();
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -126,14 +130,14 @@ function RanksModal({
         <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.ranksCard}>
           {/* Header */}
           <View style={styles.ranksHeader}>
-            <Text style={styles.ranksTitle}>رحلة القهوة</Text>
+            <Text style={styles.ranksTitle}>{t("ranks.title")}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{top:8,bottom:8,left:8,right:8}}>
               <Feather name="x" size={22} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.ranksSubtitle}>
-            أنت الآن في المستوى <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{currentLevel}</Text>
+            {t("ranks.youAreAt")} <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{currentLevel}</Text>
             {"  •  "}
             <Text style={{ color: PRIMARY }}>{currentRank.name}</Text>
           </Text>
@@ -167,12 +171,12 @@ function RanksModal({
                       <Text style={[styles.rankRowName, isCurrent && { color: PRIMARY }]}>{r.nameEn}</Text>
                       {isCurrent && (
                         <View style={styles.hereBadge}>
-                          <Text style={styles.hereBadgeText}>أنت هنا</Text>
+                          <Text style={styles.hereBadgeText}>{t("ranks.youAreHere")}</Text>
                         </View>
                       )}
                     </View>
                     <Text style={styles.rankRowSub}>{r.name}</Text>
-                    <Text style={styles.rankRowRange}>المستويات {r.min}–{r.max}</Text>
+                    <Text style={styles.rankRowRange}>{t("ranks.levelsRange", { min: String(r.min), max: String(r.max) })}</Text>
                   </View>
 
                   {/* Status */}
@@ -184,7 +188,7 @@ function RanksModal({
                     ) : isCurrent ? (
                       <View style={styles.cupsRemainingCol}>
                         <Text style={styles.cupsRemainingNum}>{r.max - currentLevel + 1}</Text>
-                        <Text style={styles.cupsRemainingLbl}>كوفي حتى التالية</Text>
+                        <Text style={styles.cupsRemainingLbl}>{t("ranks.cupsToNext")}</Text>
                       </View>
                     ) : (
                       <View style={styles.cupsRemainingCol}>
@@ -192,7 +196,7 @@ function RanksModal({
                           <Text style={{ fontSize: 11 }}>☕</Text>
                           <Text style={styles.cupsPillNum}>{cupsLeft}</Text>
                         </View>
-                        <Text style={styles.cupsRemainingLbl}>متبقي</Text>
+                        <Text style={styles.cupsRemainingLbl}>{t("ranks.remaining")}</Text>
                       </View>
                     )}
                   </View>
@@ -205,7 +209,7 @@ function RanksModal({
           {/* Footer note */}
           <View style={styles.ranksFooter}>
             <Feather name="info" size={13} color="rgba(255,255,255,0.5)" />
-            <Text style={styles.ranksFooterText}>كل طلب قهوة = 1 مستوى. كل 7 مستويات = ☕ مجاني!</Text>
+            <Text style={styles.ranksFooterText}>{t("ranks.footer")}</Text>
           </View>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -220,6 +224,7 @@ export default function ProfileScreen() {
   const { user, setUser, logout, friends, registeredUsers } = useApp();
   const router = useRouter();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const { t } = useT();
 
   const [authOpen,    setAuthOpen]    = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -235,21 +240,21 @@ export default function ProfileScreen() {
       <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
        <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>الملف الشخصي</Text>
+          <Text style={styles.headerTitle}>{t("profile.title")}</Text>
         </View>
         <View style={styles.emptyState}>
           <View style={styles.emptyIconWrap}>
             <Feather name="user" size={56} color={PRIMARY} />
           </View>
-          <Text style={styles.emptyTitle}>مرحباً بك في Copointo</Text>
-          <Text style={styles.emptySub}>سجّل دخولك الآن للاستفادة من كامل ميزات التطبيق</Text>
+          <Text style={styles.emptyTitle}>{t("profile.welcome")}</Text>
+          <Text style={styles.emptySub}>{t("profile.welcomeSub")}</Text>
           <TouchableOpacity
             style={styles.loginBtn}
             onPress={() => setAuthOpen(true)}
             activeOpacity={0.88}
           >
             <Feather name="log-in" size={18} color="#FFF" />
-            <Text style={styles.loginBtnText}>سجّل الدخول الآن لاستخدام التطبيق</Text>
+            <Text style={styles.loginBtnText}>{t("profile.loginNow")}</Text>
           </TouchableOpacity>
         </View>
         <AuthModal visible={authOpen} onClose={() => setAuthOpen(false)} />
@@ -288,7 +293,7 @@ export default function ProfileScreen() {
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { Alert.alert("نحتاج إذن الوصول للصور"); return; }
+    if (status !== "granted") { Alert.alert(t("profile.photoPermNeeded")); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true, aspect: [1, 1], quality: 0.8,
@@ -304,7 +309,7 @@ export default function ProfileScreen() {
      <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>الملف الشخصي</Text>
+        <Text style={styles.headerTitle}>{t("profile.title")}</Text>
       </View>
 
       <ScrollView
@@ -326,7 +331,7 @@ export default function ProfileScreen() {
               <Feather name="camera" size={15} color="#FFF" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.changePhotoHint}>اضغط لتغيير الصورة</Text>
+          <Text style={styles.changePhotoHint}>{t("profile.tapToChangePhoto")}</Text>
         </View>
 
         {/* ── Rank pill (tap to view full ranks journey) ── */}
@@ -339,8 +344,8 @@ export default function ProfileScreen() {
             <Text style={styles.rankPillIcon}>{rank?.icon ?? "☕"}</Text>
           </View>
           <View style={{ flex: 1, alignItems: "flex-end" }}>
-            <Text style={styles.rankPillName}>{rank?.nameEn ?? "Coffee Beginner"}</Text>
-            <Text style={styles.rankPillSub}>{rank?.name ?? "مبتدئ كوفي"}</Text>
+            <Text style={styles.rankPillName}>{rank?.nameEn ?? t("profile.coffeeBeginner")}</Text>
+            <Text style={styles.rankPillSub}>{rank?.name ?? t("profile.coffeeBeginnerAr")}</Text>
           </View>
           <Feather name="chevron-left" size={18} color={PRIMARY} style={{ opacity: 0.7 }} />
         </TouchableOpacity>
@@ -352,17 +357,17 @@ export default function ProfileScreen() {
             <View style={[styles.statBox, styles.statBoxCard]}>
               <Text style={styles.statIcon}>👥</Text>
               <Text style={styles.statValue}>{friendsCount}</Text>
-              <Text style={styles.statLabel}>الأصدقاء</Text>
+              <Text style={styles.statLabel}>{t("profile.statFriends")}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard]}>
               <Text style={styles.statIcon}>⭐</Text>
               <Text style={styles.statValue}>{level}</Text>
-              <Text style={styles.statLabel}>المستوى</Text>
+              <Text style={styles.statLabel}>{t("profile.statLevel")}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard]}>
               <Text style={styles.statIcon}>🎁</Text>
               <Text style={styles.statValue}>{freeCoffees}</Text>
-              <Text style={styles.statLabel}>قهوة مجانية</Text>
+              <Text style={styles.statLabel}>{t("profile.statFreeCoffees")}</Text>
             </View>
           </View>
           {/* Row 2 */}
@@ -370,12 +375,12 @@ export default function ProfileScreen() {
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
               <Text style={styles.statIcon}>👫</Text>
               <Text style={styles.statValue}>{friendsRankStr}</Text>
-              <Text style={styles.statLabel}>تصنيف الأصدقاء</Text>
+              <Text style={styles.statLabel}>{t("profile.statFriendsRank")}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
               <Text style={styles.statIcon}>🇴🇲</Text>
               <Text style={styles.statValue}>{omanRankStr}</Text>
-              <Text style={styles.statLabel}>تصنيف عُمان</Text>
+              <Text style={styles.statLabel}>{t("profile.statOmanRank")}</Text>
             </View>
           </View>
         </View>
@@ -383,7 +388,7 @@ export default function ProfileScreen() {
         {/* ── Progress bar ── */}
         <View style={styles.progressCard}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>التقدم نحو الرتبة التالية</Text>
+            <Text style={styles.progressTitle}>{t("profile.progressTitle")}</Text>
             <Text style={[styles.progressPct, { color: rank?.color ?? PRIMARY }]}>{Math.round(pct)}%</Text>
           </View>
           <View style={styles.progressTrack}>
@@ -406,7 +411,7 @@ export default function ProfileScreen() {
               <Feather name="user" size={17} color={PRIMARY} />
             </View>
             <View style={styles.fieldText}>
-              <Text style={styles.fieldLabel}>يوزر اللعبة</Text>
+              <Text style={styles.fieldLabel}>{t("profile.fieldGameUser")}</Text>
               <Text style={styles.fieldValue}>@{username}</Text>
             </View>
             <Feather name="edit-2" size={15} color="rgba(255,255,255,0.35)" />
@@ -424,7 +429,7 @@ export default function ProfileScreen() {
               <Feather name="lock" size={17} color={PRIMARY} />
             </View>
             <View style={styles.fieldText}>
-              <Text style={styles.fieldLabel}>كلمة المرور</Text>
+              <Text style={styles.fieldLabel}>{t("profile.fieldPassword")}</Text>
               <Text style={styles.fieldValue}>{"•".repeat(10)}</Text>
             </View>
             <Feather name="edit-2" size={15} color="rgba(255,255,255,0.35)" />
@@ -438,7 +443,7 @@ export default function ProfileScreen() {
           activeOpacity={0.85}
         >
           <Feather name="help-circle" size={17} color={PRIMARY} />
-          <Text style={styles.supportText}>الدعم</Text>
+          <Text style={styles.supportText}>{t("profile.support")}</Text>
         </TouchableOpacity>
 
         {/* ── Privacy & Governance button (above logout) ── */}
@@ -448,7 +453,7 @@ export default function ProfileScreen() {
           activeOpacity={0.85}
         >
           <Feather name="shield" size={17} color={PRIMARY} />
-          <Text style={styles.privacyText}>الخصوصية والحوكمة</Text>
+          <Text style={styles.privacyText}>{t("profile.privacy")}</Text>
         </TouchableOpacity>
 
         {/* ── Logout button ── */}
@@ -458,14 +463,14 @@ export default function ProfileScreen() {
           activeOpacity={0.85}
         >
           <Feather name="log-out" size={17} color={DANGER} />
-          <Text style={styles.logoutText}>تسجيل الخروج</Text>
+          <Text style={styles.logoutText}>{t("profile.logout")}</Text>
         </TouchableOpacity>
       </ScrollView>
 
       {/* Username modal */}
       <EditModal
         visible={modal === "username"}
-        title="تعديل يوزر اللعبة"
+        title={t("profile.editGameUser")}
         value={username}
         onClose={() => setModal(null)}
         onSave={async (v) => {
@@ -476,7 +481,7 @@ export default function ProfileScreen() {
           // across all devices — don't update locally if it's already taken.
           const r = await claimGameUsername(user.id, next);
           if (!r.ok) {
-            Alert.alert("تعذر تغيير يوزر اللعبة", r.error);
+            Alert.alert(t("profile.usernameChangeFailed"), r.error);
             return;
           }
           setUser({ ...user, gameUsername: next });
@@ -486,7 +491,7 @@ export default function ProfileScreen() {
       {/* Password modal */}
       <EditModal
         visible={modal === "password"}
-        title="تعديل كلمة المرور"
+        title={t("profile.editPassword")}
         value=""
         onClose={() => setModal(null)}
         onSave={(v) => { if (v.trim() && user) setUser({ ...user, password: v.trim() }); }}

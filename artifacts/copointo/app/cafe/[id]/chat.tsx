@@ -363,12 +363,14 @@ export default function CafeChatScreen() {
   };
 
   // ── Helpers ─────────────────────────────────────────────────
+  // IMPORTANT: push the bot message **synchronously** so the chat can never
+  // get stuck in a "typing..." state if a pending timer is cleared (e.g. on
+  // id change or unmount). The brief typing flash is purely cosmetic and is
+  // self-clearing via a short, independent timer that does not gate the push.
   const pushBot = (text: string, quickReplies?: QuickReply[]) => {
+    setMessages(prev => [...prev, { id: uid(), role: "bot", text, quickReplies }]);
     setIsTyping(true);
-    scheduleTimer(() => {
-      setMessages(prev => [...prev, { id: uid(), role: "bot", text, quickReplies }]);
-      setIsTyping(false);
-    }, 350);
+    scheduleTimer(() => setIsTyping(false), 180);
   };
 
   const pushUser = (text: string) => {
@@ -1261,7 +1263,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
-    maxWidth: "85%",
+    // Allow the row itself to take most of the screen so the inner bubble
+    // can be visibly wide (we cap the bubble itself, not the row).
+    maxWidth: "94%",
   },
   userRow: { alignSelf: "flex-end", flexDirection: "row-reverse" },
   botRow:  { alignSelf: "flex-start" },
@@ -1272,7 +1276,16 @@ const styles = StyleSheet.create({
     backgroundColor: CARD, borderWidth: 1, borderColor: BORDER_SOFT,
   },
   bubble: {
-    borderRadius: 18, padding: 12, maxWidth: "85%", borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    // Bubble itself can grow up to ~92% of its row, with a comfortable
+    // minimum so a 1-2 word message still looks like a proper bubble
+    // instead of a tiny pill.
+    maxWidth: "92%",
+    minWidth: 56,
+    flexShrink: 1,
+    borderWidth: 1,
   },
   userBubble: {
     backgroundColor: PRIMARY, borderColor: PRIMARY, borderBottomRightRadius: 4,
@@ -1282,14 +1295,18 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20,
+    flexShrink: 1,
   },
   // User-typed text is shown bolder and a touch larger so it's clearly
-  // legible against the gold bubble background.
+  // legible against the gold bubble background. flexShrink lets the text
+  // wrap into the available bubble width instead of stacking word-per-line.
   userBubbleText: {
-    fontSize: 15.5,
+    fontSize: 15,
     fontFamily: "Inter_700Bold",
-    lineHeight: 22,
+    lineHeight: 23,
     letterSpacing: 0.2,
+    flexShrink: 1,
+    flexWrap: "wrap",
   },
   chipsRow: {
     flexDirection: "row", flexWrap: "wrap", gap: 6,
