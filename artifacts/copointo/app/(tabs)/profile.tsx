@@ -22,6 +22,7 @@ import { useT } from "@/context/LanguageContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
+import AvatarWithFrame from "@/components/AvatarWithFrame";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -316,16 +317,18 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: r.hPad, paddingBottom: insets.bottom + 100, gap: 16 }}
       >
-        {/* ── Avatar with double glowing ring ── */}
+        {/* ── Avatar with double glowing ring + equipped frame ── */}
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={pickImage} activeOpacity={0.85} style={styles.avatarOuterRing}>
-            <View style={styles.avatarInnerRing}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
-              ) : (
-                <Text style={styles.avatarLevelNum}>{level}</Text>
-              )}
-            </View>
+            <AvatarWithFrame size={132} scale={1.7}>
+              <View style={styles.avatarInnerRing}>
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+                ) : (
+                  <Text style={styles.avatarLevelNum}>{level}</Text>
+                )}
+              </View>
+            </AvatarWithFrame>
             {/* Camera badge bottom-right inside ring */}
             <View style={styles.cameraBadge}>
               <Feather name="camera" size={15} color="#FFF" />

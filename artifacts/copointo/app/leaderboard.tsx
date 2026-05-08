@@ -18,6 +18,7 @@ import { useApp, type CafeProgress, type User } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { getRank } from "@/data/mockData";
+import AvatarWithFrame from "@/components/AvatarWithFrame";
 
 type LeaderTab = "friends" | "oman" | "communities";
 
@@ -261,15 +262,21 @@ export default function LeaderboardScreen() {
                 {MEDAL[i] ?? `#${i + 1}`}
               </Text>
 
-              {entry.avatar ? (
-                <Image source={{ uri: entry.avatar }} style={styles.avatarImg} />
-              ) : (
-                <View style={[styles.avatar, entry.isMe && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
-                  <Text style={{ fontSize: 20 }}>
-                    {entry.gender === "female" ? "👩" : entry.gender === "male" ? "🧑" : "👤"}
-                  </Text>
-                </View>
-              )}
+              <AvatarWithFrame
+                size={44}
+                scale={1.55}
+                frameId={entry.isMe ? undefined : null}
+              >
+                {entry.avatar ? (
+                  <Image source={{ uri: entry.avatar }} style={styles.avatarImg} />
+                ) : (
+                  <View style={[styles.avatar, entry.isMe && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
+                    <Text style={{ fontSize: 20 }}>
+                      {entry.gender === "female" ? "👩" : entry.gender === "male" ? "🧑" : "👤"}
+                    </Text>
+                  </View>
+                )}
+              </AvatarWithFrame>
 
               <View style={styles.entryInfo}>
                 <Text style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}>
