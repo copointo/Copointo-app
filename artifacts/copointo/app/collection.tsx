@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AvatarWithFrame from "../components/AvatarWithFrame";
@@ -23,6 +23,7 @@ export default function CollectionScreen() {
   const { user } = useApp();
   const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
+  const [tab, setTab] = useState<"frames" | "badges">("frames");
 
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";
@@ -61,10 +62,29 @@ export default function CollectionScreen() {
           </Text>
         </View>
 
+        {/* ════════ TABS ════════ */}
+        <View style={styles.tabsRow}>
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === "frames" && styles.tabBtnActive]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab("frames"); }}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.tabBtnText, tab === "frames" && styles.tabBtnTextActive]}>الإطارات</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === "badges" && styles.tabBtnActive]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab("badges"); }}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.tabBtnText, tab === "badges" && styles.tabBtnTextActive]}>الأوسمة</Text>
+          </TouchableOpacity>
+        </View>
+
+        {tab === "frames" && (<>
         {/* ════════ FRAMES ════════ */}
         <View style={styles.sectionRow}>
           <View>
-            <Text style={styles.sectionTitle}>الشارات</Text>
+            <Text style={styles.sectionTitle}>الإطارات</Text>
             <Text style={styles.sectionHint}>تلتفّ حول صورة الملف الشخصي</Text>
           </View>
           {equippedFrame && (
@@ -128,8 +148,11 @@ export default function CollectionScreen() {
           })}
         </View>
 
+        </>)}
+
+        {tab === "badges" && (<>
         {/* ════════ BADGES ════════ */}
-        <View style={[styles.sectionRow, { marginTop: 8 }]}>
+        <View style={styles.sectionRow}>
           <View>
             <Text style={styles.sectionTitle}>الأوسمة</Text>
             <Text style={styles.sectionHint}>تظهر بجانب اسمك في التصنيف والملف</Text>
@@ -194,6 +217,7 @@ export default function CollectionScreen() {
             );
           })}
         </View>
+        </>)}
       </ScrollView>
     </View>
   );
@@ -234,6 +258,25 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.55)", textAlign: "center",
     lineHeight: 17, paddingHorizontal: 8,
   },
+
+  tabsRow: {
+    flexDirection: "row", gap: 8,
+    backgroundColor: "#0A0606",
+    borderWidth: 1, borderColor: BORDER,
+    borderRadius: 14, padding: 4,
+  },
+  tabBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  tabBtnActive: {
+    backgroundColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  tabBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "rgba(255,255,255,0.65)" },
+  tabBtnTextActive: { color: "#000" },
 
   sectionRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
