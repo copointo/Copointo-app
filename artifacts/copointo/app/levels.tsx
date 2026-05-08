@@ -5,6 +5,7 @@ import { Animated, Easing, Image, Platform, ScrollView, StyleSheet, Text, Toucha
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RANKS } from "../data/mockData";
 import { RANK_LOGOS } from "../data/rankLogos";
+import { RANK_BADGES } from "../data/rankBadges";
 import { useApp } from "../context/AppContext";
 
 const BG      = "#000000";
@@ -23,6 +24,7 @@ function RankRow({
   const translateX = useRef(new Animated.Value(20)).current;
   const tier = index + 1;
   const logo = RANK_LOGOS[tier];
+  const badge = RANK_BADGES[tier];
 
   useEffect(() => {
     Animated.parallel([
@@ -39,22 +41,37 @@ function RankRow({
   return (
     <Animated.View style={{ opacity, transform: [{ translateX }] }}>
       <View style={[styles.row, isCurrent && styles.rowCurrent, !isUnlocked && styles.rowLocked]}>
-        <View style={[
-          styles.badgeWrap,
-          { borderColor: isUnlocked ? rank.color : "rgba(255,255,255,0.12)",
-            shadowColor: isUnlocked ? rank.color : "transparent" },
-        ]}>
-          {logo ? (
-            <Image
-              source={logo}
-              style={[styles.badgeImg, !isUnlocked && { opacity: 0.25 }]}
-            />
-          ) : (
-            <Text style={styles.badgeIcon}>{rank.icon}</Text>
-          )}
-          {!isUnlocked && (
-            <View style={styles.lockOverlay}>
-              <Feather name="lock" size={20} color="rgba(255,255,255,0.7)" />
+        <View style={styles.emblemColumn}>
+          <View style={[
+            styles.badgeWrap,
+            { borderColor: isUnlocked ? rank.color : "rgba(255,255,255,0.12)",
+              shadowColor: isUnlocked ? rank.color : "transparent" },
+          ]}>
+            {logo ? (
+              <Image
+                source={logo}
+                style={[styles.badgeImg, !isUnlocked && { opacity: 0.25 }]}
+              />
+            ) : (
+              <Text style={styles.badgeIcon}>{rank.icon}</Text>
+            )}
+            {!isUnlocked && (
+              <View style={styles.lockOverlay}>
+                <Feather name="lock" size={18} color="rgba(255,255,255,0.7)" />
+              </View>
+            )}
+          </View>
+          {badge && (
+            <View style={styles.shieldWrap}>
+              <Image
+                source={badge}
+                style={[styles.shieldImg, !isUnlocked && { opacity: 0.25 }]}
+              />
+              {!isUnlocked && (
+                <View style={styles.lockOverlay}>
+                  <Feather name="lock" size={14} color="rgba(255,255,255,0.7)" />
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -170,6 +187,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.02)",
     borderColor: "rgba(255,255,255,0.08)",
   },
+  emblemColumn: { alignItems: "center", gap: 6 },
   badgeWrap: {
     width: 78, height: 78, borderRadius: 39,
     borderWidth: 2,
@@ -181,6 +199,11 @@ const styles = StyleSheet.create({
   },
   badgeImg: { width: 70, height: 70, resizeMode: "contain" },
   badgeIcon: { fontSize: 32 },
+  shieldWrap: {
+    width: 56, height: 56,
+    alignItems: "center", justifyContent: "center",
+  },
+  shieldImg: { width: 56, height: 56, resizeMode: "contain" },
   lockOverlay: {
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
