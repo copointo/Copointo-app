@@ -23,6 +23,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
+import UserBadge from "@/components/UserBadge";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -415,7 +416,10 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.fieldText}>
               <Text style={styles.fieldLabel}>{t("profile.fieldGameUser")}</Text>
-              <Text style={styles.fieldValue}>@{username}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={styles.fieldValue}>@{username}</Text>
+                <UserBadge size={18} />
+              </View>
             </View>
             <Feather name="edit-2" size={15} color="rgba(255,255,255,0.35)" />
           </TouchableOpacity>

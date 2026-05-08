@@ -19,6 +19,7 @@ import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { getRank } from "@/data/mockData";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
+import UserBadge from "@/components/UserBadge";
 
 type LeaderTab = "friends" | "oman" | "communities";
 
@@ -279,9 +280,12 @@ export default function LeaderboardScreen() {
               </AvatarWithFrame>
 
               <View style={styles.entryInfo}>
-                <Text style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}>
-                  {entry.name}{entry.isMe ? t("lb.youSuffix") : ""}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}>
+                    {entry.name}{entry.isMe ? t("lb.youSuffix") : ""}
+                  </Text>
+                  {entry.isMe && <UserBadge size={18} />}
+                </View>
                 <Text style={styles.entryLevel}>
                   {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
                 </Text>

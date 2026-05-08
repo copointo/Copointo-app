@@ -5,8 +5,11 @@ import React from "react";
 import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AvatarWithFrame from "../components/AvatarWithFrame";
+import UserBadge from "../components/UserBadge";
 import { useApp } from "../context/AppContext";
+import { BADGES } from "../data/badges";
 import { FRAMES } from "../data/frames";
+import { useBadges } from "../hooks/useBadges";
 import { useFrames } from "../hooks/useFrames";
 
 const BG      = "#000000";
@@ -18,9 +21,11 @@ export default function CollectionScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const { user } = useApp();
-  const { owned, equipped, equipFrame } = useFrames();
+  const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
+  const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
 
   const avatarUri = user?.avatar ?? null;
+  const username = user?.gameUsername || user?.name || "guest";
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -47,30 +52,36 @@ export default function CollectionScreen() {
               )}
             </AvatarWithFrame>
           </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={styles.previewName}>@{username}</Text>
+            <UserBadge size={18} />
+          </View>
           <Text style={styles.previewSub}>
-            {equipped ? "هذا الإطار يظهر على صورتك في كل مكان" : "اختر إطاراً ليظهر على صورتك الشخصية وفي التصنيفات"}
+            الإطار يظهر حول صورتك، والشارة تظهر بجانب اسمك
           </Text>
         </View>
 
-        {/* ── Section title ── */}
+        {/* ════════ FRAMES ════════ */}
         <View style={styles.sectionRow}>
-          <Text style={styles.sectionTitle}>الإطارات</Text>
-          {equipped && (
+          <View>
+            <Text style={styles.sectionTitle}>الإطارات</Text>
+            <Text style={styles.sectionHint}>تلتفّ حول صورة الملف الشخصي</Text>
+          </View>
+          {equippedFrame && (
             <TouchableOpacity
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); equipFrame(null); }}
               style={styles.removeBtn}
             >
               <Feather name="x" size={12} color={PRIMARY} />
-              <Text style={styles.removeBtnText}>إزالة الإطار</Text>
+              <Text style={styles.removeBtnText}>إزالة</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* ── Frames grid ── */}
         <View style={styles.grid}>
           {FRAMES.map(f => {
-            const isOwned = owned.includes(f.id);
-            const isEquipped = equipped === f.id;
+            const isOwned = ownedFrames.includes(f.id);
+            const isEquipped = equippedFrame === f.id;
             return (
               <TouchableOpacity
                 key={f.id}
@@ -87,10 +98,7 @@ export default function CollectionScreen() {
                 activeOpacity={0.85}
               >
                 <View style={styles.tileImgWrap}>
-                  <Image
-                    source={f.source}
-                    style={[styles.tileImg, !isOwned && { opacity: 0.25 }]}
-                  />
+                  <Image source={f.source} style={[styles.tileImg, !isOwned && { opacity: 0.25 }]} />
                   {!isOwned && (
                     <View style={styles.lockOverlay}>
                       <Feather name="lock" size={20} color="rgba(255,255,255,0.75)" />
@@ -99,6 +107,73 @@ export default function CollectionScreen() {
                 </View>
                 <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
                   {f.name}
+                </Text>
+                {isEquipped ? (
+                  <View style={styles.equippedChip}>
+                    <Feather name="check" size={10} color="#000" />
+                    <Text style={styles.equippedChipText}>مُجهَّز</Text>
+                  </View>
+                ) : isOwned ? (
+                  <View style={styles.ownedChip}>
+                    <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
+                  </View>
+                ) : (
+                  <View style={styles.lockedChip}>
+                    <Feather name="lock" size={9} color="rgba(255,255,255,0.55)" />
+                    <Text style={styles.lockedChipText}>مقفل</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ════════ BADGES ════════ */}
+        <View style={[styles.sectionRow, { marginTop: 8 }]}>
+          <View>
+            <Text style={styles.sectionTitle}>الشارات</Text>
+            <Text style={styles.sectionHint}>تظهر بجانب اسمك في التصنيف والملف</Text>
+          </View>
+          {equippedBadge && (
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); equipBadge(null); }}
+              style={styles.removeBtn}
+            >
+              <Feather name="x" size={12} color={PRIMARY} />
+              <Text style={styles.removeBtnText}>إزالة</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.grid}>
+          {BADGES.map(b => {
+            const isOwned = ownedBadges.includes(b.id);
+            const isEquipped = equippedBadge === b.id;
+            return (
+              <TouchableOpacity
+                key={b.id}
+                style={[
+                  styles.tile,
+                  isEquipped && styles.tileEquipped,
+                  !isOwned && styles.tileLocked,
+                ]}
+                disabled={!isOwned}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  equipBadge(isEquipped ? null : b.id);
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={styles.tileImgWrap}>
+                  <Image source={b.source} style={[styles.tileImg, !isOwned && { opacity: 0.25 }]} />
+                  {!isOwned && (
+                    <View style={styles.lockOverlay}>
+                      <Feather name="lock" size={20} color="rgba(255,255,255,0.75)" />
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
+                  {b.name}
                 </Text>
                 {isEquipped ? (
                   <View style={styles.equippedChip}>
@@ -153,16 +228,18 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
+  previewName: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
   previewSub: {
-    fontSize: 12, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.6)", textAlign: "center",
-    lineHeight: 18, paddingHorizontal: 8,
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.55)", textAlign: "center",
+    lineHeight: 17, paddingHorizontal: 8,
   },
 
   sectionRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
   },
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  sectionHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", marginTop: 2 },
   removeBtn: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
