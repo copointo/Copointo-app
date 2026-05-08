@@ -14,19 +14,92 @@ interface Pack {
   id: string;
   coins: number;
   price: number;
+  tier: 1 | 2 | 3 | 4 | 5 | 6;
   badge?: string;
 }
 
 const PACKS: Pack[] = [
-  { id: "p1", coins: 200,   price: 0.99 },
-  { id: "p2", coins: 1200,  price: 4.99 },
-  { id: "p3", coins: 2800,  price: 9.99,  badge: "الأكثر شعبية" },
-  { id: "p4", coins: 6200,  price: 19.99 },
-  { id: "p5", coins: 13500, price: 49.99, badge: "أفضل قيمة" },
-  { id: "p6", coins: 35000, price: 99.99 },
+  { id: "p1", coins: 200,   price: 0.99,  tier: 1 },
+  { id: "p2", coins: 1200,  price: 4.99,  tier: 2 },
+  { id: "p3", coins: 2800,  price: 9.99,  tier: 3, badge: "الأكثر شعبية" },
+  { id: "p4", coins: 6200,  price: 19.99, tier: 4 },
+  { id: "p5", coins: 13500, price: 49.99, tier: 5, badge: "أفضل قيمة" },
+  { id: "p6", coins: 35000, price: 99.99, tier: 6 },
 ];
 
 const fmt = (n: number) => n.toLocaleString("en-US");
+
+// A growing pile/stack of coins per tier
+function CoinVisual({ tier }: { tier: Pack["tier"] }) {
+  const cfg = {
+    1: { size: 56, glow: "rgba(232,184,109,0.35)", coins: [{ x: 0, y: 0, s: 1 }] },
+    2: { size: 56, glow: "rgba(232,184,109,0.45)", coins: [
+      { x: -10, y: 6,  s: 0.85 },
+      { x:  8,  y: -2, s: 1 },
+    ] },
+    3: { size: 56, glow: "rgba(255,200,120,0.55)", coins: [
+      { x: -16, y: 8,  s: 0.8 },
+      { x:  14, y: 8,  s: 0.8 },
+      { x:  -2, y: -6, s: 1 },
+    ] },
+    4: { size: 56, glow: "rgba(255,200,120,0.65)", coins: [
+      { x: -20, y: 12, s: 0.78 },
+      { x:   0, y: 14, s: 0.82 },
+      { x:  20, y: 12, s: 0.78 },
+      { x:  -2, y: -6, s: 1.02 },
+    ] },
+    5: { size: 58, glow: "rgba(255,215,140,0.8)",  coins: [
+      { x: -22, y: 14, s: 0.72 },
+      { x:  -7, y: 16, s: 0.78 },
+      { x:   8, y: 16, s: 0.78 },
+      { x:  22, y: 14, s: 0.72 },
+      { x:  -8, y:  0, s: 0.92 },
+      { x:   8, y: -8, s: 1.05 },
+    ] },
+    6: { size: 60, glow: "rgba(255,225,160,1)",   coins: [
+      { x: -26, y: 18, s: 0.7 },
+      { x: -10, y: 20, s: 0.75 },
+      { x:   8, y: 20, s: 0.75 },
+      { x:  26, y: 18, s: 0.7 },
+      { x: -16, y:  4, s: 0.88 },
+      { x:   2, y:  6, s: 0.92 },
+      { x:  18, y:  2, s: 0.88 },
+      { x:  -2, y: -14, s: 1.12 },
+    ] },
+  }[tier];
+
+  return (
+    <View style={visualStyles.wrap}>
+      <View style={[visualStyles.glow, { backgroundColor: cfg.glow }]} />
+      {cfg.coins.map((c, i) => (
+        <Image
+          key={i}
+          source={COPOINTO_COIN}
+          style={{
+            position: "absolute",
+            width: cfg.size * c.s,
+            height: cfg.size * c.s,
+            transform: [{ translateX: c.x }, { translateY: c.y }],
+            resizeMode: "contain",
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+const visualStyles = StyleSheet.create({
+  wrap: {
+    width: 110, height: 90,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 6,
+  },
+  glow: {
+    position: "absolute",
+    width: 90, height: 90, borderRadius: 45,
+    opacity: 0.55,
+  },
+});
 
 export default function BuyCoinsScreen() {
   const router = useRouter();
@@ -54,7 +127,7 @@ export default function BuyCoinsScreen() {
                   <Text style={styles.badgeText}>{p.badge}</Text>
                 </View>
               ) : null}
-              <Image source={COPOINTO_COIN} style={styles.coinImg} />
+              <CoinVisual tier={p.tier} />
               <View style={styles.coinsRow}>
                 <Text style={styles.coinsText}>{fmt(p.coins)}</Text>
                 <Text style={styles.coinsLabel}>عملة</Text>
