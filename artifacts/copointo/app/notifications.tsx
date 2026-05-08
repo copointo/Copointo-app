@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+const COPOINTO_LOGO = require("../assets/images/copointo-logo.png");
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
@@ -345,7 +348,7 @@ export default function NotificationsScreen() {
           <View key={`bc-${b.id}`} style={styles.broadcastCard}>
             <View style={styles.broadcastHeader}>
               <View style={styles.broadcastBadge}>
-                <Text style={styles.broadcastBadgeIcon}>📣</Text>
+                <Image source={COPOINTO_LOGO} style={styles.broadcastBadgeLogo} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={styles.broadcastTitleRow}>
@@ -553,10 +556,12 @@ const styles = StyleSheet.create({
   broadcastHeader: { flexDirection: "row", gap: 12, alignItems: "center" },
   broadcastBadge: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: ACCENT,
+    backgroundColor: "#0A0606",
+    borderWidth: 1.5, borderColor: ACCENT,
     alignItems: "center", justifyContent: "center",
   },
   broadcastBadgeIcon: { fontSize: 22 },
+  broadcastBadgeLogo: { width: 36, height: 36, resizeMode: "contain" },
   broadcastTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   broadcastSender: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
   officialDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: ACCENT },
