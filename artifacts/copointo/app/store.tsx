@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
@@ -15,6 +17,7 @@ export default function StoreScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-right" size={20} color="#FFF" />
@@ -23,13 +26,19 @@ export default function StoreScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.iconWrap}>
-          <Feather name="shopping-bag" size={42} color={PRIMARY} />
-        </View>
-        <Text style={styles.title}>المتجر</Text>
-        <Text style={styles.sub}>قريباً — سيتمكن اللاعبون من شراء أدوات وتحسينات بنقاطهم.</Text>
-      </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Buy Coins card */}
+        <TouchableOpacity style={styles.card} activeOpacity={0.85}>
+          <View style={styles.coinWrap}>
+            <Image source={COPOINTO_COIN} style={styles.coinImg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>شراء عملات Copointo</Text>
+            <Text style={styles.cardSub}>استخدم العملات للحصول على مزايا داخل التطبيق</Text>
+          </View>
+          <Feather name="chevron-left" size={22} color={PRIMARY} />
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -47,16 +56,22 @@ const styles = StyleSheet.create({
     transform: [{ scaleX: -1 }],
   },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
-  body: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
-  iconWrap: {
-    width: 96, height: 96, borderRadius: 48,
-    backgroundColor: `${PRIMARY}15`, borderWidth: 2, borderColor: BORDER,
+
+  scroll: { padding: 20, gap: 14, paddingBottom: 60 },
+
+  card: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    backgroundColor: "#0A0606",
+    borderRadius: 18, padding: 14,
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25, shadowRadius: 14, elevation: 4,
+  },
+  coinWrap: {
+    width: 64, height: 64, borderRadius: 32,
     alignItems: "center", justifyContent: "center",
   },
-  title: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF" },
-  sub: {
-    fontSize: 13, fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.6)", textAlign: "center", lineHeight: 20,
-    paddingHorizontal: 16,
-  },
+  coinImg: { width: 64, height: 64, resizeMode: "contain" },
+  cardTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 4 },
+  cardSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", lineHeight: 18 },
 });
