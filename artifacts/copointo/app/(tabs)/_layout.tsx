@@ -5,7 +5,9 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Image, Platform, StyleSheet, View, useColorScheme } from "react-native";
+
+const COPOINTO_LOGO = require("../../assets/images/copointo-logo.png");
 import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
 
@@ -25,7 +27,7 @@ function NativeTabLayout() {
         <Label>Videos</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="game">
-        <Icon sf={{ default: "gamecontroller", selected: "gamecontroller.fill" }} />
+        <Icon src={COPOINTO_LOGO} />
         <Label>Copointo Hub</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
@@ -125,12 +127,12 @@ function ClassicTabLayout() {
         name="game"
         options={{
           title: "Copointo Hub",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="gamecontroller.fill" tintColor={color} size={icSize} />
-            ) : (
-              <Feather name="target" size={icSize} color={color} />
-            ),
+          tabBarIcon: () => (
+            <Image
+              source={COPOINTO_LOGO}
+              style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain" }}
+            />
+          ),
         }}
       />
       <Tabs.Screen
