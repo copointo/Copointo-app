@@ -19,7 +19,7 @@ export default function CollectionScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Feather name="arrow-right" size={20} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>مقتنياتي</Text>
+        <Text style={styles.headerTitle}>أغراضي</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -27,7 +27,7 @@ export default function CollectionScreen() {
         <View style={styles.iconWrap}>
           <Feather name="package" size={42} color={PRIMARY} />
         </View>
-        <Text style={styles.title}>مقتنياتي</Text>
+        <Text style={styles.title}>أغراضي</Text>
         <Text style={styles.sub}>قريباً — هنا ستظهر كل العناصر التي اشتريتها أو ربحتها داخل اللعبة.</Text>
       </View>
     </View>
