@@ -51,6 +51,10 @@ export const CHARACTERS: CharacterDef[] = [
 ];
 
 const PRICE_OVERRIDES: Record<string, number> = {
+  "char-13": 2000,
+  "char-14": 2000,
+  "char-15": 2000,
+  "char-16": 2000,
   "char-19": 10000,
   "char-20": 10000,
 };
