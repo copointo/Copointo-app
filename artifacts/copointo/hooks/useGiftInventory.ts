@@ -1,7 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
+import { GIFTS } from "../data/gifts";
 
 const KEY = "copointo_gift_inventory_v1";
+
+// Starter pack: every brand-new user (no inventory key yet) gets 5 of each
+// gift type so they can immediately try sending gifts to friends without
+// having to grind coins first.
+const STARTER_QTY_PER_GIFT = 5;
+const STARTER_INVENTORY: Record<string, number> = Object.fromEntries(
+  GIFTS.map(g => [g.id, STARTER_QTY_PER_GIFT]),
+);
 
 export type GiftInventory = Record<string, number>;
 
@@ -28,16 +37,21 @@ export function useGiftInventory() {
     if (_cache === null) {
       AsyncStorage.getItem(KEY).then(raw => {
         let inv: GiftInventory = {};
-        try {
-          if (raw) {
+        // First-run users (no key yet) get the starter pack persisted
+        // immediately so it survives reloads.
+        if (raw === null) {
+          inv = { ...STARTER_INVENTORY };
+          persist(inv);
+        } else {
+          try {
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === "object") {
               for (const [k, v] of Object.entries(parsed)) {
                 if (typeof v === "number" && v > 0) inv[k] = v;
               }
             }
-          }
-        } catch {}
+          } catch {}
+        }
         broadcast(inv);
         setHydrated(true);
       });

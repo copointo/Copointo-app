@@ -17,11 +17,13 @@ export interface CharacterDef {
   ringGradient?: readonly [string, string, ...string[]];
   /** Per-character size multiplier applied on top of the base size. */
   scale?: number;
+  /** If true, every user owns this character by default (free starter). */
+  defaultOwned?: boolean;
 }
 
 export const CHARACTERS: CharacterDef[] = [
   // ── 1-10 normal companions ────────────────────────────────────────
-  { id: "char-1",  name: "قطة",       emoji: "🐱" },
+  { id: "char-1",  name: "قطة",       emoji: "🐱", defaultOwned: true },
   { id: "char-2",  name: "أسد",       emoji: "🦁" },
   { id: "char-3",  name: "أرنب",      emoji: "🐰" },
   { id: "char-4",  name: "ثعلب",      emoji: "🦊" },
@@ -54,6 +56,8 @@ export function getCharacter(id: string | null): CharacterDef | null {
 }
 
 export const CHARACTER_PRICE = (idx: number): number => {
+  // char-1 (the cat) is the free starter for everyone.
+  if (idx === 0) return 0;
   if (idx < 10) return 300;
   if (idx < 15) return 1200;
   return 3000;

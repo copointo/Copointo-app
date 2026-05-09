@@ -1,10 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
+import { CHARACTERS } from "../data/characters";
 
 const KEY_OWNED = "copointo_characters_owned_v1";
 const KEY_EQUIPPED = "copointo_character_equipped_v1";
 
-const DEFAULT_OWNED: string[] = [];
+// Every character flagged `defaultOwned` is granted to all users automatically
+// (free starter pack). Currently this is just the cat (char-1).
+const DEFAULT_OWNED: string[] = CHARACTERS.filter(c => c.defaultOwned).map(c => c.id);
+const DEFAULT_EQUIPPED: string | null = DEFAULT_OWNED[0] ?? null;
 
 interface State {
   owned: string[];
@@ -36,7 +40,15 @@ function hydrate(): Promise<State> {
         }
       }
     } catch {}
-    const equipped = rawEq && owned.includes(rawEq) ? rawEq : null;
+    // First-run users (rawEq === null) auto-equip the default starter so
+    // the cat is visible immediately. Users who explicitly removed it
+    // (rawEq === "") keep nothing equipped.
+    const equipped =
+      rawEq === null
+        ? (DEFAULT_EQUIPPED && owned.includes(DEFAULT_EQUIPPED) ? DEFAULT_EQUIPPED : null)
+        : rawEq && owned.includes(rawEq)
+          ? rawEq
+          : null;
     const next: State = { owned, equipped };
     broadcast(next);
     return next;
