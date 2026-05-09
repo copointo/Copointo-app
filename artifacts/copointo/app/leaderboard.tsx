@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   Modal,
   Platform,
@@ -29,7 +30,11 @@ import { useMessages } from "@/context/MessagesContext";
 import { useUsernameColors } from "@/hooks/useUsernameColors";
 import { useTextStyles } from "@/hooks/useTextStyles";
 import { useBackgrounds } from "@/hooks/useBackgrounds";
-import { GIFTS } from "@/data/gifts";
+import { GIFTS, GiftDef } from "@/data/gifts";
+import GiftPicker from "@/components/GiftPicker";
+import GiftAnimation from "@/components/GiftAnimation";
+import { useGiftInventory } from "@/hooks/useGiftInventory";
+import type { ChatMessage } from "@/data/mockData";
 import { getUsernameColor } from "@/data/usernameColors";
 import { getTextStyle } from "@/data/textStyles";
 import { getBackground } from "@/data/backgrounds";
@@ -451,6 +456,40 @@ function UserDetailPanel(p: PanelProps) {
   const u = p.targetUser;
   const isMe = !!(u && p.myId && u.id === p.myId);
 
+  // ── Gift sending (to other users only) ─────────────────────
+  const { consumeGift } = useGiftInventory();
+  const { appendMsg } = useMessages();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [animGift, setAnimGift] = useState<GiftDef | null>(null);
+
+  const sendGift = async (gift: GiftDef) => {
+    if (!u) return;
+    const ok = await consumeGift(gift.id, 1);
+    if (!ok) {
+      setPickerOpen(false);
+      Alert.alert("ما عندك من هذي الهدية", "اشتر الهدية من المتجر أولاً.");
+      return;
+    }
+    setPickerOpen(false);
+    const convId = `friend_${u.id}`;
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes().toString().padStart(2, "0");
+    const period = h >= 12 ? "م" : "ص";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const giftMsg: ChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      text: `🎁 ${gift.name}`,
+      fromMe: true,
+      time: `${h12}:${m} ${period}`,
+      seen: false,
+      giftId: gift.id,
+    };
+    appendMsg(convId, giftMsg);
+    setAnimGift(gift);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  };
+
   const cafes: CafeProgress[] = useMemo(() => {
     if (!u?.cafeProgress) return [];
     return Object.values(u.cafeProgress)
@@ -669,6 +708,21 @@ function UserDetailPanel(p: PanelProps) {
                 );
               })()}
 
+              {/* Send-gift button (hidden when viewing self) */}
+              {!isMe && p.myId && (
+                <TouchableOpacity
+                  style={[panelStyles.actionBtn, { marginTop: 18, backgroundColor: "#EC4899" }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPickerOpen(true);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="gift" size={16} color="#FFF" />
+                  <Text style={[panelStyles.actionText, { color: "#FFF" }]}>إهداء هدية</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Friend-add button (hidden when viewing self) */}
               {!isMe && p.myId && (
                 <View style={{ marginTop: 18 }}>
@@ -711,6 +765,23 @@ function UserDetailPanel(p: PanelProps) {
           )}
         </Pressable>
       </Pressable>
+
+      {/* Gift picker + send animation (rendered alongside the panel modal) */}
+      {!isMe && u && (
+        <>
+          <GiftPicker
+            visible={pickerOpen}
+            toName={u.name}
+            onClose={() => setPickerOpen(false)}
+            onSend={sendGift}
+          />
+          <GiftAnimation
+            gift={animGift}
+            visible={!!animGift}
+            onDone={() => setAnimGift(null)}
+          />
+        </>
+      )}
     </Modal>
   );
 }
