@@ -17,6 +17,9 @@ import UsernameText from "../components/UsernameText";
 import AvatarWithFrame from "../components/AvatarWithFrame";
 import { USERNAME_COLORS, UsernameColorDef, USERNAME_COLOR_PRICE } from "../data/usernameColors";
 import { useUsernameColors } from "../hooks/useUsernameColors";
+import { TEXT_STYLES, TextStyleDef, TEXT_STYLE_PRICE } from "../data/textStyles";
+import { useTextStyles } from "../hooks/useTextStyles";
+import MessageBubble from "../components/MessageBubble";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
@@ -175,6 +178,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedBackgrounds, grantBackground, equipBackground } = useBackgrounds();
   const { owned: ownedFrames, grantFrame, equipFrame } = useFrames();
   const { owned: ownedUsernameColors, grantUsernameColor, equipUsernameColor } = useUsernameColors();
+  const { owned: ownedTextStyles, grantTextStyle, equipTextStyle } = useTextStyles();
   const { balance, addCoins } = useCoins();
   const { user } = useApp();
   const avatarUri = user?.avatar ?? null;
@@ -185,6 +189,8 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const [previewBadge, setPreviewBadge] = useState<{ badge: BadgeDef; price: number } | null>(null);
   const [previewUC, setPreviewUC] = useState<{ uc: UsernameColorDef; price: number } | null>(null);
   const previewUCOwned = previewUC ? ownedUsernameColors.includes(previewUC.uc.id) : false;
+  const [previewTS, setPreviewTS] = useState<{ ts: TextStyleDef; price: number } | null>(null);
+  const previewTSOwned = previewTS ? ownedTextStyles.includes(previewTS.ts.id) : false;
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
   const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
@@ -494,6 +500,79 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
     );
   }
 
+  if (cat === "text") {
+    return (
+      <>
+        <View style={styles.bgGrid} key="text-styles">
+          {TEXT_STYLES.map((ts, i) => {
+            const owned = ownedTextStyles.includes(ts.id);
+            const price = TEXT_STYLE_PRICE(i);
+            return (
+              <FadeInItem key={ts.id} index={i} style={{ width: "48%" }}>
+                <TouchableOpacity
+                  style={styles.bgCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewTS({ ts, price });
+                  }}
+                >
+                  <View style={styles.tsCardPreviewWrap}>
+                    <MessageBubble
+                      style={styles.tsCardBubble}
+                      textStyleDef={ts}
+                      fallbackBg="#E8B86D"
+                      fallbackBorder="#E8B86D"
+                    >
+                      <Text style={[styles.tsCardBubbleText, { color: ts.textColor }]} numberOfLines={1}>
+                        مرحباً 👋
+                      </Text>
+                    </MessageBubble>
+                  </View>
+                  <Text style={styles.bgName} numberOfLines={1}>{ts.name}</Text>
+                  <PriceTag price={price} owned={owned} />
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+
+        <PurchaseModal
+          visible={!!previewTS}
+          onClose={() => setPreviewTS(null)}
+          title={previewTS?.ts.name ?? ""}
+          subtitle="معاينة شكل رسالتك في الدردشة"
+          price={previewTS?.price ?? 0}
+          owned={previewTSOwned}
+          balance={balance}
+          ownedLabel="تجهيز هذا الستايل"
+          onEquip={() => previewTS && equipTextStyle(previewTS.ts.id)}
+          onBuy={async () => {
+            if (!previewTS) return;
+            await addCoins(-previewTS.price);
+            await grantTextStyle(previewTS.ts.id);
+            await equipTextStyle(previewTS.ts.id);
+          }}
+        >
+          {previewTS && (
+            <View style={styles.tsModalPreview}>
+              <MessageBubble
+                style={styles.tsModalBubble}
+                textStyleDef={previewTS.ts}
+                fallbackBg="#E8B86D"
+                fallbackBorder="#E8B86D"
+              >
+                <Text style={[styles.tsModalBubbleText, { color: previewTS.ts.textColor }]}>
+                  مرحباً، كيف حالك اليوم؟ ☕
+                </Text>
+              </MessageBubble>
+            </View>
+          )}
+        </PurchaseModal>
+      </>
+    );
+  }
+
   return (
     <FadeInItem key={cat} style={styles.comingSoon}>
       <Feather name="clock" size={28} color={PRIMARY} />
@@ -764,6 +843,32 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   ucModalPreviewText: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  tsCardPreviewWrap: {
+    alignSelf: "stretch",
+    paddingVertical: 14, paddingHorizontal: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+  },
+  tsCardBubble: {
+    borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7,
+    borderWidth: 1, alignSelf: "center", maxWidth: "100%",
+  },
+  tsCardBubbleText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  tsModalPreview: {
+    marginTop: 14,
+    paddingVertical: 24, paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 18,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "flex-end", justifyContent: "center",
+  },
+  tsModalBubble: {
+    borderRadius: 18, paddingHorizontal: 16, paddingVertical: 10,
+    borderWidth: 1, maxWidth: "85%",
+  },
+  tsModalBubbleText: { fontSize: 15, fontFamily: "Inter_500Medium", lineHeight: 22 },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,

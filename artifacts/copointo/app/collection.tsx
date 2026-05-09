@@ -20,6 +20,9 @@ import UsernameBackground from "../components/UsernameBackground";
 import UsernameText from "../components/UsernameText";
 import { USERNAME_COLORS } from "../data/usernameColors";
 import { useUsernameColors } from "../hooks/useUsernameColors";
+import { TEXT_STYLES } from "../data/textStyles";
+import { useTextStyles } from "../hooks/useTextStyles";
+import MessageBubble from "../components/MessageBubble";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -36,6 +39,7 @@ export default function CollectionScreen() {
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
   const { owned: ownedBackgrounds, equipped: equippedBackground, equipBackground } = useBackgrounds();
   const { owned: ownedUsernameColors, equipped: equippedUsernameColor, equipUsernameColor } = useUsernameColors();
+  const { owned: ownedTextStyles, equipped: equippedTextStyle, equipTextStyle } = useTextStyles();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
@@ -428,7 +432,82 @@ export default function CollectionScreen() {
           </View>
         </>)}
 
-        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && (
+        {tab === "text" && (<>
+          <View style={styles.sectionRow}>
+            <View>
+              <Text style={styles.sectionTitle}>نص ملوّن للرسائل</Text>
+              <Text style={styles.sectionHint}>يظهر على رسائلك في الدردشة</Text>
+            </View>
+            {equippedTextStyle && (
+              <TouchableOpacity
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); equipTextStyle(null); }}
+                style={styles.removeBtn}
+              >
+                <Feather name="x" size={12} color={PRIMARY} />
+                <Text style={styles.removeBtnText}>إزالة</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {ownedTextStyles.length === 0 && (
+            <FadeInItem style={styles.emptyHint}>
+              <Feather name="shopping-bag" size={26} color={PRIMARY} />
+              <Text style={styles.emptyHintTitle}>لا توجد ستايلات بعد</Text>
+              <Text style={styles.emptyHintSub}>اشتر نصوص ملونة من المتجر لتظهر هنا</Text>
+            </FadeInItem>
+          )}
+
+          <View style={styles.grid} key="text-styles-grid">
+            {TEXT_STYLES.filter(ts => ownedTextStyles.includes(ts.id)).map((ts, idx) => {
+              const isEquipped = equippedTextStyle === ts.id;
+              return (
+                <FadeInItem key={ts.id} index={idx} style={styles.tileWrap}>
+                  <TouchableOpacity
+                    style={[styles.tile, isEquipped && styles.tileEquipped]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      equipTextStyle(isEquipped ? null : ts.id);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={{
+                      alignSelf: "stretch",
+                      paddingVertical: 18, paddingHorizontal: 8,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      borderRadius: 12,
+                      borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+                      alignItems: "center", justifyContent: "center",
+                    }}>
+                      <MessageBubble
+                        style={{ borderRadius: 14, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1 }}
+                        textStyleDef={ts}
+                        fallbackBg="#E8B86D"
+                        fallbackBorder="#E8B86D"
+                      >
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: ts.textColor }} numberOfLines={1}>
+                          مرحباً 👋
+                        </Text>
+                      </MessageBubble>
+                    </View>
+                    <Text style={styles.tileName}>{ts.name}</Text>
+                    {isEquipped ? (
+                      <View style={styles.equippedChip}>
+                        <Feather name="check" size={10} color="#000" />
+                        <Text style={styles.equippedChipText}>مُجهَّز</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.ownedChip}>
+                        <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </FadeInItem>
+              );
+            })}
+          </View>
+        </>)}
+
+        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && tab !== "text" && (
           <FadeInItem key={tab} style={styles.comingSoon}>
             <Feather name="clock" size={28} color={PRIMARY} />
             <Text style={styles.comingSoonTitle}>قريباً</Text>

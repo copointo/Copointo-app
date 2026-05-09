@@ -19,6 +19,9 @@ import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useMessages } from "@/context/MessagesContext";
 import { playReceiveMessageSound, playSendMessageSound } from "@/lib/notification-sound";
+import MessageBubble from "@/components/MessageBubble";
+import { useTextStyles } from "@/hooks/useTextStyles";
+import { getTextStyle } from "@/data/textStyles";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -38,12 +41,15 @@ function buildNow(amLabel: string, pmLabel: string): string {
 }
 
 // ─── Tick component: single ✓ = sent, double ✓✓ = seen ────────────────────
-function Ticks({ seen }: { seen: boolean }) {
+function Ticks({ seen, onThemed = false }: { seen: boolean; onThemed?: boolean }) {
   // On amber bubble: dark grey for sent, dark blue for seen so they remain legible.
+  // On themed (gradient) bubble: light gray for sent, light blue for seen.
+  const sentColor = onThemed ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.50)";
+  const seenColor = onThemed ? "#7DD3FC" : "#1976D2";
   return (
     <View style={styles.ticksRow}>
-      <Text style={[styles.tick, { color: seen ? "#1976D2" : "rgba(0,0,0,0.50)" }]}>✓</Text>
-      {seen && <Text style={[styles.tick, { color: "#1976D2", marginLeft: -5 }]}>✓</Text>}
+      <Text style={[styles.tick, { color: seen ? seenColor : sentColor }]}>✓</Text>
+      {seen && <Text style={[styles.tick, { color: seenColor, marginLeft: -5 }]}>✓</Text>}
     </View>
   );
 }
@@ -55,6 +61,8 @@ export default function ConversationScreen() {
   const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type: string }>();
 
   const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv } = useMessages();
+  const { equipped: equippedTextStyleId } = useTextStyles();
+  const equippedTextStyleDef = getTextStyle(equippedTextStyleId);
   const { registeredUsers } = useApp();
   const { t } = useT();
   const convMsgs = chats[id ?? ""] ?? [];
@@ -152,27 +160,39 @@ export default function ConversationScreen() {
             <View style={{ width: 32 }} />
           )}
 
-          <View style={[styles.bubble, item.fromMe ? styles.meBubble : styles.themBubble]}>
+          {item.fromMe ? (
+            <MessageBubble
+              style={[styles.bubble, styles.meBubble, { borderWidth: 1 }]}
+              textStyleDef={equippedTextStyleDef}
+              fallbackBg={ME_BG}
+              fallbackBorder={PRIMARY}
+            >
+              {showSenderName && (
+                <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
+              )}
+              <Text style={[styles.bubbleText, { color: equippedTextStyleDef?.textColor ?? "#000" }]}>
+                {item.text}
+              </Text>
+              {item.fromMe && (
+                <View style={styles.metaRow}>
+                  <Text style={[styles.metaTimeMe, equippedTextStyleDef?.bg && { color: "rgba(255,255,255,0.65)" }]}>{item.time}</Text>
+                  <Ticks seen={item.seen} onThemed={!!equippedTextStyleDef?.bg} />
+                </View>
+              )}
+            </MessageBubble>
+          ) : (
+          <View style={[styles.bubble, styles.themBubble]}>
             {showSenderName && (
               <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
             )}
-            <Text style={[styles.bubbleText, item.fromMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
+            <Text style={[styles.bubbleText, styles.bubbleTextThem]}>
               {item.text}
             </Text>
-            {/* Timestamp + ticks for my messages */}
-            {item.fromMe && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaTimeMe}>{item.time}</Text>
-                <Ticks seen={item.seen} />
-              </View>
-            )}
-            {/* Timestamp only for their messages */}
-            {!item.fromMe && (
-              <Text style={[styles.metaTime, { alignSelf: "flex-start", marginTop: 3 }]}>
-                {item.time}
-              </Text>
-            )}
+            <Text style={[styles.metaTime, { alignSelf: "flex-start", marginTop: 3 }]}>
+              {item.time}
+            </Text>
           </View>
+          )}
         </View>
       </View>
     );
