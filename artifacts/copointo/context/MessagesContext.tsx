@@ -38,6 +38,14 @@ const COPOINTO_ADMIN_CONV      = `friend_${COPOINTO_ADMIN_ID}`;
 const COPOINTO_ADMIN_NAME      = "كوبوينتو";
 const COPOINTO_ADMIN_AVATAR    = "☕";
 
+// Built-in "test bot" friend used to preview message colors / text styles
+// without needing a real friend on the other side. Never POSTed to server;
+// all replies are echoed locally in conversation.tsx.
+export const SELF_TEST_ID   = "copointo-test-bot";
+export const SELF_TEST_CONV = `friend_${SELF_TEST_ID}`;
+const SELF_TEST_NAME        = "صديق تجريبي";
+const SELF_TEST_AVATAR      = "🤖";
+
 const chatsKey  = (uid: string) => `${STORAGE_KEY_CHATS}:${uid}`;
 const unreadKey = (uid: string) => `${STORAGE_KEY_UNREAD}:${uid}`;
 const groupsKey = (uid: string) => `${STORAGE_KEY_GROUPS}:${uid}`;
@@ -132,6 +140,23 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const convList = useMemo<Message[]>(() => {
     if (!user) return [];
     const out: Message[] = [];
+
+    // Built-in "test bot" conversation — always pinned so the user can
+    // preview message colors and text styles without a real friend.
+    {
+      const history = chats[SELF_TEST_CONV] ?? [];
+      const last = history[history.length - 1];
+      out.push({
+        id: SELF_TEST_CONV,
+        senderId: SELF_TEST_ID,
+        senderName: SELF_TEST_NAME,
+        senderAvatar: SELF_TEST_AVATAR,
+        preview: last ? last.text : "اكتب أي شيء وراح أرد عليك — لاختبار الألوان والأنماط",
+        timestamp: last ? last.time : "الآن",
+        unread: unreadMap[SELF_TEST_CONV] ?? 0,
+        type: "user",
+      });
+    }
 
     // System "Copointo" conversation: appears whenever the super-admin has
     // ever sent a direct message to this user. Pinned to the top so the
@@ -233,6 +258,9 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       setUnreadMap(prev => ({ ...prev, [convId]: (prev[convId] ?? 0) + 1 }));
     }
     if (!msg.fromMe || !user) return;
+
+    // The built-in test bot is local-only — never push to the server.
+    if (convId === SELF_TEST_CONV) return;
 
     // Push to the server so the recipient(s) see it on their next poll.
     let body: Record<string, string> | null = null;
