@@ -69,6 +69,42 @@ const CATEGORIES: CatDef[] = [
 
 const PRICE_BY_TIER = [50, 100, 200, 350, 500, 700, 1000, 1500, 2200, 3000];
 
+/** Convert any color (hex, rgb, rgba) into a soft card tint {bg ~10% / border ~45%}. */
+function itemTheme(color: string | undefined): { backgroundColor: string; borderColor: string } {
+  if (!color) return { backgroundColor: "rgba(232,184,109,0.08)", borderColor: "rgba(232,184,109,0.30)" };
+  const hex = /^#([0-9a-fA-F]{6})$/.exec(color);
+  let r = 232, g = 184, b = 109;
+  if (hex) {
+    r = parseInt(hex[1].slice(0, 2), 16);
+    g = parseInt(hex[1].slice(2, 4), 16);
+    b = parseInt(hex[1].slice(4, 6), 16);
+  } else {
+    const m = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(color);
+    if (m) { r = +m[1]; g = +m[2]; b = +m[3]; }
+  }
+  return {
+    backgroundColor: `rgba(${r},${g},${b},0.12)`,
+    borderColor: `rgba(${r},${g},${b},0.50)`,
+  };
+}
+
+/** Per-item accent colors for items that have no inherent color in their def. */
+const FRAME_TINT: Record<string, string> = {
+  "frame-11": "#DC2626", "frame-12": "#3B82F6", "frame-13": "#A855F7",
+  "frame-14": "#10B981", "frame-15": "#FFD700", "frame-16": "#F97316",
+};
+const BADGE_TINT: Record<string, string> = {
+  "badge-11": "#FFD700", "badge-12": "#A855F7", "badge-13": "#10B981",
+  "badge-14": "#EF4444", "badge-15": "#FACC15", "badge-16": "#7C3AED",
+};
+const CHAR_TINT: Record<string, string> = {
+  "char-1": "#FCA5A5", "char-2": "#F59E0B", "char-3": "#FDBA74", "char-4": "#F97316",
+  "char-5": "#94A3B8", "char-6": "#60A5FA", "char-7": "#A78BFA", "char-8": "#22C55E",
+  "char-9": "#FBBF24", "char-10": "#A16207",
+  "char-11": "#06B6D4", "char-12": "#E5E7EB", "char-13": "#7C2D12", "char-14": "#A855F7", "char-15": "#3B82F6",
+  "char-16": "#9CA3AF", "char-17": "#10B981", "char-18": "#EC4899", "char-19": "#7F1D1D", "char-20": "#F472B6",
+};
+
 const CAT_THEME: Record<ShopCat, { accent: string; bg: string; border: string }> = {
   characters: { accent: "#E8B86D", bg: "rgba(232,184,109,0.08)", border: "rgba(232,184,109,0.30)" },
   gifts:      { accent: "#EC4899", bg: "rgba(236,72,153,0.08)",  border: "rgba(236,72,153,0.30)" },
@@ -225,7 +261,6 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const username = user?.gameUsername || user?.name || "guest";
   const avatarSource = avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender);
   const theme = CAT_THEME[cat];
-  const themedCard = { backgroundColor: theme.bg, borderColor: theme.border };
   const [previewBg, setPreviewBg] = useState<{ bg: BackgroundDef; price: number } | null>(null);
   const [previewFrame, setPreviewFrame] = useState<{ frame: FrameDef; price: number } | null>(null);
   const [previewBadge, setPreviewBadge] = useState<{ badge: BadgeDef; price: number } | null>(null);
@@ -252,10 +287,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {BACKGROUNDS.map((bg, i) => {
             const owned = ownedBackgrounds.includes(bg.id);
             const price = i < 10 ? 1000 : i < 15 ? 5000 : 10000;
+            const tint = itemTheme(bg.highlight ?? bg.colors[0]);
             return (
               <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard]}
+                  style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -368,10 +404,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {shopFrames.map((f, i) => {
             const owned = ownedFrames.includes(f.id);
             const price = f.price ?? PRICE_BY_TIER[i] ?? 100;
+            const tint = itemTheme(FRAME_TINT[f.id]);
             return (
               <FadeInItem key={f.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard]}
+                  style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -436,10 +473,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {shopBadges.map((b, i) => {
             const owned = ownedBadges.includes(b.id);
             const price = b.price ?? PRICE_BY_TIER[i] ?? 100;
+            const tint = itemTheme(BADGE_TINT[b.id]);
             return (
               <FadeInItem key={b.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard]}
+                  style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -491,10 +529,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {USERNAME_COLORS.map((uc, i) => {
             const owned = ownedUsernameColors.includes(uc.id);
             const price = USERNAME_COLOR_PRICE(i);
+            const tint = itemTheme(uc.bg?.border ?? uc.color ?? uc.gradient?.[0] ?? uc.mix?.[0]);
             return (
               <FadeInItem key={uc.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard]}
+                  style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -556,10 +595,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {TEXT_STYLES.map((ts, i) => {
             const owned = ownedTextStyles.includes(ts.id);
             const price = TEXT_STYLE_PRICE(i);
+            const tint = itemTheme(ts.textColor ?? ts.bg?.border);
             return (
               <FadeInItem key={ts.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard]}
+                  style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -629,10 +669,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {CHARACTERS.map((ch, i) => {
             const owned = ownedCharacters.includes(ch.id);
             const price = CHARACTER_PRICE(i);
+            const tint = itemTheme(ch.glow ?? ch.ringGradient?.[1] ?? CHAR_TINT[ch.id]);
             return (
               <FadeInItem key={ch.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard]}
+                  style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -693,7 +734,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={g.id} index={i} style={{ width: "31%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, themedCard, { paddingVertical: 12, alignItems: "center", gap: 4 }]}
+                  style={[styles.bgCard, itemTheme(g.color), { paddingVertical: 12, alignItems: "center", gap: 4 }]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
