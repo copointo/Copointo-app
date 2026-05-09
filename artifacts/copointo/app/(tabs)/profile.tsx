@@ -22,7 +22,6 @@ import { useT } from "@/context/LanguageContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useReceivedGifts } from "@/hooks/useReceivedGifts";
 import { useCoins } from "@/hooks/useCoins";
-import { resetAccount } from "@/lib/resetAccount";
 import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
@@ -234,8 +233,6 @@ export default function ProfileScreen() {
 
   const [authOpen,    setAuthOpen]    = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const { setCoins } = useCoins();
   const [modal, setModal] = useState<null | "username" | "password">(null);
   const [ranksOpen, setRanksOpen] = useState(false);
@@ -507,19 +504,6 @@ export default function ProfileScreen() {
           <Text style={styles.privacyText}>{t("profile.privacy")}</Text>
         </TouchableOpacity>
 
-        {/* ── Reset account button ── */}
-        <TouchableOpacity
-          style={[styles.logoutBtn, { borderColor: "rgba(255,180,0,0.4)", marginBottom: 10 }]}
-          onPress={() => setResetOpen(true)}
-          activeOpacity={0.85}
-          disabled={resetting}
-        >
-          <Feather name="refresh-ccw" size={17} color="#FFB400" />
-          <Text style={[styles.logoutText, { color: "#FFB400" }]}>
-            {resetting ? t("profile.resetDoing") : t("profile.resetAccount")}
-          </Text>
-        </TouchableOpacity>
-
         {/* ── Logout button ── */}
         <TouchableOpacity
           style={styles.logoutBtn}
@@ -530,45 +514,6 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>{t("profile.logout")}</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* Reset confirm modal */}
-      <Modal visible={resetOpen} transparent animationType="fade" onRequestClose={() => setResetOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={{ alignItems: "center", gap: 10 }}>
-              <View style={[styles.warnIcon, { backgroundColor: "rgba(255,180,0,0.15)" }]}>
-                <Feather name="refresh-ccw" size={26} color="#FFB400" />
-              </View>
-              <Text style={styles.modalTitle}>{t("profile.resetConfirmTitle")}</Text>
-              <Text style={styles.confirmSub}>{t("profile.resetConfirmMsg")}</Text>
-            </View>
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setResetOpen(false)} activeOpacity={0.85}>
-                <Text style={styles.cancelText}>{t("common.cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: "#FFB400" }]}
-                onPress={async () => {
-                  if (!user) return;
-                  setResetOpen(false);
-                  setResetting(true);
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                  try {
-                    await resetAccount(user.id);
-                    await setCoins(0);
-                    setUser({ ...user, level: 0, totalOrders: 0, points: 0 });
-                  } finally {
-                    setResetting(false);
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.saveText, { color: "#000" }]}>{t("profile.resetAccount")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Username modal */}
       <EditModal
