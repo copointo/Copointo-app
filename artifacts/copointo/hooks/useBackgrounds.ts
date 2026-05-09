@@ -1,11 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_BACKGROUND_ID } from "../data/backgrounds";
+import { BACKGROUNDS, DEFAULT_BACKGROUND_ID } from "../data/backgrounds";
 
 const KEY_OWNED = "copointo_backgrounds_owned_v1";
 const KEY_EQUIPPED = "copointo_background_equipped_v1";
 
-const DEFAULT_OWNED: string[] = [DEFAULT_BACKGROUND_ID];
+// All backgrounds are free for now — every user owns the entire collection.
+const DEFAULT_OWNED: string[] = BACKGROUNDS.map(b => b.id);
 
 interface BackgroundsState {
   owned: string[];
