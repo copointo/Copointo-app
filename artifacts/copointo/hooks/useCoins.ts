@@ -46,5 +46,13 @@ export function useCoins() {
     return next;
   }, []);
 
-  return { balance, hydrated, addCoins };
+  /** Force the balance to an exact value (used by account reset). */
+  const setCoins = useCallback(async (next: number) => {
+    const v = Math.max(0, Math.floor(next));
+    await AsyncStorage.setItem(KEY, String(v));
+    broadcast(v);
+    return v;
+  }, []);
+
+  return { balance, hydrated, addCoins, setCoins };
 }

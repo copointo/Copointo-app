@@ -1,0 +1,52 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_BASE } from "@/constants/api";
+import { GIFTS } from "@/data/gifts";
+
+/**
+ * Wipes every owned/equipped/inventory storage slot the player has
+ * accumulated, then re-seeds the free starter pack (the cat character +
+ * 5 of every gift) so the account behaves like a brand-new signup. Coins
+ * are zeroed via the caller's `setCoins(0)`. Server-side level / orders
+ * are reset through `POST /users/:id/reset`.
+ *
+ * Friend lists, chats, communities, language preference and the user's
+ * own profile (phone, username, avatar) are intentionally NOT touched.
+ */
+export async function resetAccount(userId: string): Promise<void> {
+  // ── Server reset (level + totalOrders → 0) ──────────────────────────
+  try {
+    await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/reset`, {
+      method: "POST",
+    });
+  } catch {}
+
+  // ── Wipe local owned/equipped + inventory slots ─────────────────────
+  const keysToClear = [
+    "copointo_frames_owned_v3",
+    "copointo_frame_equipped_v3",
+    "copointo_badges_owned_v3",
+    "copointo_badge_equipped_v3",
+    "copointo_backgrounds_owned_v3",
+    "copointo_background_equipped_v3",
+    "copointo_username_colors_owned_v1",
+    "copointo_username_color_equipped_v1",
+    "copointo_text_styles_owned_v1",
+    "copointo_text_style_equipped_v1",
+    "copointo_characters_owned_v1",
+    "copointo_character_equipped_v1",
+    "copointo_gift_inventory_v1",
+    "copointo_level_rewards_acked_v1",
+    "copointo_coins_balance_v1",
+    "copointo_coins_grant_190k_v1",
+  ];
+  await AsyncStorage.multiRemove(keysToClear);
+
+  // ── Re-seed the free starter gift pack so the user still has 5 of
+  //    every gift after the reset (matches new-user behaviour). ────────
+  const starter: Record<string, number> = {};
+  for (const g of GIFTS) starter[g.id] = 5;
+  await AsyncStorage.setItem(
+    "copointo_gift_inventory_v1",
+    JSON.stringify(starter),
+  );
+}

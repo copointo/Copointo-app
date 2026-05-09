@@ -471,6 +471,22 @@ router.post("/users/register", (req, res): any => {
   res.json({ ok: true, user: u });
 });
 
+// ─── User self-reset ─────────────────────────────────────────────────────
+// Zeroes the player's server-side game stats (level / totalOrders) so the
+// account behaves like a brand-new signup again. Phone, username, and ban
+// flags are intentionally preserved. Used by the "Reset account" button in
+// the mobile profile screen.
+router.post("/users/:id/reset", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ ok: false, error: "user not found" });
+  u.level = 0;
+  u.totalOrders = 0;
+  persistStore();
+  res.json({ ok: true, user: u });
+});
+
 // ─── Public users list (mobile leaderboard) ──────────────────────────────
 // Every mobile device should see EVERY registered player on the platform —
 // not just the accounts created on its own AsyncStorage. The leaderboard
