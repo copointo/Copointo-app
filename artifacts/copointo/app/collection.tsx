@@ -112,7 +112,7 @@ export default function CollectionScreen() {
         </View>
 
         <View style={styles.grid}>
-          {FRAMES.map(f => {
+          {FRAMES.filter(f => f.id === "frame-1").map(f => {
             const isOwned = ownedFrames.includes(f.id);
             const isEquipped = equippedFrame === f.id;
             return (
@@ -182,7 +182,7 @@ export default function CollectionScreen() {
         </View>
 
         <View style={styles.grid}>
-          {BADGES.map(b => {
+          {BADGES.filter(b => b.id === "badge-1").map(b => {
             const isOwned = ownedBadges.includes(b.id);
             const isEquipped = equippedBadge === b.id;
             return (
