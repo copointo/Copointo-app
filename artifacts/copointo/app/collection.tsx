@@ -6,6 +6,7 @@ import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View }
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AvatarWithFrame from "../components/AvatarWithFrame";
 import UserBadge from "../components/UserBadge";
+import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
 import { BADGES } from "../data/badges";
@@ -111,13 +112,13 @@ export default function CollectionScreen() {
           )}
         </View>
 
-        <View style={styles.grid}>
-          {FRAMES.filter(f => f.id === "frame-1").map(f => {
+        <View style={styles.grid} key="frames-grid">
+          {FRAMES.filter(f => f.id === "frame-1").map((f, idx) => {
             const isOwned = ownedFrames.includes(f.id);
             const isEquipped = equippedFrame === f.id;
             return (
+              <FadeInItem key={f.id} index={idx} style={styles.tileWrap}>
               <TouchableOpacity
-                key={f.id}
                 style={[
                   styles.tile,
                   isEquipped && styles.tileEquipped,
@@ -157,6 +158,7 @@ export default function CollectionScreen() {
                   </View>
                 )}
               </TouchableOpacity>
+              </FadeInItem>
             );
           })}
         </View>
@@ -181,13 +183,13 @@ export default function CollectionScreen() {
           )}
         </View>
 
-        <View style={styles.grid}>
-          {BADGES.filter(b => b.id === "badge-1").map(b => {
+        <View style={styles.grid} key="badges-grid">
+          {BADGES.filter(b => b.id === "badge-1").map((b, idx) => {
             const isOwned = ownedBadges.includes(b.id);
             const isEquipped = equippedBadge === b.id;
             return (
+              <FadeInItem key={b.id} index={idx} style={styles.tileWrap}>
               <TouchableOpacity
-                key={b.id}
                 style={[
                   styles.tile,
                   isEquipped && styles.tileEquipped,
@@ -227,17 +229,18 @@ export default function CollectionScreen() {
                   </View>
                 )}
               </TouchableOpacity>
+              </FadeInItem>
             );
           })}
         </View>
         </>)}
 
         {tab !== "frames" && tab !== "badges" && (
-          <View style={styles.comingSoon}>
+          <FadeInItem key={tab} style={styles.comingSoon}>
             <Feather name="clock" size={28} color={PRIMARY} />
             <Text style={styles.comingSoonTitle}>قريباً</Text>
             <Text style={styles.comingSoonSub}>هذا القسم تحت الإعداد، ترقّبه قريباً</Text>
-          </View>
+          </FadeInItem>
         )}
       </ScrollView>
     </View>
@@ -315,8 +318,9 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between",
   },
+  tileWrap: { width: "48%" },
   tile: {
-    width: "48%",
+    width: "100%",
     backgroundColor: "#0A0606",
     borderRadius: 16, padding: 12,
     borderWidth: 1, borderColor: BORDER,

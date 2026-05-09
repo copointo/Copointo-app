@@ -10,6 +10,7 @@ import { FRAMES } from "../data/frames";
 import { BADGES } from "../data/badges";
 import { useFrames } from "../hooks/useFrames";
 import { useBadges } from "../hooks/useBadges";
+import FadeInItem from "../components/FadeInItem";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -154,15 +155,15 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
 
   if (cat === "frames") {
     return (
-      <View style={styles.itemsGrid}>
+      <View style={styles.itemsGrid} key="frames">
         {FRAMES.map((f, i) => {
           const owned = ownedFrames.includes(f.id);
           return (
-            <View key={f.id} style={styles.itemCard}>
+            <FadeInItem key={f.id} index={i} style={styles.itemCard}>
               <Image source={f.source} style={styles.itemImg} />
               <Text style={styles.itemName} numberOfLines={1}>{f.name}</Text>
               <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
-            </View>
+            </FadeInItem>
           );
         })}
       </View>
@@ -171,15 +172,15 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
 
   if (cat === "badges") {
     return (
-      <View style={styles.itemsGrid}>
+      <View style={styles.itemsGrid} key="badges">
         {BADGES.map((b, i) => {
           const owned = ownedBadges.includes(b.id);
           return (
-            <View key={b.id} style={styles.itemCard}>
+            <FadeInItem key={b.id} index={i} style={styles.itemCard}>
               <Image source={b.source} style={styles.itemImg} />
               <Text style={styles.itemName} numberOfLines={1}>{b.name}</Text>
               <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
-            </View>
+            </FadeInItem>
           );
         })}
       </View>
@@ -187,11 +188,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   }
 
   return (
-    <View style={styles.comingSoon}>
+    <FadeInItem key={cat} style={styles.comingSoon}>
       <Feather name="clock" size={28} color={PRIMARY} />
       <Text style={styles.comingSoonTitle}>قريباً</Text>
       <Text style={styles.comingSoonSub}>هذا القسم تحت الإعداد، ترقّبه قريباً</Text>
-    </View>
+    </FadeInItem>
   );
 }
 
