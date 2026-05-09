@@ -514,8 +514,8 @@ export default function GameScreen() {
                   <View style={styles.diamondInner}>
                     {isCurrent ? (
                       <>
-                        <Text style={[styles.curEmoji, { fontSize: sz * 0.34 }]}>☕</Text>
-                        <Text style={[styles.curNum, { fontSize: sz * 0.16 }]}>{lvl}</Text>
+                        <Text style={[styles.curHere, { fontSize: sz * 0.16 }]} numberOfLines={1}>أنت هنا</Text>
+                        <Text style={[styles.curNum, { fontSize: sz * 0.20 }]}>{lvl}</Text>
                       </>
                     ) : isDone ? (
                       <Text style={styles.doneCheck}>✓</Text>
@@ -815,6 +815,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", gap: 1,
   },
   curEmoji:  {},
+  curHere:   { color: "#E8B86D", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
   curNum:    { fontFamily: "Inter_700Bold", color: "#FFF" },
   doneCheck: { fontSize: 22, color: "rgba(232,184,109,0.55)", fontFamily: "Inter_700Bold" },
   futureNum: { fontFamily: "Inter_700Bold", color: "#FFF" },

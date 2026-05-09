@@ -49,9 +49,7 @@ function RankRow({
             { borderColor: isUnlocked ? rank.color : "rgba(255,255,255,0.12)",
               shadowColor: isUnlocked ? rank.color : "transparent" },
           ]}>
-            {isCurrent ? (
-              <Text style={styles.youAreHere} numberOfLines={2}>أنت هنا{"\n"}حالياً</Text>
-            ) : logo ? (
+            {logo ? (
               <Image
                 source={logo}
                 style={[styles.badgeImg, !isUnlocked && { opacity: 0.25 }]}
@@ -218,13 +216,6 @@ const styles = StyleSheet.create({
   },
   badgeImg: { width: 70, height: 70, resizeMode: "contain" },
   badgeIcon: { fontSize: 32 },
-  youAreHere: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-    color: "#E8B86D",
-    textAlign: "center",
-    lineHeight: 15,
-  },
   shieldWrap: {
     width: 56, height: 56,
     alignItems: "center", justifyContent: "center",
