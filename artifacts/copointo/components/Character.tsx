@@ -22,7 +22,7 @@ interface Props {
  * NOTE: Animations were intentionally removed per user request.
  */
 export default function Character({ def, size = 36 }: Props) {
-  const effSize = Math.round(size * (def.scale ?? 1));
+  const effSize = Math.round(size * 1.4 * (def.scale ?? 1));
   const wrapSize = Math.round(size * 1.8);
 
   return (
