@@ -498,27 +498,17 @@ function PurchaseModal({
 }
 
 function WingedFrameIcon({ color, size = 22 }: { color: string; size?: number }) {
-  const wingSize = Math.round(size * 0.7);
+  const inner = Math.round(size * 0.45);
   return (
-    <View style={{ width: size + wingSize * 1.4, height: size, alignItems: "center", justifyContent: "center", flexDirection: "row" }}>
-      <FontAwesome5
-        name="feather-alt"
-        size={wingSize}
-        color={color}
-        solid
-        style={{ transform: [{ rotate: "-45deg" }, { scaleX: -1 }], marginRight: -3 }}
-      />
+    <View style={{
+      width: size, height: size, borderRadius: size / 2,
+      borderWidth: 2, borderColor: color,
+      alignItems: "center", justifyContent: "center",
+    }}>
       <View style={{
-        width: size, height: size, borderRadius: size / 2,
-        borderWidth: 2, borderColor: color,
+        width: inner, height: inner, borderRadius: inner / 2,
+        borderWidth: 1, borderColor: color,
       }} />
-      <FontAwesome5
-        name="feather-alt"
-        size={wingSize}
-        color={color}
-        solid
-        style={{ transform: [{ rotate: "45deg" }], marginLeft: -3 }}
-      />
     </View>
   );
 }
