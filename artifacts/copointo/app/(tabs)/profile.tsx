@@ -340,19 +340,24 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={styles.removePhotoBtn}
               onPress={() => {
+                const doRemove = () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  const { avatar: _omit, ...rest } = user;
+                  setUser(rest as typeof user);
+                };
+                if (Platform.OS === "web") {
+                  // eslint-disable-next-line no-alert
+                  if (typeof window !== "undefined" && window.confirm("هل تريد إزالة صورة البروفايل والرجوع إلى الصورة الافتراضية؟")) {
+                    doRemove();
+                  }
+                  return;
+                }
                 Alert.alert(
                   "إزالة الصورة",
                   "هل تريد إزالة صورة البروفايل والرجوع إلى الصورة الافتراضية؟",
                   [
                     { text: "إلغاء", style: "cancel" },
-                    {
-                      text: "إزالة",
-                      style: "destructive",
-                      onPress: () => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setUser({ ...user, avatar: undefined });
-                      },
-                    },
+                    { text: "إزالة", style: "destructive", onPress: doRemove },
                   ],
                 );
               }}
