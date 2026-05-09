@@ -192,7 +192,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const owned = ownedBackgrounds.includes(bg.id);
             const price = i < 10 ? 350 : i < 15 ? 1000 : 2500;
             return (
-              <FadeInItem key={bg.id} index={i} style={{ width: "100%" }}>
+              <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
                   style={styles.bgCard}
                   activeOpacity={0.85}
@@ -201,18 +201,34 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                     setPreviewBg({ bg, price });
                   }}
                 >
-                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={14} style={styles.bgTallPreview}>
-                    <View style={styles.bgTallInner}>
-                      <View style={styles.bgTallAvatar}>
-                        <Image
-                          source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
-                          style={styles.bgTallAvatarImg}
-                        />
-                      </View>
-                      <Text style={styles.bgPreviewText} numberOfLines={1}>@{username}</Text>
-                      <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
-                    </View>
-                  </UsernameBackground>
+                  {(() => {
+                    const lvl = user?.level ?? 1;
+                    const rk = getRank(lvl);
+                    return (
+                      <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={8} paddingVertical={10} style={styles.bgTallPreview}>
+                        <View style={styles.bgCardLbRow}>
+                          <Text style={[styles.bgCardLbRank, { color: "#FFD700" }]}>🥇</Text>
+                          <AvatarWithFrame size={32} scale={1.55} frameId={undefined}>
+                            <Image
+                              source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
+                              style={styles.bgCardLbAvatarImg}
+                            />
+                          </AvatarWithFrame>
+                          <View style={styles.bgCardLbInfo}>
+                            <Text style={styles.bgCardLbName} numberOfLines={1}>
+                              @{username}
+                            </Text>
+                            <Text style={styles.bgCardLbLevel} numberOfLines={1}>
+                              Lv {lvl} · {rk.icon}
+                            </Text>
+                            <View style={styles.bgCardLbCoffeeChip}>
+                              <Text style={styles.bgCardLbCoffeeText}>☕ {user?.totalOrders ?? 0}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </UsernameBackground>
+                    );
+                  })()}
                   <Text style={styles.bgName} numberOfLines={1}>{bg.name}</Text>
                   <PriceTag price={price} owned={owned} />
                 </TouchableOpacity>
@@ -621,9 +637,10 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 64, height: 64, resizeMode: "contain" },
   itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  bgGrid: { flexDirection: "column", gap: 12 },
+  bgGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
   bgCard: {
     width: "100%",
+    minWidth: 0,
     backgroundColor: "#0A0606",
     borderRadius: 16, padding: 12,
     borderWidth: 1, borderColor: "rgba(232,184,109,0.25)",
@@ -651,7 +668,20 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.45)",
   },
   lbCoffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
-  bgTallPreview: { alignSelf: "stretch", aspectRatio: 21 / 9 },
+  bgTallPreview: { alignSelf: "stretch" },
+  bgCardLbRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  bgCardLbRank: { fontSize: 14, width: 18, textAlign: "center" },
+  bgCardLbAvatarImg: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.20)" },
+  bgCardLbInfo: { flex: 1, minWidth: 0 },
+  bgCardLbName: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 1 },
+  bgCardLbLevel: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.80)" },
+  bgCardLbCoffeeChip: {
+    alignSelf: "flex-start", marginTop: 3,
+    paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 6,
+    backgroundColor: "rgba(79,195,247,0.20)",
+    borderWidth: 1, borderColor: "rgba(79,195,247,0.50)",
+  },
+  bgCardLbCoffeeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,

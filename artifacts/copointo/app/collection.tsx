@@ -12,6 +12,7 @@ import { getDefaultAvatarSource } from "../lib/defaultAvatar";
 import { BADGES } from "../data/badges";
 import { FRAMES } from "../data/frames";
 import { BACKGROUNDS } from "../data/backgrounds";
+import { getRank } from "../data/mockData";
 import { useBadges } from "../hooks/useBadges";
 import { useFrames } from "../hooks/useFrames";
 import { useBackgrounds } from "../hooks/useBackgrounds";
@@ -281,14 +282,16 @@ export default function CollectionScreen() {
           </FadeInItem>
         )}
 
-        <View style={[styles.grid, { flexDirection: "column" }]} key="backgrounds-grid">
+        <View style={styles.grid} key="backgrounds-grid">
           {BACKGROUNDS.filter(bg => ownedBackgrounds.includes(bg.id)).map((bg, idx) => {
             const isOwned = true;
             const isEquipped = equippedBackground === bg.id;
             const price = 0;
             void price;
+            const lvl = user?.level ?? 1;
+            const rk = getRank(lvl);
             return (
-              <FadeInItem key={bg.id} index={idx} style={{ width: "100%" }}>
+              <FadeInItem key={bg.id} index={idx} style={styles.tileWrap}>
                 <TouchableOpacity
                   style={[
                     styles.tile,
@@ -302,16 +305,26 @@ export default function CollectionScreen() {
                   }}
                   activeOpacity={0.85}
                 >
-                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={14} style={{ ...styles.bgTallPreview, opacity: isOwned ? 1 : 0.35 }}>
-                    <View style={styles.bgTallInner}>
-                      <View style={styles.bgTallAvatar}>
+                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={8} paddingVertical={10} style={{ ...styles.bgTallPreview, opacity: isOwned ? 1 : 0.35 }}>
+                    <View style={styles.bgCardLbRow}>
+                      <Text style={[styles.bgCardLbRank, { color: "#FFD700" }]}>🥇</Text>
+                      <AvatarWithFrame size={32} scale={1.55} frameId={undefined}>
                         <Image
                           source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
-                          style={styles.bgTallAvatarImg}
+                          style={styles.bgCardLbAvatarImg}
                         />
+                      </AvatarWithFrame>
+                      <View style={styles.bgCardLbInfo}>
+                        <Text style={styles.bgCardLbName} numberOfLines={1}>
+                          @{username}
+                        </Text>
+                        <Text style={styles.bgCardLbLevel} numberOfLines={1}>
+                          Lv {lvl} · {rk.icon}
+                        </Text>
+                        <View style={styles.bgCardLbCoffeeChip}>
+                          <Text style={styles.bgCardLbCoffeeText}>☕ {user?.totalOrders ?? 0}</Text>
+                        </View>
                       </View>
-                      <Text style={styles.bgPreview} numberOfLines={1}>@{username}</Text>
-                      <Text style={styles.bgPreviewSub} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
                     </View>
                   </UsernameBackground>
                   <Text style={styles.tileName}>
@@ -459,14 +472,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
-  bgTallPreview: { alignSelf: "stretch", aspectRatio: 21 / 9 },
-  bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
-  bgTallAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    borderWidth: 2, borderColor: "rgba(255,255,255,0.40)",
-    overflow: "hidden",
+  bgTallPreview: { alignSelf: "stretch" },
+  bgCardLbRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  bgCardLbRank: { fontSize: 14, width: 18, textAlign: "center" },
+  bgCardLbAvatarImg: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.20)" },
+  bgCardLbInfo: { flex: 1, minWidth: 0 },
+  bgCardLbName: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF", marginBottom: 1 },
+  bgCardLbLevel: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.80)" },
+  bgCardLbCoffeeChip: {
+    alignSelf: "flex-start", marginTop: 3,
+    paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 6,
+    backgroundColor: "rgba(79,195,247,0.20)",
+    borderWidth: 1, borderColor: "rgba(79,195,247,0.50)",
   },
-  bgTallAvatarImg: { width: 48, height: 48, borderRadius: 24 },
+  bgCardLbCoffeeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   bgPriceChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
