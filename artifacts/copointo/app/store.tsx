@@ -180,7 +180,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                 </View>
               </UsernameBackground>
               <Text style={styles.itemName} numberOfLines={1}>{bg.name}</Text>
-              <PriceTag price={i < 10 ? 250 : i < 15 ? 1000 : 2500} owned={owned} />
+              <PriceTag price={i < 5 ? 200 : i < 10 ? 500 : i < 15 ? 1000 : 2500} owned={owned} />
             </FadeInItem>
           );
         })}
