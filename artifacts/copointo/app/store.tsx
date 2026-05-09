@@ -595,7 +595,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {TEXT_STYLES.map((ts, i) => {
             const owned = ownedTextStyles.includes(ts.id);
             const price = TEXT_STYLE_PRICE(i);
-            const tint = itemTheme(ts.textColor ?? ts.bg?.border);
+            const tint = itemTheme(ts.bg?.border ?? ts.textColor);
             return (
               <FadeInItem key={ts.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
