@@ -1,4 +1,4 @@
-import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import { Feather, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -26,10 +26,10 @@ export default function CollectionScreen() {
   const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
-  const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5"; faIcon?: string }[] = [
+  const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
     { id: "gifts",      label: "الهدايا",        icon: "gift"   },
-    { id: "frames",     label: "الإطارات",       icon: "circle" },
+    { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "image-frame" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
     { id: "background", label: "خلفية المستخدم", icon: "image"  },
     { id: "username",   label: "ثيم اسم المستخدم", icon: "user"  },
@@ -89,6 +89,8 @@ export default function CollectionScreen() {
               >
                 {c.iconLib === "fa5" && c.faIcon ? (
                   <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
+                ) : c.iconLib === "mci" && c.mciIcon ? (
+                  <MaterialCommunityIcons name={c.mciIcon as any} size={22} color={isActive ? "#000" : PRIMARY} />
                 ) : (
                   <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
                 )}

@@ -1,4 +1,4 @@
-import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import { Feather, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -32,15 +32,16 @@ interface CatDef {
   id: ShopCat;
   label: string;
   icon: keyof typeof Feather.glyphMap;
-  iconLib?: "feather" | "fa5";
+  iconLib?: "feather" | "fa5" | "mci";
   faIcon?: string;
+  mciIcon?: string;
   hint: string;
 }
 
 const CATEGORIES: CatDef[] = [
   { id: "characters", label: "الشخصيات",        icon: "smile", iconLib: "fa5", faIcon: "user-astronaut", hint: "شخصيات داخل اللعبة" },
   { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
-  { id: "frames",     label: "الإطارات",        icon: "circle",         hint: "إطارات حول صورتك" },
+  { id: "frames",     label: "الإطارات",        icon: "circle", iconLib: "mci", mciIcon: "image-frame", hint: "إطارات حول صورتك" },
   { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
   { id: "background", label: "خلفية المستخدم",  icon: "image",          hint: "خلفية ملفك الشخصي" },
   { id: "username",   label: "ثيم اسم المستخدم", icon: "user",          hint: "ألوان وزخرفة الاسم" },
@@ -130,6 +131,8 @@ export default function StoreScreen() {
                   >
                     {c.iconLib === "fa5" && c.faIcon ? (
                       <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
+                    ) : c.iconLib === "mci" && c.mciIcon ? (
+                      <MaterialCommunityIcons name={c.mciIcon as any} size={22} color={isActive ? "#000" : PRIMARY} />
                     ) : (
                       <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
                     )}
