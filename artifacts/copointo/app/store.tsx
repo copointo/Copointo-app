@@ -135,7 +135,9 @@ export default function StoreScreen() {
                       setActiveCat(prev => prev === c.id ? null : c.id);
                     }}
                   >
-                    {c.iconLib === "fa5" && c.faIcon ? (
+                    {c.id === "frames" ? (
+                      <WingedFrameIcon color={isActive ? "#000" : PRIMARY} />
+                    ) : c.iconLib === "fa5" && c.faIcon ? (
                       <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
                     ) : c.iconLib === "mci" && c.mciIcon ? (
                       <MaterialCommunityIcons name={c.mciIcon as any} size={22} color={isActive ? "#000" : PRIMARY} />
@@ -447,6 +449,32 @@ function PurchaseModal({
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+function WingedFrameIcon({ color, size = 22 }: { color: string; size?: number }) {
+  const wingSize = Math.round(size * 0.7);
+  return (
+    <View style={{ width: size + wingSize * 1.4, height: size, alignItems: "center", justifyContent: "center", flexDirection: "row" }}>
+      <FontAwesome5
+        name="feather-alt"
+        size={wingSize}
+        color={color}
+        solid
+        style={{ transform: [{ rotate: "-45deg" }, { scaleX: -1 }], marginRight: -3 }}
+      />
+      <View style={{
+        width: size, height: size, borderRadius: size / 2,
+        borderWidth: 2, borderColor: color,
+      }} />
+      <FontAwesome5
+        name="feather-alt"
+        size={wingSize}
+        color={color}
+        solid
+        style={{ transform: [{ rotate: "45deg" }], marginLeft: -3 }}
+      />
+    </View>
   );
 }
 
