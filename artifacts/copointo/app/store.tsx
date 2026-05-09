@@ -44,7 +44,7 @@ interface CatDef {
 const CATEGORIES: CatDef[] = [
   { id: "characters", label: "الشخصيات",        icon: "smile", iconLib: "fa5", faIcon: "user-astronaut", hint: "شخصيات داخل اللعبة" },
   { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
-  { id: "frames",     label: "الإطارات",        icon: "circle", iconLib: "mci", mciIcon: "image-frame", hint: "إطارات حول صورتك" },
+  { id: "frames",     label: "الإطارات",        icon: "circle", iconLib: "mci", mciIcon: "image-filter-frames", hint: "إطارات حول صورتك" },
   { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
   { id: "background", label: "خلفية المستخدم",  icon: "image", iconLib: "mci", mciIcon: "card-account-details-outline", hint: "خلفية ملفك الشخصي" },
   { id: "username",   label: "لون اسم المستخدم", icon: "user",          hint: "ألوان وزخرفة الاسم" },
