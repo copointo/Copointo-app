@@ -107,34 +107,39 @@ export default function StoreScreen() {
 
         {selected === "items" && (
           <View style={styles.panelWrap}>
-            {/* Category grid */}
-            <View style={styles.catGrid}>
+            {/* Category icon row */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.catRow}
+            >
               {CATEGORIES.map(c => {
                 const isActive = activeCat === c.id;
                 return (
                   <TouchableOpacity
                     key={c.id}
-                    style={[styles.catTile, isActive && styles.catTileActive]}
+                    style={[styles.catIconBtn, isActive && styles.catIconBtnActive]}
                     activeOpacity={0.85}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       setActiveCat(prev => prev === c.id ? null : c.id);
                     }}
                   >
-                    <View style={styles.catIconCircle}>
-                      <Feather name={c.icon} size={22} color={PRIMARY} />
-                    </View>
-                    <Text style={styles.catLabel}>{c.label}</Text>
-                    <Text style={styles.catHint}>{c.hint}</Text>
+                    <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
                   </TouchableOpacity>
                 );
               })}
-            </View>
+            </ScrollView>
 
             {activeCat && (
-              <View style={styles.catPanel}>
-                <CategoryPanel cat={activeCat} />
-              </View>
+              <>
+                <Text style={styles.catTitle}>
+                  {CATEGORIES.find(c => c.id === activeCat)?.label}
+                </Text>
+                <View style={styles.catPanel}>
+                  <CategoryPanel cat={activeCat} />
+                </View>
+              </>
             )}
           </View>
         )}
@@ -265,30 +270,23 @@ const styles = StyleSheet.create({
   panelWrap: { marginTop: 4, gap: 14 },
 
   // ── Item-shop categories ──
-  catGrid: {
-    flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between",
+  catRow: {
+    flexDirection: "row", gap: 8, paddingVertical: 4,
   },
-  catTile: {
-    width: "31.5%",
-    backgroundColor: "#0A0606",
-    borderRadius: 14, padding: 10,
-    borderWidth: 1, borderColor: BORDER,
-    alignItems: "center", gap: 6,
-    minHeight: 110,
-  },
-  catTileActive: {
-    borderColor: PRIMARY, borderWidth: 2,
+  catIconBtn: {
+    width: 42, height: 42, borderRadius: 21,
     backgroundColor: "rgba(232,184,109,0.10)",
-    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 10, elevation: 4,
-  },
-  catIconCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "rgba(232,184,109,0.12)",
     borderWidth: 1, borderColor: BORDER,
     alignItems: "center", justifyContent: "center",
   },
-  catLabel: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  catHint:  { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center", lineHeight: 12 },
+  catIconBtnActive: {
+    backgroundColor: PRIMARY, borderColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOpacity: 0.6, shadowRadius: 8, elevation: 4,
+  },
+  catTitle: {
+    fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
+    textAlign: "right", marginTop: 4,
+  },
 
   catPanel: {
     backgroundColor: "#0A0606",
