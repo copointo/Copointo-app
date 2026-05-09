@@ -129,7 +129,6 @@ const styles = StyleSheet.create({
   wrap: {
     overflow: "hidden",
     borderWidth: 1,
-    alignSelf: "flex-start",
   },
   content: { position: "relative", zIndex: 2 },
 });

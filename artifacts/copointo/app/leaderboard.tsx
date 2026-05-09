@@ -20,6 +20,7 @@ import { useCommunities } from "@/context/CommunityContext";
 import { getRank } from "@/data/mockData";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
+import UsernameBackground from "@/components/UsernameBackground";
 import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 
 type LeaderTab = "friends" | "oman" | "communities";
@@ -246,17 +247,8 @@ export default function LeaderboardScreen() {
           </View>
         ) : entries.map((entry, i) => {
           const rankInfo = getRank(entry.level);
-          return (
-            <TouchableOpacity
-              key={entry.id}
-              activeOpacity={0.85}
-              onPress={() => openPanel(entry.id)}
-              style={[
-                styles.entryRow,
-                entry.isMe && styles.entryRowMe,
-                i === 0 && styles.entryRowFirst,
-              ]}
-            >
+          const rowInner = (
+            <>
               <Text style={[
                 styles.entryRankNum,
                 { color: i === 0 ? "#FFD700" : i === 1 ? "#A8A8A8" : i === 2 ? "#CD7F32" : "#999" },
@@ -326,6 +318,38 @@ export default function LeaderboardScreen() {
                   <Text style={styles.friendTagText}>{t("lb.friendTag")}</Text>
                 </View>
               )}
+            </>
+          );
+          if (entry.isMe) {
+            return (
+              <TouchableOpacity
+                key={entry.id}
+                activeOpacity={0.85}
+                onPress={() => openPanel(entry.id)}
+                style={{ borderRadius: 18 }}
+              >
+                <UsernameBackground
+                  borderRadius={18}
+                  paddingHorizontal={14}
+                  paddingVertical={14}
+                  style={{ alignSelf: "stretch" }}
+                >
+                  <View style={styles.entryRowContent}>{rowInner}</View>
+                </UsernameBackground>
+              </TouchableOpacity>
+            );
+          }
+          return (
+            <TouchableOpacity
+              key={entry.id}
+              activeOpacity={0.85}
+              onPress={() => openPanel(entry.id)}
+              style={[
+                styles.entryRow,
+                i === 0 && styles.entryRowFirst,
+              ]}
+            >
+              {rowInner}
             </TouchableOpacity>
           );
         })}
@@ -561,6 +585,9 @@ const styles = StyleSheet.create({
     gap: 12, padding: 14, borderRadius: 18,
     backgroundColor: "#0A0606",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+  },
+  entryRowContent: {
+    flexDirection: "row", alignItems: "center", gap: 12,
   },
   entryRowMe: {
     backgroundColor: "rgba(232,184,109,0.10)", borderColor: "#E8B86D",

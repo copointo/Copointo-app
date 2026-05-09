@@ -56,9 +56,14 @@ export default function CollectionScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* ── Live preview ── */}
-        <View style={styles.previewCard}>
-          <Text style={styles.previewLabel}>معاينة</Text>
-          <View style={{ height: 130, alignItems: "center", justifyContent: "center" }}>
+        <Text style={[styles.previewLabel, { marginBottom: 4 }]}>معاينة</Text>
+        <UsernameBackground
+          borderRadius={18}
+          paddingHorizontal={16}
+          paddingVertical={16}
+          style={{ alignSelf: "stretch" }}
+        >
+          <View style={{ alignItems: "center", gap: 8 }}>
             <AvatarWithFrame size={84}>
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.previewAvatarImg} />
@@ -66,17 +71,18 @@ export default function CollectionScreen() {
                 <Image source={getDefaultAvatarSource(user?.gender)} style={styles.previewAvatarImg} />
               )}
             </AvatarWithFrame>
-          </View>
-          <UsernameBackground borderRadius={14} paddingHorizontal={14} paddingVertical={6}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={styles.previewName}>@{username}</Text>
               <UserBadge size={18} />
             </View>
-          </UsernameBackground>
-          <Text style={styles.previewSub}>
-            الإطار يظهر حول صورتك، والشارة تظهر بجانب اسمك
-          </Text>
-        </View>
+            <Text style={styles.previewRankText}>
+              {user?.level ? `المستوى ${user.level}` : "المستوى 1"}
+            </Text>
+          </View>
+        </UsernameBackground>
+        <Text style={styles.previewSub}>
+          الإطار يظهر حول صورتك، والخلفية تظهر خلف بطاقتك في التصنيف
+        </Text>
 
         {/* ════════ ICON CATEGORIES ════════ */}
         <ScrollView
@@ -284,8 +290,19 @@ export default function CollectionScreen() {
                   }}
                   activeOpacity={0.85}
                 >
-                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={14} paddingVertical={10} style={{ alignSelf: "stretch", alignItems: "center", opacity: isOwned ? 1 : 0.35 }}>
-                    <Text style={styles.bgPreview}>@{username}</Text>
+                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={10} style={{ alignSelf: "stretch", opacity: isOwned ? 1 : 0.35 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={styles.bgMiniAvatar}>
+                        <Image
+                          source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
+                          style={styles.bgMiniAvatarImg}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bgPreview} numberOfLines={1}>@{username}</Text>
+                        <Text style={styles.bgPreviewSub} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
+                      </View>
+                    </View>
                   </UsernameBackground>
                   <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
                     {bg.name}
@@ -424,7 +441,15 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.35)",
   },
   tileName: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  bgPreview: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" },
+  bgPreview: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
+  bgPreviewSub: { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
+  bgMiniAvatar: {
+    width: 28, height: 28, borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.35)",
+    overflow: "hidden",
+  },
+  bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  previewRankText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
 
   equippedChip: {
     flexDirection: "row", alignItems: "center", gap: 3,

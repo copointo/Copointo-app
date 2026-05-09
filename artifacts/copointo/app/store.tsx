@@ -170,8 +170,14 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           const owned = ownedBackgrounds.includes(bg.id);
           return (
             <FadeInItem key={bg.id} index={i} style={styles.itemCard}>
-              <UsernameBackground bg={bg} borderRadius={10} paddingHorizontal={10} paddingVertical={8} style={{ alignSelf: "stretch", alignItems: "center" }}>
-                <Text style={styles.bgPreviewText}>@username</Text>
+              <UsernameBackground bg={bg} borderRadius={10} paddingHorizontal={8} paddingVertical={8} style={{ alignSelf: "stretch" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <View style={styles.bgMiniDot} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.bgPreviewText} numberOfLines={1}>@username</Text>
+                    <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى 1</Text>
+                  </View>
+                </View>
               </UsernameBackground>
               <Text style={styles.itemName} numberOfLines={1}>{bg.name}</Text>
               <PriceTag price={PRICE_BY_TIER[i % PRICE_BY_TIER.length] ?? 100} owned={owned} />
@@ -320,7 +326,13 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 64, height: 64, resizeMode: "contain" },
   itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  bgPreviewText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF" },
+  bgPreviewText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF" },
+  bgPreviewSubText: { fontSize: 8, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
+  bgMiniDot: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: "rgba(255,255,255,0.35)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.6)",
+  },
   priceTag: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
