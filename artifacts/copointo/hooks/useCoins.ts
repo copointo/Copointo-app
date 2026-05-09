@@ -3,7 +3,8 @@ import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY = "copointo_coins_balance_v1";
-const GRANT_KEY = "copointo_coins_grant_190k_v1";
+const GRANT_KEY = "copointo_coins_grant_signup_200_v1";
+const SIGNUP_GRANT = 200;
 
 let _cache: number | null = null;
 const _listeners = new Set<(n: number) => void>();
@@ -27,7 +28,7 @@ export function useCoins() {
       ]).then(async ([v, granted]) => {
         let n = v ? parseInt(v, 10) || 0 : 0;
         if (!granted) {
-          n += 90000;
+          n += SIGNUP_GRANT;
           await AsyncStorage.setItem(KEY, String(n));
           await AsyncStorage.setItem(GRANT_KEY, "1");
         }
