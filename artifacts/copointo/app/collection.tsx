@@ -53,7 +53,7 @@ export default function CollectionScreen() {
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
     { id: "gifts",      label: "الهدايا",        icon: "gift"   },
-    { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "image-filter-frames" },
+    { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "record-circle-outline" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
     { id: "background", label: "خلفية المستخدم", icon: "image", iconLib: "mci", mciIcon: "card-account-details-outline" },
     { id: "username",   label: "لون اسم المستخدم", icon: "user"  },
@@ -150,19 +150,20 @@ export default function CollectionScreen() {
           )}
         </View>
 
+        {ownedFrames.length === 0 && (
+          <View style={styles.emptyHint}>
+            <Text style={styles.emptyHintTitle}>ما عندك إطارات بعد</Text>
+            <Text style={styles.emptyHintSub}>اربح إطارات من مكافآت المستويات</Text>
+          </View>
+        )}
+
         <View style={styles.grid} key="frames-grid">
-          {FRAMES.map((f, idx) => {
-            const isOwned = ownedFrames.includes(f.id);
+          {FRAMES.filter(f => ownedFrames.includes(f.id)).map((f, idx) => {
             const isEquipped = equippedFrame === f.id;
             return (
               <FadeInItem key={f.id} index={idx} style={styles.tileWrap}>
               <TouchableOpacity
-                style={[
-                  styles.tile,
-                  isEquipped && styles.tileEquipped,
-                  !isOwned && styles.tileLocked,
-                ]}
-                disabled={!isOwned}
+                style={[styles.tile, isEquipped && styles.tileEquipped]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   equipFrame(isEquipped ? null : f.id);
@@ -170,29 +171,17 @@ export default function CollectionScreen() {
                 activeOpacity={0.85}
               >
                 <View style={styles.tileImgWrap}>
-                  <Image source={f.source} style={[styles.tileImg, !isOwned && { opacity: 0.25 }]} />
-                  {!isOwned && (
-                    <View style={styles.lockOverlay}>
-                      <Feather name="lock" size={20} color="rgba(255,255,255,0.75)" />
-                    </View>
-                  )}
+                  <Image source={f.source} style={styles.tileImg} />
                 </View>
-                <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
-                  {f.name}
-                </Text>
+                <Text style={styles.tileName}>{f.name}</Text>
                 {isEquipped ? (
                   <View style={styles.equippedChip}>
                     <Feather name="check" size={10} color="#000" />
                     <Text style={styles.equippedChipText}>مُجهَّز</Text>
                   </View>
-                ) : isOwned ? (
+                ) : (
                   <View style={styles.ownedChip}>
                     <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
-                  </View>
-                ) : (
-                  <View style={styles.lockedChip}>
-                    <Feather name="award" size={9} color="rgba(255,255,255,0.55)" />
-                    <Text style={styles.lockedChipText}>مكافأة مستوى</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -221,19 +210,20 @@ export default function CollectionScreen() {
           )}
         </View>
 
+        {ownedBadges.length === 0 && (
+          <View style={styles.emptyHint}>
+            <Text style={styles.emptyHintTitle}>ما عندك أوسمة بعد</Text>
+            <Text style={styles.emptyHintSub}>اربح أوسمة من مكافآت المستويات</Text>
+          </View>
+        )}
+
         <View style={styles.grid} key="badges-grid">
-          {BADGES.map((b, idx) => {
-            const isOwned = ownedBadges.includes(b.id);
+          {BADGES.filter(b => ownedBadges.includes(b.id)).map((b, idx) => {
             const isEquipped = equippedBadge === b.id;
             return (
               <FadeInItem key={b.id} index={idx} style={styles.tileWrap}>
               <TouchableOpacity
-                style={[
-                  styles.tile,
-                  isEquipped && styles.tileEquipped,
-                  !isOwned && styles.tileLocked,
-                ]}
-                disabled={!isOwned}
+                style={[styles.tile, isEquipped && styles.tileEquipped]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   equipBadge(isEquipped ? null : b.id);
@@ -241,29 +231,17 @@ export default function CollectionScreen() {
                 activeOpacity={0.85}
               >
                 <View style={styles.tileImgWrap}>
-                  <Image source={b.source} style={[styles.tileImg, !isOwned && { opacity: 0.25 }]} />
-                  {!isOwned && (
-                    <View style={styles.lockOverlay}>
-                      <Feather name="lock" size={20} color="rgba(255,255,255,0.75)" />
-                    </View>
-                  )}
+                  <Image source={b.source} style={styles.tileImg} />
                 </View>
-                <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
-                  {b.name}
-                </Text>
+                <Text style={styles.tileName}>{b.name}</Text>
                 {isEquipped ? (
                   <View style={styles.equippedChip}>
                     <Feather name="check" size={10} color="#000" />
                     <Text style={styles.equippedChipText}>مُجهَّز</Text>
                   </View>
-                ) : isOwned ? (
+                ) : (
                   <View style={styles.ownedChip}>
                     <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
-                  </View>
-                ) : (
-                  <View style={styles.lockedChip}>
-                    <Feather name="award" size={9} color="rgba(255,255,255,0.55)" />
-                    <Text style={styles.lockedChipText}>مكافأة مستوى</Text>
                   </View>
                 )}
               </TouchableOpacity>
