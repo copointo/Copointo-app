@@ -24,7 +24,17 @@ export default function CollectionScreen() {
   const { user } = useApp();
   const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
-  const [tab, setTab] = useState<"frames" | "badges">("frames");
+  type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
+  const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+    { id: "frames",     label: "الإطارات",       icon: "circle" },
+    { id: "badges",     label: "الأوسمة",        icon: "shield" },
+    { id: "background", label: "خلفية المستخدم", icon: "image"  },
+    { id: "username",   label: "اسم المستخدم",   icon: "user"   },
+    { id: "text",       label: "النص",           icon: "type"   },
+    { id: "gifts",      label: "الهدايا",        icon: "gift"   },
+    { id: "characters", label: "الشخصيات",       icon: "smile"  },
+  ];
+  const [tab, setTab] = useState<ShopCat>("frames");
 
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";
@@ -61,23 +71,27 @@ export default function CollectionScreen() {
           </Text>
         </View>
 
-        {/* ════════ TABS ════════ */}
-        <View style={styles.tabsRow}>
-          <TouchableOpacity
-            style={[styles.tabBtn, tab === "frames" && styles.tabBtnActive]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab("frames"); }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.tabBtnText, tab === "frames" && styles.tabBtnTextActive]}>الإطارات</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, tab === "badges" && styles.tabBtnActive]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab("badges"); }}
-            activeOpacity={0.85}
-          >
-            <Text style={[styles.tabBtnText, tab === "badges" && styles.tabBtnTextActive]}>الأوسمة</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ════════ ICON CATEGORIES ════════ */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.catRow}
+        >
+          {CATEGORIES.map(c => {
+            const isActive = tab === c.id;
+            return (
+              <TouchableOpacity
+                key={c.id}
+                style={[styles.catIconBtn, isActive && styles.catIconBtnActive]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(c.id); }}
+                activeOpacity={0.85}
+              >
+                <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        <Text style={styles.catTitle}>{CATEGORIES.find(c => c.id === tab)?.label}</Text>
 
         {tab === "frames" && (<>
         {/* ════════ FRAMES ════════ */}
@@ -217,6 +231,14 @@ export default function CollectionScreen() {
           })}
         </View>
         </>)}
+
+        {tab !== "frames" && tab !== "badges" && (
+          <View style={styles.comingSoon}>
+            <Feather name="clock" size={28} color={PRIMARY} />
+            <Text style={styles.comingSoonTitle}>قريباً</Text>
+            <Text style={styles.comingSoonSub}>هذا القسم تحت الإعداد، ترقّبه قريباً</Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -258,24 +280,24 @@ const styles = StyleSheet.create({
     lineHeight: 17, paddingHorizontal: 8,
   },
 
-  tabsRow: {
-    flexDirection: "row", gap: 8,
-    backgroundColor: "#0A0606",
+  catRow: { flexDirection: "row", gap: 8, paddingVertical: 4 },
+  catIconBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: "rgba(232,184,109,0.10)",
     borderWidth: 1, borderColor: BORDER,
-    borderRadius: 14, padding: 4,
-  },
-  tabBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "transparent",
   },
-  tabBtnActive: {
-    backgroundColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
+  catIconBtnActive: {
+    backgroundColor: PRIMARY, borderColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOpacity: 0.6, shadowRadius: 8, elevation: 4,
   },
-  tabBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "rgba(255,255,255,0.65)" },
-  tabBtnTextActive: { color: "#000" },
+  catTitle: {
+    fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
+    textAlign: "right", marginTop: 4,
+  },
+  comingSoon: { alignItems: "center", gap: 6, paddingVertical: 30 },
+  comingSoonTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
+  comingSoonSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center" },
 
   sectionRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
