@@ -21,26 +21,7 @@ export interface UsernameColorDef {
 }
 
 export const USERNAME_COLORS: UsernameColorDef[] = [
-  // ── 1-10: plain solid colors ────────────────────────────────────────
-  { id: "uc-1",  name: "كريمي",         color: "#FFE0B2" },
-  { id: "uc-2",  name: "أمبر",          color: "#E8B86D" },
-  { id: "uc-3",  name: "أحمر",          color: "#EF4444" },
-  { id: "uc-4",  name: "أخضر",          color: "#22C55E" },
-  { id: "uc-5",  name: "أزرق",          color: "#3B82F6" },
-  { id: "uc-6",  name: "بنفسجي",        color: "#8B5CF6" },
-  { id: "uc-7",  name: "وردي",          color: "#EC4899" },
-  { id: "uc-8",  name: "تركواز",        color: "#06B6D4" },
-  { id: "uc-9",  name: "ليموني",        color: "#EAB308" },
-  { id: "uc-10", name: "برتقالي",       color: "#F97316" },
-
-  // ── 11-15: mixed multi-color names with shine ───────────────────────
-  { id: "uc-11", name: "ميكس ذهبي",     mix: ["#FFD700", "#E8B86D", "#FFA500"],                        shine: true },
-  { id: "uc-12", name: "ميكس ناري",     mix: ["#FF6B6B", "#FFD93D", "#F97316"],                        shine: true },
-  { id: "uc-13", name: "ميكس بحري",     mix: ["#06B6D4", "#3B82F6", "#8B5CF6"],                        shine: true },
-  { id: "uc-14", name: "ميكس ربيعي",    mix: ["#22C55E", "#EAB308", "#EC4899"],                        shine: true },
-  { id: "uc-15", name: "أسطوري",        mix: ["#FF6B6B", "#FFD93D", "#22C55E", "#3B82F6", "#8B5CF6"], shine: true },
-
-  // ── 16-20: fancy gradient names with framed background ──────────────
+  // ── fancy gradient names with framed background ──────────────
   {
     id: "uc-16", name: "غروب فخم",
     gradient: ["#FFD93D", "#FFFFFF", "#FFD93D"], shine: true,
@@ -73,8 +54,4 @@ export function getUsernameColor(id: string | null): UsernameColorDef | null {
   return USERNAME_COLORS.find(u => u.id === id) ?? null;
 }
 
-export const USERNAME_COLOR_PRICE = (idx: number): number => {
-  if (idx < 10) return 200;
-  if (idx < 15) return 800;
-  return 2000;
-};
+export const USERNAME_COLOR_PRICE = (_idx: number): number => 2000;
