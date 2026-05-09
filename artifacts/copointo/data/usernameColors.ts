@@ -38,7 +38,7 @@ export const USERNAME_COLORS: UsernameColorDef[] = [
   { id: "uc-12", name: "ميكس ناري",     mix: ["#FF6B6B", "#FFD93D", "#F97316"],                        shine: true },
   { id: "uc-13", name: "ميكس بحري",     mix: ["#06B6D4", "#3B82F6", "#8B5CF6"],                        shine: true },
   { id: "uc-14", name: "ميكس ربيعي",    mix: ["#22C55E", "#EAB308", "#EC4899"],                        shine: true },
-  { id: "uc-15", name: "ميكس قوس قزح",  mix: ["#FF6B6B", "#FFD93D", "#22C55E", "#3B82F6", "#8B5CF6"], shine: true },
+  { id: "uc-15", name: "أسطوري",        mix: ["#FF6B6B", "#FFD93D", "#22C55E", "#3B82F6", "#8B5CF6"], shine: true },
 
   // ── 16-20: fancy gradient names with framed background ──────────────
   {
