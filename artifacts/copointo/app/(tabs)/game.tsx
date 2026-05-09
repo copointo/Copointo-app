@@ -85,6 +85,9 @@ export default function GameScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const [showGoBack, setShowGoBack] = useState(false);
   const [boardH, setBoardH] = useState(0);
+  // Actual measured Y position of the current-level tile inside the
+  // scroll content. Set via onLayout once the tile renders.
+  const [currentTileMeasuredY, setCurrentTileMeasuredY] = useState<number | null>(null);
   const [status, setStatus] = useState<GameStatus | null>(null);
 
   // Poll game-suspension status from server (keyed by phone).
@@ -131,15 +134,19 @@ export default function GameScreen() {
 
   // Center the current tile inside the actual board viewport (not the full
   // screen) so the button always lands on the user's current level.
+  // Prefer the actual measured Y from the tile's onLayout (accurate even
+  // when row heights vary because of milestone labels / free-coffee hints);
+  // fall back to the index-based estimate before the measurement arrives.
   const computeTarget = useCallback(() => {
     const viewport = boardH > 0 ? boardH : SCREEN_HEIGHT * 0.7;
-    return Math.max(0, currentTileY - viewport / 2 + ROW_H / 2);
-  }, [boardH, currentTileY, ROW_H]);
+    const tileY = currentTileMeasuredY ?? currentTileY;
+    return Math.max(0, tileY - viewport / 2 + ROW_H / 2);
+  }, [boardH, currentTileMeasuredY, currentTileY, ROW_H]);
 
   useEffect(() => {
     const target = computeTarget();
     setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 250);
-  }, [level, boardH]);
+  }, [level, boardH, currentTileMeasuredY]);
 
   // ── Sound: play a triumphant chime whenever the user levels up ──
   const prevLevelRef = useRef<number | null>(null);
@@ -394,7 +401,11 @@ export default function GameScreen() {
           const rankForLvl   = RANKS.find((r) => r.min === lvl);
 
           return (
-            <View key={lvl} style={{ alignItems: "center" }}>
+            <View
+              key={lvl}
+              style={{ alignItems: "center" }}
+              onLayout={isCurrent ? (e) => setCurrentTileMeasuredY(e.nativeEvent.layout.y) : undefined}
+            >
 
               {/* ── Tier milestone label ── */}
               {rankForLvl && lvl > 0 && (
