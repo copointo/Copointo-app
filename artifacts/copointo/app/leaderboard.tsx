@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
   coffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   charBadge: {
     position: "absolute",
-    left: 6,
+    right: 6,
     top: "50%",
     marginTop: -25,
     width: 50, height: 50,
