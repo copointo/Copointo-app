@@ -43,7 +43,7 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-16", name: "وردة سوداء",   emoji: "🥀" },
   { id: "char-17", name: "تنين أسطوري",  emoji: "🐉" },
   { id: "char-18", name: "فراشة سحرية",  emoji: "🦋" },
-  { id: "char-19", name: "زومبي",        emoji: "🧟", scale: 1.4,
+  { id: "char-19", name: "زومبي",        emoji: "🧟", scale: 1.15,
     ringGradient: ["#000000", "#7F1D1D", "#DC2626", "#7F1D1D", "#000000"] },
   { id: "char-20", name: "أسطوري",       emoji: "🦄", rainbow: true },
 ];
