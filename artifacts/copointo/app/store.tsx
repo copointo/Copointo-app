@@ -6,11 +6,14 @@ import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, Toucha
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BuyCoinsPanel } from "./buy-coins";
 import { useCoins } from "../hooks/useCoins";
-import { BADGES } from "../data/badges";
+import { BADGES, BadgeDef } from "../data/badges";
 import { useBadges } from "../hooks/useBadges";
 import { BACKGROUNDS, BackgroundDef } from "../data/backgrounds";
 import { useBackgrounds } from "../hooks/useBackgrounds";
+import { FRAMES, FrameDef } from "../data/frames";
+import { useFrames } from "../hooks/useFrames";
 import UsernameBackground from "../components/UsernameBackground";
+import AvatarWithFrame from "../components/AvatarWithFrame";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
@@ -162,15 +165,21 @@ export default function StoreScreen() {
 }
 
 function CategoryPanel({ cat }: { cat: ShopCat }) {
-  const { owned: ownedBadges } = useBadges();
+  const { owned: ownedBadges, grantBadge, equipBadge } = useBadges();
   const { owned: ownedBackgrounds, grantBackground, equipBackground } = useBackgrounds();
+  const { owned: ownedFrames, grantFrame, equipFrame } = useFrames();
   const { balance, addCoins } = useCoins();
   const { user } = useApp();
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";
+  const avatarSource = avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender);
   const [previewBg, setPreviewBg] = useState<{ bg: BackgroundDef; price: number } | null>(null);
+  const [previewFrame, setPreviewFrame] = useState<{ frame: FrameDef; price: number } | null>(null);
+  const [previewBadge, setPreviewBadge] = useState<{ badge: BadgeDef; price: number } | null>(null);
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
+  const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
+  const previewBadgeOwned = previewBadge ? ownedBadges.includes(previewBadge.badge.id) : false;
 
   if (cat === "background") {
     return (
@@ -211,101 +220,155 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           })}
         </View>
 
-        <Modal
+        <PurchaseModal
           visible={!!previewBg}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setPreviewBg(null)}
+          onClose={() => setPreviewBg(null)}
+          title={previewBg?.bg.name ?? ""}
+          subtitle="معاينة شكل الخلفية على بطاقتك"
+          price={previewBg?.price ?? 0}
+          owned={previewOwned}
+          balance={balance}
+          ownedLabel="تجهيز هذه الخلفية"
+          onEquip={() => previewBg && equipBackground(previewBg.bg.id)}
+          onBuy={async () => {
+            if (!previewBg) return;
+            await addCoins(-previewBg.price);
+            await grantBackground(previewBg.bg.id);
+            await equipBackground(previewBg.bg.id);
+          }}
         >
-          <Pressable style={styles.modalBackdrop} onPress={() => setPreviewBg(null)}>
-            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
-              {previewBg && (
-                <>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>{previewBg.bg.name}</Text>
-                    <TouchableOpacity onPress={() => setPreviewBg(null)} style={styles.modalCloseBtn}>
-                      <Feather name="x" size={20} color="#FFF" />
-                    </TouchableOpacity>
+          {previewBg && (
+            <UsernameBackground
+              bg={previewBg.bg}
+              borderRadius={18}
+              paddingHorizontal={16}
+              paddingVertical={20}
+              style={{ alignSelf: "stretch", marginTop: 14 }}
+            >
+              <View style={{ alignItems: "center", gap: 10 }}>
+                <View style={styles.modalAvatar}>
+                  <Image source={avatarSource} style={styles.modalAvatarImg} />
+                </View>
+                <Text style={styles.modalUsername}>@{username}</Text>
+                <Text style={styles.modalLevel}>المستوى {user?.level ?? 1}</Text>
+              </View>
+            </UsernameBackground>
+          )}
+        </PurchaseModal>
+      </>
+    );
+  }
+
+  if (cat === "frames") {
+    return (
+      <>
+        <View style={styles.bgGrid} key="frames">
+          {FRAMES.map((f, i) => {
+            const owned = ownedFrames.includes(f.id);
+            const price = PRICE_BY_TIER[i] ?? 100;
+            return (
+              <FadeInItem key={f.id} index={i} style={{ width: "48%" }}>
+                <TouchableOpacity
+                  style={styles.bgCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewFrame({ frame: f, price });
+                  }}
+                >
+                  <View style={styles.framePreviewWrap}>
+                    <AvatarWithFrame size={64} frameId={f.id}>
+                      <Image source={avatarSource} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                    </AvatarWithFrame>
                   </View>
-                  <Text style={styles.modalSub}>معاينة شكل الخلفية على بطاقتك</Text>
+                  <Text style={styles.bgName} numberOfLines={1}>{f.name}</Text>
+                  <PriceTag price={price} owned={owned} />
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
 
-                  <UsernameBackground
-                    bg={previewBg.bg}
-                    borderRadius={18}
-                    paddingHorizontal={16}
-                    paddingVertical={20}
-                    style={{ alignSelf: "stretch", marginTop: 14 }}
-                  >
-                    <View style={{ alignItems: "center", gap: 10 }}>
-                      <View style={styles.modalAvatar}>
-                        <Image
-                          source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
-                          style={styles.modalAvatarImg}
-                        />
-                      </View>
-                      <Text style={styles.modalUsername}>@{username}</Text>
-                      <Text style={styles.modalLevel}>المستوى {user?.level ?? 1}</Text>
-                    </View>
-                  </UsernameBackground>
-
-                  {previewOwned ? (
-                    <TouchableOpacity
-                      style={styles.modalBuyOwned}
-                      activeOpacity={0.85}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        equipBackground(previewBg.bg.id);
-                        setPreviewBg(null);
-                      }}
-                    >
-                      <Feather name="check" size={16} color="#000" />
-                      <Text style={styles.modalBuyOwnedText}>تجهيز هذه الخلفية</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.modalBuyBtn, balance < previewBg.price && { opacity: 0.5 }]}
-                      activeOpacity={0.85}
-                      disabled={balance < previewBg.price}
-                      onPress={async () => {
-                        if (balance < previewBg.price) return;
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        await addCoins(-previewBg.price);
-                        await grantBackground(previewBg.bg.id);
-                        await equipBackground(previewBg.bg.id);
-                        setPreviewBg(null);
-                      }}
-                    >
-                      <Image source={COPOINTO_COIN} style={{ width: 18, height: 18, resizeMode: "contain" }} />
-                      <Text style={styles.modalBuyText}>
-                        {balance < previewBg.price ? `تحتاج ${previewBg.price} عملة` : `شراء بـ ${previewBg.price} عملة`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </Pressable>
-          </Pressable>
-        </Modal>
+        <PurchaseModal
+          visible={!!previewFrame}
+          onClose={() => setPreviewFrame(null)}
+          title={previewFrame?.frame.name ?? ""}
+          subtitle="معاينة شكل الإطار حول صورتك"
+          price={previewFrame?.price ?? 0}
+          owned={previewFrameOwned}
+          balance={balance}
+          ownedLabel="تجهيز هذا الإطار"
+          onEquip={() => previewFrame && equipFrame(previewFrame.frame.id)}
+          onBuy={async () => {
+            if (!previewFrame) return;
+            await addCoins(-previewFrame.price);
+            await grantFrame(previewFrame.frame.id);
+            await equipFrame(previewFrame.frame.id);
+          }}
+        >
+          <View style={{ alignItems: "center", paddingVertical: 18 }}>
+            <AvatarWithFrame size={120} frameId={previewFrame?.frame.id ?? null}>
+              <Image source={avatarSource} style={{ width: 120, height: 120, borderRadius: 60 }} />
+            </AvatarWithFrame>
+            <Text style={[styles.modalUsername, { marginTop: 12 }]}>@{username}</Text>
+          </View>
+        </PurchaseModal>
       </>
     );
   }
 
   if (cat === "badges") {
     return (
-      <View style={styles.bgGrid} key="badges">
-        {BADGES.map((b, i) => {
-          const owned = ownedBadges.includes(b.id);
-          return (
-            <FadeInItem key={b.id} index={i} style={styles.bgCard}>
-              <View style={styles.badgeImgWrap}>
-                <Image source={b.source} style={styles.badgeImgLg} />
-              </View>
-              <Text style={styles.bgName} numberOfLines={1}>{b.name}</Text>
-              <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
-            </FadeInItem>
-          );
-        })}
-      </View>
+      <>
+        <View style={styles.bgGrid} key="badges">
+          {BADGES.map((b, i) => {
+            const owned = ownedBadges.includes(b.id);
+            const price = PRICE_BY_TIER[i] ?? 100;
+            return (
+              <FadeInItem key={b.id} index={i} style={{ width: "48%" }}>
+                <TouchableOpacity
+                  style={styles.bgCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewBadge({ badge: b, price });
+                  }}
+                >
+                  <View style={styles.badgeImgWrap}>
+                    <Image source={b.source} style={styles.badgeImgLg} />
+                  </View>
+                  <Text style={styles.bgName} numberOfLines={1}>{b.name}</Text>
+                  <PriceTag price={price} owned={owned} />
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+
+        <PurchaseModal
+          visible={!!previewBadge}
+          onClose={() => setPreviewBadge(null)}
+          title={previewBadge?.badge.name ?? ""}
+          subtitle="معاينة شكل الوسام"
+          price={previewBadge?.price ?? 0}
+          owned={previewBadgeOwned}
+          balance={balance}
+          ownedLabel="تجهيز هذا الوسام"
+          onEquip={() => previewBadge && equipBadge(previewBadge.badge.id)}
+          onBuy={async () => {
+            if (!previewBadge) return;
+            await addCoins(-previewBadge.price);
+            await grantBadge(previewBadge.badge.id);
+            await equipBadge(previewBadge.badge.id);
+          }}
+        >
+          <View style={{ alignItems: "center", paddingVertical: 24 }}>
+            {previewBadge && (
+              <Image source={previewBadge.badge.source} style={{ width: 140, height: 140, resizeMode: "contain" }} />
+            )}
+          </View>
+        </PurchaseModal>
+      </>
     );
   }
 
@@ -315,6 +378,75 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
       <Text style={styles.comingSoonTitle}>قريباً</Text>
       <Text style={styles.comingSoonSub}>هذا القسم تحت الإعداد، ترقّبه قريباً</Text>
     </FadeInItem>
+  );
+}
+
+interface PurchaseModalProps {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  price: number;
+  owned: boolean;
+  balance: number;
+  ownedLabel: string;
+  onEquip: () => void;
+  onBuy: () => Promise<void>;
+  children: React.ReactNode;
+}
+
+function PurchaseModal({
+  visible, onClose, title, subtitle, price, owned, balance, ownedLabel, onEquip, onBuy, children,
+}: PurchaseModalProps) {
+  const canAfford = balance >= price;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.modalCloseBtn}>
+              <Feather name="x" size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.modalSub}>{subtitle}</Text>
+
+          {children}
+
+          {owned ? (
+            <TouchableOpacity
+              style={styles.modalBuyOwned}
+              activeOpacity={0.85}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onEquip();
+                onClose();
+              }}
+            >
+              <Feather name="check" size={16} color="#000" />
+              <Text style={styles.modalBuyOwnedText}>{ownedLabel}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.modalBuyBtn, !canAfford && { opacity: 0.5 }]}
+              activeOpacity={0.85}
+              disabled={!canAfford}
+              onPress={async () => {
+                if (!canAfford) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                await onBuy();
+                onClose();
+              }}
+            >
+              <Image source={COPOINTO_COIN} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+              <Text style={styles.modalBuyText}>
+                {canAfford ? `شراء بـ ${price} عملة` : `تحتاج ${price} عملة`}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -447,6 +579,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  framePreviewWrap: {
+    width: "100%", alignItems: "center", justifyContent: "center",
+    paddingVertical: 16,
+  },
   modalBackdrop: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.75)",
     alignItems: "center", justifyContent: "center", padding: 20,
