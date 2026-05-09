@@ -140,21 +140,6 @@ export default function GiftAnimation({ gift, fromName, visible, onDone }: Props
               },
             ]}
           >
-            {/* Glow halo */}
-            <View
-              style={[
-                styles.halo,
-                {
-                  width: bodySize * 1.8,
-                  height: bodySize * 1.8,
-                  borderRadius: bodySize * 0.9,
-                  backgroundColor: gift.color,
-                  opacity: gift.tier === 3 ? 0.45 : 0.30,
-                  top: -bodySize * 0.4,
-                  left: -bodySize * 0.4,
-                },
-              ]}
-            />
             <Text style={{ fontSize: bodySize, lineHeight: bodySize * 1.15, textAlign: "center" }}>
               {gift.emoji}
             </Text>

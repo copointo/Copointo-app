@@ -29,8 +29,8 @@ interface Props {
 
 const TIER_LABELS: Record<GiftTier, string> = {
   1: "هدايا عادية",
-  2: "هدايا فخمة",
-  3: "هدايا أسطورية",
+  2: "هدايا عادية",
+  3: "هدايا عادية",
 };
 
 /**
