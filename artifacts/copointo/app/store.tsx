@@ -236,7 +236,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
         <View style={styles.bgGrid} key="backgrounds">
           {BACKGROUNDS.map((bg, i) => {
             const owned = ownedBackgrounds.includes(bg.id);
-            const price = i < 10 ? 1000 : i < 15 ? 5000 : 2500;
+            const price = i < 10 ? 1000 : i < 15 ? 5000 : 10000;
             return (
               <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
