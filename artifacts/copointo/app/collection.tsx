@@ -31,7 +31,7 @@ export default function CollectionScreen() {
     { id: "gifts",      label: "الهدايا",        icon: "gift"   },
     { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "image-frame" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
-    { id: "background", label: "خلفية المستخدم", icon: "image", iconLib: "mci", mciIcon: "filter-frames" },
+    { id: "background", label: "خلفية المستخدم", icon: "image", iconLib: "mci", mciIcon: "card-account-details-outline" },
     { id: "username",   label: "ثيم اسم المستخدم", icon: "user"  },
     { id: "text",       label: "نص ملون",          icon: "type"  },
   ];
