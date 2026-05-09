@@ -30,32 +30,6 @@ export default function Character({ def, size = 36 }: Props) {
       style={{ width: wrapSize, height: wrapSize, alignItems: "center", justifyContent: "center" }}
       pointerEvents="none"
     >
-      {/* Glow halo (tier 2 & 3) */}
-      {def.glow && (
-        <View style={[
-          styles.glow,
-          {
-            width: glowSize, height: glowSize, borderRadius: glowSize / 2,
-            backgroundColor: def.glow,
-            shadowColor: def.glow,
-          },
-        ]} />
-      )}
-
-      {/* Rainbow ring (tier 3, char-20) */}
-      {def.rainbow && (
-        <LinearGradient
-          colors={["#FF6B6B", "#FFD93D", "#22C55E", "#3B82F6", "#8B5CF6", "#FF6B6B"]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={{
-            position: "absolute",
-            width: glowSize + 6, height: glowSize + 6,
-            borderRadius: (glowSize + 6) / 2,
-            opacity: 0.45,
-          }}
-        />
-      )}
-
       {/* Body */}
       <Text style={{ fontSize: size, lineHeight: size * 1.15, textAlign: "center" }}>
         {def.emoji}
