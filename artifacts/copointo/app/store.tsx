@@ -73,7 +73,7 @@ export default function StoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const [selected, setSelected] = useState<Section>("coins");
+  const [selected, setSelected] = useState<Section>("items");
   const [activeCat, setActiveCat] = useState<ShopCat | null>("characters");
   const { balance } = useCoins();
 
@@ -115,7 +115,27 @@ export default function StoreScreen() {
             onPress={() => setSelected(s => s === "items" ? null : "items")}
           >
             <View style={[styles.tileIconWrap, styles.tileIconBg]}>
-              <Feather name="shopping-bag" size={36} color={PRIMARY} />
+              <View style={styles.itemShopIconWrap}>
+                <FontAwesome5
+                  name="user-astronaut"
+                  size={28}
+                  color={PRIMARY}
+                  solid
+                  style={styles.itemShopIconChar}
+                />
+                <Feather
+                  name="gift"
+                  size={20}
+                  color={PRIMARY}
+                  style={styles.itemShopIconGift}
+                />
+                <Feather
+                  name="image"
+                  size={20}
+                  color={PRIMARY}
+                  style={styles.itemShopIconBg}
+                />
+              </View>
             </View>
             <Text style={styles.tileTitle}>Item Shop</Text>
             <Text style={styles.tileSub}>تصفّح العناصر والمزايا</Text>
@@ -992,6 +1012,18 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER,
   },
   tileCoin: { width: 72, height: 72, resizeMode: "contain" },
+  itemShopIconWrap: {
+    width: 56, height: 56, alignItems: "center", justifyContent: "center",
+  },
+  itemShopIconChar: {
+    position: "absolute", top: 2, left: 14,
+  },
+  itemShopIconGift: {
+    position: "absolute", bottom: 0, left: -2,
+  },
+  itemShopIconBg: {
+    position: "absolute", bottom: 0, right: -2,
+  },
   tileTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center", marginBottom: 4 },
   tileSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center", lineHeight: 16 },
 
