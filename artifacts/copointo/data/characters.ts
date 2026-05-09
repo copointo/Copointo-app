@@ -18,7 +18,7 @@ export interface CharacterDef {
 }
 
 export const CHARACTERS: CharacterDef[] = [
-  // ── 1-10 normal companions (no effects) ───────────────────────────
+  // ── 1-10 normal companions ────────────────────────────────────────
   { id: "char-1",  name: "قطة",       emoji: "🐱" },
   { id: "char-2",  name: "كلب",       emoji: "🐶" },
   { id: "char-3",  name: "أرنب",      emoji: "🐰" },
@@ -30,20 +30,20 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-9",  name: "هامستر",    emoji: "🐹" },
   { id: "char-10", name: "حصان",      emoji: "🐴" },
 
-  // ── 11-15 cooler + glow + float ───────────────────────────────────
-  { id: "char-11", name: "طاووس",       emoji: "🦚", glow: "#06B6D4",   float: true },
-  { id: "char-12", name: "شبح متوهج",   emoji: "👻", glow: "#A78BFA",   float: true },
-  { id: "char-13", name: "نسر مهيب",    emoji: "🦅", glow: "#60A5FA",   float: true },
-  { id: "char-14", name: "أسد ملكي",    emoji: "🦁", glow: "#F59E0B",   float: true },
-  { id: "char-15", name: "ساحر",        emoji: "🧙", glow: "#C084FC",   float: true },
+  // ── 11-15 cooler companions ───────────────────────────────────────
+  { id: "char-11", name: "طاووس",       emoji: "🦚" },
+  { id: "char-12", name: "شبح متوهج",   emoji: "👻" },
+  { id: "char-13", name: "نسر مهيب",    emoji: "🦅" },
+  { id: "char-14", name: "أسد ملكي",    emoji: "🦁" },
+  { id: "char-15", name: "ساحر",        emoji: "🧙" },
 
-  // ── 16-20 legendary + glow + float + animations ───────────────────
-  { id: "char-16", name: "وردة سوداء",   emoji: "🥀", glow: "#DC2626", float: true, pulse: true,   sparkle: true },
-  { id: "char-17", name: "تنين أسطوري",  emoji: "🐉", glow: "#22C55E", float: true, pulse: true,   sparkle: true },
-  { id: "char-18", name: "فراشة سحرية",  emoji: "🦋", glow: "#EC4899", float: true, pulse: true,   sparkle: true },
-  { id: "char-19", name: "سكلتون",       emoji: "💀", glow: "#DC2626", float: true, pulse: true,   sparkle: true,
+  // ── 16-20 legendary ───────────────────────────────────────────────
+  { id: "char-16", name: "وردة سوداء",   emoji: "🥀" },
+  { id: "char-17", name: "تنين أسطوري",  emoji: "🐉" },
+  { id: "char-18", name: "فراشة سحرية",  emoji: "🦋" },
+  { id: "char-19", name: "سكلتون",       emoji: "💀",
     ringGradient: ["#000000", "#7F1D1D", "#DC2626", "#7F1D1D", "#000000"] },
-  { id: "char-20", name: "أسطوري",        emoji: "🦄", glow: "#FFFFFF", float: true, pulse: true,   sparkle: true, rainbow: true },
+  { id: "char-20", name: "أسطوري",       emoji: "🦄", rainbow: true },
 ];
 
 export function getCharacter(id: string | null): CharacterDef | null {
