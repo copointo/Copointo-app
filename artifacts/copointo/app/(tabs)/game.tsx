@@ -24,6 +24,8 @@ import { RANKS, getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
 import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
+import { useLevelRewards } from "@/hooks/useLevelRewards";
+import LevelRewardModal from "@/components/LevelRewardModal";
 
 interface GameStatus {
   gameBanned: boolean;
@@ -107,6 +109,7 @@ export default function GameScreen() {
 
   const level     = 234;
   const rank      = getRank(level);
+  const levelRewards = useLevelRewards(level);
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 999) * 100, 100);
@@ -601,6 +604,13 @@ export default function GameScreen() {
         <Text style={styles.fabLevelsLabel}>المستويات</Text>
       </TouchableOpacity>
      </View>
+
+      {/* Celebration modal for newly-earned frame + badge rewards. */}
+      <LevelRewardModal
+        reward={levelRewards.current}
+        remaining={levelRewards.remaining}
+        onDismiss={levelRewards.dismiss}
+      />
     </View>
   );
 }

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RANKS } from "../data/mockData";
 import { RANK_LOGOS } from "../data/rankLogos";
 import { RANK_BADGES } from "../data/rankBadges";
+import { FRAMES } from "../data/frames";
 import { useApp } from "../context/AppContext";
 
 const BG      = "#000000";
@@ -25,6 +26,7 @@ function RankRow({
   const tier = index + 1;
   const logo = RANK_LOGOS[tier];
   const badge = RANK_BADGES[tier];
+  const frame = FRAMES[tier - 1];
 
   useEffect(() => {
     Animated.parallel([
@@ -97,8 +99,28 @@ function RankRow({
           </Text>
           <Text style={styles.rankRange}>المستويات {rank.min} – {rank.max}</Text>
           <Text style={styles.rewardLabel}>
-            🎁 الجائزة: شعار "{rank.name}"
+            🎁 الجوائز: إطار + وسام "{rank.name}"
           </Text>
+          <View style={styles.prizeRow}>
+            {frame && (
+              <View style={styles.prizeMini}>
+                <Image
+                  source={frame.source}
+                  style={[styles.prizeMiniImg, !isUnlocked && { opacity: 0.25 }]}
+                />
+                <Text style={styles.prizeMiniLabel}>إطار</Text>
+              </View>
+            )}
+            {badge && (
+              <View style={styles.prizeMini}>
+                <Image
+                  source={badge}
+                  style={[styles.prizeMiniImg, !isUnlocked && { opacity: 0.25 }]}
+                />
+                <Text style={styles.prizeMiniLabel}>وسام</Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
     </Animated.View>
@@ -233,4 +255,15 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.7)",
   },
+  prizeRow: {
+    flexDirection: "row", gap: 10, marginTop: 8,
+  },
+  prizeMini: {
+    alignItems: "center", gap: 2,
+    backgroundColor: "rgba(232,184,109,0.06)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.20)",
+    borderRadius: 8, paddingHorizontal: 6, paddingVertical: 4,
+  },
+  prizeMiniImg: { width: 32, height: 32, resizeMode: "contain" },
+  prizeMiniLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY },
 });
