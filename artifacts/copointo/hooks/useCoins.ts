@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY = "copointo_coins_balance_v1";
+const GRANT_KEY = "copointo_coins_grant_10k_v1";
 
 let _cache: number | null = null;
 const _listeners = new Set<(n: number) => void>();
@@ -19,8 +20,16 @@ export function useCoins() {
     const listener = (n: number) => setBalance(n);
     _listeners.add(listener);
     if (_cache === null) {
-      AsyncStorage.getItem(KEY).then(v => {
-        const n = v ? parseInt(v, 10) || 0 : 0;
+      Promise.all([
+        AsyncStorage.getItem(KEY),
+        AsyncStorage.getItem(GRANT_KEY),
+      ]).then(async ([v, granted]) => {
+        let n = v ? parseInt(v, 10) || 0 : 0;
+        if (!granted) {
+          n += 10000;
+          await AsyncStorage.setItem(KEY, String(n));
+          await AsyncStorage.setItem(GRANT_KEY, "1");
+        }
         broadcast(n);
         setHydrated(true);
       });
