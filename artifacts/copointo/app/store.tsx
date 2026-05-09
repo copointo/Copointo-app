@@ -2,13 +2,13 @@ import { Feather, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icon
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BuyCoinsPanel } from "./buy-coins";
 import { useCoins } from "../hooks/useCoins";
 import { BADGES } from "../data/badges";
 import { useBadges } from "../hooks/useBadges";
-import { BACKGROUNDS } from "../data/backgrounds";
+import { BACKGROUNDS, BackgroundDef } from "../data/backgrounds";
 import { useBackgrounds } from "../hooks/useBackgrounds";
 import UsernameBackground from "../components/UsernameBackground";
 import FadeInItem from "../components/FadeInItem";
@@ -163,39 +163,130 @@ export default function StoreScreen() {
 
 function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedBadges } = useBadges();
-  const { owned: ownedBackgrounds } = useBackgrounds();
+  const { owned: ownedBackgrounds, grantBackground, equipBackground } = useBackgrounds();
+  const { balance, addCoins } = useCoins();
   const { user } = useApp();
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";
+  const [previewBg, setPreviewBg] = useState<{ bg: BackgroundDef; price: number } | null>(null);
+
+  const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
 
   if (cat === "background") {
     return (
-      <View style={styles.bgGrid} key="backgrounds">
-        {BACKGROUNDS.map((bg, i) => {
-          const owned = ownedBackgrounds.includes(bg.id);
-          const price = i < 10 ? 350 : i < 15 ? 1000 : 2500;
-          return (
-            <FadeInItem key={bg.id} index={i} style={styles.bgCard}>
-              <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={10} style={{ alignSelf: "stretch" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <View style={styles.bgMiniAvatar}>
-                    <Image
-                      source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
-                      style={styles.bgMiniAvatarImg}
-                    />
+      <>
+        <View style={styles.bgGrid} key="backgrounds">
+          {BACKGROUNDS.map((bg, i) => {
+            const owned = ownedBackgrounds.includes(bg.id);
+            const price = i < 10 ? 350 : i < 15 ? 1000 : 2500;
+            return (
+              <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
+                <TouchableOpacity
+                  style={styles.bgCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewBg({ bg, price });
+                  }}
+                >
+                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={10} style={{ alignSelf: "stretch" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={styles.bgMiniAvatar}>
+                        <Image
+                          source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
+                          style={styles.bgMiniAvatarImg}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bgPreviewText} numberOfLines={1}>@{username}</Text>
+                        <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
+                      </View>
+                    </View>
+                  </UsernameBackground>
+                  <Text style={styles.bgName} numberOfLines={1}>{bg.name}</Text>
+                  <PriceTag price={price} owned={owned} />
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+
+        <Modal
+          visible={!!previewBg}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPreviewBg(null)}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setPreviewBg(null)}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              {previewBg && (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>{previewBg.bg.name}</Text>
+                    <TouchableOpacity onPress={() => setPreviewBg(null)} style={styles.modalCloseBtn}>
+                      <Feather name="x" size={20} color="#FFF" />
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.bgPreviewText} numberOfLines={1}>@{username}</Text>
-                    <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
-                  </View>
-                </View>
-              </UsernameBackground>
-              <Text style={styles.bgName} numberOfLines={1}>{bg.name}</Text>
-              <PriceTag price={price} owned={owned} />
-            </FadeInItem>
-          );
-        })}
-      </View>
+                  <Text style={styles.modalSub}>معاينة شكل الخلفية على بطاقتك</Text>
+
+                  <UsernameBackground
+                    bg={previewBg.bg}
+                    borderRadius={18}
+                    paddingHorizontal={16}
+                    paddingVertical={20}
+                    style={{ alignSelf: "stretch", marginTop: 14 }}
+                  >
+                    <View style={{ alignItems: "center", gap: 10 }}>
+                      <View style={styles.modalAvatar}>
+                        <Image
+                          source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
+                          style={styles.modalAvatarImg}
+                        />
+                      </View>
+                      <Text style={styles.modalUsername}>@{username}</Text>
+                      <Text style={styles.modalLevel}>المستوى {user?.level ?? 1}</Text>
+                    </View>
+                  </UsernameBackground>
+
+                  {previewOwned ? (
+                    <TouchableOpacity
+                      style={styles.modalBuyOwned}
+                      activeOpacity={0.85}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        equipBackground(previewBg.bg.id);
+                        setPreviewBg(null);
+                      }}
+                    >
+                      <Feather name="check" size={16} color="#000" />
+                      <Text style={styles.modalBuyOwnedText}>تجهيز هذه الخلفية</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.modalBuyBtn, balance < previewBg.price && { opacity: 0.5 }]}
+                      activeOpacity={0.85}
+                      disabled={balance < previewBg.price}
+                      onPress={async () => {
+                        if (balance < previewBg.price) return;
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        await addCoins(-previewBg.price);
+                        await grantBackground(previewBg.bg.id);
+                        await equipBackground(previewBg.bg.id);
+                        setPreviewBg(null);
+                      }}
+                    >
+                      <Image source={COPOINTO_COIN} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+                      <Text style={styles.modalBuyText}>
+                        {balance < previewBg.price ? `تحتاج ${previewBg.price} عملة` : `شراء بـ ${previewBg.price} عملة`}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </>
     );
   }
 
@@ -356,6 +447,47 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  modalBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.75)",
+    alignItems: "center", justifyContent: "center", padding: 20,
+  },
+  modalSheet: {
+    width: "100%", maxWidth: 360,
+    backgroundColor: "#0A0606",
+    borderRadius: 20, padding: 18,
+    borderWidth: 1, borderColor: BORDER,
+    gap: 4,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", flex: 1 },
+  modalCloseBtn: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
+  },
+  modalSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
+  modalAvatar: {
+    width: 72, height: 72, borderRadius: 36,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.45)",
+    overflow: "hidden",
+  },
+  modalAvatarImg: { width: 72, height: 72, borderRadius: 36 },
+  modalUsername: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  modalLevel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
+  modalBuyBtn: {
+    marginTop: 16,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: PRIMARY,
+    paddingVertical: 13, borderRadius: 12,
+  },
+  modalBuyText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
+  modalBuyOwned: {
+    marginTop: 16,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#7DD87D",
+    paddingVertical: 13, borderRadius: 12,
+  },
+  modalBuyOwnedText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
   badgeImgWrap: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
   badgeImgLg: { width: 96, height: 96, resizeMode: "contain" },
   priceTag: {
