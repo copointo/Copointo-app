@@ -207,7 +207,6 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                     return (
                       <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={8} paddingVertical={10} style={styles.bgTallPreview}>
                         <View style={styles.bgCardLbRow}>
-                          <Text style={[styles.bgCardLbRank, { color: "#FFD700" }]}>🥇</Text>
                           <AvatarWithFrame size={32} scale={1.55} frameId={undefined}>
                             <Image
                               source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
@@ -266,7 +265,6 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                 style={styles.previewTall}
               >
                 <View style={styles.previewTallInner}>
-                  <Text style={[styles.previewMedal, { color: "#FFD700" }]}>🥇</Text>
                   <AvatarWithFrame size={84} scale={1.55} frameId={undefined}>
                     <Image source={avatarSource} style={styles.previewAvatarImg} />
                   </AvatarWithFrame>

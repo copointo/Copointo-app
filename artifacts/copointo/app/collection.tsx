@@ -307,7 +307,6 @@ export default function CollectionScreen() {
                 >
                   <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={8} paddingVertical={10} style={{ ...styles.bgTallPreview, opacity: isOwned ? 1 : 0.35 }}>
                     <View style={styles.bgCardLbRow}>
-                      <Text style={[styles.bgCardLbRank, { color: "#FFD700" }]}>🥇</Text>
                       <AvatarWithFrame size={32} scale={1.55} frameId={undefined}>
                         <Image
                           source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
