@@ -1,10 +1,15 @@
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BuyCoinsPanel } from "./buy-coins";
 import { useCoins } from "../hooks/useCoins";
+import { FRAMES } from "../data/frames";
+import { BADGES } from "../data/badges";
+import { useFrames } from "../hooks/useFrames";
+import { useBadges } from "../hooks/useBadges";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -13,12 +18,40 @@ const PRIMARY = "#E8B86D";
 const BORDER  = "rgba(232,184,109,0.25)";
 
 type Section = "coins" | "items" | null;
+type ShopCat =
+  | "frames"
+  | "badges"
+  | "background"
+  | "username"
+  | "text"
+  | "gifts"
+  | "characters";
+
+interface CatDef {
+  id: ShopCat;
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+  hint: string;
+}
+
+const CATEGORIES: CatDef[] = [
+  { id: "frames",     label: "الإطارات",        icon: "circle",         hint: "إطارات حول صورتك" },
+  { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
+  { id: "background", label: "خلفية المستخدم",  icon: "image",          hint: "خلفية ملفك الشخصي" },
+  { id: "username",   label: "اسم المستخدم",    icon: "user",           hint: "ألوان وزخرفة الاسم" },
+  { id: "text",       label: "النص",            icon: "type",           hint: "خطوط وأنماط الكتابة" },
+  { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
+  { id: "characters", label: "الشخصيات",        icon: "smile",          hint: "شخصيات داخل اللعبة" },
+];
+
+const PRICE_BY_TIER = [50, 100, 200, 350, 500, 700, 1000, 1500, 2200, 3000];
 
 export default function StoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [selected, setSelected] = useState<Section>("coins");
+  const [activeCat, setActiveCat] = useState<ShopCat | null>(null);
   const { balance } = useCoins();
 
   return (
@@ -71,12 +104,105 @@ export default function StoreScreen() {
             <BuyCoinsPanel />
           </View>
         )}
+
         {selected === "items" && (
           <View style={styles.panelWrap}>
-            <Text style={styles.emptyText}>قريبًا — Item Shop</Text>
+            {/* Category grid */}
+            <View style={styles.catGrid}>
+              {CATEGORIES.map(c => {
+                const isActive = activeCat === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.catTile, isActive && styles.catTileActive]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setActiveCat(prev => prev === c.id ? null : c.id);
+                    }}
+                  >
+                    <View style={styles.catIconCircle}>
+                      <Feather name={c.icon} size={22} color={PRIMARY} />
+                    </View>
+                    <Text style={styles.catLabel}>{c.label}</Text>
+                    <Text style={styles.catHint}>{c.hint}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {activeCat && (
+              <View style={styles.catPanel}>
+                <CategoryPanel cat={activeCat} />
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
+    </View>
+  );
+}
+
+function CategoryPanel({ cat }: { cat: ShopCat }) {
+  const { owned: ownedFrames } = useFrames();
+  const { owned: ownedBadges } = useBadges();
+
+  if (cat === "frames") {
+    return (
+      <View style={styles.itemsGrid}>
+        {FRAMES.map((f, i) => {
+          const owned = ownedFrames.includes(f.id);
+          return (
+            <View key={f.id} style={styles.itemCard}>
+              <Image source={f.source} style={styles.itemImg} />
+              <Text style={styles.itemName} numberOfLines={1}>{f.name}</Text>
+              <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
+  if (cat === "badges") {
+    return (
+      <View style={styles.itemsGrid}>
+        {BADGES.map((b, i) => {
+          const owned = ownedBadges.includes(b.id);
+          return (
+            <View key={b.id} style={styles.itemCard}>
+              <Image source={b.source} style={styles.itemImg} />
+              <Text style={styles.itemName} numberOfLines={1}>{b.name}</Text>
+              <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.comingSoon}>
+      <Feather name="clock" size={28} color={PRIMARY} />
+      <Text style={styles.comingSoonTitle}>قريباً</Text>
+      <Text style={styles.comingSoonSub}>هذا القسم تحت الإعداد، ترقّبه قريباً</Text>
+    </View>
+  );
+}
+
+function PriceTag({ price, owned }: { price: number; owned: boolean }) {
+  if (owned) {
+    return (
+      <View style={[styles.priceTag, styles.priceTagOwned]}>
+        <Feather name="check" size={11} color="#000" />
+        <Text style={styles.priceTagOwnedText}>مملوك</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.priceTag}>
+      <Image source={COPOINTO_COIN} style={{ width: 12, height: 12, resizeMode: "contain" }} />
+      <Text style={styles.priceTagText}>{price.toLocaleString("en-US")}</Text>
     </View>
   );
 }
@@ -119,8 +245,7 @@ const styles = StyleSheet.create({
     minHeight: 170,
   },
   tileSelected: {
-    borderColor: PRIMARY,
-    borderWidth: 2,
+    borderColor: PRIMARY, borderWidth: 2,
     backgroundColor: "rgba(232,184,109,0.10)",
     shadowOpacity: 0.6,
   },
@@ -137,9 +262,65 @@ const styles = StyleSheet.create({
   tileTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center", marginBottom: 4 },
   tileSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center", lineHeight: 16 },
 
-  panelWrap: { marginTop: 4 },
-  emptyText: {
-    textAlign: "center", color: "rgba(255,255,255,0.6)",
-    fontFamily: "Inter_500Medium", fontSize: 13, paddingVertical: 30,
+  panelWrap: { marginTop: 4, gap: 14 },
+
+  // ── Item-shop categories ──
+  catGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between",
   },
+  catTile: {
+    width: "31.5%",
+    backgroundColor: "#0A0606",
+    borderRadius: 14, padding: 10,
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", gap: 6,
+    minHeight: 110,
+  },
+  catTileActive: {
+    borderColor: PRIMARY, borderWidth: 2,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 10, elevation: 4,
+  },
+  catIconCircle: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", justifyContent: "center",
+  },
+  catLabel: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  catHint:  { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center", lineHeight: 12 },
+
+  catPanel: {
+    backgroundColor: "#0A0606",
+    borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: BORDER,
+  },
+
+  // ── Items grid ──
+  itemsGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between",
+  },
+  itemCard: {
+    width: "31.5%",
+    backgroundColor: "#000",
+    borderRadius: 12, padding: 8,
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", gap: 6,
+  },
+  itemImg: { width: 64, height: 64, resizeMode: "contain" },
+  itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  priceTag: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  priceTagText: { fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
+  priceTagOwned: { backgroundColor: PRIMARY, borderColor: PRIMARY },
+  priceTagOwnedText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+
+  // ── Coming soon ──
+  comingSoon: { alignItems: "center", gap: 6, paddingVertical: 24 },
+  comingSoonTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
+  comingSoonSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center" },
 });
