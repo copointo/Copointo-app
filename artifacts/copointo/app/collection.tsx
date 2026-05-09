@@ -173,8 +173,8 @@ export default function CollectionScreen() {
                   </View>
                 ) : (
                   <View style={styles.lockedChip}>
-                    <Feather name="lock" size={9} color="rgba(255,255,255,0.55)" />
-                    <Text style={styles.lockedChipText}>مقفل</Text>
+                    <Feather name="award" size={9} color="rgba(255,255,255,0.55)" />
+                    <Text style={styles.lockedChipText}>مكافأة مستوى</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -244,8 +244,8 @@ export default function CollectionScreen() {
                   </View>
                 ) : (
                   <View style={styles.lockedChip}>
-                    <Feather name="lock" size={9} color="rgba(255,255,255,0.55)" />
-                    <Text style={styles.lockedChipText}>مقفل</Text>
+                    <Feather name="award" size={9} color="rgba(255,255,255,0.55)" />
+                    <Text style={styles.lockedChipText}>مكافأة مستوى</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -273,11 +273,20 @@ export default function CollectionScreen() {
           )}
         </View>
 
+        {ownedBackgrounds.length === 0 && (
+          <FadeInItem style={styles.emptyHint}>
+            <Feather name="shopping-bag" size={26} color={PRIMARY} />
+            <Text style={styles.emptyHintTitle}>لا توجد خلفيات بعد</Text>
+            <Text style={styles.emptyHintSub}>اشتر خلفيات من المتجر لتظهر هنا</Text>
+          </FadeInItem>
+        )}
+
         <View style={styles.grid} key="backgrounds-grid">
-          {BACKGROUNDS.map((bg, idx) => {
-            const isOwned = ownedBackgrounds.includes(bg.id);
+          {BACKGROUNDS.filter(bg => ownedBackgrounds.includes(bg.id)).map((bg, idx) => {
+            const isOwned = true;
             const isEquipped = equippedBackground === bg.id;
-            const price = idx < 10 ? 350 : idx < 15 ? 1000 : 2500;
+            const price = 0;
+            void price;
             return (
               <FadeInItem key={bg.id} index={idx} style={styles.tileWrap}>
                 <TouchableOpacity
@@ -307,13 +316,9 @@ export default function CollectionScreen() {
                       </View>
                     </View>
                   </UsernameBackground>
-                  <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
+                  <Text style={styles.tileName}>
                     {bg.name}
                   </Text>
-                  <View style={styles.bgPriceChip}>
-                    <Image source={COPOINTO_COIN} style={styles.bgPriceCoin} />
-                    <Text style={styles.bgPriceText}>{price}</Text>
-                  </View>
                   {isEquipped ? (
                     <View style={styles.equippedChip}>
                       <Feather name="check" size={10} color="#000" />
@@ -464,6 +469,15 @@ const styles = StyleSheet.create({
   },
   bgPriceCoin: { width: 12, height: 12, resizeMode: "contain" },
   bgPriceText: { fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
+  emptyHint: {
+    alignItems: "center", gap: 6,
+    paddingVertical: 28, paddingHorizontal: 16,
+    backgroundColor: "#0A0606",
+    borderRadius: 16, borderWidth: 1, borderColor: BORDER,
+    marginVertical: 8,
+  },
+  emptyHintTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", marginTop: 4 },
+  emptyHintSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center" },
   previewRankText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
 
   equippedChip: {

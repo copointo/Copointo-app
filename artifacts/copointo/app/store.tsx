@@ -262,10 +262,20 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   }
 
   if (cat === "frames") {
+    const shopFrames = FRAMES.filter(f => !f.levelReward);
+    if (shopFrames.length === 0) {
+      return (
+        <FadeInItem key="frames-empty" style={styles.comingSoon}>
+          <Feather name="award" size={28} color={PRIMARY} />
+          <Text style={styles.comingSoonTitle}>قريباً</Text>
+          <Text style={styles.comingSoonSub}>الإطارات الحالية مكافآت مستوى — تُفتح بترقية مستواك في اللعبة</Text>
+        </FadeInItem>
+      );
+    }
     return (
       <>
         <View style={styles.bgGrid} key="frames">
-          {FRAMES.map((f, i) => {
+          {shopFrames.map((f, i) => {
             const owned = ownedFrames.includes(f.id);
             const price = PRICE_BY_TIER[i] ?? 100;
             return (
@@ -320,10 +330,20 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   }
 
   if (cat === "badges") {
+    const shopBadges = BADGES.filter(b => !b.levelReward);
+    if (shopBadges.length === 0) {
+      return (
+        <FadeInItem key="badges-empty" style={styles.comingSoon}>
+          <Feather name="shield" size={28} color={PRIMARY} />
+          <Text style={styles.comingSoonTitle}>قريباً</Text>
+          <Text style={styles.comingSoonSub}>الأوسمة الحالية مكافآت مستوى — تُفتح بترقية مستواك في اللعبة</Text>
+        </FadeInItem>
+      );
+    }
     return (
       <>
         <View style={styles.bgGrid} key="badges">
-          {BADGES.map((b, i) => {
+          {shopBadges.map((b, i) => {
             const owned = ownedBadges.includes(b.id);
             const price = PRICE_BY_TIER[i] ?? 100;
             return (

@@ -3,6 +3,8 @@ export interface BadgeDef {
   name: string;
   source: number;
   defaultOwned?: boolean;
+  /** If true, this badge is unlocked by leveling up — never appears in the item shop. */
+  levelReward?: boolean;
 }
 
 export const BADGES: BadgeDef[] = [];
