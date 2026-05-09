@@ -1,12 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 
-const KEY_OWNED = "copointo_frames_owned_v2";
-const KEY_EQUIPPED = "copointo_frame_equipped_v2";
+const KEY_OWNED = "copointo_frames_owned_v3";
+const KEY_EQUIPPED = "copointo_frame_equipped_v3";
 
 export const DEFAULT_FRAME_ID = "frame-1";
 
-const DEFAULT_OWNED: string[] = [DEFAULT_FRAME_ID];
+const DEFAULT_OWNED: string[] = [];
 
 interface FramesState {
   owned: string[];

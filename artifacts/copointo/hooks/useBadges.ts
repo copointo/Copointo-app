@@ -1,11 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 
-const KEY_OWNED = "copointo_badges_owned_v2";
-const KEY_EQUIPPED = "copointo_badge_equipped_v2";
+const KEY_OWNED = "copointo_badges_owned_v3";
+const KEY_EQUIPPED = "copointo_badge_equipped_v3";
 
 export const DEFAULT_BADGE_ID = "badge-1";
-const DEFAULT_OWNED: string[] = [DEFAULT_BADGE_ID];
+const DEFAULT_OWNED: string[] = [];
 
 interface BadgesState {
   owned: string[];
