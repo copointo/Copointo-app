@@ -53,7 +53,7 @@ export default function CollectionScreen() {
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
     { id: "gifts",      label: "الهدايا",        icon: "gift"   },
-    { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "image-frame" },
+    { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "image-filter-frames" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
     { id: "background", label: "خلفية المستخدم", icon: "image", iconLib: "mci", mciIcon: "card-account-details-outline" },
     { id: "username",   label: "لون اسم المستخدم", icon: "user"  },
