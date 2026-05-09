@@ -34,7 +34,7 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-11", name: "طاووس",       emoji: "🦚" },
   { id: "char-12", name: "شبح متوهج",   emoji: "👻" },
   { id: "char-13", name: "نسر مهيب",    emoji: "🦅" },
-  { id: "char-14", name: "ذئب",         emoji: "🐺" },
+  { id: "char-14", name: "سيوف",        emoji: "⚔️" },
   { id: "char-15", name: "ساحر",        emoji: "🧙" },
 
   // ── 16-20 legendary ───────────────────────────────────────────────
