@@ -30,6 +30,7 @@ import CoinMilestoneModal from "@/components/CoinMilestoneModal";
 import GiftFeedRain from "@/components/GiftFeedRain";
 import CoinGiftModal from "@/components/CoinGiftModal";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
+import { getNextCoinMilestone, COIN_PER_MILESTONE } from "@/data/coinMilestones";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
 import { useCharacters } from "@/hooks/useCharacters";
@@ -123,6 +124,8 @@ export default function GameScreen() {
   const coinMilestones = useCoinMilestones(level);
   const nextReward = LEVEL_REWARDS.find(r => r.unlockLevel > level);
   const levelsToNextReward = nextReward ? nextReward.unlockLevel - level : 0;
+  const nextCoinMilestone = getNextCoinMilestone(level);
+  const levelsToNextCoin  = nextCoinMilestone ? nextCoinMilestone.level - level : 0;
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 999) * 100, 100);
@@ -348,6 +351,20 @@ export default function GameScreen() {
               ? `متبقي مستوى واحد لجائزة "${nextReward.rankName}"`
               : `متبقي ${levelsToNextReward} مستويات لجائزة "${nextReward.rankName}"`}
           </Text>
+        </View>
+      )}
+
+      {nextCoinMilestone && (
+        <View style={styles.nextCoinBanner}>
+          <Image source={COPOINTO_COIN} style={styles.nextCoinImg} />
+          <Text style={styles.nextCoinText}>
+            {levelsToNextCoin === 0
+              ? `🎉 مستوى ${nextCoinMilestone.level} — ربحت ${nextCoinMilestone.coins} عملة!`
+              : levelsToNextCoin === 1
+                ? `متبقي مستوى واحد لربح ${nextCoinMilestone.coins} عملة (مستوى ${nextCoinMilestone.level})`
+                : `متبقي ${levelsToNextCoin} مستويات لربح ${nextCoinMilestone.coins} عملة (مستوى ${nextCoinMilestone.level})`}
+          </Text>
+          <Text style={styles.nextCoinHint}>+{COIN_PER_MILESTONE}</Text>
         </View>
       )}
 
@@ -792,6 +809,24 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(232,184,109,0.08)",
   },
   nextRewardText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  nextCoinBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    alignSelf: "center",
+    marginTop: 4, marginBottom: 4,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,214,107,0.45)",
+    backgroundColor: "rgba(255,214,107,0.10)",
+    shadowColor: "#FFD66B", shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
+  nextCoinImg: { width: 22, height: 22, resizeMode: "contain" },
+  nextCoinText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", flexShrink: 1 },
+  nextCoinHint: {
+    fontSize: 11, fontFamily: "Inter_700Bold", color: "#000",
+    backgroundColor: "#FFD66B",
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8,
+  },
   dottedConnector: {
     height: 18,
     flexDirection: "column",
