@@ -25,6 +25,7 @@ import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
 import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
 import { useLevelRewards } from "@/hooks/useLevelRewards";
+import { LEVEL_REWARDS } from "@/data/levelRewards";
 import LevelRewardModal from "@/components/LevelRewardModal";
 
 interface GameStatus {
@@ -110,6 +111,8 @@ export default function GameScreen() {
   const level     = 234;
   const rank      = getRank(level);
   const levelRewards = useLevelRewards(level);
+  const nextReward = LEVEL_REWARDS.find(r => r.unlockLevel > level);
+  const levelsToNextReward = nextReward ? nextReward.unlockLevel - level : 0;
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
   const overallProgress = Math.min((level / 999) * 100, 100);
@@ -327,6 +330,17 @@ export default function GameScreen() {
         </View>
       </View>
 
+      {nextReward && (
+        <View style={styles.nextRewardBanner}>
+          <Feather name="gift" size={14} color={PRIMARY} />
+          <Text style={styles.nextRewardText}>
+            {levelsToNextReward === 1
+              ? `متبقي مستوى واحد لجائزة "${nextReward.rankName}"`
+              : `متبقي ${levelsToNextReward} مستويات لجائزة "${nextReward.rankName}"`}
+          </Text>
+        </View>
+      )}
+
       {/* ── Active café indicator ── */}
       {activeCafe ? (
         <TouchableOpacity
@@ -411,11 +425,29 @@ export default function GameScreen() {
             >
 
               {/* ── Tier milestone label ── */}
-              {rankForLvl && lvl > 0 && (
-                <View style={styles.milestone}>
-                  <Text style={styles.milestoneText}>{rankForLvl.icon}  {rankForLvl.name}</Text>
-                </View>
-              )}
+              {rankForLvl && lvl > 0 && (() => {
+                const earned = lvl <= level;
+                const isNextReward = !earned && nextReward?.unlockLevel === lvl;
+                const stepsAway = lvl - level;
+                return (
+                  <View style={[styles.milestone, earned && styles.milestoneEarned, isNextReward && styles.milestoneNext]}>
+                    <Text style={styles.milestoneText}>{rankForLvl.icon}  {rankForLvl.name}</Text>
+                    {earned ? (
+                      <View style={styles.milestoneEarnedChip}>
+                        <Feather name="check" size={10} color="#000" />
+                        <Text style={styles.milestoneEarnedChipText}>تم ربح الجوائز</Text>
+                      </View>
+                    ) : isNextReward ? (
+                      <View style={styles.milestoneNextChip}>
+                        <Feather name="gift" size={10} color={PRIMARY} />
+                        <Text style={styles.milestoneNextChipText}>
+                          {stepsAway === 1 ? "متبقي مستوى واحد للجائزة" : `متبقي ${stepsAway} مستويات للجائزة`}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })()}
 
               {/* ── Dotted connector above (diagonal, follows snake from upper tile to this tile) ── */}
               {lvl < endLvl && (() => {
@@ -669,7 +701,41 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(232,184,109,0.06)",
     marginTop: 18, marginBottom: 4,
   },
-  milestoneText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+  milestoneText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: PRIMARY, textAlign: "center" },
+  milestoneEarned: {
+    borderColor: PRIMARY,
+    backgroundColor: "rgba(232,184,109,0.14)",
+  },
+  milestoneNext: {
+    borderColor: PRIMARY,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 10,
+  },
+  milestoneEarnedChip: {
+    marginTop: 6, alignSelf: "center",
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+  },
+  milestoneEarnedChipText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+  milestoneNextChip: {
+    marginTop: 6, alignSelf: "center",
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1, borderColor: PRIMARY,
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+  },
+  milestoneNextChipText: { fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
+  nextRewardBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    alignSelf: "center",
+    marginTop: 8, marginBottom: 4,
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.08)",
+  },
+  nextRewardText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   dottedConnector: {
     height: 18,
     flexDirection: "column",
