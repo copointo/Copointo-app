@@ -1,14 +1,28 @@
 export interface UsernameColorDef {
   id: string;
   name: string;
+  /** Solid color (used when no gradient/mix). */
   color?: string;
+  /** Gradient stops for tier-3 fancy entries. */
   gradient?: readonly [string, string, ...string[]];
+  /** Mix of colors cycled per character (tier-2 mixed entries). */
+  mix?: readonly string[];
+  /** Glow/shine on the text. */
   shine?: boolean;
+  /** Optional fancy background card around the username (tier-3). */
+  bg?: {
+    /** Solid background — overridden by gradient if provided. */
+    color?: string;
+    /** Gradient backdrop. */
+    gradient?: readonly [string, string, ...string[]];
+    border: string;
+  };
   defaultOwned?: boolean;
 }
 
 export const USERNAME_COLORS: UsernameColorDef[] = [
-  { id: "uc-1",  name: "أبيض",          color: "#FFFFFF" },
+  // ── 1-10: plain solid colors ────────────────────────────────────────
+  { id: "uc-1",  name: "كريمي",         color: "#FFE0B2" },
   { id: "uc-2",  name: "أمبر",          color: "#E8B86D" },
   { id: "uc-3",  name: "أحمر",          color: "#EF4444" },
   { id: "uc-4",  name: "أخضر",          color: "#22C55E" },
@@ -19,17 +33,39 @@ export const USERNAME_COLORS: UsernameColorDef[] = [
   { id: "uc-9",  name: "ليموني",        color: "#EAB308" },
   { id: "uc-10", name: "برتقالي",       color: "#F97316" },
 
-  { id: "uc-11", name: "ذهبي لامع",     color: "#FFD700", shine: true },
-  { id: "uc-12", name: "أمبر لامع",     color: "#E8B86D", shine: true },
-  { id: "uc-13", name: "ياقوت لامع",    color: "#FF1744", shine: true },
-  { id: "uc-14", name: "زمرد لامع",     color: "#00E676", shine: true },
-  { id: "uc-15", name: "ياقوت أزرق",    color: "#2979FF", shine: true },
+  // ── 11-15: mixed multi-color names with shine ───────────────────────
+  { id: "uc-11", name: "ميكس ذهبي",     mix: ["#FFD700", "#E8B86D", "#FFA500"],                        shine: true },
+  { id: "uc-12", name: "ميكس ناري",     mix: ["#FF6B6B", "#FFD93D", "#F97316"],                        shine: true },
+  { id: "uc-13", name: "ميكس بحري",     mix: ["#06B6D4", "#3B82F6", "#8B5CF6"],                        shine: true },
+  { id: "uc-14", name: "ميكس ربيعي",    mix: ["#22C55E", "#EAB308", "#EC4899"],                        shine: true },
+  { id: "uc-15", name: "ميكس قوس قزح",  mix: ["#FF6B6B", "#FFD93D", "#22C55E", "#3B82F6", "#8B5CF6"], shine: true },
 
-  { id: "uc-16", name: "غروب لامع",     gradient: ["#FF6B6B", "#FFD93D"], shine: true },
-  { id: "uc-17", name: "محيط لامع",     gradient: ["#06B6D4", "#3B82F6", "#8B5CF6"], shine: true },
-  { id: "uc-18", name: "غابة لامعة",    gradient: ["#22C55E", "#EAB308"], shine: true },
-  { id: "uc-19", name: "قوس قزح",       gradient: ["#FF6B6B", "#FFD93D", "#22C55E", "#3B82F6", "#8B5CF6"], shine: true },
-  { id: "uc-20", name: "ذهب ملكي",      gradient: ["#FFD700", "#FFA500", "#FFD700"], shine: true },
+  // ── 16-20: fancy gradient names with framed background ──────────────
+  {
+    id: "uc-16", name: "غروب فخم",
+    gradient: ["#FFD93D", "#FFFFFF", "#FFD93D"], shine: true,
+    bg: { gradient: ["#3B0F0F", "#7C2D12", "#3B0F0F"], border: "#FF8A4C" },
+  },
+  {
+    id: "uc-17", name: "محيط فخم",
+    gradient: ["#7DD3FC", "#FFFFFF", "#7DD3FC"], shine: true,
+    bg: { gradient: ["#0C1E3D", "#1E3A8A", "#0C1E3D"], border: "#60A5FA" },
+  },
+  {
+    id: "uc-18", name: "زمرد فخم",
+    gradient: ["#A7F3D0", "#FFFFFF", "#A7F3D0"], shine: true,
+    bg: { gradient: ["#022C22", "#065F46", "#022C22"], border: "#34D399" },
+  },
+  {
+    id: "uc-19", name: "ملكي بنفسجي",
+    gradient: ["#E9D5FF", "#FFFFFF", "#E9D5FF"], shine: true,
+    bg: { gradient: ["#1E1033", "#4C1D95", "#1E1033"], border: "#C084FC" },
+  },
+  {
+    id: "uc-20", name: "ذهب ملكي",
+    gradient: ["#FFF1B0", "#FFD700", "#FFF1B0"], shine: true,
+    bg: { gradient: ["#2A1A05", "#5C3D0A", "#2A1A05"], border: "#FFD700" },
+  },
 ];
 
 export function getUsernameColor(id: string | null): UsernameColorDef | null {

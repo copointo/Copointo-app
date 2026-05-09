@@ -1,5 +1,6 @@
 import React from "react";
-import { Text, TextStyle, StyleProp } from "react-native";
+import { Text, TextStyle, StyleProp, View, ViewStyle } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { UsernameColorDef, getUsernameColor } from "../data/usernameColors";
 import { useUsernameColors } from "../hooks/useUsernameColors";
 
@@ -11,7 +12,11 @@ interface Props {
   /** Plain fallback color when nothing is equipped/overridden. */
   fallbackColor?: string;
   numberOfLines?: number;
+  /** Wrap fancy bg-bearing entries in a colored box. Default true. Set false in tight rows. */
+  withBg?: boolean;
 }
+
+const SHAPING_RE = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200C\u200D]|\uD83C|\uD83D|\uD83E/;
 
 function shineStyle(color: string): TextStyle {
   return {
@@ -22,11 +27,18 @@ function shineStyle(color: string): TextStyle {
 }
 
 /**
- * Renders a username with the user's equipped color/gradient/shine effect.
- * For gradient entries we approximate gradient text by per-character coloring,
- * since masked-view isn't available in this project.
+ * Renders a username with the user's equipped color/mix/gradient/shine effect.
+ *
+ * Per-character coloring is skipped for Arabic/RTL/emoji text because contextual
+ * letter shaping breaks when each glyph is its own <Text>. In that case we fall
+ * back to a representative single color + shine.
+ *
+ * Fancy entries (with `bg`) wrap the username in a small colored card.
  */
-export default function UsernameText({ text, style, override, fallbackColor = "#FFFFFF", numberOfLines }: Props) {
+export default function UsernameText({
+  text, style, override, fallbackColor = "#FFFFFF",
+  numberOfLines, withBg = true,
+}: Props) {
   const { equipped } = useUsernameColors();
   const def: UsernameColorDef | null =
     override !== undefined ? override : getUsernameColor(equipped);
@@ -35,13 +47,51 @@ export default function UsernameText({ text, style, override, fallbackColor = "#
     return <Text style={style} numberOfLines={numberOfLines}>{text}</Text>;
   }
 
+  const needsShaping = SHAPING_RE.test(text);
+  const inner = renderInner(def, text, style, fallbackColor, numberOfLines, needsShaping);
+
+  if (def.bg && withBg) {
+    return wrapBg(def.bg, inner);
+  }
+  return inner;
+}
+
+function renderInner(
+  def: UsernameColorDef,
+  text: string,
+  style: StyleProp<TextStyle> | undefined,
+  fallbackColor: string,
+  numberOfLines: number | undefined,
+  needsShaping: boolean,
+): React.ReactElement {
+  // ── Mix: cycle palette per character ──────────────────────────────────
+  if (def.mix && def.mix.length >= 2) {
+    if (!needsShaping) {
+      const chars = Array.from(text);
+      return (
+        <Text style={style} numberOfLines={numberOfLines}>
+          {chars.map((ch, i) => {
+            const color = def.mix![i % def.mix!.length];
+            const charStyle: TextStyle = { color };
+            if (def.shine) Object.assign(charStyle, shineStyle(color));
+            return (
+              <Text key={i} style={charStyle}>
+                {ch}
+              </Text>
+            );
+          })}
+        </Text>
+      );
+    }
+    const color = def.mix[0];
+    const merged: TextStyle = { color };
+    if (def.shine) Object.assign(merged, shineStyle(color));
+    return <Text style={[style, merged]} numberOfLines={numberOfLines}>{text}</Text>;
+  }
+
+  // ── Gradient: per-character interpolation ─────────────────────────────
   if (def.gradient && def.gradient.length >= 2) {
     const stops = def.gradient;
-    // Arabic / RTL scripts rely on contextual letter shaping that breaks when
-    // each glyph is rendered as its own <Text>. For those (and emoji/ZWJ),
-    // fall back to a representative gradient color + shine instead of
-    // per-character coloring.
-    const needsShaping = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u200C\u200D]|\uD83C|\uD83D|\uD83E/.test(text);
     if (!needsShaping) {
       const chars = Array.from(text);
       const last = chars.length - 1;
@@ -67,10 +117,42 @@ export default function UsernameText({ text, style, override, fallbackColor = "#
     return <Text style={[style, merged]} numberOfLines={numberOfLines}>{text}</Text>;
   }
 
+  // ── Plain solid ───────────────────────────────────────────────────────
   const color = def.color ?? fallbackColor;
   const merged: TextStyle = { color };
   if (def.shine) Object.assign(merged, shineStyle(color));
   return <Text style={[style, merged]} numberOfLines={numberOfLines}>{text}</Text>;
+}
+
+function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactElement) {
+  const baseBox: ViewStyle = {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: bg.border,
+    overflow: "hidden",
+    alignSelf: "flex-start",
+    shadowColor: bg.border, shadowOpacity: 0.55, shadowRadius: 8,
+  };
+  if (bg.gradient && bg.gradient.length >= 2) {
+    const stops = bg.gradient as readonly [string, string, ...string[]];
+    return (
+      <View style={baseBox}>
+        <LinearGradient
+          colors={[...stops] as unknown as readonly [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        {inner}
+      </View>
+    );
+  }
+  return (
+    <View style={[baseBox, { backgroundColor: bg.color ?? "#000" }]}>
+      {inner}
+    </View>
+  );
 }
 
 function hexToRgb(hex: string): [number, number, number] {
