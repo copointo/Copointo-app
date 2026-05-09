@@ -34,18 +34,6 @@ export default function Character({ def, size = 36 }: Props) {
       <Text style={{ fontSize: size, lineHeight: size * 1.15, textAlign: "center" }}>
         {def.emoji}
       </Text>
-
-      {/* Static sparkles around the character (tier 3) */}
-      {def.sparkle && (
-        <>
-          <View style={{ position: "absolute", top: 2, left: "50%", marginLeft: -4 }}>
-            <Text style={styles.sparkle}>✨</Text>
-          </View>
-          <View style={{ position: "absolute", bottom: 2, left: "50%", marginLeft: -4 }}>
-            <Text style={styles.sparkle}>✨</Text>
-          </View>
-        </>
-      )}
     </View>
   );
 }
