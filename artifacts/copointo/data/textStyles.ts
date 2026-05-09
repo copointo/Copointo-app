@@ -94,6 +94,6 @@ export function getTextStyle(id: string | null): TextStyleDef | null {
 
 export const TEXT_STYLE_PRICE = (idx: number): number => {
   if (idx < 10) return 800;
-  if (idx < 15) return 800;
-  return 2000;
+  if (idx < 15) return 2500;
+  return 5000;
 };
