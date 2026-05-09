@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { registerAccountResetHandler } from "../lib/accountResetRegistry";
+import { syncEquipmentToServer } from "../lib/equipmentSync";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY_OWNED = "copointo_frames_owned_v3";
@@ -77,6 +78,7 @@ export function useFrames() {
       await AsyncStorage.setItem(KEY_EQUIPPED, id);
     }
     broadcast({ ...cur, equipped: id });
+    syncEquipmentToServer("frame", id);
   }, []);
 
   return {

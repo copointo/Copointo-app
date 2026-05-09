@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { API_BASE } from "@/constants/api";
+import { backfillEquipmentToServer } from "@/lib/equipmentSync";
 
 /**
  * Reserve a `gameUsername` for a user on the API server. The server is the
@@ -49,6 +50,12 @@ export interface PublicServerUser {
   level: number;
   totalOrders: number;
   joinedAt?: string;
+  equippedFrame?: string | null;
+  equippedBadge?: string | null;
+  equippedBackground?: string | null;
+  equippedCharacter?: string | null;
+  equippedUsernameColor?: string | null;
+  equippedTextStyle?: string | null;
 }
 export async function fetchPublicUsers(): Promise<PublicServerUser[]> {
   try {
@@ -112,6 +119,16 @@ export interface User {
   levelsToday?: number;
   /** Date string (YYYY-MM-DD) for which `levelsToday` applies. */
   levelsTodayDate?: string;
+  /** Equipped cosmetic IDs mirrored from the server so we can render OTHER
+   *  users' loadouts on profile / leaderboard / chat. The current device
+   *  remains the authoritative source for the local user via the per-cosmetic
+   *  hooks (useFrames / useBadges / etc.). */
+  equippedFrame?: string | null;
+  equippedBadge?: string | null;
+  equippedBackground?: string | null;
+  equippedCharacter?: string | null;
+  equippedUsernameColor?: string | null;
+  equippedTextStyle?: string | null;
 }
 
 /** Hard cap: a user can only gain this many levels per calendar day. */
@@ -271,6 +288,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           username: parsed.gameUsername || parsed.name,
           phone: parsed.phone,
         }).catch(() => {});
+        // One-shot push of every locally-equipped cosmetic so older accounts
+        // show their loadout on other devices without re-equipping anything.
+        backfillEquipmentToServer(parsed.id).catch(() => {});
         const activeCafeRaw = await AsyncStorage.getItem(`activeGameCafeId:${parsed.id}`);
         setActiveGameCafeIdState(activeCafeRaw || null);
         // Load per-user friends + friend requests
@@ -307,11 +327,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       for (const r of remote) {
         const local = byId.get(r.id);
         if (local) {
-          // Keep local rich data; only bump level / totalOrders if server has more.
+          // Keep local rich data; only bump level / totalOrders if server has
+          // more. Server is AUTHORITATIVE for equipped cosmetics so a deliberate
+          // unequip on another device (server returns null) clears the field
+          // here too. We only fall back to the local value when the field is
+          // entirely absent from the server payload (e.g. older API version).
           const merged: User = {
             ...local,
             level: Math.max(local.level ?? 0, r.level ?? 0),
             totalOrders: Math.max(local.totalOrders ?? 0, r.totalOrders ?? 0),
+            equippedFrame:         "equippedFrame"         in r ? r.equippedFrame         ?? null : local.equippedFrame         ?? null,
+            equippedBadge:         "equippedBadge"         in r ? r.equippedBadge         ?? null : local.equippedBadge         ?? null,
+            equippedBackground:    "equippedBackground"    in r ? r.equippedBackground    ?? null : local.equippedBackground    ?? null,
+            equippedCharacter:     "equippedCharacter"     in r ? r.equippedCharacter     ?? null : local.equippedCharacter     ?? null,
+            equippedUsernameColor: "equippedUsernameColor" in r ? r.equippedUsernameColor ?? null : local.equippedUsernameColor ?? null,
+            equippedTextStyle:     "equippedTextStyle"     in r ? r.equippedTextStyle     ?? null : local.equippedTextStyle     ?? null,
           };
           byId.set(r.id, merged);
         } else {
@@ -327,6 +357,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             level: r.level ?? 0,
             totalOrders: r.totalOrders ?? 0,
             points: 0,
+            equippedFrame:         r.equippedFrame         ?? null,
+            equippedBadge:         r.equippedBadge         ?? null,
+            equippedBackground:    r.equippedBackground    ?? null,
+            equippedCharacter:     r.equippedCharacter     ?? null,
+            equippedUsernameColor: r.equippedUsernameColor ?? null,
+            equippedTextStyle:     r.equippedTextStyle     ?? null,
           };
           byId.set(r.id, placeholder);
         }
@@ -472,6 +508,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 level: r.level ?? 0,
                 totalOrders: r.totalOrders ?? 0,
                 points: 0,
+                equippedFrame:         r.equippedFrame         ?? null,
+                equippedBadge:         r.equippedBadge         ?? null,
+                equippedBackground:    r.equippedBackground    ?? null,
+                equippedCharacter:     r.equippedCharacter     ?? null,
+                equippedUsernameColor: r.equippedUsernameColor ?? null,
+                equippedTextStyle:     r.equippedTextStyle     ?? null,
               });
             }
             const next = Array.from(byId.values());

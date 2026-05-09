@@ -17,9 +17,15 @@ import { useMessages } from "@/context/MessagesContext";
 import { getRank, ChatMessage } from "@/data/mockData";
 import GiftPicker from "@/components/GiftPicker";
 import GiftAnimation from "@/components/GiftAnimation";
+import AvatarWithFrame from "@/components/AvatarWithFrame";
+import UserBadge from "@/components/UserBadge";
+import UsernameText from "@/components/UsernameText";
+import Character from "@/components/Character";
 import { GiftDef } from "@/data/gifts";
 import { useGiftInventory } from "@/hooks/useGiftInventory";
 import { useReceivedGifts } from "@/hooks/useReceivedGifts";
+import { getCharacter } from "@/data/characters";
+import { getUsernameColor } from "@/data/usernameColors";
 import { useState } from "react";
 
 const BG = "#000000";
@@ -141,18 +147,45 @@ export default function CompetitorProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         {/* Profile card */}
         <View style={styles.profileCard}>
-          {target.avatar ? (
-            <Image source={{ uri: target.avatar }} style={styles.avatarImg} />
-          ) : (
-            <View style={styles.avatarCircle}>
-              <Text style={{ fontSize: 52 }}>
-                {target.gender === "female" ? "👩" : target.gender === "male" ? "🧑" : "👤"}
-              </Text>
-            </View>
-          )}
+          {/* Equipped character above the avatar (if any) */}
+          {target.equippedCharacter && (() => {
+            const charDef = getCharacter(target.equippedCharacter);
+            return charDef ? (
+              <View style={{ marginBottom: -8 }}>
+                <Character def={charDef} size={44} />
+              </View>
+            ) : null;
+          })()}
 
-          <Text style={styles.displayName}>{target.name}</Text>
-          <Text style={styles.username}>@{target.gameUsername}</Text>
+          {/* Avatar wrapped in the user's equipped frame */}
+          <AvatarWithFrame size={96} scale={1.55} frameId={target.equippedFrame ?? null}>
+            {target.avatar ? (
+              <Image source={{ uri: target.avatar }} style={styles.avatarImg} />
+            ) : (
+              <View style={styles.avatarCircle}>
+                <Text style={{ fontSize: 52 }}>
+                  {target.gender === "female" ? "👩" : target.gender === "male" ? "🧑" : "👤"}
+                </Text>
+              </View>
+            )}
+          </AvatarWithFrame>
+
+          <View style={styles.nameRow}>
+            <Text style={styles.displayName}>{target.name}</Text>
+            {target.equippedBadge && (
+              <UserBadge badgeId={target.equippedBadge} size={20} />
+            )}
+          </View>
+          <View style={styles.usernameRow}>
+            <Text style={styles.usernameAt}>@</Text>
+            <UsernameText
+              text={target.gameUsername}
+              override={getUsernameColor(target.equippedUsernameColor ?? null)}
+              fallbackColor="rgba(255,255,255,0.45)"
+              style={styles.username}
+              withBg
+            />
+          </View>
 
           {/* Stats row */}
           <View style={styles.statsRow}>
@@ -300,6 +333,9 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   displayName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },
+  nameRow:     { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  usernameRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  usernameAt:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
   username:    { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
   statsRow: {
     flexDirection: "row", marginTop: 8,

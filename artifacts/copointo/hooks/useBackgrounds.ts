@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { registerAccountResetHandler } from "../lib/accountResetRegistry";
+import { syncEquipmentToServer } from "../lib/equipmentSync";
 import { useCallback, useEffect, useState } from "react";
 import { BACKGROUNDS, DEFAULT_BACKGROUND_ID } from "../data/backgrounds";
 
@@ -76,6 +77,7 @@ export function useBackgrounds() {
       await AsyncStorage.setItem(KEY_EQUIPPED, id);
     }
     broadcast({ ...cur, equipped: id });
+    syncEquipmentToServer("background", id);
   }, []);
 
   return {

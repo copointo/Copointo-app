@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { registerAccountResetHandler } from "../lib/accountResetRegistry";
+import { syncEquipmentToServer } from "../lib/equipmentSync";
 import { useCallback, useEffect, useState } from "react";
 import { CHARACTERS } from "../data/characters";
 
@@ -86,6 +87,7 @@ export function useCharacters() {
     if (id !== null && !cur.owned.includes(id)) return;
     await AsyncStorage.setItem(KEY_EQUIPPED, id ?? "");
     broadcast({ ...cur, equipped: id });
+    syncEquipmentToServer("character", id);
   }, []);
 
   return {

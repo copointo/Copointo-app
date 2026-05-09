@@ -579,6 +579,12 @@ router.get("/users/public", (_req, res) => {
         level: u.level ?? 0,
         totalOrders: u.totalOrders ?? 0,
         joinedAt: u.joinedAt,
+        equippedFrame:         u.equippedFrame         ?? null,
+        equippedBadge:         u.equippedBadge         ?? null,
+        equippedBackground:    u.equippedBackground    ?? null,
+        equippedCharacter:     u.equippedCharacter     ?? null,
+        equippedUsernameColor: u.equippedUsernameColor ?? null,
+        equippedTextStyle:     u.equippedTextStyle     ?? null,
       })),
   });
 });
@@ -607,6 +613,34 @@ router.post("/users/progress", (req, res): any => {
   }
   if (changed) persistStore();
   res.json({ ok: true, user: { id: u.id, level: u.level, totalOrders: u.totalOrders } });
+});
+
+// ─── Equipment sync (cosmetics: frame / badge / bg / character / etc.) ───
+// Mirrors the user's equipped cosmetic IDs to the server so OTHER devices
+// can render this player's loadout on profile, leaderboard, chat, etc.
+// Each call updates a SINGLE key so the request stays small and idempotent.
+router.post("/users/equipment", (req, res): any => {
+  const id  = String(req.body?.id ?? "").trim();
+  const key = String(req.body?.key ?? "").trim();
+  const raw = req.body?.value;
+  const value: string | null =
+    raw === null || raw === undefined || raw === "" ? null : String(raw);
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const allowed: Record<string, keyof AppUser> = {
+    frame:         "equippedFrame",
+    badge:         "equippedBadge",
+    background:    "equippedBackground",
+    character:     "equippedCharacter",
+    usernameColor: "equippedUsernameColor",
+    textStyle:     "equippedTextStyle",
+  };
+  const field = allowed[key];
+  if (!field) return res.status(400).json({ ok: false, error: "invalid key" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ ok: false, error: "user not found" });
+  (u as any)[field] = value;
+  persistStore();
+  res.json({ ok: true });
 });
 
 router.post("/reels/:rid/view", (req, res): any => {

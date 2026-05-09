@@ -18,6 +18,14 @@ export interface AppUser {
   gameSuspendReason?: string | null;
   /** ISO timestamp of when the suspension/ban was applied. */
   gameSuspendedAt?: string | null;
+  /** Equipped cosmetic IDs (mirrored from mobile so other devices can render
+   *  this player's loadout on profile / leaderboard / chat screens). */
+  equippedFrame?: string | null;
+  equippedBadge?: string | null;
+  equippedBackground?: string | null;
+  equippedCharacter?: string | null;
+  equippedUsernameColor?: string | null;
+  equippedTextStyle?: string | null;
 }
 export interface MenuItem {
   id: string; cafeId: string; name: string; price: number;
