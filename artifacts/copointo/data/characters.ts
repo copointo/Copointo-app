@@ -50,12 +50,19 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-20", name: "أسطوري",       emoji: "🦄", rainbow: true },
 ];
 
+const PRICE_OVERRIDES: Record<string, number> = {
+  "char-19": 10000,
+  "char-20": 10000,
+};
+
 export function getCharacter(id: string | null): CharacterDef | null {
   if (!id) return null;
   return CHARACTERS.find(c => c.id === id) ?? null;
 }
 
 export const CHARACTER_PRICE = (idx: number): number => {
+  const ch = CHARACTERS[idx];
+  if (ch && PRICE_OVERRIDES[ch.id] !== undefined) return PRICE_OVERRIDES[ch.id];
   // char-1 (the cat) is the free starter for everyone.
   if (idx === 0) return 0;
   if (idx < 10) return 300;
