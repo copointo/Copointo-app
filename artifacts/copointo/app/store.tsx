@@ -6,9 +6,7 @@ import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View }
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BuyCoinsPanel } from "./buy-coins";
 import { useCoins } from "../hooks/useCoins";
-import { FRAMES } from "../data/frames";
 import { BADGES } from "../data/badges";
-import { useFrames } from "../hooks/useFrames";
 import { useBadges } from "../hooks/useBadges";
 import FadeInItem from "../components/FadeInItem";
 
@@ -159,25 +157,7 @@ export default function StoreScreen() {
 }
 
 function CategoryPanel({ cat }: { cat: ShopCat }) {
-  const { owned: ownedFrames } = useFrames();
   const { owned: ownedBadges } = useBadges();
-
-  if (cat === "frames") {
-    return (
-      <View style={styles.itemsGrid} key="frames">
-        {FRAMES.map((f, i) => {
-          const owned = ownedFrames.includes(f.id);
-          return (
-            <FadeInItem key={f.id} index={i} style={styles.itemCard}>
-              <Image source={f.source} style={styles.itemImg} />
-              <Text style={styles.itemName} numberOfLines={1}>{f.name}</Text>
-              <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
-            </FadeInItem>
-          );
-        })}
-      </View>
-    );
-  }
 
   if (cat === "badges") {
     return (
