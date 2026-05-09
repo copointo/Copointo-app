@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AvatarWithFrame from "../components/AvatarWithFrame";
 import UserBadge from "../components/UserBadge";
 import { useApp } from "../context/AppContext";
+import { getDefaultAvatarSource } from "../lib/defaultAvatar";
 import { BADGES } from "../data/badges";
 import { FRAMES } from "../data/frames";
 import { useBadges } from "../hooks/useBadges";
@@ -47,9 +48,7 @@ export default function CollectionScreen() {
               {avatarUri ? (
                 <Image source={{ uri: avatarUri }} style={styles.previewAvatarImg} />
               ) : (
-                <View style={styles.previewAvatarFallback}>
-                  <Feather name="user" size={32} color={PRIMARY} />
-                </View>
+                <Image source={getDefaultAvatarSource(user?.gender)} style={styles.previewAvatarImg} />
               )}
             </AvatarWithFrame>
           </View>

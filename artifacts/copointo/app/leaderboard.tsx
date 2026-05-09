@@ -20,6 +20,7 @@ import { useCommunities } from "@/context/CommunityContext";
 import { getRank } from "@/data/mockData";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
+import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 
 type LeaderTab = "friends" | "oman" | "communities";
 
@@ -271,11 +272,10 @@ export default function LeaderboardScreen() {
                 {entry.avatar ? (
                   <Image source={{ uri: entry.avatar }} style={styles.avatarImg} />
                 ) : (
-                  <View style={[styles.avatar, entry.isMe && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
-                    <Text style={{ fontSize: 20 }}>
-                      {entry.gender === "female" ? "👩" : entry.gender === "male" ? "🧑" : "👤"}
-                    </Text>
-                  </View>
+                  <Image
+                    source={getDefaultAvatarSource(entry.gender as "male" | "female" | undefined)}
+                    style={styles.avatarImg}
+                  />
                 )}
               </AvatarWithFrame>
 

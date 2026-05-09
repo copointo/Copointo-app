@@ -24,6 +24,7 @@ import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
+import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -326,7 +327,7 @@ export default function ProfileScreen() {
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
                 ) : (
-                  <Text style={styles.avatarLevelNum}>{level}</Text>
+                  <Image source={getDefaultAvatarSource(user?.gender)} style={styles.avatarImg} />
                 )}
               </View>
             </AvatarWithFrame>

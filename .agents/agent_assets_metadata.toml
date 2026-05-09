@@ -30,3 +30,15 @@ id = "IAHmzmzvONAV7RwUAi9GA"
 uri = "file://artifacts/copointo/assets/images/cafe3.png"
 type = "image"
 title = "copointo cafe placeholder 3"
+
+[[generated]]
+id = "XGHifcslgzjaQFj1G65hr"
+uri = "file://artifacts/copointo/assets/images/avatar-male.png"
+type = "image"
+title = "default male avatar"
+
+[[generated]]
+id = "EqiZv5mOHZrBlfH62ytAP"
+uri = "file://artifacts/copointo/assets/images/avatar-female.png"
+type = "image"
+title = "default female avatar"
