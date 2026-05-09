@@ -13,7 +13,7 @@ export interface BackgroundDef {
 
 export const BACKGROUNDS: BackgroundDef[] = [
   // ───── Tier 1 (1-5): solid color, no animation ─────
-  { id: "bg-1",  name: "كلاسيكي ذهبي",   colors: ["#3a2510", "#1a0e08"],                       highlight: "#E8B86D", effect: "none", defaultOwned: true },
+  { id: "bg-1",  name: "أحمر كلاسيكي",   colors: ["#7F1D1D", "#3B0A0A"],                       highlight: "#FCA5A5", effect: "none" },
   { id: "bg-2",  name: "ليل أرجواني",    colors: ["#4A1D7A", "#1B0944"],                        highlight: "#B388FF", effect: "none" },
   { id: "bg-3",  name: "محيط هادئ",      colors: ["#0E7C9C", "#063B5C"],                        highlight: "#7FE3FF", effect: "none" },
   { id: "bg-4",  name: "غابة زمردية",    colors: ["#0F8A3F", "#0B3D1F"],                        highlight: "#A8F0BE", effect: "none" },

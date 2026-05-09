@@ -2,12 +2,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 import { BACKGROUNDS, DEFAULT_BACKGROUND_ID } from "../data/backgrounds";
 
-const KEY_OWNED = "copointo_backgrounds_owned_v2";
-const KEY_EQUIPPED = "copointo_background_equipped_v2";
+const KEY_OWNED = "copointo_backgrounds_owned_v3";
+const KEY_EQUIPPED = "copointo_background_equipped_v3";
 
-// Only the first (classic) background is free; the rest must be purchased from the store.
-const DEFAULT_OWNED: string[] = [DEFAULT_BACKGROUND_ID];
+// No backgrounds are owned by default — every background must be purchased from the store.
+const DEFAULT_OWNED: string[] = [];
 void BACKGROUNDS;
+void DEFAULT_BACKGROUND_ID;
 
 interface BackgroundsState {
   owned: string[];
@@ -24,7 +25,7 @@ function broadcast(s: BackgroundsState) {
 
 export function useBackgrounds() {
   const [state, setState] = useState<BackgroundsState>(
-    _cache ?? { owned: DEFAULT_OWNED, equipped: DEFAULT_BACKGROUND_ID },
+    _cache ?? { owned: DEFAULT_OWNED, equipped: null },
   );
   const [hydrated, setHydrated] = useState<boolean>(_cache !== null);
 
@@ -46,12 +47,7 @@ export function useBackgrounds() {
             }
           }
         } catch {}
-        const equipped =
-          rawEq === null
-            ? DEFAULT_BACKGROUND_ID
-            : rawEq && owned.includes(rawEq)
-              ? rawEq
-              : null;
+        const equipped = rawEq && owned.includes(rawEq) ? rawEq : null;
         broadcast({ owned, equipped });
         setHydrated(true);
       });
