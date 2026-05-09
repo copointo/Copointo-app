@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
   bgTallPreview: { alignSelf: "stretch" },
-  bgCardLbRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  bgCardLbRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 6 },
   bgCardLbRank: { fontSize: 14, width: 18, textAlign: "center" },
   bgCardLbAvatarImg: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.20)" },
   bgCardLbInfo: { flex: 1, minWidth: 0 },

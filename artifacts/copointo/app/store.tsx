@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
   },
   lbCoffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   bgTallPreview: { alignSelf: "stretch" },
-  bgCardLbRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  bgCardLbRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: 6 },
   bgCardLbRank: { fontSize: 14, width: 18, textAlign: "center" },
   bgCardLbAvatarImg: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.20)" },
   bgCardLbInfo: { flex: 1, minWidth: 0 },
