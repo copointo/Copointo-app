@@ -5,6 +5,8 @@ export interface BadgeDef {
   defaultOwned?: boolean;
   /** If true, this badge is unlocked by leveling up — never appears in the item shop. */
   levelReward?: boolean;
+  /** Optional fixed price (overrides PRICE_BY_TIER in the shop). */
+  price?: number;
 }
 
 export const BADGES: BadgeDef[] = [
@@ -18,6 +20,12 @@ export const BADGES: BadgeDef[] = [
   { id: "badge-8",  name: "وسام العنبر الوردي",   source: require("../assets/images/badges/badge-8.png"),  levelReward: true },
   { id: "badge-9",  name: "وسام التاج الملكي",    source: require("../assets/images/badges/badge-9.png"),  levelReward: true },
   { id: "badge-10", name: "الوسام الأسطوري",      source: require("../assets/images/badges/badge-10.png"), levelReward: true },
+  { id: "badge-11", name: "وسام الجناح الذهبي",   source: require("../assets/images/badges/badge-11.png"), price: 5000 },
+  { id: "badge-12", name: "وسام الجمشت الأرجواني", source: require("../assets/images/badges/badge-12.png"), price: 5000 },
+  { id: "badge-13", name: "وسام الزمرد الملكي",    source: require("../assets/images/badges/badge-13.png"), price: 5000 },
+  { id: "badge-14", name: "وسام الياقوت الناري",   source: require("../assets/images/badges/badge-14.png"), price: 5000 },
+  { id: "badge-15", name: "وسام النجم الذهبي",     source: require("../assets/images/badges/badge-15.png"), price: 5000 },
+  { id: "badge-16", name: "وسام الكون البنفسجي",   source: require("../assets/images/badges/badge-16.png"), price: 5000 },
 ];
 
 export function getBadge(id: string | null): BadgeDef | null {

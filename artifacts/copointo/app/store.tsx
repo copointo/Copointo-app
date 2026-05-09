@@ -420,7 +420,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
         <View style={styles.bgGrid} key="badges">
           {shopBadges.map((b, i) => {
             const owned = ownedBadges.includes(b.id);
-            const price = PRICE_BY_TIER[i] ?? 100;
+            const price = b.price ?? PRICE_BY_TIER[i] ?? 100;
             return (
               <FadeInItem key={b.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
