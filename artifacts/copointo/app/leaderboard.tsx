@@ -22,6 +22,9 @@ import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
 import UsernameBackground from "@/components/UsernameBackground";
 import UsernameText from "@/components/UsernameText";
+import Character from "@/components/Character";
+import { getCharacter } from "@/data/characters";
+import { useCharacters } from "@/hooks/useCharacters";
 import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 
 type LeaderTab = "friends" | "oman" | "communities";
@@ -52,6 +55,8 @@ export default function LeaderboardScreen() {
     refreshAllUsers,
   } = useApp();
   const { rankingList } = useCommunities();
+  const { equipped: equippedCharacterId } = useCharacters();
+  const equippedCharacter = getCharacter(equippedCharacterId);
   const { t } = useT();
   const TAB_LABELS: Record<LeaderTab, string> = {
     friends:     t("lb.tabFriends"),
@@ -345,6 +350,11 @@ export default function LeaderboardScreen() {
                   style={{ alignSelf: "stretch" }}
                 >
                   <View style={styles.entryRowContent}>{rowInner}</View>
+                  {equippedCharacter && (
+                    <View style={styles.charBadge} pointerEvents="none">
+                      <Character def={equippedCharacter} size={28} />
+                    </View>
+                  )}
                 </UsernameBackground>
               </TouchableOpacity>
             );
@@ -672,6 +682,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.35)",
   },
   coffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
+  charBadge: {
+    position: "absolute",
+    left: 6,
+    top: "50%",
+    marginTop: -25,
+    width: 50, height: 50,
+    alignItems: "center", justifyContent: "center",
+  },
 });
 
 const panelStyles = StyleSheet.create({
