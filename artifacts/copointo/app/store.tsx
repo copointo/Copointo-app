@@ -8,6 +8,9 @@ import { BuyCoinsPanel } from "./buy-coins";
 import { useCoins } from "../hooks/useCoins";
 import { BADGES } from "../data/badges";
 import { useBadges } from "../hooks/useBadges";
+import { BACKGROUNDS } from "../data/backgrounds";
+import { useBackgrounds } from "../hooks/useBackgrounds";
+import UsernameBackground from "../components/UsernameBackground";
 import FadeInItem from "../components/FadeInItem";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
@@ -158,6 +161,26 @@ export default function StoreScreen() {
 
 function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedBadges } = useBadges();
+  const { owned: ownedBackgrounds } = useBackgrounds();
+
+  if (cat === "background") {
+    return (
+      <View style={styles.itemsGrid} key="backgrounds">
+        {BACKGROUNDS.map((bg, i) => {
+          const owned = ownedBackgrounds.includes(bg.id);
+          return (
+            <FadeInItem key={bg.id} index={i} style={styles.itemCard}>
+              <UsernameBackground bg={bg} borderRadius={10} paddingHorizontal={10} paddingVertical={8} style={{ alignSelf: "stretch", alignItems: "center" }}>
+                <Text style={styles.bgPreviewText}>@username</Text>
+              </UsernameBackground>
+              <Text style={styles.itemName} numberOfLines={1}>{bg.name}</Text>
+              <PriceTag price={PRICE_BY_TIER[i % PRICE_BY_TIER.length] ?? 100} owned={owned} />
+            </FadeInItem>
+          );
+        })}
+      </View>
+    );
+  }
 
   if (cat === "badges") {
     return (
@@ -297,6 +320,7 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 64, height: 64, resizeMode: "contain" },
   itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  bgPreviewText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF" },
   priceTag: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",

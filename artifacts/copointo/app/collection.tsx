@@ -11,8 +11,11 @@ import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
 import { BADGES } from "../data/badges";
 import { FRAMES } from "../data/frames";
+import { BACKGROUNDS } from "../data/backgrounds";
 import { useBadges } from "../hooks/useBadges";
 import { useFrames } from "../hooks/useFrames";
+import { useBackgrounds } from "../hooks/useBackgrounds";
+import UsernameBackground from "../components/UsernameBackground";
 
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
@@ -25,6 +28,7 @@ export default function CollectionScreen() {
   const { user } = useApp();
   const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
+  const { owned: ownedBackgrounds, equipped: equippedBackground, equipBackground } = useBackgrounds();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
@@ -63,10 +67,12 @@ export default function CollectionScreen() {
               )}
             </AvatarWithFrame>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={styles.previewName}>@{username}</Text>
-            <UserBadge size={18} />
-          </View>
+          <UsernameBackground borderRadius={14} paddingHorizontal={14} paddingVertical={6}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.previewName}>@{username}</Text>
+              <UserBadge size={18} />
+            </View>
+          </UsernameBackground>
           <Text style={styles.previewSub}>
             الإطار يظهر حول صورتك، والشارة تظهر بجانب اسمك
           </Text>
@@ -241,7 +247,72 @@ export default function CollectionScreen() {
         </View>
         </>)}
 
-        {tab !== "frames" && tab !== "badges" && (
+        {tab === "background" && (<>
+        {/* ════════ BACKGROUNDS ════════ */}
+        <View style={styles.sectionRow}>
+          <View>
+            <Text style={styles.sectionTitle}>خلفية المستخدم</Text>
+            <Text style={styles.sectionHint}>تظهر خلف اسم المستخدم في التصنيف والملف</Text>
+          </View>
+          {equippedBackground && (
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); equipBackground(null); }}
+              style={styles.removeBtn}
+            >
+              <Feather name="x" size={12} color={PRIMARY} />
+              <Text style={styles.removeBtnText}>إزالة</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.grid} key="backgrounds-grid">
+          {BACKGROUNDS.map((bg, idx) => {
+            const isOwned = ownedBackgrounds.includes(bg.id);
+            const isEquipped = equippedBackground === bg.id;
+            return (
+              <FadeInItem key={bg.id} index={idx} style={styles.tileWrap}>
+                <TouchableOpacity
+                  style={[
+                    styles.tile,
+                    isEquipped && styles.tileEquipped,
+                    !isOwned && styles.tileLocked,
+                  ]}
+                  disabled={!isOwned}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    equipBackground(isEquipped ? null : bg.id);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={14} paddingVertical={10} style={{ alignSelf: "stretch", alignItems: "center", opacity: isOwned ? 1 : 0.35 }}>
+                    <Text style={styles.bgPreview}>@{username}</Text>
+                  </UsernameBackground>
+                  <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
+                    {bg.name}
+                  </Text>
+                  {isEquipped ? (
+                    <View style={styles.equippedChip}>
+                      <Feather name="check" size={10} color="#000" />
+                      <Text style={styles.equippedChipText}>مُجهَّز</Text>
+                    </View>
+                  ) : isOwned ? (
+                    <View style={styles.ownedChip}>
+                      <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.lockedChip}>
+                      <Feather name="lock" size={9} color="rgba(255,255,255,0.55)" />
+                      <Text style={styles.lockedChipText}>من المتجر</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+        </>)}
+
+        {tab !== "frames" && tab !== "badges" && tab !== "background" && (
           <FadeInItem key={tab} style={styles.comingSoon}>
             <Feather name="clock" size={28} color={PRIMARY} />
             <Text style={styles.comingSoonTitle}>قريباً</Text>
@@ -353,6 +424,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.35)",
   },
   tileName: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  bgPreview: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" },
 
   equippedChip: {
     flexDirection: "row", alignItems: "center", gap: 3,
