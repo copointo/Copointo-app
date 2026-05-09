@@ -84,6 +84,7 @@ export default function GameScreen() {
   );
   const scrollRef = useRef<ScrollView>(null);
   const [showGoBack, setShowGoBack] = useState(false);
+  const [boardH, setBoardH] = useState(0);
   const [status, setStatus] = useState<GameStatus | null>(null);
 
   // Poll game-suspension status from server (keyed by phone).
@@ -128,10 +129,17 @@ export default function GameScreen() {
   const currentIdxInList = endLvl - level;
   const currentTileY     = currentIdxInList * ROW_H;
 
+  // Center the current tile inside the actual board viewport (not the full
+  // screen) so the button always lands on the user's current level.
+  const computeTarget = useCallback(() => {
+    const viewport = boardH > 0 ? boardH : SCREEN_HEIGHT * 0.7;
+    return Math.max(0, currentTileY - viewport / 2 + ROW_H / 2);
+  }, [boardH, currentTileY, ROW_H]);
+
   useEffect(() => {
-    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.55);
+    const target = computeTarget();
     setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 250);
-  }, [level]);
+  }, [level, boardH]);
 
   // ── Sound: play a triumphant chime whenever the user levels up ──
   const prevLevelRef = useRef<number | null>(null);
@@ -199,15 +207,15 @@ export default function GameScreen() {
   const handleScroll = useCallback(
     (e: any) => {
       const y       = e.nativeEvent.contentOffset.y;
-      const targetY = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.55);
+      const targetY = computeTarget();
       setShowGoBack(Math.abs(y - targetY) > 160);
     },
-    [currentTileY]
+    [computeTarget]
   );
 
   const goToCurrent = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const target = Math.max(0, currentTileY - SCREEN_HEIGHT * 0.55);
+    const target = computeTarget();
     scrollRef.current?.scrollTo({ y: target, animated: true });
   };
 
@@ -372,6 +380,7 @@ export default function GameScreen() {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={40}
+        onLayout={e => setBoardH(e.nativeEvent.layout.height)}
       >
         <View style={{ height: 16 }} />
 
@@ -469,18 +478,18 @@ export default function GameScreen() {
         <View style={{ height: Platform.OS === "web" ? 130 : insets.bottom + 120 }} />
       </ScrollView>
 
-      {/* ── "Go to my level" button ── */}
+      {/* ── "Go to my level" button (sits ABOVE the المستويات button on the left) ── */}
       {showGoBack && (
         <TouchableOpacity
           style={[styles.goBackBtn, {
             left: 20,
-            bottom: Platform.OS === "web" ? 100 : insets.bottom + 90,
+            bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 72 + 12,
           }]}
           onPress={goToCurrent}
           activeOpacity={0.85}
         >
           <Feather name="crosshair" size={16} color="#000" />
-          <Text style={styles.goBackText}>مستواي</Text>
+          <Text style={styles.goBackText}>اذهب إلى مستواي</Text>
         </TouchableOpacity>
       )}
 
