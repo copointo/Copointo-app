@@ -25,6 +25,15 @@ import UsernameText from "@/components/UsernameText";
 import Character from "@/components/Character";
 import { getCharacter } from "@/data/characters";
 import { useCharacters } from "@/hooks/useCharacters";
+import { useGiftInventory } from "@/hooks/useGiftInventory";
+import { useUsernameColors } from "@/hooks/useUsernameColors";
+import { useTextStyles } from "@/hooks/useTextStyles";
+import { useBackgrounds } from "@/hooks/useBackgrounds";
+import { GIFTS } from "@/data/gifts";
+import { getUsernameColor } from "@/data/usernameColors";
+import { getTextStyle } from "@/data/textStyles";
+import { getBackground } from "@/data/backgrounds";
+import { LinearGradient } from "expo-linear-gradient";
 import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 
 type LeaderTab = "friends" | "oman" | "communities";
@@ -57,6 +66,10 @@ export default function LeaderboardScreen() {
   const { rankingList } = useCommunities();
   const { equipped: equippedCharacterId } = useCharacters();
   const equippedCharacter = getCharacter(equippedCharacterId);
+  const { equipped: equippedUsernameColorId } = useUsernameColors();
+  const { equipped: equippedTextStyleId } = useTextStyles();
+  const { equipped: equippedBackgroundId } = useBackgrounds();
+  const { inventory: giftInventory } = useGiftInventory();
   const { t } = useT();
   const TAB_LABELS: Record<LeaderTab, string> = {
     friends:     t("lb.tabFriends"),
@@ -383,6 +396,11 @@ export default function LeaderboardScreen() {
         isFriend={!!(panelUser && friends.includes(panelUser.id))}
         isPending={!!(panelUser && outgoingRequests.includes(panelUser.id))}
         hasIncoming={!!(panelUser && incomingRequests.includes(panelUser.id))}
+        myEquippedCharacterId={equippedCharacterId}
+        myEquippedUsernameColorId={equippedUsernameColorId}
+        myEquippedTextStyleId={equippedTextStyleId}
+        myEquippedBackgroundId={equippedBackgroundId}
+        myGiftInventory={giftInventory}
         onSend={(uid) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); sendFriendRequest(uid); }}
         onAccept={(uid) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); acceptFriendRequest(uid); }}
         onCancel={(uid) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); cancelFriendRequest(uid); }}
@@ -403,6 +421,12 @@ interface PanelProps {
   isFriend: boolean;
   isPending: boolean;
   hasIncoming: boolean;
+  /** Local-only: my equipped cosmetics (only meaningful when viewing self). */
+  myEquippedCharacterId: string | null;
+  myEquippedUsernameColorId: string | null;
+  myEquippedTextStyleId: string | null;
+  myEquippedBackgroundId: string | null;
+  myGiftInventory: Record<string, number>;
   onSend: (uid: string) => void;
   onAccept: (uid: string) => void;
   onCancel: (uid: string) => void;
@@ -518,6 +542,121 @@ function UserDetailPanel(p: PanelProps) {
                   </View>
                 </View>
               )}
+
+              {/* ── My equipped theme (visible only when viewing self) ── */}
+              {isMe && (() => {
+                const ch  = getCharacter(p.myEquippedCharacterId);
+                const uc  = getUsernameColor(p.myEquippedUsernameColorId);
+                const ts  = getTextStyle(p.myEquippedTextStyleId);
+                const bg  = getBackground(p.myEquippedBackgroundId);
+                const ucColor = uc?.color ?? uc?.gradient?.[0] ?? uc?.mix?.[0] ?? "rgba(255,255,255,0.40)";
+                return (
+                  <>
+                    <Text style={panelStyles.sectionTitle}>الثيم المفعّل</Text>
+                    <View style={panelStyles.themeGrid}>
+                      {/* Character */}
+                      <View style={panelStyles.themeCard}>
+                        <Text style={panelStyles.themeLabel}>الشخصية</Text>
+                        <View style={panelStyles.themePreviewBox}>
+                          {ch ? <Character def={ch} size={28} /> : <Text style={panelStyles.themeEmpty}>—</Text>}
+                        </View>
+                        <Text style={panelStyles.themeName} numberOfLines={1}>{ch?.name ?? "بدون"}</Text>
+                      </View>
+
+                      {/* Username color */}
+                      <View style={panelStyles.themeCard}>
+                        <Text style={panelStyles.themeLabel}>لون المستخدم</Text>
+                        <View style={panelStyles.themePreviewBox}>
+                          {uc ? (
+                            <Text style={[panelStyles.themePreviewText, { color: ucColor }]}>أبجد</Text>
+                          ) : (
+                            <Text style={panelStyles.themeEmpty}>—</Text>
+                          )}
+                        </View>
+                        <Text style={panelStyles.themeName} numberOfLines={1}>{uc?.name ?? "بدون"}</Text>
+                      </View>
+
+                      {/* Text style */}
+                      <View style={panelStyles.themeCard}>
+                        <Text style={panelStyles.themeLabel}>نص ملون</Text>
+                        <View style={[panelStyles.themePreviewBox, { padding: 0, overflow: "hidden" }]}>
+                          {ts ? (
+                            ts.bg?.gradient ? (
+                              <LinearGradient
+                                colors={[...ts.bg.gradient]}
+                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                                style={panelStyles.tsBubble}
+                              >
+                                <Text style={[panelStyles.tsText, { color: ts.textColor }]}>أبجد</Text>
+                              </LinearGradient>
+                            ) : (
+                              <View style={[
+                                panelStyles.tsBubble,
+                                { backgroundColor: ts.bg?.color ?? "transparent",
+                                  borderColor: ts.bg?.border ?? "transparent",
+                                  borderWidth: ts.bg ? 1 : 0 },
+                              ]}>
+                                <Text style={[panelStyles.tsText, { color: ts.textColor }]}>أبجد</Text>
+                              </View>
+                            )
+                          ) : <Text style={panelStyles.themeEmpty}>—</Text>}
+                        </View>
+                        <Text style={panelStyles.themeName} numberOfLines={1}>{ts?.name ?? "بدون"}</Text>
+                      </View>
+
+                      {/* Background */}
+                      <View style={panelStyles.themeCard}>
+                        <Text style={panelStyles.themeLabel}>الخلفية</Text>
+                        <View style={[panelStyles.themePreviewBox, { padding: 0, overflow: "hidden" }]}>
+                          {bg ? (
+                            <LinearGradient
+                              colors={bg.colors as unknown as readonly [string, string, ...string[]]}
+                              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                              style={{ width: "100%", height: "100%", borderRadius: 8 }}
+                            />
+                          ) : <Text style={panelStyles.themeEmpty}>—</Text>}
+                        </View>
+                        <Text style={panelStyles.themeName} numberOfLines={1}>{bg?.name ?? "بدون"}</Text>
+                      </View>
+                    </View>
+                  </>
+                );
+              })()}
+
+              {/* ── Gifts inventory (visible only when viewing self) ── */}
+              {isMe && (() => {
+                const entries = GIFTS
+                  .map(g => ({ g, n: p.myGiftInventory[g.id] ?? 0 }))
+                  .filter(x => x.n > 0);
+                const total = entries.reduce((s, x) => s + x.n, 0);
+                return (
+                  <>
+                    <View style={panelStyles.giftsHeaderRow}>
+                      <Text style={panelStyles.sectionTitle}>الهدايا</Text>
+                      <View style={panelStyles.giftsTotalPill}>
+                        <Text style={panelStyles.giftsTotalText}>{total}</Text>
+                      </View>
+                    </View>
+                    {entries.length === 0 ? (
+                      <View style={panelStyles.emptyCafes}>
+                        <Text style={panelStyles.emptyCafesText}>ما عندك هدايا حالياً — تقدر تشتري من المتجر</Text>
+                      </View>
+                    ) : (
+                      <View style={panelStyles.giftGrid}>
+                        {entries.map(({ g, n }) => (
+                          <View key={g.id} style={[panelStyles.giftCard, { borderColor: g.color + "55" }]}>
+                            <Text style={panelStyles.giftEmoji}>{g.emoji}</Text>
+                            <Text style={panelStyles.giftName} numberOfLines={1}>{g.name}</Text>
+                            <View style={[panelStyles.giftCountPill, { backgroundColor: g.color + "22", borderColor: g.color + "66" }]}>
+                              <Text style={[panelStyles.giftCountText, { color: g.color }]}>×{n}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Friend-add button (hidden when viewing self) */}
               {!isMe && p.myId && (
@@ -792,4 +931,66 @@ const panelStyles = StyleSheet.create({
     borderWidth: 1, borderColor: "#E8B86D", borderStyle: "dashed",
   },
   actionText: { fontSize: 13.5, fontFamily: "Inter_700Bold", color: "#000" },
+
+  // ── Theme grid ───────────────────────────────────────────────
+  themeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  themeCard: {
+    width: "48%",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.25)",
+    borderRadius: 14, padding: 10, alignItems: "center", gap: 6,
+  },
+  themeLabel: {
+    fontSize: 10.5, fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.55)",
+  },
+  themePreviewBox: {
+    width: "100%", height: 50, borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center", justifyContent: "center",
+    padding: 4,
+  },
+  themePreviewText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  themeEmpty: { fontSize: 18, color: "rgba(255,255,255,0.30)" },
+  themeName: {
+    fontSize: 11, fontFamily: "Inter_700Bold",
+    color: "#FFF", textAlign: "center",
+  },
+  tsBubble: {
+    width: "100%", height: "100%",
+    borderRadius: 8,
+    alignItems: "center", justifyContent: "center",
+  },
+  tsText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  // ── Gifts grid ────────────────────────────────────────────────
+  giftsHeaderRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+  },
+  giftsTotalPill: {
+    marginTop: 14,
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: "rgba(232,184,109,0.15)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.45)",
+  },
+  giftsTotalText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#E8B86D" },
+  giftGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  giftCard: {
+    width: "31.5%",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderRadius: 14, paddingVertical: 10, paddingHorizontal: 6,
+    alignItems: "center", gap: 4,
+  },
+  giftEmoji: { fontSize: 28 },
+  giftName: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.85)", textAlign: "center",
+  },
+  giftCountPill: {
+    paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: 8, borderWidth: 1, marginTop: 2,
+  },
+  giftCountText: { fontSize: 11, fontFamily: "Inter_700Bold" },
 });
