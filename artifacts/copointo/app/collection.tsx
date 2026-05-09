@@ -281,14 +281,14 @@ export default function CollectionScreen() {
           </FadeInItem>
         )}
 
-        <View style={styles.grid} key="backgrounds-grid">
+        <View style={[styles.grid, { flexDirection: "column" }]} key="backgrounds-grid">
           {BACKGROUNDS.filter(bg => ownedBackgrounds.includes(bg.id)).map((bg, idx) => {
             const isOwned = true;
             const isEquipped = equippedBackground === bg.id;
             const price = 0;
             void price;
             return (
-              <FadeInItem key={bg.id} index={idx} style={styles.tileWrap}>
+              <FadeInItem key={bg.id} index={idx} style={{ width: "100%" }}>
                 <TouchableOpacity
                   style={[
                     styles.tile,
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
-  bgTallPreview: { alignSelf: "stretch", aspectRatio: 16 / 9 },
+  bgTallPreview: { alignSelf: "stretch", aspectRatio: 21 / 9 },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,

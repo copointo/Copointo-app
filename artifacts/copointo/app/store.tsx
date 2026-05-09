@@ -192,7 +192,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const owned = ownedBackgrounds.includes(bg.id);
             const price = i < 10 ? 350 : i < 15 ? 1000 : 2500;
             return (
-              <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
+              <FadeInItem key={bg.id} index={i} style={{ width: "100%" }}>
                 <TouchableOpacity
                   style={styles.bgCard}
                   activeOpacity={0.85}
@@ -621,9 +621,9 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 64, height: 64, resizeMode: "contain" },
   itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  bgGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
+  bgGrid: { flexDirection: "column", gap: 12 },
   bgCard: {
-    width: "48%",
+    width: "100%",
     backgroundColor: "#0A0606",
     borderRadius: 16, padding: 12,
     borderWidth: 1, borderColor: "rgba(232,184,109,0.25)",
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.45)",
   },
   lbCoffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
-  bgTallPreview: { alignSelf: "stretch", aspectRatio: 16 / 9 },
+  bgTallPreview: { alignSelf: "stretch", aspectRatio: 21 / 9 },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,
