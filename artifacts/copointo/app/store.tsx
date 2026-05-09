@@ -201,13 +201,15 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
 
   if (cat === "badges") {
     return (
-      <View style={styles.itemsGrid} key="badges">
+      <View style={styles.bgGrid} key="badges">
         {BADGES.map((b, i) => {
           const owned = ownedBadges.includes(b.id);
           return (
-            <FadeInItem key={b.id} index={i} style={styles.itemCard}>
-              <Image source={b.source} style={styles.itemImg} />
-              <Text style={styles.itemName} numberOfLines={1}>{b.name}</Text>
+            <FadeInItem key={b.id} index={i} style={styles.bgCard}>
+              <View style={styles.badgeImgWrap}>
+                <Image source={b.source} style={styles.badgeImgLg} />
+              </View>
+              <Text style={styles.bgName} numberOfLines={1}>{b.name}</Text>
               <PriceTag price={PRICE_BY_TIER[i] ?? 100} owned={owned} />
             </FadeInItem>
           );
@@ -354,6 +356,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  badgeImgWrap: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
+  badgeImgLg: { width: 96, height: 96, resizeMode: "contain" },
   priceTag: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
