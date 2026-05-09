@@ -337,6 +337,32 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
           <Text style={styles.changePhotoHint}>{t("profile.tapToChangePhoto")}</Text>
+          {avatarUri && user && (
+            <TouchableOpacity
+              style={styles.removePhotoBtn}
+              onPress={() => {
+                Alert.alert(
+                  "إزالة الصورة",
+                  "هل تريد إزالة صورة البروفايل والرجوع إلى الصورة الافتراضية؟",
+                  [
+                    { text: "إلغاء", style: "cancel" },
+                    {
+                      text: "إزالة",
+                      style: "destructive",
+                      onPress: () => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        setUser({ ...user, avatar: undefined });
+                      },
+                    },
+                  ],
+                );
+              }}
+              activeOpacity={0.85}
+            >
+              <Feather name="trash-2" size={13} color="#FF6B6B" />
+              <Text style={styles.removePhotoBtnText}>إزالة الصورة</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Rank pill (tap to view full ranks journey) ── */}
@@ -584,6 +610,17 @@ const styles = StyleSheet.create({
   changePhotoHint: {
     fontSize: 12, fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.45)", marginTop: 4,
+  },
+  removePhotoBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    marginTop: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,107,107,0.10)",
+    borderWidth: 1, borderColor: "rgba(255,107,107,0.35)",
+  },
+  removePhotoBtnText: {
+    fontSize: 12, fontFamily: "Inter_700Bold", color: "#FF6B6B",
   },
 
   // ── Rank pill ──
