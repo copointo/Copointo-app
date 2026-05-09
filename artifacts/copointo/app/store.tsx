@@ -17,6 +17,7 @@ import AvatarWithFrame from "../components/AvatarWithFrame";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
+import { getRank } from "../data/mockData";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -239,23 +240,37 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             await equipBackground(previewBg.bg.id);
           }}
         >
-          {previewBg && (
-            <UsernameBackground
-              bg={previewBg.bg}
-              borderRadius={18}
-              paddingHorizontal={16}
-              paddingVertical={20}
-              style={{ alignSelf: "stretch", marginTop: 14 }}
-            >
-              <View style={{ alignItems: "center", gap: 10 }}>
-                <View style={styles.modalAvatar}>
-                  <Image source={avatarSource} style={styles.modalAvatarImg} />
+          {previewBg && (() => {
+            const lvl = user?.level ?? 1;
+            const rk = getRank(lvl);
+            return (
+              <UsernameBackground
+                bg={previewBg.bg}
+                borderRadius={18}
+                paddingHorizontal={14}
+                paddingVertical={14}
+                style={{ alignSelf: "stretch", marginTop: 14 }}
+              >
+                <View style={styles.lbRow}>
+                  <Text style={[styles.lbRank, { color: "#FFD700" }]}>🥇</Text>
+                  <AvatarWithFrame size={44} scale={1.55} frameId={undefined}>
+                    <Image source={avatarSource} style={styles.lbAvatarImg} />
+                  </AvatarWithFrame>
+                  <View style={styles.lbInfo}>
+                    <Text style={styles.lbName} numberOfLines={1}>
+                      @{username} <Text style={{ color: "#E8B86D" }}>(أنت)</Text>
+                    </Text>
+                    <Text style={styles.lbLevel} numberOfLines={1}>
+                      Level {lvl} · {rk.nameEn} {rk.icon}
+                    </Text>
+                    <View style={styles.lbCoffeeChip}>
+                      <Text style={styles.lbCoffeeChipText}>☕ {user?.totalOrders ?? 0} كوفي</Text>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.modalUsername}>@{username}</Text>
-                <Text style={styles.modalLevel}>المستوى {user?.level ?? 1}</Text>
-              </View>
-            </UsernameBackground>
-          )}
+              </UsernameBackground>
+            );
+          })()}
         </PurchaseModal>
       </>
     );
@@ -627,6 +642,19 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  lbRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  lbRank: { fontSize: 20, fontFamily: "Inter_700Bold", width: 32, textAlign: "center" },
+  lbAvatarImg: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: "rgba(255,255,255,0.20)" },
+  lbInfo: { flex: 1 },
+  lbName: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF", marginBottom: 3 },
+  lbLevel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" },
+  lbCoffeeChip: {
+    alignSelf: "flex-start", marginTop: 4,
+    paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 8,
+    backgroundColor: "rgba(79,195,247,0.18)",
+    borderWidth: 1, borderColor: "rgba(79,195,247,0.45)",
+  },
+  lbCoffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   framePreviewWrap: {
     width: "100%", alignItems: "center", justifyContent: "center",
     paddingVertical: 16,
