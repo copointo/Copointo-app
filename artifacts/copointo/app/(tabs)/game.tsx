@@ -25,6 +25,7 @@ import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
 import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
 import { useLevelRewards } from "@/hooks/useLevelRewards";
+import GiftFeedRain from "@/components/GiftFeedRain";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
@@ -659,6 +660,11 @@ export default function GameScreen() {
         remaining={levelRewards.remaining}
         onDismiss={levelRewards.dismiss}
       />
+
+      {/* Global gift feed — falling-rain animation for any gift sent on
+          the platform since the user's last visit to this page. Lives only
+          on the Levels page so the rain never interrupts other screens. */}
+      <GiftFeedRain />
     </View>
   );
 }

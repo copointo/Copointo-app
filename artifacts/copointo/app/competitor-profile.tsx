@@ -85,8 +85,7 @@ export default function CompetitorProfileScreen() {
       recipientName: target.gameUsername || target.name,
     };
     appendMsg(convId, giftMsg);
-    setAnimGift(gift);
-    setAnimQty(qty);
+    // No immediate preview — the rain animation appears on the Levels page.
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   };
 

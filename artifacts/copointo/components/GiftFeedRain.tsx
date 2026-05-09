@@ -1,77 +1,75 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
 import { useGiftFeed, type GiftFeedEvent } from "@/hooks/useGiftFeed";
-import { useApp } from "@/context/AppContext";
 import { getGift, type GiftDef } from "@/data/gifts";
 import GiftAnimation from "./GiftAnimation";
 
 interface Pending {
+  id: string;
   gift: GiftDef;
   fromName: string;
   toName: string;
   count: number;
 }
 
+const LAST_SEEN_KEY = "copointo_gift_feed_last_seen_v1";
+
 /**
- * Global gift-feed overlay. Listens to the public gift feed and plays the
- * falling-rain animation on EVERY screen whenever a new gift is sent
- * anywhere on the platform — captioned with the sender + recipient
- * usernames. Replaces the old top-of-screen marquee ticker.
+ * Levels-page gift overlay. Shows a falling-rain animation for every gift
+ * sent on the platform — including ones that arrived while the user was
+ * offline / on another tab. The last-seen createdAt timestamp is persisted
+ * to AsyncStorage so the user only sees gifts NEWER than the last time
+ * they opened the Levels page.
  *
- * Behaviour:
- *  - On first mount, snapshots the current feed ids so we don't replay
- *    the entire history.
- *  - Skips events the local user sent themselves (their own send screen
- *    already plays the animation).
- *  - Queues new events and plays them one at a time so multiple gifts
- *    that arrive in the same poll cycle don't overlap.
+ * Includes the user's own sends (so the sender's "preview" is delivered
+ * the next time they open the Levels page, not in-place after tapping
+ * Send in the picker).
  */
 export default function GiftFeedRain() {
   const events = useGiftFeed();
-  const { user } = useApp();
-  const seenIdsRef = useRef<Set<string>>(new Set());
-  const initializedRef = useRef(false);
+  const [lastSeenAt, setLastSeenAt] = useState<string | null>(null);
+  const hydratedRef = useRef(false);
+  const playedIdsRef = useRef<Set<string>>(new Set());
   const [queue, setQueue] = useState<Pending[]>([]);
   const [active, setActive] = useState<Pending | null>(null);
 
-  // Pump the queue: whenever there's no active animation but the queue has
-  // items, pop the head and show it.
+  // Hydrate the last-seen cursor from disk on mount.
+  useEffect(() => {
+    AsyncStorage.getItem(LAST_SEEN_KEY)
+      .then(raw => { if (raw) setLastSeenAt(raw); })
+      .finally(() => { hydratedRef.current = true; });
+  }, []);
+
+  // Pump the queue: whenever there's no active animation but the queue
+  // has items, pop the head and show it.
   useEffect(() => {
     if (active || queue.length === 0) return;
-    setActive(queue[0]);
-    setQueue(prev => prev.slice(1));
+    const [head, ...rest] = queue;
+    setQueue(rest);
+    setActive(head);
   }, [active, queue]);
 
-  // Watch the feed for new events.
+  // Watch the feed for events newer than our cursor.
   useEffect(() => {
-    if (!Array.isArray(events)) return;
+    if (!hydratedRef.current || !Array.isArray(events) || events.length === 0) return;
 
-    // First time we see ANY events, treat them all as "already seen" so
-    // we don't replay the historical backlog when a user opens the app.
-    if (!initializedRef.current) {
-      events.forEach(e => seenIdsRef.current.add(e.id));
-      initializedRef.current = true;
-      return;
-    }
-
-    // Find new events (oldest first so the queue plays in order).
     const fresh: GiftFeedEvent[] = [];
     for (const e of events) {
-      if (!seenIdsRef.current.has(e.id)) {
-        seenIdsRef.current.add(e.id);
-        fresh.push(e);
-      }
+      if (lastSeenAt && e.createdAt <= lastSeenAt) continue;
+      if (playedIdsRef.current.has(e.id)) continue;
+      fresh.push(e);
     }
     if (fresh.length === 0) return;
     fresh.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-    const myId = user?.id;
     const additions: Pending[] = [];
     for (const e of fresh) {
-      if (myId && e.senderId === myId) continue; // skip self-sent
+      playedIdsRef.current.add(e.id);
       const gd = getGift(e.giftId);
       if (!gd) continue;
       additions.push({
-        gift: gd,
+        id:       e.id,
+        gift:     gd,
         fromName: e.senderName || "مستخدم",
         toName:   e.recipientName || "مستخدم",
         count:    Math.max(1, e.giftQty ?? 1),
@@ -79,8 +77,12 @@ export default function GiftFeedRain() {
     }
     if (additions.length > 0) {
       setQueue(prev => [...prev, ...additions]);
+      // Advance the persisted cursor to the newest event we've now queued.
+      const newest = fresh[fresh.length - 1].createdAt;
+      setLastSeenAt(newest);
+      AsyncStorage.setItem(LAST_SEEN_KEY, newest).catch(() => {});
     }
-  }, [events, user?.id]);
+  }, [events, lastSeenAt]);
 
   if (!active) return null;
 

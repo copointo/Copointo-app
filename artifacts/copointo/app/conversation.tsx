@@ -125,10 +125,7 @@ export default function ConversationScreen() {
     appendMsg(id, giftMsg);
     // Mark as already played so we don't re-trigger from the convMsgs effect
     playedGiftIdsRef.current.add(giftMsg.id);
-    // Play animation immediately for the sender
-    setAnimGift(gift);
-    setAnimQty(qty);
-    setAnimFromName(undefined);
+    // No immediate preview — the rain animation appears on the Levels page.
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     playSendMessageSound();
   };

@@ -489,8 +489,8 @@ function UserDetailPanel(p: PanelProps) {
       recipientName: u.gameUsername || u.name,
     };
     appendMsg(convId, giftMsg);
-    setAnimGift(gift);
-    setAnimQty(qty);
+    // No immediate preview — the falling-rain animation will appear on the
+    // Levels (game) page for the sender + everyone else via the global feed.
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   };
 
