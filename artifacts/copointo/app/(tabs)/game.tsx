@@ -611,13 +611,32 @@ export default function GameScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Store */}
+        {/* Store — composite icon (character + gift + background) */}
         <TouchableOpacity
           style={styles.fabSmall}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/store"); }}
           activeOpacity={0.85}
         >
-          <Feather name="shopping-bag" size={22} color={PRIMARY} />
+          <View style={styles.storeIconWrap}>
+            <FontAwesome5
+              name="user-astronaut"
+              size={18}
+              color={PRIMARY}
+              style={styles.storeIconChar}
+            />
+            <Feather
+              name="gift"
+              size={13}
+              color={PRIMARY}
+              style={styles.storeIconGift}
+            />
+            <Feather
+              name="image"
+              size={13}
+              color={PRIMARY}
+              style={styles.storeIconBg}
+            />
+          </View>
         </TouchableOpacity>
 
         {/* My Collection */}
@@ -857,6 +876,18 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: PRIMARY_DIM,
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
+  },
+  storeIconWrap: {
+    width: 32, height: 32, alignItems: "center", justifyContent: "center",
+  },
+  storeIconChar: {
+    position: "absolute", top: -1, left: 7,
+  },
+  storeIconGift: {
+    position: "absolute", bottom: -2, left: -2,
+  },
+  storeIconBg: {
+    position: "absolute", bottom: -2, right: -2,
   },
   fabSmallLabel: {
     fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY,
