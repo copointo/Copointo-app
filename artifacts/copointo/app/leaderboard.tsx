@@ -25,7 +25,7 @@ import UsernameText from "@/components/UsernameText";
 import Character from "@/components/Character";
 import { getCharacter } from "@/data/characters";
 import { useCharacters } from "@/hooks/useCharacters";
-import { useGiftInventory } from "@/hooks/useGiftInventory";
+import { useMessages } from "@/context/MessagesContext";
 import { useUsernameColors } from "@/hooks/useUsernameColors";
 import { useTextStyles } from "@/hooks/useTextStyles";
 import { useBackgrounds } from "@/hooks/useBackgrounds";
@@ -69,7 +69,18 @@ export default function LeaderboardScreen() {
   const { equipped: equippedUsernameColorId } = useUsernameColors();
   const { equipped: equippedTextStyleId } = useTextStyles();
   const { equipped: equippedBackgroundId } = useBackgrounds();
-  const { inventory: giftInventory } = useGiftInventory();
+  const { chats } = useMessages();
+  const giftsReceived = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const list of Object.values(chats)) {
+      for (const m of list) {
+        if (!m.fromMe && m.giftId) {
+          counts[m.giftId] = (counts[m.giftId] ?? 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [chats]);
   const { t } = useT();
   const TAB_LABELS: Record<LeaderTab, string> = {
     friends:     t("lb.tabFriends"),
@@ -400,7 +411,7 @@ export default function LeaderboardScreen() {
         myEquippedUsernameColorId={equippedUsernameColorId}
         myEquippedTextStyleId={equippedTextStyleId}
         myEquippedBackgroundId={equippedBackgroundId}
-        myGiftInventory={giftInventory}
+        myGiftsReceived={giftsReceived}
         onSend={(uid) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); sendFriendRequest(uid); }}
         onAccept={(uid) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); acceptFriendRequest(uid); }}
         onCancel={(uid) => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); cancelFriendRequest(uid); }}
@@ -426,7 +437,7 @@ interface PanelProps {
   myEquippedUsernameColorId: string | null;
   myEquippedTextStyleId: string | null;
   myEquippedBackgroundId: string | null;
-  myGiftInventory: Record<string, number>;
+  myGiftsReceived: Record<string, number>;
   onSend: (uid: string) => void;
   onAccept: (uid: string) => void;
   onCancel: (uid: string) => void;
@@ -626,20 +637,20 @@ function UserDetailPanel(p: PanelProps) {
               {/* ── Gifts inventory (visible only when viewing self) ── */}
               {isMe && (() => {
                 const entries = GIFTS
-                  .map(g => ({ g, n: p.myGiftInventory[g.id] ?? 0 }))
+                  .map(g => ({ g, n: p.myGiftsReceived[g.id] ?? 0 }))
                   .filter(x => x.n > 0);
                 const total = entries.reduce((s, x) => s + x.n, 0);
                 return (
                   <>
                     <View style={panelStyles.giftsHeaderRow}>
-                      <Text style={panelStyles.sectionTitle}>الهدايا</Text>
+                      <Text style={panelStyles.sectionTitle}>الهدايا التي أُهديت لك</Text>
                       <View style={panelStyles.giftsTotalPill}>
                         <Text style={panelStyles.giftsTotalText}>{total}</Text>
                       </View>
                     </View>
                     {entries.length === 0 ? (
                       <View style={panelStyles.emptyCafes}>
-                        <Text style={panelStyles.emptyCafesText}>ما عندك هدايا حالياً — تقدر تشتري من المتجر</Text>
+                        <Text style={panelStyles.emptyCafesText}>ما وصلتك هدايا بعد</Text>
                       </View>
                     ) : (
                       <View style={panelStyles.giftGrid}>
