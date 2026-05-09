@@ -22,14 +22,15 @@ interface Props {
  * NOTE: Animations were intentionally removed per user request.
  */
 export default function Character({ def, size = 36 }: Props) {
-  const wrapSize = Math.round(size * 1.8);
+  const effSize = Math.round(size * (def.scale ?? 1));
+  const wrapSize = Math.round(effSize * 1.8);
 
   return (
     <View
       style={{ width: wrapSize, height: wrapSize, alignItems: "center", justifyContent: "center" }}
       pointerEvents="none"
     >
-      <Text style={{ fontSize: size, lineHeight: size * 1.15, textAlign: "center" }}>
+      <Text style={{ fontSize: effSize, lineHeight: effSize * 1.15, textAlign: "center" }}>
         {def.emoji}
       </Text>
     </View>
