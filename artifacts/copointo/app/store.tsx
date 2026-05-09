@@ -20,6 +20,9 @@ import { useUsernameColors } from "../hooks/useUsernameColors";
 import { TEXT_STYLES, TextStyleDef, TEXT_STYLE_PRICE } from "../data/textStyles";
 import { useTextStyles } from "../hooks/useTextStyles";
 import MessageBubble from "../components/MessageBubble";
+import { CHARACTERS, CharacterDef, CHARACTER_PRICE } from "../data/characters";
+import { useCharacters } from "../hooks/useCharacters";
+import Character from "../components/Character";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
@@ -179,6 +182,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedFrames, grantFrame, equipFrame } = useFrames();
   const { owned: ownedUsernameColors, grantUsernameColor, equipUsernameColor } = useUsernameColors();
   const { owned: ownedTextStyles, grantTextStyle, equipTextStyle } = useTextStyles();
+  const { owned: ownedCharacters, grantCharacter, equipCharacter } = useCharacters();
   const { balance, addCoins } = useCoins();
   const { user } = useApp();
   const avatarUri = user?.avatar ?? null;
@@ -191,6 +195,8 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const previewUCOwned = previewUC ? ownedUsernameColors.includes(previewUC.uc.id) : false;
   const [previewTS, setPreviewTS] = useState<{ ts: TextStyleDef; price: number } | null>(null);
   const previewTSOwned = previewTS ? ownedTextStyles.includes(previewTS.ts.id) : false;
+  const [previewChar, setPreviewChar] = useState<{ ch: CharacterDef; price: number } | null>(null);
+  const previewCharOwned = previewChar ? ownedCharacters.includes(previewChar.ch.id) : false;
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
   const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
@@ -573,6 +579,61 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
     );
   }
 
+  if (cat === "characters") {
+    return (
+      <>
+        <View style={styles.bgGrid} key="characters">
+          {CHARACTERS.map((ch, i) => {
+            const owned = ownedCharacters.includes(ch.id);
+            const price = CHARACTER_PRICE(i);
+            return (
+              <FadeInItem key={ch.id} index={i} style={{ width: "48%" }}>
+                <TouchableOpacity
+                  style={styles.bgCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewChar({ ch, price });
+                  }}
+                >
+                  <View style={styles.charCardWrap}>
+                    <Character def={ch} size={36} animated />
+                  </View>
+                  <Text style={styles.bgName} numberOfLines={1}>{ch.name}</Text>
+                  <PriceTag price={price} owned={owned} />
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+
+        <PurchaseModal
+          visible={!!previewChar}
+          onClose={() => setPreviewChar(null)}
+          title={previewChar?.ch.name ?? ""}
+          subtitle="رفيقك يظهر فوق مستواك الحالي في اللعبة"
+          price={previewChar?.price ?? 0}
+          owned={previewCharOwned}
+          balance={balance}
+          ownedLabel="تجهيز هذه الشخصية"
+          onEquip={() => previewChar && equipCharacter(previewChar.ch.id)}
+          onBuy={async () => {
+            if (!previewChar) return;
+            await addCoins(-previewChar.price);
+            await grantCharacter(previewChar.ch.id);
+            await equipCharacter(previewChar.ch.id);
+          }}
+        >
+          {previewChar && (
+            <View style={styles.charModalPreview}>
+              <Character def={previewChar.ch} size={64} animated />
+            </View>
+          )}
+        </PurchaseModal>
+      </>
+    );
+  }
+
   return (
     <FadeInItem key={cat} style={styles.comingSoon}>
       <Feather name="clock" size={28} color={PRIMARY} />
@@ -869,6 +930,24 @@ const styles = StyleSheet.create({
     borderWidth: 1, maxWidth: "85%",
   },
   tsModalBubbleText: { fontSize: 15, fontFamily: "Inter_500Medium", lineHeight: 22 },
+  charCardWrap: {
+    alignSelf: "stretch",
+    paddingVertical: 18, paddingHorizontal: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    minHeight: 100,
+  },
+  charModalPreview: {
+    marginTop: 14,
+    paddingVertical: 28, paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 18,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center", justifyContent: "center",
+    minHeight: 140,
+  },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,

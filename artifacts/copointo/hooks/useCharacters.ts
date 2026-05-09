@@ -1,8 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useState } from "react";
 
-const KEY_OWNED = "copointo_text_styles_owned_v1";
-const KEY_EQUIPPED = "copointo_text_style_equipped_v1";
+const KEY_OWNED = "copointo_characters_owned_v1";
+const KEY_EQUIPPED = "copointo_character_equipped_v1";
 
 const DEFAULT_OWNED: string[] = [];
 
@@ -44,7 +44,7 @@ function hydrate(): Promise<State> {
   return _hydrationPromise;
 }
 
-export function useTextStyles() {
+export function useCharacters() {
   const [state, setState] = useState<State>(
     _cache ?? { owned: DEFAULT_OWNED, equipped: null },
   );
@@ -57,7 +57,7 @@ export function useTextStyles() {
     return () => { _listeners.delete(listener); };
   }, []);
 
-  const grantTextStyle = useCallback(async (id: string) => {
+  const grantCharacter = useCallback(async (id: string) => {
     const cur = await hydrate();
     if (cur.owned.includes(id)) return;
     const owned = [...cur.owned, id];
@@ -65,7 +65,7 @@ export function useTextStyles() {
     broadcast({ ...cur, owned });
   }, []);
 
-  const equipTextStyle = useCallback(async (id: string | null) => {
+  const equipCharacter = useCallback(async (id: string | null) => {
     const cur = await hydrate();
     if (id !== null && !cur.owned.includes(id)) return;
     await AsyncStorage.setItem(KEY_EQUIPPED, id ?? "");
@@ -76,7 +76,7 @@ export function useTextStyles() {
     owned: state.owned,
     equipped: state.equipped,
     hydrated,
-    grantTextStyle,
-    equipTextStyle,
+    grantCharacter,
+    equipCharacter,
   };
 }

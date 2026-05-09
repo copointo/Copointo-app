@@ -27,6 +27,9 @@ import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
 import { useLevelRewards } from "@/hooks/useLevelRewards";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
 import LevelRewardModal from "@/components/LevelRewardModal";
+import Character from "@/components/Character";
+import { useCharacters } from "@/hooks/useCharacters";
+import { getCharacter } from "@/data/characters";
 
 interface GameStatus {
   gameBanned: boolean;
@@ -71,6 +74,8 @@ export default function GameScreen() {
     : (cafeIds[0] ?? null);
   const activeCafe = effectiveCafeId ? cafeProgress[effectiveCafeId] : null;
   const { balance: coinBalance } = useCoins();
+  const { equipped: equippedCharacterId } = useCharacters();
+  const equippedCharacter = getCharacter(equippedCharacterId);
 
   // Auto-heal stale activeGameCafeId (e.g. after data wipe).
   useEffect(() => {
@@ -480,6 +485,17 @@ export default function GameScreen() {
                 {/* Glow halo behind current tile */}
                 {isCurrent && (
                   <View style={[styles.currentHalo, { width: osZ + 60, height: osZ + 60 }]} />
+                )}
+
+                {/* Equipped companion character — floats above the current level tile */}
+                {isCurrent && equippedCharacter && (
+                  <View pointerEvents="none" style={{
+                    position: "absolute",
+                    top: -Math.round(sz * 0.55),
+                    alignItems: "center", justifyContent: "center",
+                  }}>
+                    <Character def={equippedCharacter} size={Math.round(sz * 0.40)} />
+                  </View>
                 )}
 
                 <View style={[

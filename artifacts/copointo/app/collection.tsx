@@ -23,6 +23,9 @@ import { useUsernameColors } from "../hooks/useUsernameColors";
 import { TEXT_STYLES } from "../data/textStyles";
 import { useTextStyles } from "../hooks/useTextStyles";
 import MessageBubble from "../components/MessageBubble";
+import { CHARACTERS } from "../data/characters";
+import { useCharacters } from "../hooks/useCharacters";
+import Character from "../components/Character";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -40,6 +43,7 @@ export default function CollectionScreen() {
   const { owned: ownedBackgrounds, equipped: equippedBackground, equipBackground } = useBackgrounds();
   const { owned: ownedUsernameColors, equipped: equippedUsernameColor, equipUsernameColor } = useUsernameColors();
   const { owned: ownedTextStyles, equipped: equippedTextStyle, equipTextStyle } = useTextStyles();
+  const { owned: ownedCharacters, equipped: equippedCharacter, equipCharacter } = useCharacters();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
@@ -507,7 +511,74 @@ export default function CollectionScreen() {
           </View>
         </>)}
 
-        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && tab !== "text" && (
+        {tab === "characters" && (<>
+          <View style={styles.sectionRow}>
+            <View>
+              <Text style={styles.sectionTitle}>الشخصيات</Text>
+              <Text style={styles.sectionHint}>الرفيق الذي يظهر فوق مستواك في اللعبة</Text>
+            </View>
+            {equippedCharacter && (
+              <TouchableOpacity
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); equipCharacter(null); }}
+                style={styles.removeBtn}
+              >
+                <Feather name="x" size={12} color={PRIMARY} />
+                <Text style={styles.removeBtnText}>إزالة</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {ownedCharacters.length === 0 && (
+            <FadeInItem style={styles.emptyHint}>
+              <Feather name="shopping-bag" size={26} color={PRIMARY} />
+              <Text style={styles.emptyHintTitle}>لا توجد شخصيات بعد</Text>
+              <Text style={styles.emptyHintSub}>اشتر شخصيات من المتجر لتظهر هنا</Text>
+            </FadeInItem>
+          )}
+
+          <View style={styles.grid} key="characters-grid">
+            {CHARACTERS.filter(ch => ownedCharacters.includes(ch.id)).map((ch, idx) => {
+              const isEquipped = equippedCharacter === ch.id;
+              return (
+                <FadeInItem key={ch.id} index={idx} style={styles.tileWrap}>
+                  <TouchableOpacity
+                    style={[styles.tile, isEquipped && styles.tileEquipped]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      equipCharacter(isEquipped ? null : ch.id);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={{
+                      alignSelf: "stretch",
+                      paddingVertical: 14, paddingHorizontal: 8,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      borderRadius: 12,
+                      borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+                      alignItems: "center", justifyContent: "center",
+                      minHeight: 90,
+                    }}>
+                      <Character def={ch} size={36} animated />
+                    </View>
+                    <Text style={styles.tileName}>{ch.name}</Text>
+                    {isEquipped ? (
+                      <View style={styles.equippedChip}>
+                        <Feather name="check" size={10} color="#000" />
+                        <Text style={styles.equippedChipText}>مُجهَّز</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.ownedChip}>
+                        <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </FadeInItem>
+              );
+            })}
+          </View>
+        </>)}
+
+        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && tab !== "text" && tab !== "characters" && (
           <FadeInItem key={tab} style={styles.comingSoon}>
             <Feather name="clock" size={28} color={PRIMARY} />
             <Text style={styles.comingSoonTitle}>قريباً</Text>
