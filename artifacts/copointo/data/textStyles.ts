@@ -15,17 +15,17 @@ export interface TextStyleDef {
 }
 
 export const TEXT_STYLES: TextStyleDef[] = [
-  // ── 1-10: text color only (default amber bubble) ────────────────────
-  { id: "ts-1",  name: "أبيض",         textColor: "#FFFFFF" },
-  { id: "ts-2",  name: "ذهبي",         textColor: "#FFD700" },
-  { id: "ts-3",  name: "أحمر",         textColor: "#EF4444" },
-  { id: "ts-4",  name: "أخضر",         textColor: "#22C55E" },
-  { id: "ts-5",  name: "أزرق",         textColor: "#3B82F6" },
-  { id: "ts-6",  name: "بنفسجي",       textColor: "#8B5CF6" },
-  { id: "ts-7",  name: "وردي",         textColor: "#EC4899" },
-  { id: "ts-8",  name: "تركواز",       textColor: "#06B6D4" },
-  { id: "ts-9",  name: "ليموني",       textColor: "#FACC15" },
-  { id: "ts-10", name: "برتقالي",      textColor: "#F97316" },
+  // ── 1-10: text color on transparent-black bubble (like incoming msgs) ─
+  { id: "ts-1",  name: "أبيض",         textColor: "#FFFFFF", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-2",  name: "ذهبي",         textColor: "#FFD700", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-3",  name: "أحمر",         textColor: "#EF4444", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-4",  name: "أخضر",         textColor: "#22C55E", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-5",  name: "أزرق",         textColor: "#3B82F6", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-6",  name: "بنفسجي",       textColor: "#8B5CF6", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-7",  name: "وردي",         textColor: "#EC4899", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-8",  name: "تركواز",       textColor: "#06B6D4", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-9",  name: "ليموني",       textColor: "#FACC15", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
+  { id: "ts-10", name: "برتقالي",      textColor: "#F97316", bg: { color: "rgba(10,6,6,0.85)", border: "rgba(232,184,109,0.30)" } },
 
   // ── 11-15: full themed bubble (bg + text color) ─────────────────────
   {
