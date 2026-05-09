@@ -29,7 +29,7 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-10", name: "حصان",      emoji: "🐴" },
 
   // ── 11-15 cooler + glow + float ───────────────────────────────────
-  { id: "char-11", name: "روبوت ذهبي",  emoji: "🤖", glow: "#FFD700",   float: true },
+  { id: "char-11", name: "طاووس",       emoji: "🦚", glow: "#06B6D4",   float: true },
   { id: "char-12", name: "شبح متوهج",   emoji: "👻", glow: "#A78BFA",   float: true },
   { id: "char-13", name: "نسر مهيب",    emoji: "🦅", glow: "#60A5FA",   float: true },
   { id: "char-14", name: "أسد ملكي",    emoji: "🦁", glow: "#F59E0B",   float: true },
