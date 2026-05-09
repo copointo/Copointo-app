@@ -11,13 +11,13 @@ const MIME_BY_EXT: Record<string, string> = {
   ".webm": "video/webm", ".mkv": "video/x-matroska", ".ogv": "video/ogg",
 };
 import {
-  cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts,
+  cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts, coinGifts,
   bookings, orders,
   usernameRegistry, cafeRatings, getCafeRatingStats,
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
   reports,
-  persistStore, type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report,
+  persistStore, type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report, type CoinGift,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
@@ -208,6 +208,81 @@ router.delete("/broadcasts/:id", (req, res): any => {
   broadcasts.splice(idx, 1);
   persistStore();
   res.json({ ok: true });
+});
+
+// ─── Coin Gifts (super-admin → single user) ─────────────────────────────
+// Coins are stored client-side (AsyncStorage on the mobile device), so the
+// server only records the *intent* to deliver coins. The mobile app polls
+// /coin-gifts?userId=... for unclaimed gifts, credits the local balance,
+// then POSTs /coin-gifts/:id/claim to mark it consumed.
+
+// Super-admin creates a new gift for a specific user.
+router.post("/admin/coin-gifts", (req, res): any => {
+  const userId  = String(req.body?.userId ?? "").trim();
+  const amount  = Math.floor(Number(req.body?.amount ?? 0));
+  const message = String(req.body?.message ?? "").trim()
+    || "هدية من شركة كوبوينتو 🎉 شكراً لكونك جزءاً من عائلتنا";
+  if (!userId) return res.status(400).json({ ok: false, error: "userId مطلوب" });
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return res.status(400).json({ ok: false, error: "العدد يجب أن يكون أكبر من صفر" });
+  }
+  if (amount > 10_000_000) {
+    return res.status(400).json({ ok: false, error: "العدد كبير جداً" });
+  }
+  const u = users.find(x => x.id === userId);
+  if (!u) return res.status(404).json({ ok: false, error: "المستخدم غير موجود" });
+  const g: CoinGift = {
+    id:        `cg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId,
+    amount,
+    message,
+    createdAt: new Date().toISOString(),
+    claimedAt: null,
+  };
+  coinGifts.unshift(g);
+  persistStore();
+  res.json({ ok: true, gift: g });
+});
+
+// Super-admin sees the full history of gifts (newest first).
+router.get("/admin/coin-gifts", (_req, res) => {
+  const enriched = coinGifts.map(g => {
+    const u = users.find(x => x.id === g.userId);
+    return { ...g, username: u?.username ?? "(محذوف)", phone: u?.phone ?? "" };
+  });
+  res.json({ gifts: enriched });
+});
+
+// Super-admin can withdraw a gift while it's still unclaimed.
+router.delete("/admin/coin-gifts/:id", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  const idx = coinGifts.findIndex(g => g.id === id);
+  if (idx === -1) return res.status(404).json({ ok: false, error: "not found" });
+  if (coinGifts[idx]!.claimedAt) {
+    return res.status(400).json({ ok: false, error: "الهدية تم استلامها بالفعل" });
+  }
+  coinGifts.splice(idx, 1);
+  persistStore();
+  res.json({ ok: true });
+});
+
+// Mobile fetches all UNCLAIMED gifts for a user (newest first).
+router.get("/coin-gifts", (req, res): any => {
+  const userId = String(req.query.userId ?? "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "userId مطلوب" });
+  const items = coinGifts.filter(g => g.userId === userId && !g.claimedAt);
+  res.json({ gifts: items });
+});
+
+// Mobile marks a gift as claimed once the local coin balance is credited.
+router.post("/coin-gifts/:id/claim", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  const g = coinGifts.find(x => x.id === id);
+  if (!g) return res.status(404).json({ ok: false, error: "not found" });
+  if (g.claimedAt) return res.json({ ok: true, gift: g, alreadyClaimed: true });
+  g.claimedAt = new Date().toISOString();
+  persistStore();
+  res.json({ ok: true, gift: g });
 });
 
 // ─── Public Reels endpoints ─────────────────────────────────────────────

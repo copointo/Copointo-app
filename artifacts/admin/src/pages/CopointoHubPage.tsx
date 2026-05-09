@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Ban, Clock, ShieldOff, ShieldCheck, X, AlertTriangle, Users as UsersIcon, CheckCircle as CheckIcon, Hourglass, Megaphone, Send, Trash2 } from "lucide-react";
+import { Search, Ban, Clock, ShieldOff, ShieldCheck, X, AlertTriangle, Users as UsersIcon, CheckCircle as CheckIcon, Hourglass, Megaphone, Send, Trash2, Coins, Gift } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface HubUser {
@@ -92,6 +92,59 @@ export default function CopointoHubPage() {
     await loadBroadcasts();
   };
 
+  // Coin gift modal state — super-admin sends a coin gift to a single user
+  interface CoinGiftRow { id: string; userId: string; username: string; phone: string; amount: number; message: string; createdAt: string; claimedAt?: string | null; }
+  const [giftOpen,    setGiftOpen]    = useState(false);
+  const [giftUserId,  setGiftUserId]  = useState("");
+  const [giftAmount,  setGiftAmount]  = useState("");
+  const [giftMessage, setGiftMessage] = useState("");
+  const [giftQuery,   setGiftQuery]   = useState("");
+  const [giftBusy,    setGiftBusy]    = useState(false);
+  const [giftErr,     setGiftErr]     = useState("");
+  const [giftOk,      setGiftOk]      = useState("");
+  const [giftHistory, setGiftHistory] = useState<CoinGiftRow[]>([]);
+
+  const loadGiftHistory = () =>
+    api.getCoinGifts().then(d => setGiftHistory(d.gifts ?? [])).catch(() => {});
+
+  const openGift = () => {
+    setGiftUserId(""); setGiftAmount(""); setGiftMessage(""); setGiftQuery("");
+    setGiftErr(""); setGiftOk("");
+    setGiftOpen(true);
+    loadGiftHistory();
+  };
+
+  const sendGift = async () => {
+    const amt = parseInt(giftAmount, 10);
+    if (!giftUserId)            { setGiftErr("الرجاء اختيار مستخدم"); return; }
+    if (!Number.isFinite(amt) || amt <= 0) { setGiftErr("الرجاء كتابة عدد عملات أكبر من صفر"); return; }
+    setGiftBusy(true); setGiftErr("");
+    try {
+      await api.sendCoinGift(giftUserId, amt, giftMessage.trim() || undefined);
+      const u = users.find(x => x.id === giftUserId);
+      setGiftOk(`✓ تم إرسال ${amt.toLocaleString("en-US")} عملة إلى ${u?.username ?? "المستخدم"}`);
+      setGiftAmount(""); setGiftMessage(""); setGiftUserId(""); setGiftQuery("");
+      await loadGiftHistory();
+      setTimeout(() => setGiftOk(""), 3500);
+    } catch (e: any) {
+      try { setGiftErr(JSON.parse(e?.message ?? "{}").error || "تعذّر الإرسال"); }
+      catch { setGiftErr(e?.message || "تعذّر الإرسال"); }
+    } finally {
+      setGiftBusy(false);
+    }
+  };
+
+  const removeGift = async (id: string) => {
+    if (!confirm("سحب الهدية؟ (متاح فقط قبل أن يستلمها المستخدم)")) return;
+    try {
+      await api.deleteCoinGift(id);
+      await loadGiftHistory();
+    } catch (e: any) {
+      try { alert(JSON.parse(e?.message ?? "{}").error || "تعذّر الحذف"); }
+      catch { alert(e?.message || "تعذّر الحذف"); }
+    }
+  };
+
   const reload = () => api.getUsers().then(d => setUsers(d.users));
 
   useEffect(() => { reload().finally(() => setLoading(false)); }, []);
@@ -175,12 +228,20 @@ export default function CopointoHubPage() {
             إدارة لاعبي اللعبة • {counts.all} لاعب • {counts.suspended} موقوف مؤقتاً • {counts.banned} محظور
           </p>
         </div>
-        <button
-          onClick={openBroadcast}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 shadow"
-        >
-          <Megaphone size={18} /> إشعار للمستخدمين
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={openGift}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-500 text-black text-sm font-bold hover:opacity-90 shadow"
+          >
+            <Gift size={18} /> إهداء عملات
+          </button>
+          <button
+            onClick={openBroadcast}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 shadow"
+          >
+            <Megaphone size={18} /> إشعار للمستخدمين
+          </button>
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -439,6 +500,210 @@ export default function CopointoHubPage() {
               >
                 {busy ? "جارٍ الحفظ..." : (modal.mode === "ban" ? "تأكيد الحظر" : "تأكيد الإيقاف")}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Coin Gift modal — super-admin sends coins to ONE user */}
+      {giftOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { if (!giftBusy) setGiftOpen(false); }}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center">
+                  <Gift size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-lg">إهداء عملات لمستخدم</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    سيستلم المستخدم العملات مع رسالة تهنئة من شركة Copointo
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { if (!giftBusy) setGiftOpen(false); }}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* User picker */}
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-foreground mb-1.5">
+                المستخدم <span className="text-red-400">*</span>
+              </label>
+              <div className="relative mb-2">
+                <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={giftQuery}
+                  onChange={e => setGiftQuery(e.target.value)}
+                  placeholder="ابحث باسم المستخدم أو الهاتف..."
+                  className="w-full bg-input border border-border rounded-xl pr-9 pl-3 py-2 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="max-h-[180px] overflow-y-auto border border-border rounded-xl divide-y divide-border">
+                {users
+                  .filter(u => {
+                    const q = giftQuery.trim().toLowerCase();
+                    if (!q) return true;
+                    return u.username.toLowerCase().includes(q) || u.phone.includes(q);
+                  })
+                  .slice(0, 50)
+                  .map(u => {
+                    const sel = u.id === giftUserId;
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => setGiftUserId(u.id)}
+                        className={`w-full text-right px-3 py-2 flex items-center justify-between text-sm transition-colors ${
+                          sel ? "bg-amber-500/15 text-amber-300" : "hover:bg-muted/30 text-foreground"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                            {u.username[0]?.toUpperCase()}
+                          </div>
+                          <span className="font-semibold">{u.username}</span>
+                          <span className="text-muted-foreground font-mono text-xs">{u.phone}</span>
+                        </div>
+                        {sel && <CheckIcon size={16} className="text-amber-400" />}
+                      </button>
+                    );
+                  })}
+                {users.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-4">لا يوجد مستخدمون</p>
+                )}
+              </div>
+            </div>
+
+            {/* Amount */}
+            <div className="mb-3">
+              <label className="block text-sm font-semibold text-foreground mb-1.5">
+                عدد العملات <span className="text-red-400">*</span>
+              </label>
+              <div className="relative">
+                <Coins size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400" />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={giftAmount}
+                  onChange={e => setGiftAmount(e.target.value.replace(/[^0-9]/g, "").slice(0, 8))}
+                  placeholder="مثال: 5000"
+                  className="w-full bg-input border border-border rounded-xl pr-9 pl-3 py-2.5 text-foreground text-base font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[500, 1000, 5000, 10000, 50000].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setGiftAmount(String(n))}
+                    className="px-2.5 py-1 rounded-lg text-xs bg-muted/40 hover:bg-amber-500/20 hover:text-amber-300 text-muted-foreground"
+                  >
+                    +{n.toLocaleString("en-US")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Optional message */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-foreground mb-1.5">
+                رسالة تهنئة <span className="text-muted-foreground text-xs font-normal">(اختياري)</span>
+              </label>
+              <textarea
+                value={giftMessage}
+                onChange={e => setGiftMessage(e.target.value.slice(0, 240))}
+                rows={3}
+                placeholder="اتركها فارغة لاستخدام الرسالة الافتراضية: «هدية من شركة كوبوينتو 🎉»"
+                className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-muted-foreground resize-none"
+              />
+              <div className="text-[11px] text-muted-foreground text-left mt-1">{giftMessage.length}/240</div>
+            </div>
+
+            {giftErr && (
+              <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/30 rounded-lg py-2 px-3 mb-3">{giftErr}</p>
+            )}
+            {giftOk && (
+              <p className="text-green-400 text-xs bg-green-500/10 border border-green-500/30 rounded-lg py-2 px-3 mb-3">{giftOk}</p>
+            )}
+
+            <div className="flex gap-2 mb-5">
+              <button
+                onClick={() => { if (!giftBusy) setGiftOpen(false); }}
+                disabled={giftBusy}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-muted/40 text-foreground hover:bg-muted/60 disabled:opacity-50"
+              >
+                إغلاق
+              </button>
+              <button
+                onClick={sendGift}
+                disabled={giftBusy || !giftUserId || !giftAmount}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-amber-500 text-black hover:opacity-90 disabled:opacity-50"
+              >
+                <Gift size={15} /> {giftBusy ? "جارٍ الإرسال..." : "إرسال الهدية"}
+              </button>
+            </div>
+
+            {/* History */}
+            <div className="border-t border-border pt-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-2">
+                الهدايا السابقة ({giftHistory.length})
+              </p>
+              {giftHistory.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6">لا توجد هدايا سابقة</p>
+              ) : (
+                <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                  {giftHistory.map(g => (
+                    <div key={g.id} className={`border rounded-xl p-3 ${
+                      g.claimedAt ? "bg-green-500/5 border-green-500/20" : "bg-amber-500/5 border-amber-500/20"
+                    }`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-foreground text-sm">{g.username}</span>
+                            <span className="text-muted-foreground text-xs font-mono">{g.phone}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold">
+                              <Coins size={10} className="inline -mt-0.5 me-1" />
+                              {g.amount.toLocaleString("en-US")}
+                            </span>
+                            {g.claimedAt ? (
+                              <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-[10px] font-semibold">
+                                تم الاستلام
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-[10px] font-semibold">
+                                بانتظار الاستلام
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-foreground/80 mt-1 line-clamp-2">{g.message}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">{fmtDateTime(g.createdAt)}</p>
+                        </div>
+                        {!g.claimedAt && (
+                          <button
+                            onClick={() => removeGift(g.id)}
+                            className="text-muted-foreground hover:text-red-400 p-1 shrink-0"
+                            title="سحب الهدية"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

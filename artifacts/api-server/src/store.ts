@@ -242,6 +242,22 @@ export interface Broadcast {
 }
 export const broadcasts: Broadcast[] = [];
 
+/**
+ * Coin gift sent by the super-admin to a single user. Coins are stored
+ * client-side (AsyncStorage), so the server only stores the *intent* to
+ * deliver coins; the mobile app polls for unclaimed gifts, credits the
+ * balance locally, then POSTs /coin-gifts/:id/claim to mark it consumed.
+ */
+export interface CoinGift {
+  id: string;
+  userId: string;
+  amount: number;
+  message: string;
+  createdAt: string;
+  claimedAt?: string | null;
+}
+export const coinGifts: CoinGift[] = [];
+
 // ─── User-submitted reports (problem / cafe complaint) ───────────────────
 // Two flavours, both visible to the super-admin in the "البلاغات" tab:
 //   - kind: "problem" → general support / bug report from the support screen
@@ -400,7 +416,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
-  reports,
+  reports, coinGifts,
 };
 
 function loadFromDisk() {

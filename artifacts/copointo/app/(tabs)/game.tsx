@@ -26,6 +26,7 @@ import { playLevelUpSound, playNotificationChime } from "@/lib/notification-soun
 import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
 import { useLevelRewards } from "@/hooks/useLevelRewards";
 import GiftFeedRain from "@/components/GiftFeedRain";
+import CoinGiftModal from "@/components/CoinGiftModal";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
@@ -684,6 +685,10 @@ export default function GameScreen() {
           the platform since the user's last visit to this page. Lives only
           on the Levels page so the rain never interrupts other screens. */}
       <GiftFeedRain />
+
+      {/* Super-admin → user coin gifts. Polls /coin-gifts and shows a
+          full-screen celebration modal that credits the local balance. */}
+      <CoinGiftModal />
     </View>
   );
 }

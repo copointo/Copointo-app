@@ -38,6 +38,12 @@ export const api = {
   sendBroadcast:    (message: string)   => req<any>("POST",   `${A}/broadcasts`, { message }),
   deleteBroadcast:  (id: string)        => req<any>("DELETE", `${A}/broadcasts/${id}`),
 
+  // Coin gifts (super-admin → single user, delivered via mobile poll)
+  getCoinGifts:     ()                                          => req<any>("GET",    `${A}/coin-gifts`),
+  sendCoinGift:     (userId: string, amount: number, message?: string) =>
+                                                                   req<any>("POST",   `${A}/coin-gifts`, { userId, amount, message }),
+  deleteCoinGift:   (id: string)                                => req<any>("DELETE", `${A}/coin-gifts/${id}`),
+
   // Cafe Dashboard
   cafeStats:     (id: string)              => req<any>("GET",    `${C(id)}/stats`),
   cafeOrders:    (id: string)              => req<any>("GET",    `${C(id)}/orders`),
