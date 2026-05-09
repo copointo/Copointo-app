@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthGate } from "@/components/AuthGate";
+import LevelRewardsGranter from "@/components/LevelRewardsGranter";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { CommunityProvider } from "@/context/CommunityContext";
@@ -66,6 +67,7 @@ export default function RootLayout() {
                     {/* Global auth gate — every entry point (including QR
                         deep-links to /cafe/[id]) must log in first. */}
                     <AuthGate>
+                      <LevelRewardsGranter />
                       <RootLayoutNav />
                     </AuthGate>
                   </KeyboardProvider>
