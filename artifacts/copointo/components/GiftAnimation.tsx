@@ -16,6 +16,9 @@ interface Props {
   gift: GiftDef | null;
   /** Optional name to show under the gift ("من فلان"). */
   fromName?: string;
+  /** Optional recipient name — when both fromName + toName are set, the
+   *  caption becomes "من X → إلى Y" (used by the global gift-feed rain). */
+  toName?: string;
   visible: boolean;
   onDone: () => void;
   /** How many gift instances to rain down (defaults to 1). */
@@ -36,7 +39,7 @@ const HOLD_AFTER_MS = 700;         // extra time the caption stays visible
  * number of falling emojis matches the quantity sent (capped at
  * MAX_PARTICLES for performance, but the caption shows the true ×N).
  */
-export default function GiftAnimation({ gift, fromName, visible, onDone, count = 1 }: Props) {
+export default function GiftAnimation({ gift, fromName, toName, visible, onDone, count = 1 }: Props) {
   const captionOpacity = useRef(new Animated.Value(0)).current;
 
   // Total quantity (uncapped, used for the caption "×N" badge)
@@ -126,7 +129,17 @@ export default function GiftAnimation({ gift, fromName, visible, onDone, count =
               </View>
             )}
           </View>
-          {fromName ? (
+          {fromName && toName ? (
+            <View style={styles.namesRow}>
+              <Text style={[styles.nameStrong, { color: gift.color }]} numberOfLines={1}>
+                {fromName}
+              </Text>
+              <Text style={styles.namesArrow}>  ←  </Text>
+              <Text style={[styles.nameStrong, { color: gift.color }]} numberOfLines={1}>
+                {toName}
+              </Text>
+            </View>
+          ) : fromName ? (
             <Text style={styles.fromName} numberOfLines={1}>
               من {fromName}
             </Text>
@@ -212,4 +225,19 @@ const styles = StyleSheet.create({
   },
   qtyBadgeText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
   fromName: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)" },
+  namesRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 14, paddingVertical: 6,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 14,
+    maxWidth: "92%",
+  },
+  nameStrong: {
+    fontSize: 15, fontFamily: "Inter_700Bold",
+    maxWidth: 130,
+  },
+  namesArrow: {
+    fontSize: 14, fontFamily: "Inter_700Bold",
+    color: "rgba(255,255,255,0.85)",
+  },
 });

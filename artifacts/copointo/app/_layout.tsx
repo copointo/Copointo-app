@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthGate } from "@/components/AuthGate";
 import LevelRewardsGranter from "@/components/LevelRewardsGranter";
+import GiftFeedRain from "@/components/GiftFeedRain";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppProvider } from "@/context/AppContext";
 import { CommunityProvider } from "@/context/CommunityContext";
@@ -69,6 +70,7 @@ export default function RootLayout() {
                     <AuthGate>
                       <LevelRewardsGranter />
                       <RootLayoutNav />
+                      <GiftFeedRain />
                     </AuthGate>
                   </KeyboardProvider>
                 </GestureHandlerRootView>

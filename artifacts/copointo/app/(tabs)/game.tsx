@@ -28,7 +28,6 @@ import { useLevelRewards } from "@/hooks/useLevelRewards";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
-import GiftFeedTicker from "@/components/GiftFeedTicker";
 import { useCharacters } from "@/hooks/useCharacters";
 import { getCharacter } from "@/data/characters";
 
@@ -322,9 +321,6 @@ export default function GameScreen() {
       >
         <Feather name="user-plus" size={20} color={PRIMARY} />
       </TouchableOpacity>
-
-      {/* ── Global gift feed ticker ── */}
-      <GiftFeedTicker />
 
       {/* ── Header ── */}
       <View style={styles.header}>
