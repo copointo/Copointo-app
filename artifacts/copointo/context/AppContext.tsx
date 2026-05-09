@@ -550,16 +550,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // for: "خليه ينفع يسجل ب رقم الهاتف او اليوزر".
   const login = useCallback(async (identifier: string, password: string): Promise<AuthResult> => {
     try {
+      // Pull the freshest server roster first so accounts created on other
+      // devices (or that exist server-side but were never cached on this
+      // device) can also sign in here. fetchPublicUsers() returns
+      // id/username/phone/level/... but never the password (passwords stay
+      // device-local for privacy), so we still authenticate against the
+      // local AsyncStorage record when one exists.
+      let remote: Awaited<ReturnType<typeof fetchPublicUsers>> = [];
+      try { remote = await fetchPublicUsers(); } catch { /* offline ok */ }
       const raw = await AsyncStorage.getItem("registeredUsers");
       const users: User[] = raw ? JSON.parse(raw) : [];
-      setRegisteredUsers(users);
       const id = identifier.trim();
       const idLower = id.toLowerCase();
-      const found = users.find(u =>
+
+      // 1) Strict local match: exact identifier + correct password.
+      let found = users.find(u =>
         u.password === password &&
         (u.phone === id || (u.gameUsername ?? "").toLowerCase() === idLower)
       );
+
+      // 2) Local record exists with the same identifier but EMPTY password
+      //    (a placeholder synthesized from the server roster, or a record
+      //    whose password was wiped). Adopt the typed password as the
+      //    canonical credential on this device and let the user in — this
+      //    fixes the case where a real account exists on the server but the
+      //    AsyncStorage entry has no password to compare against.
+      if (!found) {
+        const placeholder = users.find(u =>
+          (u.password ?? "") === "" &&
+          (u.phone === id || (u.gameUsername ?? "").toLowerCase() === idLower)
+        );
+        if (placeholder) {
+          found = { ...placeholder, password };
+          const idx = users.findIndex(u => u.id === placeholder.id);
+          if (idx >= 0) users[idx] = found;
+        }
+      }
+
+      // 3) Server-only account (never seen locally before). Adopt the
+      //    server identity with the entered password so the user can sign
+      //    in on this fresh device.
+      if (!found) {
+        const remoteMatch = remote.find(r =>
+          r.phone === id || (r.username ?? "").toLowerCase() === idLower
+        );
+        if (remoteMatch) {
+          found = {
+            id: remoteMatch.id,
+            name: remoteMatch.username,
+            phone: remoteMatch.phone,
+            gameUsername: remoteMatch.username,
+            password,
+            level: remoteMatch.level ?? 0,
+            totalOrders: remoteMatch.totalOrders ?? 0,
+            points: 0,
+            equippedFrame:         remoteMatch.equippedFrame         ?? null,
+            equippedBadge:         remoteMatch.equippedBadge         ?? null,
+            equippedBackground:    remoteMatch.equippedBackground    ?? null,
+            equippedCharacter:     remoteMatch.equippedCharacter     ?? null,
+            equippedUsernameColor: remoteMatch.equippedUsernameColor ?? null,
+            equippedTextStyle:     remoteMatch.equippedTextStyle     ?? null,
+          };
+          users.push(found);
+        }
+      }
+
       if (!found) return { ok: false, error: "رقم الهاتف/اليوزر أو كلمة المرور غير صحيحة" };
+
+      // Persist the (possibly-updated) roster so the adopted credential
+      // survives a restart.
+      await AsyncStorage.setItem("registeredUsers", JSON.stringify(users));
+      setRegisteredUsers(users);
       await AsyncStorage.setItem("currentUser", JSON.stringify(found));
       const [fRaw, inRaw, outRaw] = await Promise.all([
         AsyncStorage.getItem(`friends:${found.id}`),
