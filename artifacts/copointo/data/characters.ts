@@ -41,7 +41,7 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-16", name: "وردة سوداء",   emoji: "🥀", glow: "#DC2626", float: true, pulse: true,   sparkle: true },
   { id: "char-17", name: "تنين أسطوري",  emoji: "🐉", glow: "#22C55E", float: true, pulse: true,   sparkle: true },
   { id: "char-18", name: "فراشة سحرية",  emoji: "🦋", glow: "#EC4899", float: true, pulse: true,   sparkle: true },
-  { id: "char-19", name: "أسطوري أحمر",  emoji: "🦄", glow: "#DC2626", float: true, pulse: true,   sparkle: true,
+  { id: "char-19", name: "سكلتون",       emoji: "💀", glow: "#DC2626", float: true, pulse: true,   sparkle: true,
     ringGradient: ["#000000", "#7F1D1D", "#DC2626", "#7F1D1D", "#000000"] },
   { id: "char-20", name: "أسطوري",        emoji: "🦄", glow: "#FFFFFF", float: true, pulse: true,   sparkle: true, rainbow: true },
 ];
