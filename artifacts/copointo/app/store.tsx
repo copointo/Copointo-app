@@ -98,7 +98,7 @@ const BADGE_TINT: Record<string, string> = {
   "badge-14": "#EF4444", "badge-15": "#FACC15", "badge-16": "#7C3AED",
 };
 const CHAR_TINT: Record<string, string> = {
-  "char-1": "#FCA5A5", "char-2": "#F59E0B", "char-3": "#FDBA74", "char-4": "#F97316",
+  "char-1": "#E8B86D", "char-2": "#F59E0B", "char-3": "#FDBA74", "char-4": "#F97316",
   "char-5": "#94A3B8", "char-6": "#60A5FA", "char-7": "#A78BFA", "char-8": "#22C55E",
   "char-9": "#FBBF24", "char-10": "#A16207",
   "char-11": "#06B6D4", "char-12": "#E5E7EB", "char-13": "#7C2D12", "char-14": "#A855F7", "char-15": "#3B82F6",
