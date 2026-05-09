@@ -69,9 +69,7 @@ export function getCharacter(id: string | null): CharacterDef | null {
 export const CHARACTER_PRICE = (idx: number): number => {
   const ch = CHARACTERS[idx];
   if (ch && PRICE_OVERRIDES[ch.id] !== undefined) return PRICE_OVERRIDES[ch.id];
-  // char-1 (the cat) is the free starter for everyone.
-  if (idx === 0) return 0;
-  if (idx < 10) return 300;
+  if (idx < 10) return 800;
   if (idx < 15) return 1200;
   return 3000;
 };
