@@ -475,7 +475,9 @@ export default function GameScreen() {
           );
         })}
 
-        <View style={{ height: Platform.OS === "web" ? 130 : insets.bottom + 120 }} />
+        {/* Bottom spacer — half of viewport so the bottom tiles (e.g. level 0)
+            can actually be centered by goToCurrent without being clamped. */}
+        <View style={{ height: Math.max(Platform.OS === "web" ? 130 : insets.bottom + 120, boardH * 0.55) }} />
       </ScrollView>
 
       {/* ── "Go to my level" button (sits ABOVE the المستويات button on the left) ── */}
