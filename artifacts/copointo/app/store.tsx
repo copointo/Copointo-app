@@ -12,6 +12,8 @@ import { BACKGROUNDS } from "../data/backgrounds";
 import { useBackgrounds } from "../hooks/useBackgrounds";
 import UsernameBackground from "../components/UsernameBackground";
 import FadeInItem from "../components/FadeInItem";
+import { useApp } from "../context/AppContext";
+import { getDefaultAvatarSource } from "../lib/defaultAvatar";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -162,25 +164,34 @@ export default function StoreScreen() {
 function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedBadges } = useBadges();
   const { owned: ownedBackgrounds } = useBackgrounds();
+  const { user } = useApp();
+  const avatarUri = user?.avatar ?? null;
+  const username = user?.gameUsername || user?.name || "guest";
 
   if (cat === "background") {
     return (
-      <View style={styles.itemsGrid} key="backgrounds">
+      <View style={styles.bgGrid} key="backgrounds">
         {BACKGROUNDS.map((bg, i) => {
           const owned = ownedBackgrounds.includes(bg.id);
+          const price = i < 5 ? 200 : i < 10 ? 500 : i < 15 ? 1000 : 2500;
           return (
-            <FadeInItem key={bg.id} index={i} style={styles.itemCard}>
-              <UsernameBackground bg={bg} borderRadius={10} paddingHorizontal={8} paddingVertical={8} style={{ alignSelf: "stretch" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <View style={styles.bgMiniDot} />
+            <FadeInItem key={bg.id} index={i} style={styles.bgCard}>
+              <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={10} style={{ alignSelf: "stretch" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={styles.bgMiniAvatar}>
+                    <Image
+                      source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
+                      style={styles.bgMiniAvatarImg}
+                    />
+                  </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.bgPreviewText} numberOfLines={1}>@username</Text>
-                    <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى 1</Text>
+                    <Text style={styles.bgPreviewText} numberOfLines={1}>@{username}</Text>
+                    <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
                   </View>
                 </View>
               </UsernameBackground>
-              <Text style={styles.itemName} numberOfLines={1}>{bg.name}</Text>
-              <PriceTag price={i < 5 ? 200 : i < 10 ? 500 : i < 15 ? 1000 : 2500} owned={owned} />
+              <Text style={styles.bgName} numberOfLines={1}>{bg.name}</Text>
+              <PriceTag price={price} owned={owned} />
             </FadeInItem>
           );
         })}
@@ -326,13 +337,23 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 64, height: 64, resizeMode: "contain" },
   itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  bgPreviewText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF" },
-  bgPreviewSubText: { fontSize: 8, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
-  bgMiniDot: {
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    borderWidth: 1, borderColor: "rgba(255,255,255,0.6)",
+  bgGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
+  bgCard: {
+    width: "48%",
+    backgroundColor: "#0A0606",
+    borderRadius: 16, padding: 12,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.25)",
+    alignItems: "center", gap: 8,
   },
+  bgName: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  bgPreviewText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
+  bgPreviewSubText: { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
+  bgMiniAvatar: {
+    width: 28, height: 28, borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.35)",
+    overflow: "hidden",
+  },
+  bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
   priceTag: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
