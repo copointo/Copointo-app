@@ -336,7 +336,6 @@ export default function ProfileScreen() {
               <Feather name="camera" size={15} color="#FFF" />
             </View>
           </TouchableOpacity>
-          <Text style={styles.changePhotoHint}>{t("profile.tapToChangePhoto")}</Text>
           {avatarUri && user && (
             <TouchableOpacity
               style={styles.removePhotoBtn}
@@ -363,6 +362,7 @@ export default function ProfileScreen() {
               <Text style={styles.removePhotoBtnText}>إزالة الصورة</Text>
             </TouchableOpacity>
           )}
+          <Text style={styles.changePhotoHint}>{t("profile.tapToChangePhoto")}</Text>
         </View>
 
         {/* ── Rank pill (tap to view full ranks journey) ── */}
