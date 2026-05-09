@@ -25,6 +25,8 @@ import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
 import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
 import { useLevelRewards } from "@/hooks/useLevelRewards";
+import { useCoinMilestones } from "@/hooks/useCoinMilestones";
+import CoinMilestoneModal from "@/components/CoinMilestoneModal";
 import GiftFeedRain from "@/components/GiftFeedRain";
 import CoinGiftModal from "@/components/CoinGiftModal";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
@@ -118,6 +120,7 @@ export default function GameScreen() {
   const level     = user?.level ?? 0;
   const rank      = getRank(level);
   const levelRewards = useLevelRewards(level);
+  const coinMilestones = useCoinMilestones(level);
   const nextReward = LEVEL_REWARDS.find(r => r.unlockLevel > level);
   const levelsToNextReward = nextReward ? nextReward.unlockLevel - level : 0;
   const ordersThisLevel = level % 7;
@@ -679,6 +682,13 @@ export default function GameScreen() {
         reward={levelRewards.current}
         remaining={levelRewards.remaining}
         onDismiss={levelRewards.dismiss}
+      />
+
+      {/* Coin milestone celebration — fires every 50 levels with +25 coins. */}
+      <CoinMilestoneModal
+        milestone={coinMilestones.current}
+        remaining={coinMilestones.remaining}
+        onDismiss={coinMilestones.dismiss}
       />
 
       {/* Global gift feed — falling-rain animation for any gift sent on

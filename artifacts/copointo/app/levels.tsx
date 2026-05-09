@@ -7,19 +7,23 @@ import { RANKS } from "../data/mockData";
 import { RANK_LOGOS } from "../data/rankLogos";
 import { RANK_BADGES } from "../data/rankBadges";
 import { FRAMES } from "../data/frames";
+import { getMilestonesInRange, COIN_PER_MILESTONE } from "../data/coinMilestones";
 import { useApp } from "../context/AppContext";
+
+const COIN_IMG = require("../assets/images/copointo-coin.png");
 
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
 const BORDER  = "rgba(232,184,109,0.25)";
 
 function RankRow({
-  rank, index, isCurrent, isUnlocked,
+  rank, index, isCurrent, isUnlocked, currentLevel,
 }: {
   rank: typeof RANKS[number];
   index: number;
   isCurrent: boolean;
   isUnlocked: boolean;
+  currentLevel: number;
 }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateX = useRef(new Animated.Value(20)).current;
@@ -27,6 +31,11 @@ function RankRow({
   const logo = RANK_LOGOS[tier];
   const badge = RANK_BADGES[tier];
   const frame = FRAMES[tier - 1];
+  // Coin milestones (every 50 levels) that fall inside this rank's range —
+  // shown as small reward chips so players can see the upcoming coin
+  // milestone they're racing toward.
+  const milestones = getMilestonesInRange(rank.min, rank.max);
+  const coinsTotal = milestones.reduce((s, m) => s + m.coins, 0);
 
   useEffect(() => {
     Animated.parallel([
@@ -121,6 +130,60 @@ function RankRow({
               </View>
             )}
           </View>
+
+          {milestones.length > 0 && (
+            <View style={styles.coinSection}>
+              <View style={styles.coinHeaderRow}>
+                <Image source={COIN_IMG} style={styles.coinHeaderImg} />
+                <Text style={styles.coinHeaderText}>
+                  معالم العملات — اربح {COIN_PER_MILESTONE} عملة كل 50 مستوى
+                </Text>
+              </View>
+              <Text style={styles.coinSummary}>
+                مجموع جوائز هذا المستوى:{" "}
+                <Text style={styles.coinSummaryStrong}>{coinsTotal} عملة</Text>
+              </Text>
+              <View style={styles.coinChipsRow}>
+                {milestones.map(m => {
+                  const reached = currentLevel >= m.level;
+                  return (
+                    <View
+                      key={m.level}
+                      style={[
+                        styles.coinChip,
+                        reached ? styles.coinChipReached : styles.coinChipPending,
+                      ]}
+                    >
+                      <Image
+                        source={COIN_IMG}
+                        style={[styles.coinChipImg, !reached && { opacity: 0.45 }]}
+                      />
+                      <Text style={[
+                        styles.coinChipLevel,
+                        reached ? { color: "#000" } : { color: "#FFD66B" },
+                      ]}>
+                        مستوى {m.level}
+                      </Text>
+                      <Text style={[
+                        styles.coinChipAmount,
+                        reached ? { color: "#000" } : { color: "rgba(255,214,107,0.85)" },
+                      ]}>
+                        +{m.coins}
+                      </Text>
+                      {reached && (
+                        <Feather name="check" size={11} color="#000" style={{ marginRight: 1 }} />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+              {!isUnlocked && (
+                <Text style={styles.coinMotivation}>
+                  💪 ارفع مستواك لتفتح هذه الجوائز
+                </Text>
+              )}
+            </View>
+          )}
         </View>
       </View>
     </Animated.View>
@@ -160,6 +223,7 @@ export default function LevelsScreen() {
             index={i}
             isCurrent={currentLevel >= r.min && currentLevel <= r.max}
             isUnlocked={currentLevel >= r.min}
+            currentLevel={currentLevel}
           />
         ))}
       </ScrollView>
@@ -261,4 +325,49 @@ const styles = StyleSheet.create({
   },
   prizeMiniImg: { width: 32, height: 32, resizeMode: "contain" },
   prizeMiniLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Coin milestones section
+  coinSection: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,214,107,0.18)",
+  },
+  coinHeaderRow: {
+    flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4,
+  },
+  coinHeaderImg: { width: 18, height: 18, resizeMode: "contain" },
+  coinHeaderText: {
+    flex: 1,
+    fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFD66B",
+  },
+  coinSummary: {
+    fontSize: 10, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.65)", marginBottom: 6,
+  },
+  coinSummaryStrong: { color: "#FFD66B", fontFamily: "Inter_700Bold" },
+  coinChipsRow: {
+    flexDirection: "row", flexWrap: "wrap", gap: 6,
+  },
+  coinChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
+    borderWidth: 1,
+  },
+  coinChipPending: {
+    backgroundColor: "rgba(255,214,107,0.06)",
+    borderColor: "rgba(255,214,107,0.30)",
+  },
+  coinChipReached: {
+    backgroundColor: "#FFD66B",
+    borderColor: "#FFD66B",
+  },
+  coinChipImg: { width: 14, height: 14, resizeMode: "contain" },
+  coinChipLevel: { fontSize: 9, fontFamily: "Inter_700Bold" },
+  coinChipAmount: { fontSize: 10, fontFamily: "Inter_700Bold" },
+  coinMotivation: {
+    marginTop: 6,
+    fontSize: 10, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.55)", textAlign: "right",
+  },
 });
