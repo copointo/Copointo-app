@@ -689,6 +689,7 @@ router.post("/messages", (req, res): any => {
   const text        = String(req.body?.text ?? "").trim();
   const recipientId = String(req.body?.recipientId ?? "").trim();
   const groupId     = String(req.body?.groupId ?? "").trim();
+  const giftId      = String(req.body?.giftId ?? "").trim();
   if (!id || !senderId || !text) {
     return res.status(400).json({ error: "id/senderId/text required" });
   }
@@ -709,9 +710,41 @@ router.post("/messages", (req, res): any => {
     createdAt: new Date().toISOString(),
     seenBy: [senderId],   // sender has implicitly "seen" their own message
   };
+  if (giftId) msg.giftId = giftId;
   chatMessages.push(msg);
   persistStore();
   res.status(201).json({ ok: true, message: msg });
+});
+
+/**
+ * Public gift feed — returns the latest N gift events globally so every
+ * device can show "X gifted Y a 💎" tickers (e.g. on the levels screen).
+ * Only friend-kind gift messages are exposed (group gifts are private to
+ * the group). Includes sender + recipient display names so the client
+ * doesn't need to look them up.
+ */
+router.get("/gift-feed", (req, res): any => {
+  const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit ?? "20"), 10) || 20));
+  const giftMsgs = chatMessages
+    .filter(m => m.giftId && m.kind === "friend")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+  const events = giftMsgs.map(m => {
+    const [a, b] = m.scope.split("|");
+    const recipientId = m.senderId === a ? (b ?? a) : a;
+    const sender    = users.find(u => u.id === m.senderId);
+    const recipient = users.find(u => u.id === recipientId);
+    return {
+      id: m.id,
+      giftId: m.giftId!,
+      senderId: m.senderId,
+      senderName: sender?.username ?? "مستخدم",
+      recipientId,
+      recipientName: recipient?.username ?? "مستخدم",
+      createdAt: m.createdAt,
+    };
+  });
+  res.json({ events, now: new Date().toISOString() });
 });
 
 /**
