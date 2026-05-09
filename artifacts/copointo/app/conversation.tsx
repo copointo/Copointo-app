@@ -22,6 +22,10 @@ import { playReceiveMessageSound, playSendMessageSound } from "@/lib/notificatio
 import MessageBubble from "@/components/MessageBubble";
 import { useTextStyles } from "@/hooks/useTextStyles";
 import { getTextStyle } from "@/data/textStyles";
+import GiftPicker from "@/components/GiftPicker";
+import GiftAnimation from "@/components/GiftAnimation";
+import { getGift, GiftDef } from "@/data/gifts";
+import { useCoins } from "@/hooks/useCoins";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -76,6 +80,53 @@ export default function ConversationScreen() {
 
   const listRef = useRef<FlatList>(null);
   const [text, setText] = useState("");
+
+  // ─── Gifts ────────────────────────────────────────────────────────
+  const { balance, addCoins } = useCoins();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [animGift, setAnimGift]     = useState<GiftDef | null>(null);
+  const [animFromName, setAnimFromName] = useState<string | undefined>(undefined);
+
+  // Auto-play animation for unseen incoming gifts when this screen mounts /
+  // a new gift message arrives. Tracks which gift message ids we've already
+  // played so we never replay on re-render.
+  const playedGiftIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const unseenGift = convMsgs.find(
+      m => !m.fromMe && m.giftId && !playedGiftIdsRef.current.has(m.id),
+    );
+    if (unseenGift && unseenGift.giftId) {
+      const gd = getGift(unseenGift.giftId);
+      if (gd) {
+        playedGiftIdsRef.current.add(unseenGift.id);
+        setAnimGift(gd);
+        setAnimFromName(unseenGift.senderName ?? (typeof name === "string" ? name : undefined));
+      }
+    }
+  }, [convMsgs, name]);
+
+  const sendGift = (gift: GiftDef) => {
+    if (!id) return;
+    if (balance < gift.price) return;
+    addCoins(-gift.price);
+    setPickerOpen(false);
+    const giftMsg: ChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      text: `🎁 ${gift.name}`,
+      fromMe: true,
+      time: buildNow(t("conv.amPm.am"), t("conv.amPm.pm")),
+      seen: false,
+      giftId: gift.id,
+    };
+    appendMsg(id, giftMsg);
+    // Mark as already played so we don't re-trigger from the convMsgs effect
+    playedGiftIdsRef.current.add(giftMsg.id);
+    // Play animation immediately for the sender
+    setAnimGift(gift);
+    setAnimFromName(undefined);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    playSendMessageSound();
+  };
 
   // Mark conversation as read + scroll to bottom on open. Also register
   // this convId as "active" so the global poll loop won't bump the unread
@@ -140,6 +191,8 @@ export default function ConversationScreen() {
       (item.senderAvatar.startsWith("http") || item.senderAvatar.startsWith("data:") || item.senderAvatar.startsWith("file:"))
         ? item.senderAvatar : null;
 
+    const giftDef = item.giftId ? getGift(item.giftId) : null;
+
     return (
       <View>
         {showTime && (
@@ -160,7 +213,43 @@ export default function ConversationScreen() {
             <View style={{ width: 32 }} />
           )}
 
-          {item.fromMe ? (
+          {giftDef ? (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setAnimGift(giftDef);
+                setAnimFromName(item.fromMe ? undefined : (item.senderName ?? (typeof name === "string" ? name : undefined)));
+              }}
+              style={[
+                styles.bubble,
+                {
+                  backgroundColor: `${giftDef.color}22`,
+                  borderWidth: 1,
+                  borderColor: giftDef.color,
+                  alignItems: "center",
+                  paddingVertical: 14,
+                  paddingHorizontal: 18,
+                  minWidth: 140,
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 44, lineHeight: 52, textAlign: "center" }}>{giftDef.emoji}</Text>
+              <Text style={{
+                fontSize: 13, fontFamily: "Inter_700Bold",
+                color: giftDef.color, marginTop: 4, textAlign: "center",
+              }}>
+                {giftDef.name}
+              </Text>
+              <Text style={{
+                fontSize: 10, fontFamily: "Inter_400Regular",
+                color: "rgba(255,255,255,0.55)", marginTop: 2,
+              }}>
+                {item.fromMe ? "هدية أرسلتها · اضغط للإعادة" : "هدية وصلت · اضغط للإعادة"}
+              </Text>
+              <Text style={[styles.metaTime, { marginTop: 4 }]}>{item.time}</Text>
+            </TouchableOpacity>
+          ) : item.fromMe ? (
             <MessageBubble
               style={[styles.bubble, styles.meBubble, { borderWidth: 1 }]}
               textStyleDef={equippedTextStyleDef}
@@ -259,6 +348,13 @@ export default function ConversationScreen() {
 
       {/* Input bar */}
       <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+        <TouchableOpacity
+          style={styles.giftBtn}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickerOpen(true); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="gift" size={20} color={PRIMARY} />
+        </TouchableOpacity>
         <TextInput
           style={styles.inputField}
           value={text}
@@ -279,6 +375,20 @@ export default function ConversationScreen() {
           <Feather name="send" size={18} color="#000" />
         </TouchableOpacity>
       </View>
+
+      <GiftPicker
+        visible={pickerOpen}
+        balance={balance}
+        toName={typeof name === "string" ? name : undefined}
+        onClose={() => setPickerOpen(false)}
+        onSend={sendGift}
+      />
+      <GiftAnimation
+        gift={animGift}
+        fromName={animFromName}
+        visible={!!animGift}
+        onDone={() => setAnimGift(null)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -381,5 +491,11 @@ const styles = StyleSheet.create({
   sendBtnDisabled: {
     backgroundColor: "rgba(232,184,109,0.15)",
     borderColor: BORDER,
+  },
+  giftBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: CARD,
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", justifyContent: "center",
   },
 });

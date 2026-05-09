@@ -60,6 +60,8 @@ export interface ChatMessage {
   senderId?: string;
   senderName?: string;
   senderAvatar?: string;
+  /** When set, this message is a sent gift; renders a gift bubble + plays animation. */
+  giftId?: string;
 }
 
 /** A user-created chat group. Stored per-user and mirrored to members. */

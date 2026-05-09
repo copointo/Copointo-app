@@ -13,7 +13,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
-import { getRank } from "@/data/mockData";
+import { useMessages } from "@/context/MessagesContext";
+import { getRank, ChatMessage } from "@/data/mockData";
+import GiftPicker from "@/components/GiftPicker";
+import GiftAnimation from "@/components/GiftAnimation";
+import { GiftDef } from "@/data/gifts";
+import { useCoins } from "@/hooks/useCoins";
+import { useState } from "react";
 
 const BG = "#000000";
 
@@ -49,6 +55,36 @@ export default function CompetitorProfileScreen() {
   const hasIncoming = !!(target && incomingRequests.includes(target.id));
   const isMe        = !!(target && currentUser?.id === target.id);
   const rank        = target ? getRank(target.level) : null;
+
+  // ─── Gifts ────────────────────────────────────────────────────────
+  const { balance, addCoins } = useCoins();
+  const { appendMsg } = useMessages();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [animGift, setAnimGift]     = useState<GiftDef | null>(null);
+
+  const sendGift = (gift: GiftDef) => {
+    if (!target) return;
+    if (balance < gift.price) return;
+    addCoins(-gift.price);
+    setPickerOpen(false);
+    const convId = `friend_${target.id}`;
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes().toString().padStart(2, "0");
+    const period = h >= 12 ? "م" : "ص";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const giftMsg: ChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      text: `🎁 ${gift.name}`,
+      fromMe: true,
+      time: `${h12}:${m} ${period}`,
+      seen: false,
+      giftId: gift.id,
+    };
+    appendMsg(convId, giftMsg);
+    setAnimGift(gift);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+  };
 
   if (!target) {
     return (
@@ -180,6 +216,18 @@ export default function CompetitorProfileScreen() {
                   <Text style={styles.addFriendText}>إضافة صديق</Text>
                 </TouchableOpacity>
               )}
+
+              {/* Send Gift — only available for confirmed friends */}
+              {isFriend && (
+                <TouchableOpacity
+                  style={[styles.addFriendBtn, { backgroundColor: "#E8B86D" }]}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickerOpen(true); }}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="gift" size={16} color="#000" />
+                  <Text style={styles.addFriendText}>إرسال هدية</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
         </View>
@@ -194,6 +242,19 @@ export default function CompetitorProfileScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <GiftPicker
+        visible={pickerOpen}
+        balance={balance}
+        toName={target.name}
+        onClose={() => setPickerOpen(false)}
+        onSend={sendGift}
+      />
+      <GiftAnimation
+        gift={animGift}
+        visible={!!animGift}
+        onDone={() => setAnimGift(null)}
+      />
     </View>
   );
 }

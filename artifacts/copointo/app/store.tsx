@@ -21,6 +21,8 @@ import { TEXT_STYLES, TextStyleDef, TEXT_STYLE_PRICE } from "../data/textStyles"
 import { useTextStyles } from "../hooks/useTextStyles";
 import MessageBubble from "../components/MessageBubble";
 import { CHARACTERS, CharacterDef, CHARACTER_PRICE } from "../data/characters";
+import { GIFTS, GiftDef, GiftTier } from "../data/gifts";
+import GiftAnimation from "../components/GiftAnimation";
 import { useCharacters } from "../hooks/useCharacters";
 import Character from "../components/Character";
 import FadeInItem from "../components/FadeInItem";
@@ -197,6 +199,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const previewTSOwned = previewTS ? ownedTextStyles.includes(previewTS.ts.id) : false;
   const [previewChar, setPreviewChar] = useState<{ ch: CharacterDef; price: number } | null>(null);
   const previewCharOwned = previewChar ? ownedCharacters.includes(previewChar.ch.id) : false;
+  const [previewGift, setPreviewGift] = useState<GiftDef | null>(null);
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
   const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
@@ -631,6 +634,63 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           )}
         </PurchaseModal>
       </>
+    );
+  }
+
+  if (cat === "gifts") {
+    const tierLabels: Record<GiftTier, string> = {
+      1: "هدايا عادية",
+      2: "هدايا فخمة",
+      3: "هدايا أسطورية",
+    };
+    const tiers: GiftTier[] = [1, 2, 3];
+    return (
+      <View key="gifts">
+        <View style={[styles.comingSoon, { marginBottom: 16, paddingVertical: 14 }]}>
+          <Feather name="gift" size={22} color={PRIMARY} />
+          <Text style={[styles.comingSoonTitle, { fontSize: 14 }]}>اضغط أي هدية لمعاينة الحركة</Text>
+          <Text style={styles.comingSoonSub}>الإرسال يتم من شات صديق أو ملف صديق</Text>
+        </View>
+        {tiers.map(tier => (
+          <View key={tier} style={{ marginBottom: 14 }}>
+            <Text style={{
+              fontSize: 13, fontFamily: "Inter_700Bold",
+              color: "rgba(232,184,109,0.85)",
+              textAlign: "right", marginBottom: 8, paddingHorizontal: 4,
+            }}>
+              {tierLabels[tier]}
+            </Text>
+            <View style={styles.bgGrid}>
+              {GIFTS.filter(g => g.tier === tier).map((g, i) => (
+                <FadeInItem key={g.id} index={i} style={{ width: "31%" }}>
+                  <TouchableOpacity
+                    style={[styles.bgCard, { paddingVertical: 12, alignItems: "center", gap: 4 }]}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setPreviewGift(g);
+                    }}
+                  >
+                    <Text style={{ fontSize: 36, lineHeight: 42 }}>{g.emoji}</Text>
+                    <Text style={styles.bgName} numberOfLines={1}>{g.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Image source={COPOINTO_COIN} style={{ width: 12, height: 12 }} />
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: g.color }}>
+                        {g.price.toLocaleString("en-US")}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </FadeInItem>
+              ))}
+            </View>
+          </View>
+        ))}
+        <GiftAnimation
+          gift={previewGift}
+          visible={!!previewGift}
+          onDone={() => setPreviewGift(null)}
+        />
+      </View>
     );
   }
 
