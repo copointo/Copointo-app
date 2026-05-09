@@ -136,7 +136,7 @@ function RankRow({
               <View style={styles.coinHeaderRow}>
                 <Image source={COIN_IMG} style={styles.coinHeaderImg} />
                 <Text style={styles.coinHeaderText}>
-                  معالم العملات — اربح {COIN_PER_MILESTONE} عملة كل 50 مستوى
+                  معالم العملات — اربح {COIN_PER_MILESTONE} عملة كل مستويين
                 </Text>
               </View>
               <Text style={styles.coinSummary}>

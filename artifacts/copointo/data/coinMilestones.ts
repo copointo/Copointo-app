@@ -4,7 +4,7 @@ export interface CoinMilestone {
 }
 
 export const COIN_PER_MILESTONE = 25;
-export const COIN_MILESTONE_STEP = 50;
+export const COIN_MILESTONE_STEP = 2;
 export const COIN_MILESTONE_MAX  = 1000;
 
 export const COIN_MILESTONES: CoinMilestone[] = (() => {
