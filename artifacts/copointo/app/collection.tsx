@@ -27,15 +27,15 @@ export default function CollectionScreen() {
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+    { id: "characters", label: "الشخصيات",       icon: "smile"  },
+    { id: "gifts",      label: "الهدايا",        icon: "gift"   },
     { id: "frames",     label: "الإطارات",       icon: "circle" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
     { id: "background", label: "خلفية المستخدم", icon: "image"  },
     { id: "username",   label: "اسم المستخدم",   icon: "user"   },
     { id: "text",       label: "النص",           icon: "type"   },
-    { id: "gifts",      label: "الهدايا",        icon: "gift"   },
-    { id: "characters", label: "الشخصيات",       icon: "smile"  },
   ];
-  const [tab, setTab] = useState<ShopCat>("frames");
+  const [tab, setTab] = useState<ShopCat>("characters");
 
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";

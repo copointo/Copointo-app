@@ -36,13 +36,13 @@ interface CatDef {
 }
 
 const CATEGORIES: CatDef[] = [
+  { id: "characters", label: "الشخصيات",        icon: "smile",          hint: "شخصيات داخل اللعبة" },
+  { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
   { id: "frames",     label: "الإطارات",        icon: "circle",         hint: "إطارات حول صورتك" },
   { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
   { id: "background", label: "خلفية المستخدم",  icon: "image",          hint: "خلفية ملفك الشخصي" },
   { id: "username",   label: "اسم المستخدم",    icon: "user",           hint: "ألوان وزخرفة الاسم" },
   { id: "text",       label: "النص",            icon: "type",           hint: "خطوط وأنماط الكتابة" },
-  { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
-  { id: "characters", label: "الشخصيات",        icon: "smile",          hint: "شخصيات داخل اللعبة" },
 ];
 
 const PRICE_BY_TIER = [50, 100, 200, 350, 500, 700, 1000, 1500, 2200, 3000];
