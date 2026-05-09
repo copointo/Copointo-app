@@ -43,7 +43,7 @@ const CATEGORIES: CatDef[] = [
   { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
   { id: "frames",     label: "الإطارات",        icon: "circle", iconLib: "mci", mciIcon: "image-frame", hint: "إطارات حول صورتك" },
   { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
-  { id: "background", label: "خلفية المستخدم",  icon: "image",          hint: "خلفية ملفك الشخصي" },
+  { id: "background", label: "خلفية المستخدم",  icon: "image", iconLib: "mci", mciIcon: "card-account-details-outline", hint: "خلفية ملفك الشخصي" },
   { id: "username",   label: "ثيم اسم المستخدم", icon: "user",          hint: "ألوان وزخرفة الاسم" },
   { id: "text",       label: "نص ملون",          icon: "type",          hint: "خطوط وأنماط الكتابة" },
 ];
