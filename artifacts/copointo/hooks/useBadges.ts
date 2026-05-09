@@ -36,15 +36,16 @@ export function useBadges() {
         AsyncStorage.getItem(KEY_OWNED),
         AsyncStorage.getItem(KEY_EQUIPPED),
       ]).then(([rawOwned, rawEq]) => {
-        let owned = DEFAULT_OWNED;
-        try {
-          if (rawOwned) {
+        let owned: string[];
+        if (rawOwned === null) {
+          owned = DEFAULT_OWNED;
+        } else {
+          owned = [];
+          try {
             const parsed = JSON.parse(rawOwned);
-            if (Array.isArray(parsed)) {
-              owned = Array.from(new Set([...DEFAULT_OWNED, ...parsed]));
-            }
-          }
-        } catch {}
+            if (Array.isArray(parsed)) owned = parsed;
+          } catch {}
+        }
         // Default-equip the bronze badge for first-time users so it shows up
         // immediately in the leaderboard / profile.
         const equipped =

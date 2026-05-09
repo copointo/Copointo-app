@@ -37,15 +37,19 @@ export function useFrames() {
         AsyncStorage.getItem(KEY_OWNED),
         AsyncStorage.getItem(KEY_EQUIPPED),
       ]).then(([rawOwned, rawEq]) => {
-        let owned = DEFAULT_OWNED;
-        try {
-          if (rawOwned) {
+        // First-run users (rawOwned === null) get the starter defaults.
+        // Anyone with a persisted value (even "[]" after an account reset)
+        // gets EXACTLY what was persisted, with no defaults merged in.
+        let owned: string[];
+        if (rawOwned === null) {
+          owned = DEFAULT_OWNED;
+        } else {
+          owned = [];
+          try {
             const parsed = JSON.parse(rawOwned);
-            if (Array.isArray(parsed)) {
-              owned = Array.from(new Set([...DEFAULT_OWNED, ...parsed]));
-            }
-          }
-        } catch {}
+            if (Array.isArray(parsed)) owned = parsed;
+          } catch {}
+        }
         const equipped = rawEq && owned.includes(rawEq) ? rawEq : null;
         broadcast({ owned, equipped });
         setHydrated(true);
@@ -85,5 +89,5 @@ export function useFrames() {
 }
 
 registerAccountResetHandler(() => {
-  broadcast({ owned: DEFAULT_OWNED, equipped: null });
+  broadcast({ owned: [], equipped: null });
 });

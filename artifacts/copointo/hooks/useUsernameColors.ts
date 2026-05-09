@@ -35,15 +35,16 @@ export function useUsernameColors() {
         AsyncStorage.getItem(KEY_OWNED),
         AsyncStorage.getItem(KEY_EQUIPPED),
       ]).then(([rawOwned, rawEq]) => {
-        let owned = DEFAULT_OWNED;
-        try {
-          if (rawOwned) {
+        let owned: string[];
+        if (rawOwned === null) {
+          owned = DEFAULT_OWNED;
+        } else {
+          owned = [];
+          try {
             const parsed = JSON.parse(rawOwned);
-            if (Array.isArray(parsed)) {
-              owned = Array.from(new Set([...DEFAULT_OWNED, ...parsed]));
-            }
-          }
-        } catch {}
+            if (Array.isArray(parsed)) owned = parsed;
+          } catch {}
+        }
         const equipped = rawEq && owned.includes(rawEq) ? rawEq : null;
         broadcast({ owned, equipped });
         setHydrated(true);
