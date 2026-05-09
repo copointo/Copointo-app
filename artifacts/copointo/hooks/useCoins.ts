@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY = "copointo_coins_balance_v1";
@@ -56,3 +57,7 @@ export function useCoins() {
 
   return { balance, hydrated, addCoins, setCoins };
 }
+
+registerAccountResetHandler(() => {
+  broadcast(0);
+});

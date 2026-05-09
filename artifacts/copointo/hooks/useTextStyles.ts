@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY_OWNED = "copointo_text_styles_owned_v1";
@@ -80,3 +81,7 @@ export function useTextStyles() {
     equipTextStyle,
   };
 }
+
+registerAccountResetHandler(() => {
+  broadcast({ owned: DEFAULT_OWNED, equipped: null });
+});

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY_OWNED = "copointo_frames_owned_v3";
@@ -82,3 +83,7 @@ export function useFrames() {
     equipFrame,
   };
 }
+
+registerAccountResetHandler(() => {
+  broadcast({ owned: DEFAULT_OWNED, equipped: null });
+});

@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 import { GIFTS } from "../data/gifts";
 
@@ -85,3 +86,7 @@ export function useGiftInventory() {
 
   return { inventory: state, hydrated, addGift, consumeGift, countOf };
 }
+
+registerAccountResetHandler(() => {
+  broadcast({ ...STARTER_INVENTORY });
+});

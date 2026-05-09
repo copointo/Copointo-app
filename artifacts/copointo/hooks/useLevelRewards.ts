@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LEVEL_REWARDS, LevelReward, getRewardsUpToLevel } from "../data/levelRewards";
 import { useFrames } from "./useFrames";
@@ -13,6 +14,17 @@ export function useLevelRewards(level: number) {
   const [hydrated, setHydrated] = useState(false);
   const [queue, setQueue] = useState<LevelReward[]>([]);
   const processedRef = useRef<Set<number>>(new Set());
+
+  // Per-instance reset: clear queue + processedRef + acked so reward
+  // popups behave like a brand-new account after `resetAccount()`.
+  useEffect(() => {
+    const off = registerAccountResetHandler(() => {
+      processedRef.current.clear();
+      setAcked([]);
+      setQueue([]);
+    });
+    return off;
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(ACK_KEY)

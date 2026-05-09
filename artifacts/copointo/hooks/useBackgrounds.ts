@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 import { BACKGROUNDS, DEFAULT_BACKGROUND_ID } from "../data/backgrounds";
 
@@ -84,3 +85,7 @@ export function useBackgrounds() {
     equipBackground,
   };
 }
+
+registerAccountResetHandler(() => {
+  broadcast({ owned: DEFAULT_OWNED, equipped: null });
+});

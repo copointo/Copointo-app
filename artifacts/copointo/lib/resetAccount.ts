@@ -1,6 +1,17 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE } from "@/constants/api";
 import { GIFTS } from "@/data/gifts";
+import { runAccountResetHandlers } from "./accountResetRegistry";
+// Side-effect imports: ensure each hook module is loaded so its
+// registerAccountResetHandler() call has run before we trigger handlers.
+import "../hooks/useFrames";
+import "../hooks/useBadges";
+import "../hooks/useBackgrounds";
+import "../hooks/useUsernameColors";
+import "../hooks/useTextStyles";
+import "../hooks/useCharacters";
+import "../hooks/useCoins";
+import "../hooks/useGiftInventory";
 
 /**
  * Wipes every owned/equipped/inventory storage slot the player has
@@ -49,4 +60,9 @@ export async function resetAccount(userId: string): Promise<void> {
     "copointo_gift_inventory_v1",
     JSON.stringify(starter),
   );
+
+  // ── Reset every hook's in-memory _cache and broadcast defaults so the
+  //    UI reflects the wipe immediately (without it, screens keep showing
+  //    pre-reset items, coins and characters until full app reload). ────
+  runAccountResetHandlers();
 }

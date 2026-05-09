@@ -114,7 +114,7 @@ export default function GameScreen() {
 
   const isBlocked = !!(status && (status.gameBanned || status.gameSuspended));
 
-  const level     = 234;
+  const level     = user?.level ?? 0;
   const rank      = getRank(level);
   const levelRewards = useLevelRewards(level);
   const nextReward = LEVEL_REWARDS.find(r => r.unlockLevel > level);

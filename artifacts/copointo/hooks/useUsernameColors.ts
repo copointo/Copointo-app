@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 
 const KEY_OWNED = "copointo_username_colors_owned_v1";
@@ -76,3 +77,7 @@ export function useUsernameColors() {
     equipUsernameColor,
   };
 }
+
+registerAccountResetHandler(() => {
+  broadcast({ owned: DEFAULT_OWNED, equipped: null });
+});

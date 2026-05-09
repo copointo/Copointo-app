@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { useCallback, useEffect, useState } from "react";
 import { CHARACTERS } from "../data/characters";
 
@@ -92,3 +93,7 @@ export function useCharacters() {
     equipCharacter,
   };
 }
+
+registerAccountResetHandler(() => {
+  broadcast({ owned: [...DEFAULT_OWNED], equipped: DEFAULT_EQUIPPED });
+});
