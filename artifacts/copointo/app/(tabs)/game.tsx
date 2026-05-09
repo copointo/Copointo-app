@@ -105,7 +105,7 @@ export default function GameScreen() {
 
   const isBlocked = !!(status && (status.gameBanned || status.gameSuspended));
 
-  const level     = activeCafe?.level ?? 0;
+  const level     = 234;
   const rank      = getRank(level);
   const ordersThisLevel = level % 7;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
