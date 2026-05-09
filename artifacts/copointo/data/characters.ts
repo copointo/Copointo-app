@@ -13,6 +13,8 @@ export interface CharacterDef {
   sparkle?: boolean;
   /** Fixed rainbow gradient ring around the body (tier 3 only). */
   rainbow?: boolean;
+  /** Custom gradient ring colors (overrides rainbow palette). */
+  ringGradient?: readonly [string, string, ...string[]];
 }
 
 export const CHARACTERS: CharacterDef[] = [
@@ -36,10 +38,11 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-15", name: "ساحر",        emoji: "🧙", glow: "#C084FC",   float: true },
 
   // ── 16-20 legendary + glow + float + animations ───────────────────
-  { id: "char-16", name: "لهب راقص",     emoji: "🔥", glow: "#FB923C", float: true, pulse: true,   sparkle: true },
+  { id: "char-16", name: "وردة سوداء",   emoji: "🥀", glow: "#DC2626", float: true, pulse: true,   sparkle: true },
   { id: "char-17", name: "تنين أسطوري",  emoji: "🐉", glow: "#22C55E", float: true, pulse: true,   sparkle: true },
   { id: "char-18", name: "فراشة سحرية",  emoji: "🦋", glow: "#EC4899", float: true, pulse: true,   sparkle: true },
-  { id: "char-19", name: "وردة سوداء",   emoji: "🥀", glow: "#DC2626", float: true, pulse: true,   sparkle: true },
+  { id: "char-19", name: "أسطوري أحمر",  emoji: "🦄", glow: "#DC2626", float: true, pulse: true,   sparkle: true,
+    ringGradient: ["#000000", "#7F1D1D", "#DC2626", "#7F1D1D", "#000000"] },
   { id: "char-20", name: "أسطوري",        emoji: "🦄", glow: "#FFFFFF", float: true, pulse: true,   sparkle: true, rainbow: true },
 ];
 
