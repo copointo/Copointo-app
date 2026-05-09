@@ -69,6 +69,16 @@ const CATEGORIES: CatDef[] = [
 
 const PRICE_BY_TIER = [50, 100, 200, 350, 500, 700, 1000, 1500, 2200, 3000];
 
+const CAT_THEME: Record<ShopCat, { accent: string; bg: string; border: string }> = {
+  characters: { accent: "#E8B86D", bg: "rgba(232,184,109,0.08)", border: "rgba(232,184,109,0.30)" },
+  gifts:      { accent: "#EC4899", bg: "rgba(236,72,153,0.08)",  border: "rgba(236,72,153,0.30)" },
+  frames:     { accent: "#60A5FA", bg: "rgba(96,165,250,0.08)",  border: "rgba(96,165,250,0.30)" },
+  badges:     { accent: "#FBBF24", bg: "rgba(251,191,36,0.08)",  border: "rgba(251,191,36,0.30)" },
+  background: { accent: "#A78BFA", bg: "rgba(167,139,250,0.08)", border: "rgba(167,139,250,0.30)" },
+  username:   { accent: "#22D3EE", bg: "rgba(34,211,238,0.08)",  border: "rgba(34,211,238,0.30)" },
+  text:       { accent: "#34D399", bg: "rgba(52,211,153,0.08)",  border: "rgba(52,211,153,0.30)" },
+};
+
 export default function StoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -184,10 +194,13 @@ export default function StoreScreen() {
 
             {activeCat && (
               <>
-                <Text style={styles.catTitle}>
+                <Text style={[styles.catTitle, { color: CAT_THEME[activeCat].accent }]}>
                   {CATEGORIES.find(c => c.id === activeCat)?.label}
                 </Text>
-                <View style={styles.catPanel}>
+                <View style={[styles.catPanel, {
+                  backgroundColor: CAT_THEME[activeCat].bg,
+                  borderColor: CAT_THEME[activeCat].border,
+                }]}>
                   <CategoryPanel cat={activeCat} />
                 </View>
               </>
