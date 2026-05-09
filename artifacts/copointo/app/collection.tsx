@@ -302,18 +302,16 @@ export default function CollectionScreen() {
                   }}
                   activeOpacity={0.85}
                 >
-                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={10} style={{ alignSelf: "stretch", opacity: isOwned ? 1 : 0.35 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <View style={styles.bgMiniAvatar}>
+                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={14} style={{ ...styles.bgTallPreview, opacity: isOwned ? 1 : 0.35 }}>
+                    <View style={styles.bgTallInner}>
+                      <View style={styles.bgTallAvatar}>
                         <Image
                           source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
-                          style={styles.bgMiniAvatarImg}
+                          style={styles.bgTallAvatarImg}
                         />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.bgPreview} numberOfLines={1}>@{username}</Text>
-                        <Text style={styles.bgPreviewSub} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
-                      </View>
+                      <Text style={styles.bgPreview} numberOfLines={1}>@{username}</Text>
+                      <Text style={styles.bgPreviewSub} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
                     </View>
                   </UsernameBackground>
                   <Text style={styles.tileName}>
@@ -461,6 +459,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  bgTallPreview: { alignSelf: "stretch", aspectRatio: 3 / 4 },
+  bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
+  bgTallAvatar: {
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.40)",
+    overflow: "hidden",
+  },
+  bgTallAvatarImg: { width: 48, height: 48, borderRadius: 24 },
   bgPriceChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",

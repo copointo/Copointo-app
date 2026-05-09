@@ -201,18 +201,16 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                     setPreviewBg({ bg, price });
                   }}
                 >
-                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={10} style={{ alignSelf: "stretch" }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                      <View style={styles.bgMiniAvatar}>
+                  <UsernameBackground bg={bg} borderRadius={12} paddingHorizontal={10} paddingVertical={14} style={styles.bgTallPreview}>
+                    <View style={styles.bgTallInner}>
+                      <View style={styles.bgTallAvatar}>
                         <Image
                           source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
-                          style={styles.bgMiniAvatarImg}
+                          style={styles.bgTallAvatarImg}
                         />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.bgPreviewText} numberOfLines={1}>@{username}</Text>
-                        <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
-                      </View>
+                      <Text style={styles.bgPreviewText} numberOfLines={1}>@{username}</Text>
+                      <Text style={styles.bgPreviewSubText} numberOfLines={1}>المستوى {user?.level ?? 1}</Text>
                     </View>
                   </UsernameBackground>
                   <Text style={styles.bgName} numberOfLines={1}>{bg.name}</Text>
@@ -246,26 +244,24 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <UsernameBackground
                 bg={previewBg.bg}
-                borderRadius={18}
-                paddingHorizontal={14}
-                paddingVertical={14}
-                style={{ alignSelf: "stretch", marginTop: 14 }}
+                borderRadius={20}
+                paddingHorizontal={18}
+                paddingVertical={24}
+                style={styles.previewTall}
               >
-                <View style={styles.lbRow}>
-                  <Text style={[styles.lbRank, { color: "#FFD700" }]}>🥇</Text>
-                  <AvatarWithFrame size={44} scale={1.55} frameId={undefined}>
-                    <Image source={avatarSource} style={styles.lbAvatarImg} />
+                <View style={styles.previewTallInner}>
+                  <Text style={[styles.previewMedal, { color: "#FFD700" }]}>🥇</Text>
+                  <AvatarWithFrame size={84} scale={1.55} frameId={undefined}>
+                    <Image source={avatarSource} style={styles.previewAvatarImg} />
                   </AvatarWithFrame>
-                  <View style={styles.lbInfo}>
-                    <Text style={styles.lbName} numberOfLines={1}>
-                      @{username} <Text style={{ color: "#E8B86D" }}>(أنت)</Text>
-                    </Text>
-                    <Text style={styles.lbLevel} numberOfLines={1}>
-                      Level {lvl} · {rk.nameEn} {rk.icon}
-                    </Text>
-                    <View style={styles.lbCoffeeChip}>
-                      <Text style={styles.lbCoffeeChipText}>☕ {user?.totalOrders ?? 0} كوفي</Text>
-                    </View>
+                  <Text style={styles.previewName} numberOfLines={1}>
+                    @{username} <Text style={{ color: "#E8B86D" }}>(أنت)</Text>
+                  </Text>
+                  <Text style={styles.previewLevel} numberOfLines={1}>
+                    Level {lvl} · {rk.nameEn} {rk.icon}
+                  </Text>
+                  <View style={styles.previewCoffeeChip}>
+                    <Text style={styles.previewCoffeeChipText}>☕ {user?.totalOrders ?? 0} كوفي</Text>
                   </View>
                 </View>
               </UsernameBackground>
@@ -655,6 +651,31 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.45)",
   },
   lbCoffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
+  bgTallPreview: { alignSelf: "stretch", aspectRatio: 3 / 4 },
+  bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
+  bgTallAvatar: {
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.40)",
+    overflow: "hidden",
+  },
+  bgTallAvatarImg: { width: 48, height: 48, borderRadius: 24 },
+  previewTall: {
+    alignSelf: "stretch", marginTop: 14,
+    aspectRatio: 3 / 4,
+  },
+  previewTallInner: {
+    flex: 1, alignItems: "center", justifyContent: "center", gap: 10,
+  },
+  previewMedal: { fontSize: 28 },
+  previewAvatarImg: { width: 84, height: 84, borderRadius: 42, borderWidth: 2, borderColor: "rgba(255,255,255,0.25)" },
+  previewName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  previewLevel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
+  previewCoffeeChip: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+    backgroundColor: "rgba(79,195,247,0.20)",
+    borderWidth: 1, borderColor: "rgba(79,195,247,0.55)",
+  },
+  previewCoffeeChipText: { fontSize: 11.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   framePreviewWrap: {
     width: "100%", alignItems: "center", justifyContent: "center",
     paddingVertical: 16,
