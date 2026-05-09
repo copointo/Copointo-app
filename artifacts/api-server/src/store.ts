@@ -346,6 +346,12 @@ export interface ChatMsg {
   giftId?: string;
   /** Quantity of the gift sent (defaults to 1 when missing). */
   giftQty?: number;
+  /** Sender's display username at send time — used by the global gift feed
+   *  so we don't have to look up `users[]` (which may be stale or missing
+   *  for users who only registered locally). */
+  senderName?: string;
+  /** Recipient's display username at send time. Same rationale as above. */
+  recipientName?: string;
 }
 export const chatMessages: ChatMsg[] = [];
 

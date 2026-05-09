@@ -486,6 +486,7 @@ function UserDetailPanel(p: PanelProps) {
       seen: false,
       giftId: gift.id,
       giftQty: qty,
+      recipientName: u.gameUsername || u.name,
     };
     appendMsg(convId, giftMsg);
     setAnimGift(gift);

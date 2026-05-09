@@ -120,6 +120,7 @@ export default function ConversationScreen() {
       seen: false,
       giftId: gift.id,
       giftQty: qty,
+      recipientName: typeof name === "string" ? name : undefined,
     };
     appendMsg(id, giftMsg);
     // Mark as already played so we don't re-trigger from the convMsgs effect

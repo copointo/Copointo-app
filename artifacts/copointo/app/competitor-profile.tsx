@@ -82,6 +82,7 @@ export default function CompetitorProfileScreen() {
       seen: false,
       giftId: gift.id,
       giftQty: qty,
+      recipientName: target.gameUsername || target.name,
     };
     appendMsg(convId, giftMsg);
     setAnimGift(gift);

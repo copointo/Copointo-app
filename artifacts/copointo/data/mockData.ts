@@ -63,6 +63,10 @@ export interface ChatMessage {
   /** When set, this message is a sent gift; renders a gift bubble + plays animation. */
   giftId?: string;
   giftQty?: number;
+  /** Recipient's display name (gameUsername) — passed to server so the
+   *  global gift-feed ticker shows real usernames even when the recipient
+   *  isn't yet mirrored into the server's users[] roster. */
+  recipientName?: string;
 }
 
 /** A user-created chat group. Stored per-user and mirrored to members. */

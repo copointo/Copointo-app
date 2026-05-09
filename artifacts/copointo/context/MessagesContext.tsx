@@ -249,6 +249,11 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     if (msg.giftId) {
       body.giftId = msg.giftId;
       body.giftQty = String(msg.giftQty ?? 1);
+      // Carry the real usernames so the global gift-feed ticker can show
+      // "@sender أهدى @recipient" instead of falling back to "مستخدم".
+      const senderName = (user as any).gameUsername || user.name;
+      if (senderName) body.senderName = String(senderName);
+      if (msg.recipientName) body.recipientName = String(msg.recipientName);
     }
     fetch(`${API_BASE}/messages`, {
       method: "POST",

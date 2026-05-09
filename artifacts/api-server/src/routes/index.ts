@@ -692,6 +692,8 @@ router.post("/messages", (req, res): any => {
   const giftId      = String(req.body?.giftId ?? "").trim();
   const giftQtyRaw  = parseInt(String(req.body?.giftQty ?? "1"), 10);
   const giftQty     = Number.isFinite(giftQtyRaw) ? Math.max(1, Math.min(99, giftQtyRaw)) : 1;
+  const senderNameIn    = String(req.body?.senderName    ?? "").trim().slice(0, 64);
+  const recipientNameIn = String(req.body?.recipientName ?? "").trim().slice(0, 64);
   if (!id || !senderId || !text) {
     return res.status(400).json({ error: "id/senderId/text required" });
   }
@@ -712,7 +714,12 @@ router.post("/messages", (req, res): any => {
     createdAt: new Date().toISOString(),
     seenBy: [senderId],   // sender has implicitly "seen" their own message
   };
-  if (giftId) { msg.giftId = giftId; msg.giftQty = giftQty; }
+  if (giftId) {
+    msg.giftId = giftId;
+    msg.giftQty = giftQty;
+    if (senderNameIn)    msg.senderName    = senderNameIn;
+    if (recipientNameIn) msg.recipientName = recipientNameIn;
+  }
   chatMessages.push(msg);
   persistStore();
   res.status(201).json({ ok: true, message: msg });
@@ -741,9 +748,11 @@ router.get("/gift-feed", (req, res): any => {
       giftId: m.giftId!,
       giftQty: m.giftQty ?? 1,
       senderId: m.senderId,
-      senderName: sender?.username ?? "مستخدم",
+      // Prefer the username captured at send time; fall back to the
+      // server's user roster, then to a neutral placeholder.
+      senderName: m.senderName || sender?.username || "مستخدم",
       recipientId,
-      recipientName: recipient?.username ?? "مستخدم",
+      recipientName: m.recipientName || recipient?.username || "مستخدم",
       createdAt: m.createdAt,
     };
   });
