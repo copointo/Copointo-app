@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.45)",
   },
   lbCoffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
-  bgTallPreview: { alignSelf: "stretch", aspectRatio: 3 / 4 },
+  bgTallPreview: { alignSelf: "stretch", aspectRatio: 16 / 9 },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   bgTallAvatarImg: { width: 48, height: 48, borderRadius: 24 },
   previewTall: {
     alignSelf: "stretch", marginTop: 14,
-    aspectRatio: 3 / 4,
+    aspectRatio: 16 / 9,
   },
   previewTallInner: {
     flex: 1, alignItems: "center", justifyContent: "center", gap: 10,

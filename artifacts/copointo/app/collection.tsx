@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
-  bgTallPreview: { alignSelf: "stretch", aspectRatio: 3 / 4 },
+  bgTallPreview: { alignSelf: "stretch", aspectRatio: 16 / 9 },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,
