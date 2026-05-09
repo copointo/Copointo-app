@@ -54,4 +54,4 @@ export function getUsernameColor(id: string | null): UsernameColorDef | null {
   return USERNAME_COLORS.find(u => u.id === id) ?? null;
 }
 
-export const USERNAME_COLOR_PRICE = (_idx: number): number => 2000;
+export const USERNAME_COLOR_PRICE = (_idx: number): number => 5000;
