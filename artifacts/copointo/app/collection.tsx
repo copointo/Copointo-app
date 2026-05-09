@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -26,8 +26,8 @@ export default function CollectionScreen() {
   const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
-  const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-    { id: "characters", label: "الشخصيات",       icon: "smile"  },
+  const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5"; faIcon?: string }[] = [
+    { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
     { id: "gifts",      label: "الهدايا",        icon: "gift"   },
     { id: "frames",     label: "الإطارات",       icon: "circle" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
@@ -87,7 +87,11 @@ export default function CollectionScreen() {
                 onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setTab(c.id); }}
                 activeOpacity={0.85}
               >
-                <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
+                {c.iconLib === "fa5" && c.faIcon ? (
+                  <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
+                ) : (
+                  <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
+                )}
               </TouchableOpacity>
             );
           })}

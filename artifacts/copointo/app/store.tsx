@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -32,11 +32,13 @@ interface CatDef {
   id: ShopCat;
   label: string;
   icon: keyof typeof Feather.glyphMap;
+  iconLib?: "feather" | "fa5";
+  faIcon?: string;
   hint: string;
 }
 
 const CATEGORIES: CatDef[] = [
-  { id: "characters", label: "الشخصيات",        icon: "smile",          hint: "شخصيات داخل اللعبة" },
+  { id: "characters", label: "الشخصيات",        icon: "smile", iconLib: "fa5", faIcon: "user-astronaut", hint: "شخصيات داخل اللعبة" },
   { id: "gifts",      label: "الهدايا",         icon: "gift",           hint: "أرسل هدايا لأصدقائك" },
   { id: "frames",     label: "الإطارات",        icon: "circle",         hint: "إطارات حول صورتك" },
   { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
@@ -126,7 +128,11 @@ export default function StoreScreen() {
                       setActiveCat(prev => prev === c.id ? null : c.id);
                     }}
                   >
-                    <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
+                    {c.iconLib === "fa5" && c.faIcon ? (
+                      <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
+                    ) : (
+                      <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
+                    )}
                   </TouchableOpacity>
                 );
               })}
