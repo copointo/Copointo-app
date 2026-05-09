@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatMessage } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
-import { useMessages, SELF_TEST_CONV } from "@/context/MessagesContext";
+import { useMessages } from "@/context/MessagesContext";
 import { playReceiveMessageSound, playSendMessageSound } from "@/lib/notification-sound";
 import MessageBubble from "@/components/MessageBubble";
 import { useTextStyles } from "@/hooks/useTextStyles";
@@ -174,30 +174,6 @@ export default function ConversationScreen() {
     appendMsg(id, newMsg);
     setText("");
     // ✓✓ ticks now flip via the real server "seen" sync — no fake delay.
-
-    // Built-in test bot: auto-echo back so the user can preview both their
-    // own text style and how an incoming message bubble looks.
-    if (id === SELF_TEST_CONV) {
-      const replies = [
-        "وصلت رسالتك بنجاح ✅",
-        "هذا رد تجريبي لاختبار الألوان والأنماط",
-        "اكتب مرة ثانية وراح أرد عليك تلقائياً",
-        `استلمت: "${trimmed}"`,
-        "شكلك حلو 🌟",
-      ];
-      const reply = replies[Math.floor(Math.random() * replies.length)];
-      setTimeout(() => {
-        playReceiveMessageSound();
-        appendMsg(id, {
-          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          text: reply,
-          fromMe: false,
-          time: buildNow(t("conv.amPm.am"), t("conv.amPm.pm")),
-          seen: true,
-          senderName: typeof name === "string" ? name : undefined,
-        });
-      }, 700);
-    }
   };
 
   const isCafe = type === "cafe";
