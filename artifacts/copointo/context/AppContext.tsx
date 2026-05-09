@@ -323,15 +323,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshAllUsers = useCallback(async () => {
     const remote = await fetchPublicUsers();
     setRegisteredUsers(prev => {
-      // The server is the AUTHORITATIVE source of truth for who exists. We
-      // start from an empty map so any user that has been removed server-side
-      // (e.g. a super-admin wipe) disappears from this device's leaderboard
-      // and friend lists too. The currently signed-in user is always kept
-      // even before they show up in the server roster (network race / brand-
-      // new account) so the local profile UI never blanks out.
+      // The server is the authoritative source of truth for who appears on
+      // OTHER devices' leaderboards / friend lists, but local accounts that
+      // were registered on THIS device must never be dropped by the poll —
+      // their password lives only in AsyncStorage and dropping the entry
+      // would lock the owner out of login. We therefore keep:
+      //   • the currently signed-in user (so the profile UI never blanks);
+      //   • every locally-registered account (anything with a non-empty
+      //     password is a real credential on this device);
+      //   • everyone the server currently returns.
+      // Anything else (cross-device placeholder users that the server has
+      // since removed) is pruned so super-admin wipes propagate.
       const byId = new Map<string, User>();
-      const me = prev.find(u => u.id === currentUserIdRef.current);
-      if (me) byId.set(me.id, me);
+      for (const u of prev) {
+        if (u.id === currentUserIdRef.current || (u.password ?? "") !== "") {
+          byId.set(u.id, u);
+        }
+      }
       for (const r of remote) {
         const local = prev.find(u => u.id === r.id);
         if (local) {
