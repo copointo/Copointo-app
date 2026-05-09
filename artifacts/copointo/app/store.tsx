@@ -224,6 +224,8 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";
   const avatarSource = avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender);
+  const theme = CAT_THEME[cat];
+  const themedCard = { backgroundColor: theme.bg, borderColor: theme.border };
   const [previewBg, setPreviewBg] = useState<{ bg: BackgroundDef; price: number } | null>(null);
   const [previewFrame, setPreviewFrame] = useState<{ frame: FrameDef; price: number } | null>(null);
   const [previewBadge, setPreviewBadge] = useState<{ badge: BadgeDef; price: number } | null>(null);
@@ -253,7 +255,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={styles.bgCard}
+                  style={[styles.bgCard, themedCard]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -369,7 +371,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={f.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={styles.bgCard}
+                  style={[styles.bgCard, themedCard]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -437,7 +439,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={b.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={styles.bgCard}
+                  style={[styles.bgCard, themedCard]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -492,7 +494,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={uc.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={styles.bgCard}
+                  style={[styles.bgCard, themedCard]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -557,7 +559,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={ts.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={styles.bgCard}
+                  style={[styles.bgCard, themedCard]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -630,7 +632,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={ch.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
-                  style={styles.bgCard}
+                  style={[styles.bgCard, themedCard]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -691,7 +693,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             return (
               <FadeInItem key={g.id} index={i} style={{ width: "31%" }}>
                 <TouchableOpacity
-                  style={[styles.bgCard, { paddingVertical: 12, alignItems: "center", gap: 4 }]}
+                  style={[styles.bgCard, themedCard, { paddingVertical: 12, alignItems: "center", gap: 4 }]}
                   activeOpacity={0.85}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
