@@ -7,7 +7,6 @@ import { RANKS } from "../data/mockData";
 import { RANK_LOGOS } from "../data/rankLogos";
 import { RANK_BADGES } from "../data/rankBadges";
 import { FRAMES } from "../data/frames";
-import { useApp } from "../context/AppContext";
 
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
@@ -131,14 +130,10 @@ export default function LevelsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const { user, activeGameCafeId } = useApp();
-
-  const cafeProgress = user?.cafeProgress ?? {};
-  const cafeIds = Object.keys(cafeProgress);
-  const effectiveCafeId =
-    (activeGameCafeId && cafeProgress[activeGameCafeId]) ? activeGameCafeId
-    : (cafeIds[0] ?? null);
-  const currentLevel = effectiveCafeId ? (cafeProgress[effectiveCafeId]?.level ?? 0) : 0;
+  // Mirror the level shown in the game screen header so the "تم الفوز" /
+  // "أنت الآن" chips reflect what the user actually sees there.
+  // (game.tsx currently uses a hardcoded 234.)
+  const currentLevel = 234;
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
