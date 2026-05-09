@@ -29,7 +29,7 @@ export const BACKGROUNDS: BackgroundDef[] = [
   { id: "bg-15", name: "فجر وردي",       colors: ["#FBCFE8", "#FB7185", "#9F1239"],             highlight: "#FECDD3", effect: "shimmer" },
   { id: "bg-16", name: "نيون",           colors: ["#06B6D4", "#A21CAF", "#F97316"],             highlight: "#67E8F9", effect: "rotate" },
   { id: "bg-17", name: "مجرة",           colors: ["#312E81", "#7E22CE", "#DB2777"],             highlight: "#C4B5FD", effect: "rotate" },
-  { id: "bg-18", name: "ذهب أبيض",       colors: ["#F8FAFC", "#E5E7EB", "#FBBF24"],             highlight: "#FFFFFF", effect: "shimmer" },
+  { id: "bg-18", name: "ليلة قهوة",      colors: ["#3E2723", "#1B0E0A", "#0A0606"],             highlight: "#C69963", effect: "shimmer" },
   { id: "bg-19", name: "ليل عميق",       colors: ["#1E3A8A", "#0F172A", "#000000"],             highlight: "#60A5FA", effect: "pulse" },
   { id: "bg-20", name: "نار ملكية",      colors: ["#7F1D1D", "#EA580C", "#FACC15"],             highlight: "#FCD34D", effect: "shimmer" },
 ];
