@@ -30,7 +30,7 @@ import CoinMilestoneModal from "@/components/CoinMilestoneModal";
 import GiftFeedRain from "@/components/GiftFeedRain";
 import CoinGiftModal from "@/components/CoinGiftModal";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
-import { getNextCoinMilestone, COIN_PER_MILESTONE } from "@/data/coinMilestones";
+import { getNextCoinMilestone, COIN_PER_MILESTONE, isCoinMilestone } from "@/data/coinMilestones";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
 import { useCharacters } from "@/hooks/useCharacters";
@@ -439,6 +439,7 @@ export default function GameScreen() {
           const isCurrent    = lvl === level;
           const isDone       = lvl < level;
           const isFreeCoffee = lvl > 0 && lvl % 7 === 0;
+          const isCoinLvl    = isCoinMilestone(lvl);
           const sz           = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER;
           const osZ          = outerSz(sz);
           const xOff         = POSITIONS[lvl % 3];
@@ -524,13 +525,25 @@ export default function GameScreen() {
                   styles.diamond,
                   {
                     width: sz, height: sz,
-                    borderColor: PRIMARY,
-                    borderWidth: isCurrent ? 2.5 : 1.5,
-                    shadowColor: PRIMARY,
-                    shadowOpacity: isCurrent ? 0.95 : isDone ? 0.35 : 0.55,
-                    shadowRadius:  isCurrent ? 22 : isDone ? 6 : 12,
+                    borderColor: isCoinLvl ? "#FFD66B" : PRIMARY,
+                    borderWidth: isCurrent ? 2.5 : isCoinLvl ? 2 : 1.5,
+                    shadowColor: isCoinLvl ? "#FFD66B" : PRIMARY,
+                    shadowOpacity: isCurrent ? 0.95 : isCoinLvl ? 0.85 : isDone ? 0.35 : 0.55,
+                    shadowRadius:  isCurrent ? 22 : isCoinLvl ? 16 : isDone ? 6 : 12,
                   }
                 ]}>
+                  {/* Coin milestone overlay — sits on the diamond tile for
+                      levels 50, 100, 150 ... so users see the bonus reward
+                      right where they're aiming on the main game board. */}
+                  {isCoinLvl && (
+                    <>
+                      <View style={[styles.coinTileBadge, { top: -10, right: -10 }]}>
+                        <Image source={COPOINTO_COIN} style={styles.coinTileBadgeImg} />
+                        <Text style={styles.coinTileBadgeText}>+{COIN_PER_MILESTONE}</Text>
+                      </View>
+                      <View style={[styles.coinTileGlowRing, { width: sz + 12, height: sz + 12 }]} pointerEvents="none" />
+                    </>
+                  )}
                   <View style={styles.diamondInner}>
                     {isCurrent ? (
                       <>
@@ -553,6 +566,18 @@ export default function GameScreen() {
               {isFreeCoffee && !isDone && !isCurrent && (
                 <View style={[styles.freeHint, { transform: [{ translateX: xOff > 0 ? -30 : xOff < 0 ? 30 : 0 }] }]}>
                   <Text style={styles.freeHintText}>{"▲ ☕ اصل لهذا المستوى للحصول على مشروب مجاني"}</Text>
+                </View>
+              )}
+
+              {/* ── Coin milestone hint label (every 50 levels) ── */}
+              {isCoinLvl && !isCurrent && (
+                <View style={[styles.coinHint, { transform: [{ translateX: xOff > 0 ? -30 : xOff < 0 ? 30 : 0 }] }]}>
+                  <Image source={COPOINTO_COIN} style={styles.coinHintImg} />
+                  <Text style={styles.coinHintText}>
+                    {isDone
+                      ? `ربحت ${COIN_PER_MILESTONE} عملة من هذا المستوى`
+                      : `اصل لهذا المستوى واربح ${COIN_PER_MILESTONE} عملة`}
+                  </Text>
                 </View>
               )}
             </View>
@@ -1050,6 +1075,39 @@ const styles = StyleSheet.create({
   freeHintText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: PRIMARY, textAlign: "center",
+  },
+  coinTileBadge: {
+    position: "absolute",
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "#FFD66B",
+    borderWidth: 1.5, borderColor: "#000",
+    borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2,
+    shadowColor: "#FFD66B", shadowOpacity: 0.9, shadowRadius: 8, elevation: 6,
+    zIndex: 5,
+  },
+  coinTileBadgeImg: { width: 14, height: 14, resizeMode: "contain" },
+  coinTileBadgeText: {
+    fontSize: 10, fontFamily: "Inter_700Bold", color: "#000",
+  },
+  coinTileGlowRing: {
+    position: "absolute",
+    borderRadius: 4,
+    borderWidth: 1, borderColor: "rgba(255,214,107,0.55)",
+    transform: [{ rotate: "45deg" }],
+  },
+  coinHint: {
+    marginTop: 5, marginBottom: 4,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "rgba(255,214,107,0.10)",
+    borderWidth: 1, borderColor: "rgba(255,214,107,0.45)",
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7,
+    maxWidth: 250,
+  },
+  coinHintImg: { width: 18, height: 18, resizeMode: "contain" },
+  coinHintText: {
+    flexShrink: 1,
+    fontSize: 11, fontFamily: "Inter_700Bold",
+    color: "#FFD66B", textAlign: "center",
   },
   blockedScroll: {
     paddingHorizontal: 24, paddingTop: 24, paddingBottom: 80,
