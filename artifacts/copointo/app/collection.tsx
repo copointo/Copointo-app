@@ -17,6 +17,8 @@ import { useFrames } from "../hooks/useFrames";
 import { useBackgrounds } from "../hooks/useBackgrounds";
 import UsernameBackground from "../components/UsernameBackground";
 
+const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
+
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
 const BORDER  = "rgba(232,184,109,0.25)";
@@ -275,6 +277,7 @@ export default function CollectionScreen() {
           {BACKGROUNDS.map((bg, idx) => {
             const isOwned = ownedBackgrounds.includes(bg.id);
             const isEquipped = equippedBackground === bg.id;
+            const price = idx < 10 ? 350 : idx < 15 ? 1000 : 2500;
             return (
               <FadeInItem key={bg.id} index={idx} style={styles.tileWrap}>
                 <TouchableOpacity
@@ -307,6 +310,10 @@ export default function CollectionScreen() {
                   <Text style={[styles.tileName, !isOwned && { color: "rgba(255,255,255,0.45)" }]}>
                     {bg.name}
                   </Text>
+                  <View style={styles.bgPriceChip}>
+                    <Image source={COPOINTO_COIN} style={styles.bgPriceCoin} />
+                    <Text style={styles.bgPriceText}>{price}</Text>
+                  </View>
                   {isEquipped ? (
                     <View style={styles.equippedChip}>
                       <Feather name="check" size={10} color="#000" />
@@ -449,6 +456,14 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bgMiniAvatarImg: { width: 28, height: 28, borderRadius: 14 },
+  bgPriceChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  bgPriceCoin: { width: 12, height: 12, resizeMode: "contain" },
+  bgPriceText: { fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
   previewRankText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
 
   equippedChip: {
