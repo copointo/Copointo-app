@@ -36,7 +36,7 @@ export default function CollectionScreen() {
     { id: "frames",     label: "الإطارات",       icon: "circle", iconLib: "mci", mciIcon: "image-frame" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
     { id: "background", label: "خلفية المستخدم", icon: "image", iconLib: "mci", mciIcon: "card-account-details-outline" },
-    { id: "username",   label: "ثيم اسم المستخدم", icon: "user"  },
+    { id: "username",   label: "لون اسم المستخدم", icon: "user"  },
     { id: "text",       label: "نص ملون",          icon: "type"  },
   ];
   const [tab, setTab] = useState<ShopCat>("characters");
