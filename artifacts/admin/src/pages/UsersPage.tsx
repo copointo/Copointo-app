@@ -13,8 +13,11 @@ export default function UsersPage() {
   const [query,   setQuery]   = useState("");
 
   // ─── Live polling ──────────────────────────────────────────────────────
-  // Re-fetch the user list every 5 s so accounts created from the mobile
-  // app appear in the super-admin without requiring a page refresh.
+  // Re-fetch the user list every 2 s so accounts created or logged-in from
+  // the mobile app appear in the super-admin almost instantly without
+  // requiring a page refresh. We also re-fetch immediately whenever the tab
+  // becomes visible again so a manager who switches back to this tab always
+  // sees the latest roster without waiting for the next poll tick.
   useEffect(() => {
     let cancelled = false;
     const load = () => {
@@ -24,8 +27,16 @@ export default function UsersPage() {
         .finally(() => { if (!cancelled) setLoading(false); });
     };
     load();
-    const t = setInterval(load, 5000);
-    return () => { cancelled = true; clearInterval(t); };
+    const t = setInterval(load, 2000);
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", load);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", load);
+    };
   }, []);
 
   const toggleBan = async (id: string) => {
