@@ -17,6 +17,9 @@ import { useBadges } from "../hooks/useBadges";
 import { useFrames } from "../hooks/useFrames";
 import { useBackgrounds } from "../hooks/useBackgrounds";
 import UsernameBackground from "../components/UsernameBackground";
+import UsernameText from "../components/UsernameText";
+import { USERNAME_COLORS } from "../data/usernameColors";
+import { useUsernameColors } from "../hooks/useUsernameColors";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -32,6 +35,7 @@ export default function CollectionScreen() {
   const { owned: ownedFrames, equipped: equippedFrame, equipFrame } = useFrames();
   const { owned: ownedBadges, equipped: equippedBadge, equipBadge } = useBadges();
   const { owned: ownedBackgrounds, equipped: equippedBackground, equipBackground } = useBackgrounds();
+  const { owned: ownedUsernameColors, equipped: equippedUsernameColor, equipUsernameColor } = useUsernameColors();
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
@@ -314,9 +318,11 @@ export default function CollectionScreen() {
                         />
                       </AvatarWithFrame>
                       <View style={styles.bgCardLbInfo}>
-                        <Text style={styles.bgCardLbName} numberOfLines={1}>
-                          @{username}
-                        </Text>
+                        <UsernameText
+                          text={`@${username}`}
+                          style={styles.bgCardLbName}
+                          numberOfLines={1}
+                        />
                         <Text style={styles.bgCardLbLevel} numberOfLines={1}>
                           Lv {lvl} · {rk.icon}
                         </Text>
@@ -351,7 +357,78 @@ export default function CollectionScreen() {
         </View>
         </>)}
 
-        {tab !== "frames" && tab !== "badges" && tab !== "background" && (
+        {tab === "username" && (<>
+          <View style={styles.sectionRow}>
+            <View>
+              <Text style={styles.sectionTitle}>لون اسم المستخدم</Text>
+              <Text style={styles.sectionHint}>يظهر على اسمك في صفحة التصنيف</Text>
+            </View>
+            {equippedUsernameColor && (
+              <TouchableOpacity
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); equipUsernameColor(null); }}
+                style={styles.removeBtn}
+              >
+                <Feather name="x" size={12} color={PRIMARY} />
+                <Text style={styles.removeBtnText}>إزالة</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {ownedUsernameColors.length === 0 && (
+            <FadeInItem style={styles.emptyHint}>
+              <Feather name="shopping-bag" size={26} color={PRIMARY} />
+              <Text style={styles.emptyHintTitle}>لا توجد ألوان بعد</Text>
+              <Text style={styles.emptyHintSub}>اشتر ألوان للاسم من المتجر لتظهر هنا</Text>
+            </FadeInItem>
+          )}
+
+          <View style={styles.grid} key="username-colors-grid">
+            {USERNAME_COLORS.filter(uc => ownedUsernameColors.includes(uc.id)).map((uc, idx) => {
+              const isEquipped = equippedUsernameColor === uc.id;
+              return (
+                <FadeInItem key={uc.id} index={idx} style={styles.tileWrap}>
+                  <TouchableOpacity
+                    style={[styles.tile, isEquipped && styles.tileEquipped]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      equipUsernameColor(isEquipped ? null : uc.id);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={{
+                      alignSelf: "stretch",
+                      paddingVertical: 22, paddingHorizontal: 8,
+                      backgroundColor: "rgba(0,0,0,0.55)",
+                      borderRadius: 12,
+                      borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+                      alignItems: "center", justifyContent: "center",
+                    }}>
+                      <UsernameText
+                        text={`@${username}`}
+                        style={{ fontSize: 18, fontFamily: "Inter_700Bold" }}
+                        override={uc}
+                        numberOfLines={1}
+                      />
+                    </View>
+                    <Text style={styles.tileName}>{uc.name}</Text>
+                    {isEquipped ? (
+                      <View style={styles.equippedChip}>
+                        <Feather name="check" size={10} color="#000" />
+                        <Text style={styles.equippedChipText}>مُجهَّز</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.ownedChip}>
+                        <Text style={styles.ownedChipText}>اضغط للتجهيز</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </FadeInItem>
+              );
+            })}
+          </View>
+        </>)}
+
+        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && (
           <FadeInItem key={tab} style={styles.comingSoon}>
             <Feather name="clock" size={28} color={PRIMARY} />
             <Text style={styles.comingSoonTitle}>قريباً</Text>

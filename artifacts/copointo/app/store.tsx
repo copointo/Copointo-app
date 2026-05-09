@@ -13,7 +13,10 @@ import { useBackgrounds } from "../hooks/useBackgrounds";
 import { FRAMES, FrameDef } from "../data/frames";
 import { useFrames } from "../hooks/useFrames";
 import UsernameBackground from "../components/UsernameBackground";
+import UsernameText from "../components/UsernameText";
 import AvatarWithFrame from "../components/AvatarWithFrame";
+import { USERNAME_COLORS, UsernameColorDef, USERNAME_COLOR_PRICE } from "../data/usernameColors";
+import { useUsernameColors } from "../hooks/useUsernameColors";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
@@ -171,6 +174,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedBadges, grantBadge, equipBadge } = useBadges();
   const { owned: ownedBackgrounds, grantBackground, equipBackground } = useBackgrounds();
   const { owned: ownedFrames, grantFrame, equipFrame } = useFrames();
+  const { owned: ownedUsernameColors, grantUsernameColor, equipUsernameColor } = useUsernameColors();
   const { balance, addCoins } = useCoins();
   const { user } = useApp();
   const avatarUri = user?.avatar ?? null;
@@ -179,6 +183,8 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const [previewBg, setPreviewBg] = useState<{ bg: BackgroundDef; price: number } | null>(null);
   const [previewFrame, setPreviewFrame] = useState<{ frame: FrameDef; price: number } | null>(null);
   const [previewBadge, setPreviewBadge] = useState<{ badge: BadgeDef; price: number } | null>(null);
+  const [previewUC, setPreviewUC] = useState<{ uc: UsernameColorDef; price: number } | null>(null);
+  const previewUCOwned = previewUC ? ownedUsernameColors.includes(previewUC.uc.id) : false;
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
   const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
@@ -214,9 +220,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                             />
                           </AvatarWithFrame>
                           <View style={styles.bgCardLbInfo}>
-                            <Text style={styles.bgCardLbName} numberOfLines={1}>
-                              @{username}
-                            </Text>
+                            <UsernameText
+                              text={`@${username}`}
+                              style={styles.bgCardLbName}
+                              numberOfLines={1}
+                            />
                             <Text style={styles.bgCardLbLevel} numberOfLines={1}>
                               Lv {lvl} · {rk.icon}
                             </Text>
@@ -268,9 +276,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                   <AvatarWithFrame size={84} scale={1.55} frameId={undefined}>
                     <Image source={avatarSource} style={styles.previewAvatarImg} />
                   </AvatarWithFrame>
-                  <Text style={styles.previewName} numberOfLines={1}>
-                    @{username} <Text style={{ color: "#E8B86D" }}>(أنت)</Text>
-                  </Text>
+                  <UsernameText
+                    text={`@${username}`}
+                    style={styles.previewName}
+                    numberOfLines={1}
+                  />
                   <Text style={styles.previewLevel} numberOfLines={1}>
                     Level {lvl} · {rk.nameEn} {rk.icon}
                   </Text>
@@ -414,6 +424,71 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
               <Image source={previewBadge.badge.source} style={{ width: 140, height: 140, resizeMode: "contain" }} />
             )}
           </View>
+        </PurchaseModal>
+      </>
+    );
+  }
+
+  if (cat === "username") {
+    return (
+      <>
+        <View style={styles.bgGrid} key="username-colors">
+          {USERNAME_COLORS.map((uc, i) => {
+            const owned = ownedUsernameColors.includes(uc.id);
+            const price = USERNAME_COLOR_PRICE(i);
+            return (
+              <FadeInItem key={uc.id} index={i} style={{ width: "48%" }}>
+                <TouchableOpacity
+                  style={styles.bgCard}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setPreviewUC({ uc, price });
+                  }}
+                >
+                  <View style={styles.ucCardPreviewWrap}>
+                    <UsernameText
+                      text={`@${username}`}
+                      style={styles.ucCardPreviewText}
+                      override={uc}
+                      numberOfLines={1}
+                    />
+                  </View>
+                  <Text style={styles.bgName} numberOfLines={1}>{uc.name}</Text>
+                  <PriceTag price={price} owned={owned} />
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+
+        <PurchaseModal
+          visible={!!previewUC}
+          onClose={() => setPreviewUC(null)}
+          title={previewUC?.uc.name ?? ""}
+          subtitle="معاينة لون اسمك في التصنيف"
+          price={previewUC?.price ?? 0}
+          owned={previewUCOwned}
+          balance={balance}
+          ownedLabel="تجهيز هذا اللون"
+          onEquip={() => previewUC && equipUsernameColor(previewUC.uc.id)}
+          onBuy={async () => {
+            if (!previewUC) return;
+            await addCoins(-previewUC.price);
+            await grantUsernameColor(previewUC.uc.id);
+            await equipUsernameColor(previewUC.uc.id);
+          }}
+        >
+          {previewUC && (
+            <View style={styles.ucModalPreview}>
+              <UsernameText
+                text={`@${username}`}
+                style={styles.ucModalPreviewText}
+                override={previewUC.uc}
+                numberOfLines={1}
+              />
+            </View>
+          )}
         </PurchaseModal>
       </>
     );
@@ -670,6 +745,25 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.50)",
   },
   bgCardLbCoffeeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
+  ucCardPreviewWrap: {
+    alignSelf: "stretch",
+    paddingVertical: 18,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+  },
+  ucCardPreviewText: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  ucModalPreview: {
+    marginTop: 14,
+    paddingVertical: 28, paddingHorizontal: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 18,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
+    alignItems: "center", justifyContent: "center",
+  },
+  ucModalPreviewText: { fontSize: 28, fontFamily: "Inter_700Bold" },
   bgTallInner: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   bgTallAvatar: {
     width: 48, height: 48, borderRadius: 24,

@@ -21,6 +21,7 @@ import { getRank } from "@/data/mockData";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
 import UsernameBackground from "@/components/UsernameBackground";
+import UsernameText from "@/components/UsernameText";
 import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 
 type LeaderTab = "friends" | "oman" | "communities";
@@ -273,9 +274,18 @@ export default function LeaderboardScreen() {
 
               <View style={styles.entryInfo}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}>
-                    {entry.name}{entry.isMe ? t("lb.youSuffix") : ""}
-                  </Text>
+                  {entry.isMe ? (
+                    <UsernameText
+                      text={`${entry.name}${t("lb.youSuffix")}`}
+                      style={[styles.entryName, { color: "#E8B86D" }]}
+                      fallbackColor="#E8B86D"
+                      numberOfLines={1}
+                    />
+                  ) : (
+                    <Text style={styles.entryName}>
+                      {entry.name}
+                    </Text>
+                  )}
                   {entry.isMe && <UserBadge size={18} />}
                 </View>
                 <Text style={styles.entryLevel}>
