@@ -20,7 +20,7 @@ export interface CharacterDef {
 export const CHARACTERS: CharacterDef[] = [
   // ── 1-10 normal companions ────────────────────────────────────────
   { id: "char-1",  name: "قطة",       emoji: "🐱" },
-  { id: "char-2",  name: "كلب",       emoji: "🐶" },
+  { id: "char-2",  name: "أسد",       emoji: "🦁" },
   { id: "char-3",  name: "أرنب",      emoji: "🐰" },
   { id: "char-4",  name: "ثعلب",      emoji: "🦊" },
   { id: "char-5",  name: "باندا",     emoji: "🐼" },
