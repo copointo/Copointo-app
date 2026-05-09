@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
   loginBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
 
   // ── Avatar (double glowing ring) ──
-  avatarSection: { alignItems: "center", gap: 10, marginTop: 12 },
+  avatarSection: { alignItems: "center", gap: 10, marginTop: 44 },
   avatarOuterRing: {
     width: 122, height: 122, borderRadius: 61,
     borderWidth: 2, borderColor: PRIMARY,
