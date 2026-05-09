@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, claimGameUsername } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useResponsive } from "@/hooks/useResponsive";
+import { useReceivedGifts } from "@/hooks/useReceivedGifts";
 import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
@@ -273,6 +274,7 @@ export default function ProfileScreen() {
   const nextRank = getRank(Math.min(level + 1, 1000));
   const pct   = rank ? ((level - rank.min) / Math.max(rank.max - rank.min, 1)) * 100 : 0;
   const freeCoffees = Math.floor((user.totalOrders ?? 0) / 7);
+  const giftsReceived = useReceivedGifts(user.id);
 
   // Friends count + ranks (show "—" for brand-new users with no activity)
   const friendsCount = friends.length;
@@ -401,13 +403,18 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>{t("profile.statLevel")}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard]}>
-              <Text style={styles.statIcon}>🎁</Text>
+              <Text style={styles.statIcon}>☕</Text>
               <Text style={styles.statValue}>{freeCoffees}</Text>
               <Text style={styles.statLabel}>{t("profile.statFreeCoffees")}</Text>
             </View>
           </View>
           {/* Row 2 */}
           <View style={styles.statsRow}>
+            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
+              <Text style={styles.statIcon}>🎁</Text>
+              <Text style={[styles.statValue, { color: "#FF6B9D" }]}>{giftsReceived}</Text>
+              <Text style={styles.statLabel}>{t("profile.statGiftsReceived")}</Text>
+            </View>
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
               <Text style={styles.statIcon}>👫</Text>
               <Text style={styles.statValue}>{friendsRankStr}</Text>

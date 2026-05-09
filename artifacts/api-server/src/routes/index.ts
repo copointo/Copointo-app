@@ -760,6 +760,24 @@ router.get("/gift-feed", (req, res): any => {
 });
 
 /**
+ * Total number of gifts a user has received (sum of giftQty across every
+ * friend gift message where they are the recipient). Lightweight enough
+ * to compute on every call from in-memory `chatMessages`.
+ */
+router.get("/users/:id/received-gifts", (req, res): any => {
+  const userId = String(req.params.id ?? "").trim();
+  if (!userId) return res.status(400).json({ error: "id required" });
+  let total = 0;
+  for (const m of chatMessages) {
+    if (!m.giftId || m.kind !== "friend") continue;
+    const [a, b] = m.scope.split("|");
+    const recipientId = m.senderId === a ? (b ?? a) : a;
+    if (recipientId === userId) total += (m.giftQty ?? 1);
+  }
+  res.json({ userId, total });
+});
+
+/**
  * Pull all messages visible to a user (both sides of every friend chat
  * the user is in, plus every group the user names in `groupIds`). Returns
  * a flat list sorted oldest → newest. The client merges by id and updates

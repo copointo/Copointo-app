@@ -19,6 +19,7 @@ import GiftPicker from "@/components/GiftPicker";
 import GiftAnimation from "@/components/GiftAnimation";
 import { GiftDef } from "@/data/gifts";
 import { useGiftInventory } from "@/hooks/useGiftInventory";
+import { useReceivedGifts } from "@/hooks/useReceivedGifts";
 import { useState } from "react";
 
 const BG = "#000000";
@@ -54,6 +55,7 @@ export default function CompetitorProfileScreen() {
   const isPending   = !!(target && outgoingRequests.includes(target.id));
   const hasIncoming = !!(target && incomingRequests.includes(target.id));
   const isMe        = !!(target && currentUser?.id === target.id);
+  const giftsReceived = useReceivedGifts(target?.id ?? null);
   const rank        = target ? getRank(target.level) : null;
 
   // ─── Gifts ────────────────────────────────────────────────────────
@@ -167,6 +169,11 @@ export default function CompetitorProfileScreen() {
             <View style={styles.statBox}>
               <Text style={[styles.statValue, { color: "#4FC3F7" }]}>{target.totalOrders ?? 0}</Text>
               <Text style={styles.statLabel}>إجمالي القهوة</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: "#FF6B9D" }]}>{giftsReceived}</Text>
+              <Text style={styles.statLabel}>🎁 هدايا</Text>
             </View>
           </View>
 
