@@ -23,7 +23,7 @@ interface Props {
  */
 export default function Character({ def, size = 36 }: Props) {
   const effSize = Math.round(size * (def.scale ?? 1));
-  const wrapSize = Math.round(effSize * 1.8);
+  const wrapSize = Math.round(size * 1.8);
 
   return (
     <View
