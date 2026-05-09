@@ -48,9 +48,12 @@ export async function resetAccount(userId: string): Promise<void> {
     "copointo_gift_inventory_v1",
     "copointo_level_rewards_acked_v1",
     "copointo_coins_balance_v1",
-    "copointo_coins_grant_190k_v1",
   ];
   await AsyncStorage.multiRemove(keysToClear);
+  // Mark the 90k welcome bonus as already granted so the reset doesn't
+  // accidentally re-credit 90,000 coins on the next app reload (when the
+  // hook's _cache is null and the hydration effect runs again).
+  await AsyncStorage.setItem("copointo_coins_grant_190k_v1", "1");
 
   // ── Re-seed the free starter gift pack so the user still has 5 of
   //    every gift after the reset (matches new-user behaviour). ────────
