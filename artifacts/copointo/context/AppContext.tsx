@@ -238,6 +238,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  useEffect(() => { currentUserIdRef.current = user?.id ?? null; }, [user?.id]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
   const [friends, setFriends] = useState<string[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<string[]>([]);
@@ -320,12 +322,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    */
   const refreshAllUsers = useCallback(async () => {
     const remote = await fetchPublicUsers();
-    if (remote.length === 0) return;
     setRegisteredUsers(prev => {
+      // The server is the AUTHORITATIVE source of truth for who exists. We
+      // start from an empty map so any user that has been removed server-side
+      // (e.g. a super-admin wipe) disappears from this device's leaderboard
+      // and friend lists too. The currently signed-in user is always kept
+      // even before they show up in the server roster (network race / brand-
+      // new account) so the local profile UI never blanks out.
       const byId = new Map<string, User>();
-      for (const u of prev) byId.set(u.id, u);
+      const me = prev.find(u => u.id === currentUserIdRef.current);
+      if (me) byId.set(me.id, me);
       for (const r of remote) {
-        const local = byId.get(r.id);
+        const local = prev.find(u => u.id === r.id);
         if (local) {
           // Keep local rich data; only bump level / totalOrders if server has
           // more. Server is AUTHORITATIVE for equipped cosmetics so a deliberate
