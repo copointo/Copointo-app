@@ -491,10 +491,10 @@ export default function GameScreen() {
                 {isCurrent && equippedCharacter && (
                   <View pointerEvents="none" style={{
                     position: "absolute",
-                    top: -Math.round(sz * 0.55),
+                    top: -Math.round(sz * 0.85),
                     alignItems: "center", justifyContent: "center",
                   }}>
-                    <Character def={equippedCharacter} size={Math.round(sz * 0.40)} />
+                    <Character def={equippedCharacter} size={Math.round(sz * 0.70)} />
                   </View>
                 )}
 
