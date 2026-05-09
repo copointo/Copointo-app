@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   Modal,
   Pressable,
@@ -10,7 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { GIFTS, GiftDef, GiftTier } from "../data/gifts";
+import { GIFTS, GiftDef } from "../data/gifts";
+import { useGiftInventory } from "../hooks/useGiftInventory";
 
 const PRIMARY = "#E8B86D";
 const BG      = "#0A0606";
@@ -18,33 +19,20 @@ const BORDER  = "rgba(232,184,109,0.30)";
 
 interface Props {
   visible: boolean;
-  /** Coin balance — used to disable unaffordable gifts. */
-  balance: number;
   /** Recipient display name shown in the header. */
   toName?: string;
   onClose: () => void;
-  /** Called when user taps "Send" on a gift they can afford. */
+  /** Called when user taps "Send". Should consume from inventory. */
   onSend: (gift: GiftDef) => void;
 }
 
-const TIER_LABELS: Record<GiftTier, string> = {
-  1: "هدايا عادية",
-  2: "هدايا عادية",
-  3: "هدايا عادية",
-};
-
 /**
- * Modal sheet for picking a gift to send to another user. Groups gifts by tier,
- * shows price and disables anything above the user's coin balance.
+ * Sheet for picking which owned gift to send. Uses the user's gift inventory:
+ * gifts with count 0 are dimmed and disabled, with a hint to buy from the store.
  */
-export default function GiftPicker({ visible, balance, toName, onClose, onSend }: Props) {
+export default function GiftPicker({ visible, toName, onClose, onSend }: Props) {
+  const { countOf } = useGiftInventory();
   const [selected, setSelected] = useState<GiftDef | null>(null);
-
-  const groups = useMemo(() => {
-    const by: Record<GiftTier, GiftDef[]> = { 1: [], 2: [], 3: [] };
-    GIFTS.forEach(g => by[g.tier].push(g));
-    return by;
-  }, []);
 
   const handleClose = () => {
     setSelected(null);
@@ -53,12 +41,14 @@ export default function GiftPicker({ visible, balance, toName, onClose, onSend }
 
   const handleSendTap = () => {
     if (!selected) return;
-    if (balance < selected.price) return;
+    if (countOf(selected.id) <= 0) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const g = selected;
     setSelected(null);
     onSend(g);
   };
+
+  const totalOwned = GIFTS.reduce((sum, g) => sum + countOf(g.id), 0);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
@@ -70,8 +60,8 @@ export default function GiftPicker({ visible, balance, toName, onClose, onSend }
               {toName ? <Text style={styles.subtitle}>إلى {toName}</Text> : null}
             </View>
             <View style={styles.balancePill}>
-              <Text style={styles.balanceCoin}>🪙</Text>
-              <Text style={styles.balanceText}>{balance.toLocaleString("en-US")}</Text>
+              <Feather name="gift" size={13} color={PRIMARY} />
+              <Text style={styles.balanceText}>{totalOwned}</Text>
             </View>
             <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
               <Feather name="x" size={20} color="#FFF" />
@@ -79,59 +69,56 @@ export default function GiftPicker({ visible, balance, toName, onClose, onSend }
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-            {([1, 2, 3] as GiftTier[]).map(tier => (
-              <View key={tier} style={{ marginBottom: 14 }}>
-                <Text style={styles.tierLabel}>{TIER_LABELS[tier]}</Text>
-                <View style={styles.grid}>
-                  {groups[tier].map(g => {
-                    const affordable = balance >= g.price;
-                    const isSel = selected?.id === g.id;
-                    return (
-                      <TouchableOpacity
-                        key={g.id}
-                        activeOpacity={0.85}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setSelected(g);
-                        }}
-                        style={[
-                          styles.card,
-                          isSel && { borderColor: g.color, backgroundColor: `${g.color}22` },
-                          !affordable && { opacity: 0.45 },
-                        ]}
-                      >
-                        <Text style={styles.cardEmoji}>{g.emoji}</Text>
-                        <Text style={styles.cardName} numberOfLines={1}>{g.name}</Text>
-                        <View style={styles.priceRow}>
-                          <Text style={styles.priceCoin}>🪙</Text>
-                          <Text style={[styles.priceText, !affordable && { color: "#EF4444" }]}>
-                            {g.price.toLocaleString("en-US")}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+            <Text style={styles.tierLabel}>هدايا عادية</Text>
+            <View style={styles.grid}>
+              {GIFTS.map(g => {
+                const have = countOf(g.id);
+                const has = have > 0;
+                const isSel = selected?.id === g.id;
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    activeOpacity={0.85}
+                    disabled={!has}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setSelected(g);
+                    }}
+                    style={[
+                      styles.card,
+                      isSel && { borderColor: g.color, backgroundColor: `${g.color}22` },
+                      !has && { opacity: 0.35 },
+                    ]}
+                  >
+                    <Text style={styles.cardEmoji}>{g.emoji}</Text>
+                    <Text style={styles.cardName} numberOfLines={1}>{g.name}</Text>
+                    <View style={[styles.countChip, has ? null : { backgroundColor: "rgba(255,255,255,0.06)" }]}>
+                      <Text style={[styles.countText, !has && { color: "rgba(255,255,255,0.55)" }]}>
+                        ×{have}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {totalOwned === 0 && (
+              <View style={styles.emptyHint}>
+                <Feather name="shopping-bag" size={22} color={PRIMARY} />
+                <Text style={styles.emptyHintText}>لا تملك أي هدية بعد — اشترِ من المتجر</Text>
               </View>
-            ))}
+            )}
           </ScrollView>
 
           <TouchableOpacity
-            style={[
-              styles.sendBtn,
-              (!selected || balance < (selected?.price ?? 0)) && styles.sendBtnDisabled,
-            ]}
+            style={[styles.sendBtn, (!selected || countOf(selected?.id ?? "") <= 0) && styles.sendBtnDisabled]}
             onPress={handleSendTap}
-            disabled={!selected || balance < (selected?.price ?? 0)}
+            disabled={!selected || countOf(selected?.id ?? "") <= 0}
             activeOpacity={0.85}
           >
             <Feather name="send" size={16} color="#000" />
             <Text style={styles.sendBtnText}>
-              {selected
-                ? balance < selected.price
-                  ? "رصيد غير كافٍ"
-                  : `إرسال — ${selected.price.toLocaleString("en-US")} 🪙`
-                : "اختر هدية"}
+              {selected ? `إرسال ${selected.emoji} ${selected.name}` : "اختر هدية"}
             </Text>
           </TouchableOpacity>
         </Pressable>
@@ -156,7 +143,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(232,184,109,0.14)", borderColor: BORDER, borderWidth: 1,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
   },
-  balanceCoin: { fontSize: 14 },
   balanceText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
   closeBtn: {
     width: 36, height: 36, borderRadius: 12,
@@ -178,9 +164,20 @@ const styles = StyleSheet.create({
   },
   cardEmoji: { fontSize: 28 },
   cardName: { fontSize: 10, fontFamily: "Inter_500Medium", color: "#F5E6CC", textAlign: "center", paddingHorizontal: 4 },
-  priceRow: { flexDirection: "row", alignItems: "center", gap: 3 },
-  priceCoin: { fontSize: 10 },
-  priceText: { fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY },
+  countChip: {
+    backgroundColor: "rgba(232,184,109,0.18)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.40)",
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
+  },
+  countText: { fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY },
+  emptyHint: {
+    alignItems: "center", gap: 8,
+    paddingVertical: 22, paddingHorizontal: 16,
+    borderRadius: 14, marginTop: 8,
+    backgroundColor: "rgba(232,184,109,0.06)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  emptyHintText: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.75)" },
   sendBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 14, marginTop: 8,

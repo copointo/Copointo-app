@@ -18,7 +18,7 @@ import { getRank, ChatMessage } from "@/data/mockData";
 import GiftPicker from "@/components/GiftPicker";
 import GiftAnimation from "@/components/GiftAnimation";
 import { GiftDef } from "@/data/gifts";
-import { useCoins } from "@/hooks/useCoins";
+import { useGiftInventory } from "@/hooks/useGiftInventory";
 import { useState } from "react";
 
 const BG = "#000000";
@@ -57,15 +57,15 @@ export default function CompetitorProfileScreen() {
   const rank        = target ? getRank(target.level) : null;
 
   // ─── Gifts ────────────────────────────────────────────────────────
-  const { balance, addCoins } = useCoins();
+  const { consumeGift } = useGiftInventory();
   const { appendMsg } = useMessages();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [animGift, setAnimGift]     = useState<GiftDef | null>(null);
 
-  const sendGift = (gift: GiftDef) => {
+  const sendGift = async (gift: GiftDef) => {
     if (!target) return;
-    if (balance < gift.price) return;
-    addCoins(-gift.price);
+    const ok = await consumeGift(gift.id, 1);
+    if (!ok) return;
     setPickerOpen(false);
     const convId = `friend_${target.id}`;
     const now = new Date();
@@ -245,7 +245,6 @@ export default function CompetitorProfileScreen() {
 
       <GiftPicker
         visible={pickerOpen}
-        balance={balance}
         toName={target.name}
         onClose={() => setPickerOpen(false)}
         onSend={sendGift}

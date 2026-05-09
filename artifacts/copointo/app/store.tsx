@@ -21,8 +21,9 @@ import { TEXT_STYLES, TextStyleDef, TEXT_STYLE_PRICE } from "../data/textStyles"
 import { useTextStyles } from "../hooks/useTextStyles";
 import MessageBubble from "../components/MessageBubble";
 import { CHARACTERS, CharacterDef, CHARACTER_PRICE } from "../data/characters";
-import { GIFTS, GiftDef, GiftTier } from "../data/gifts";
+import { GIFTS, GiftDef } from "../data/gifts";
 import GiftAnimation from "../components/GiftAnimation";
+import { useGiftInventory } from "../hooks/useGiftInventory";
 import { useCharacters } from "../hooks/useCharacters";
 import Character from "../components/Character";
 import FadeInItem from "../components/FadeInItem";
@@ -200,6 +201,10 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const [previewChar, setPreviewChar] = useState<{ ch: CharacterDef; price: number } | null>(null);
   const previewCharOwned = previewChar ? ownedCharacters.includes(previewChar.ch.id) : false;
   const [previewGift, setPreviewGift] = useState<GiftDef | null>(null);
+  const [buyGift, setBuyGift] = useState<GiftDef | null>(null);
+  const [buyQty, setBuyQty]   = useState<number>(1);
+  const [animGift, setAnimGift] = useState<GiftDef | null>(null);
+  const { inventory: giftInventory, addGift } = useGiftInventory();
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
   const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
@@ -638,58 +643,167 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   }
 
   if (cat === "gifts") {
-    const tierLabels: Record<GiftTier, string> = {
-      1: "هدايا عادية",
-      2: "هدايا عادية",
-      3: "هدايا عادية",
-    };
-    const tiers: GiftTier[] = [1, 2, 3];
+    const totalCost = buyGift ? buyGift.price * buyQty : 0;
+    const canAffordBuy = buyGift ? balance >= totalCost : false;
     return (
       <View key="gifts">
         <View style={[styles.comingSoon, { marginBottom: 16, paddingVertical: 14 }]}>
           <Feather name="gift" size={22} color={PRIMARY} />
-          <Text style={[styles.comingSoonTitle, { fontSize: 14 }]}>اضغط أي هدية لمعاينة الحركة</Text>
-          <Text style={styles.comingSoonSub}>الإرسال يتم من شات صديق أو ملف صديق</Text>
+          <Text style={[styles.comingSoonTitle, { fontSize: 14 }]}>اضغط الهدية للمعاينة والشراء</Text>
+          <Text style={styles.comingSoonSub}>تقدر تشتري نفس الهدية أكثر من مرة، وتظهر في أغراضي</Text>
         </View>
-        {tiers.map(tier => (
-          <View key={tier} style={{ marginBottom: 14 }}>
-            <Text style={{
-              fontSize: 13, fontFamily: "Inter_700Bold",
-              color: "rgba(232,184,109,0.85)",
-              textAlign: "right", marginBottom: 8, paddingHorizontal: 4,
-            }}>
-              {tierLabels[tier]}
-            </Text>
-            <View style={styles.bgGrid}>
-              {GIFTS.filter(g => g.tier === tier).map((g, i) => (
-                <FadeInItem key={g.id} index={i} style={{ width: "31%" }}>
-                  <TouchableOpacity
-                    style={[styles.bgCard, { paddingVertical: 12, alignItems: "center", gap: 4 }]}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setPreviewGift(g);
-                    }}
-                  >
-                    <Text style={{ fontSize: 36, lineHeight: 42 }}>{g.emoji}</Text>
-                    <Text style={styles.bgName} numberOfLines={1}>{g.name}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                      <Image source={COPOINTO_COIN} style={{ width: 12, height: 12 }} />
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: g.color }}>
-                        {g.price.toLocaleString("en-US")}
+        <View style={styles.bgGrid}>
+          {GIFTS.map((g, i) => {
+            const owned = giftInventory[g.id] ?? 0;
+            return (
+              <FadeInItem key={g.id} index={i} style={{ width: "31%" }}>
+                <TouchableOpacity
+                  style={[styles.bgCard, { paddingVertical: 12, alignItems: "center", gap: 4 }]}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setBuyQty(1);
+                    setBuyGift(g);
+                  }}
+                >
+                  {owned > 0 && (
+                    <View style={styles.giftOwnedBadge}>
+                      <Text style={styles.giftOwnedBadgeText}>×{owned}</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 36, lineHeight: 42 }}>{g.emoji}</Text>
+                  <Text style={styles.bgName} numberOfLines={1}>{g.name}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Image source={COPOINTO_COIN} style={{ width: 12, height: 12 }} />
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: g.color }}>
+                      {g.price.toLocaleString("en-US")}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </FadeInItem>
+            );
+          })}
+        </View>
+
+        {/* Animation preview overlay (after purchase) */}
+        <GiftAnimation
+          gift={animGift}
+          visible={!!animGift}
+          onDone={() => setAnimGift(null)}
+        />
+
+        {/* Purchase modal with quantity stepper */}
+        <Modal visible={!!buyGift} transparent animationType="fade" onRequestClose={() => setBuyGift(null)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setBuyGift(null)}>
+            <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+              {buyGift && (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>{buyGift.name}</Text>
+                    <TouchableOpacity onPress={() => setBuyGift(null)} style={styles.modalCloseBtn}>
+                      <Feather name="x" size={20} color="#FFF" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.modalSub}>
+                    تملك حالياً ×{giftInventory[buyGift.id] ?? 0} — اختر الكمية
+                  </Text>
+
+                  {/* Big preview */}
+                  <View style={{
+                    alignItems: "center", justifyContent: "center",
+                    paddingVertical: 18, marginVertical: 12,
+                    backgroundColor: `${buyGift.color}18`,
+                    borderRadius: 18,
+                    borderWidth: 1, borderColor: `${buyGift.color}55`,
+                  }}>
+                    <Text style={{ fontSize: 88, lineHeight: 100 }}>{buyGift.emoji}</Text>
+                    <TouchableOpacity
+                      onPress={() => { Haptics.selectionAsync(); setAnimGift(buyGift); }}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 6,
+                        marginTop: 6, paddingHorizontal: 14, paddingVertical: 6,
+                        backgroundColor: "rgba(0,0,0,0.30)", borderRadius: 14,
+                      }}
+                    >
+                      <Feather name="play" size={12} color="#FFF" />
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#FFF" }}>
+                        معاينة الحركة
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Quantity stepper */}
+                  <View style={{
+                    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    borderRadius: 14, paddingHorizontal: 8, paddingVertical: 8,
+                    borderWidth: 1, borderColor: BORDER,
+                  }}>
+                    <TouchableOpacity
+                      onPress={() => { Haptics.selectionAsync(); setBuyQty(q => Math.min(99, q + 1)); }}
+                      style={styles.qtyBtn}
+                    >
+                      <Feather name="plus" size={18} color={PRIMARY} />
+                    </TouchableOpacity>
+                    <View style={{ alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.6)" }}>
+                        الكمية
+                      </Text>
+                      <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFF" }}>
+                        {buyQty}
                       </Text>
                     </View>
+                    <TouchableOpacity
+                      onPress={() => { Haptics.selectionAsync(); setBuyQty(q => Math.max(1, q - 1)); }}
+                      style={styles.qtyBtn}
+                    >
+                      <Feather name="minus" size={18} color={PRIMARY} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Quick qty chips */}
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                    {[1, 5, 10, 25].map(n => (
+                      <TouchableOpacity
+                        key={n}
+                        onPress={() => { Haptics.selectionAsync(); setBuyQty(n); }}
+                        style={[
+                          styles.qtyChip,
+                          buyQty === n && { backgroundColor: PRIMARY, borderColor: PRIMARY },
+                        ]}
+                      >
+                        <Text style={[
+                          styles.qtyChipText,
+                          buyQty === n && { color: "#000" },
+                        ]}>×{n}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.modalBuyBtn, !canAffordBuy && { opacity: 0.5 }, { marginTop: 14 }]}
+                    activeOpacity={0.85}
+                    disabled={!canAffordBuy}
+                    onPress={async () => {
+                      if (!canAffordBuy || !buyGift) return;
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      addCoins(-totalCost);
+                      await addGift(buyGift.id, buyQty);
+                      setBuyGift(null);
+                    }}
+                  >
+                    <Image source={COPOINTO_COIN} style={{ width: 18, height: 18, resizeMode: "contain" }} />
+                    <Text style={styles.modalBuyText}>
+                      {canAffordBuy
+                        ? `شراء ×${buyQty} بـ ${totalCost.toLocaleString("en-US")} عملة`
+                        : `تحتاج ${totalCost.toLocaleString("en-US")} عملة`}
+                    </Text>
                   </TouchableOpacity>
-                </FadeInItem>
-              ))}
-            </View>
-          </View>
-        ))}
-        <GiftAnimation
-          gift={previewGift}
-          visible={!!previewGift}
-          onDone={() => setPreviewGift(null)}
-        />
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
     );
   }
@@ -830,6 +944,27 @@ const styles = StyleSheet.create({
   balanceText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   scroll: { padding: 20, gap: 14, paddingBottom: 60 },
+
+  giftOwnedBadge: {
+    position: "absolute", top: 6, left: 6, zIndex: 2,
+    backgroundColor: PRIMARY,
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
+    minWidth: 24, alignItems: "center",
+  },
+  giftOwnedBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+  qtyBtn: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", justifyContent: "center",
+  },
+  qtyChip: {
+    flex: 1, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: BORDER,
+    alignItems: "center",
+  },
+  qtyChipText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   row: { flexDirection: "row", gap: 12 },
   tile: {

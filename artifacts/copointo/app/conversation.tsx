@@ -25,7 +25,7 @@ import { getTextStyle } from "@/data/textStyles";
 import GiftPicker from "@/components/GiftPicker";
 import GiftAnimation from "@/components/GiftAnimation";
 import { getGift, GiftDef } from "@/data/gifts";
-import { useCoins } from "@/hooks/useCoins";
+import { useGiftInventory } from "@/hooks/useGiftInventory";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -82,7 +82,7 @@ export default function ConversationScreen() {
   const [text, setText] = useState("");
 
   // ─── Gifts ────────────────────────────────────────────────────────
-  const { balance, addCoins } = useCoins();
+  const { consumeGift } = useGiftInventory();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [animGift, setAnimGift]     = useState<GiftDef | null>(null);
   const [animFromName, setAnimFromName] = useState<string | undefined>(undefined);
@@ -105,10 +105,10 @@ export default function ConversationScreen() {
     }
   }, [convMsgs, name]);
 
-  const sendGift = (gift: GiftDef) => {
+  const sendGift = async (gift: GiftDef) => {
     if (!id) return;
-    if (balance < gift.price) return;
-    addCoins(-gift.price);
+    const ok = await consumeGift(gift.id, 1);
+    if (!ok) return;
     setPickerOpen(false);
     const giftMsg: ChatMessage = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -378,7 +378,6 @@ export default function ConversationScreen() {
 
       <GiftPicker
         visible={pickerOpen}
-        balance={balance}
         toName={typeof name === "string" ? name : undefined}
         onClose={() => setPickerOpen(false)}
         onSend={sendGift}

@@ -26,6 +26,9 @@ import MessageBubble from "../components/MessageBubble";
 import { CHARACTERS } from "../data/characters";
 import { useCharacters } from "../hooks/useCharacters";
 import Character from "../components/Character";
+import { GIFTS, GiftDef } from "../data/gifts";
+import GiftAnimation from "../components/GiftAnimation";
+import { useGiftInventory } from "../hooks/useGiftInventory";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -44,6 +47,8 @@ export default function CollectionScreen() {
   const { owned: ownedUsernameColors, equipped: equippedUsernameColor, equipUsernameColor } = useUsernameColors();
   const { owned: ownedTextStyles, equipped: equippedTextStyle, equipTextStyle } = useTextStyles();
   const { owned: ownedCharacters, equipped: equippedCharacter, equipCharacter } = useCharacters();
+  const { inventory: giftInventory } = useGiftInventory();
+  const [previewGift, setPreviewGift] = useState<GiftDef | null>(null);
   type ShopCat = "frames" | "badges" | "background" | "username" | "text" | "gifts" | "characters";
   const CATEGORIES: { id: ShopCat; label: string; icon: keyof typeof Feather.glyphMap; iconLib?: "feather" | "fa5" | "mci"; faIcon?: string; mciIcon?: string }[] = [
     { id: "characters", label: "الشخصيات",       icon: "smile", iconLib: "fa5", faIcon: "user-astronaut" },
@@ -578,7 +583,59 @@ export default function CollectionScreen() {
           </View>
         </>)}
 
-        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && tab !== "text" && tab !== "characters" && (
+        {tab === "gifts" && (<>
+        {/* ════════ GIFTS INVENTORY ════════ */}
+        <View style={styles.sectionRow}>
+          <View>
+            <Text style={styles.sectionTitle}>الهدايا</Text>
+            <Text style={styles.sectionHint}>اضغط أي هدية لمعاينة الحركة — الإرسال من شات صديق أو ملفه</Text>
+          </View>
+        </View>
+
+        {GIFTS.every(g => (giftInventory[g.id] ?? 0) === 0) ? (
+          <FadeInItem key="gifts-empty" style={styles.comingSoon}>
+            <Feather name="gift" size={28} color={PRIMARY} />
+            <Text style={styles.comingSoonTitle}>لا تملك أي هدية</Text>
+            <Text style={styles.comingSoonSub}>اشترِ هدايا من المتجر لإرسالها لأصدقائك</Text>
+          </FadeInItem>
+        ) : (
+          <View style={styles.grid} key="gifts-grid">
+            {GIFTS.map((g, idx) => {
+              const count = giftInventory[g.id] ?? 0;
+              if (count === 0) return null;
+              return (
+                <FadeInItem key={g.id} index={idx} style={styles.tileWrap}>
+                  <TouchableOpacity
+                    style={styles.tile}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setPreviewGift(g);
+                    }}
+                  >
+                    <View style={styles.tileImgWrap}>
+                      <Text style={{ fontSize: 56, lineHeight: 64, textAlign: "center" }}>{g.emoji}</Text>
+                    </View>
+                    <Text style={styles.tileName}>{g.name}</Text>
+                    <View style={[styles.equippedChip, { backgroundColor: g.color }]}>
+                      <Feather name="gift" size={10} color="#000" />
+                      <Text style={styles.equippedChipText}>×{count}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </FadeInItem>
+              );
+            })}
+          </View>
+        )}
+
+        <GiftAnimation
+          gift={previewGift}
+          visible={!!previewGift}
+          onDone={() => setPreviewGift(null)}
+        />
+        </>)}
+
+        {tab !== "frames" && tab !== "badges" && tab !== "background" && tab !== "username" && tab !== "text" && tab !== "characters" && tab !== "gifts" && (
           <FadeInItem key={tab} style={styles.comingSoon}>
             <Feather name="clock" size={28} color={PRIMARY} />
             <Text style={styles.comingSoonTitle}>قريباً</Text>
