@@ -5,7 +5,11 @@ const KEY_OWNED = "copointo_badges_owned_v1";
 const KEY_EQUIPPED = "copointo_badge_equipped_v1";
 
 export const DEFAULT_BADGE_ID = "badge-1";
-const DEFAULT_OWNED: string[] = [DEFAULT_BADGE_ID];
+// TEMP: all badges unlocked for testing
+const DEFAULT_OWNED: string[] = [
+  "badge-1", "badge-2", "badge-3", "badge-4", "badge-5",
+  "badge-6", "badge-7", "badge-8", "badge-9", "badge-10",
+];
 
 interface BadgesState {
   owned: string[];

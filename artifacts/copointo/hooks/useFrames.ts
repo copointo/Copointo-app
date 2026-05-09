@@ -6,7 +6,11 @@ const KEY_EQUIPPED = "copointo_frame_equipped_v1";
 
 export const DEFAULT_FRAME_ID = "frame-1";
 
-const DEFAULT_OWNED: string[] = [DEFAULT_FRAME_ID];
+// TEMP: all frames unlocked for testing
+const DEFAULT_OWNED: string[] = [
+  "frame-1", "frame-2", "frame-3", "frame-4", "frame-5",
+  "frame-6", "frame-7", "frame-8", "frame-9", "frame-10",
+];
 
 interface FramesState {
   owned: string[];
