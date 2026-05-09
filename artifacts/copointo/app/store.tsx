@@ -74,7 +74,7 @@ export default function StoreScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [selected, setSelected] = useState<Section>("coins");
-  const [activeCat, setActiveCat] = useState<ShopCat | null>(null);
+  const [activeCat, setActiveCat] = useState<ShopCat | null>("characters");
   const { balance } = useCoins();
 
   return (
