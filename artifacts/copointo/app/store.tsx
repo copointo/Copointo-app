@@ -41,8 +41,8 @@ const CATEGORIES: CatDef[] = [
   { id: "frames",     label: "الإطارات",        icon: "circle",         hint: "إطارات حول صورتك" },
   { id: "badges",     label: "الأوسمة",         icon: "shield",         hint: "أوسمة بجانب اسمك" },
   { id: "background", label: "خلفية المستخدم",  icon: "image",          hint: "خلفية ملفك الشخصي" },
-  { id: "username",   label: "اسم المستخدم",    icon: "user",           hint: "ألوان وزخرفة الاسم" },
-  { id: "text",       label: "النص",            icon: "type",           hint: "خطوط وأنماط الكتابة" },
+  { id: "username",   label: "ثيم اسم المستخدم", icon: "user",          hint: "ألوان وزخرفة الاسم" },
+  { id: "text",       label: "نص ملون",          icon: "type",          hint: "خطوط وأنماط الكتابة" },
 ];
 
 const PRICE_BY_TIER = [50, 100, 200, 350, 500, 700, 1000, 1500, 2200, 3000];

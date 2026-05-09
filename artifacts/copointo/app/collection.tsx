@@ -32,8 +32,8 @@ export default function CollectionScreen() {
     { id: "frames",     label: "الإطارات",       icon: "circle" },
     { id: "badges",     label: "الأوسمة",        icon: "shield" },
     { id: "background", label: "خلفية المستخدم", icon: "image"  },
-    { id: "username",   label: "اسم المستخدم",   icon: "user"   },
-    { id: "text",       label: "النص",           icon: "type"   },
+    { id: "username",   label: "ثيم اسم المستخدم", icon: "user"  },
+    { id: "text",       label: "نص ملون",          icon: "type"  },
   ];
   const [tab, setTab] = useState<ShopCat>("characters");
 
