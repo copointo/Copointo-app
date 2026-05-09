@@ -322,7 +322,7 @@ export default function ProfileScreen() {
         {/* ── Avatar with double glowing ring + equipped frame ── */}
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={pickImage} activeOpacity={0.85} style={styles.avatarOuterRing}>
-            <AvatarWithFrame size={132} scale={1.7}>
+            <AvatarWithFrame size={100} scale={1.7}>
               <View style={styles.avatarInnerRing}>
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   // ── Avatar (double glowing ring) ──
   avatarSection: { alignItems: "center", gap: 10, marginTop: 12 },
   avatarOuterRing: {
-    width: 160, height: 160, borderRadius: 80,
+    width: 122, height: 122, borderRadius: 61,
     borderWidth: 2, borderColor: PRIMARY,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "transparent",
@@ -590,19 +590,19 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   avatarInnerRing: {
-    width: 132, height: 132, borderRadius: 66,
+    width: 100, height: 100, borderRadius: 50,
     borderWidth: 1, borderColor: "rgba(232,184,109,0.45)",
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#0A0606", overflow: "hidden",
   },
-  avatarImg: { width: 132, height: 132, borderRadius: 66 },
+  avatarImg: { width: 100, height: 100, borderRadius: 50 },
   avatarLevelNum: {
-    fontSize: 64, fontFamily: "Inter_700Bold", color: "#FFF",
-    lineHeight: 74,
+    fontSize: 48, fontFamily: "Inter_700Bold", color: "#FFF",
+    lineHeight: 56,
   },
   cameraBadge: {
-    position: "absolute", bottom: 6, right: 6,
-    width: 32, height: 32, borderRadius: 16,
+    position: "absolute", bottom: 4, right: 4,
+    width: 26, height: 26, borderRadius: 13,
     backgroundColor: "rgba(232,184,109,0.18)",
     borderWidth: 1.5, borderColor: PRIMARY,
     alignItems: "center", justifyContent: "center",
