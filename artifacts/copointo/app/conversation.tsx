@@ -85,6 +85,7 @@ export default function ConversationScreen() {
   const { consumeGift } = useGiftInventory();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [animGift, setAnimGift]     = useState<GiftDef | null>(null);
+  const [animQty, setAnimQty]       = useState<number>(1);
   const [animFromName, setAnimFromName] = useState<string | undefined>(undefined);
 
   // Auto-play animation for unseen incoming gifts when this screen mounts /
@@ -100,29 +101,32 @@ export default function ConversationScreen() {
       if (gd) {
         playedGiftIdsRef.current.add(unseenGift.id);
         setAnimGift(gd);
+        setAnimQty(unseenGift.giftQty ?? 1);
         setAnimFromName(unseenGift.senderName ?? (typeof name === "string" ? name : undefined));
       }
     }
   }, [convMsgs, name]);
 
-  const sendGift = async (gift: GiftDef) => {
+  const sendGift = async (gift: GiftDef, qty: number) => {
     if (!id) return;
-    const ok = await consumeGift(gift.id, 1);
+    const ok = await consumeGift(gift.id, qty);
     if (!ok) return;
     setPickerOpen(false);
     const giftMsg: ChatMessage = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      text: `🎁 ${gift.name}`,
+      text: qty > 1 ? `🎁 ${qty}× ${gift.name}` : `🎁 ${gift.name}`,
       fromMe: true,
       time: buildNow(t("conv.amPm.am"), t("conv.amPm.pm")),
       seen: false,
       giftId: gift.id,
+      giftQty: qty,
     };
     appendMsg(id, giftMsg);
     // Mark as already played so we don't re-trigger from the convMsgs effect
     playedGiftIdsRef.current.add(giftMsg.id);
     // Play animation immediately for the sender
     setAnimGift(gift);
+    setAnimQty(qty);
     setAnimFromName(undefined);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     playSendMessageSound();
@@ -219,6 +223,7 @@ export default function ConversationScreen() {
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setAnimGift(giftDef);
+                setAnimQty(item.giftQty ?? 1);
                 setAnimFromName(item.fromMe ? undefined : (item.senderName ?? (typeof name === "string" ? name : undefined)));
               }}
               style={[
@@ -384,6 +389,7 @@ export default function ConversationScreen() {
       />
       <GiftAnimation
         gift={animGift}
+        count={animQty}
         fromName={animFromName}
         visible={!!animGift}
         onDone={() => setAnimGift(null)}

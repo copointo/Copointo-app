@@ -62,6 +62,7 @@ export interface ChatMessage {
   senderAvatar?: string;
   /** When set, this message is a sent gift; renders a gift bubble + plays animation. */
   giftId?: string;
+  giftQty?: number;
 }
 
 /** A user-created chat group. Stored per-user and mirrored to members. */

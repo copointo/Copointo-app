@@ -344,6 +344,8 @@ export interface ChatMsg {
   seenBy: string[];
   /** Optional gift identifier when the message is a gift (e.g. "gift-3"). */
   giftId?: string;
+  /** Quantity of the gift sent (defaults to 1 when missing). */
+  giftQty?: number;
 }
 export const chatMessages: ChatMsg[] = [];
 

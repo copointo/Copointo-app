@@ -61,10 +61,11 @@ export default function CompetitorProfileScreen() {
   const { appendMsg } = useMessages();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [animGift, setAnimGift]     = useState<GiftDef | null>(null);
+  const [animQty, setAnimQty]       = useState<number>(1);
 
-  const sendGift = async (gift: GiftDef) => {
+  const sendGift = async (gift: GiftDef, qty: number) => {
     if (!target) return;
-    const ok = await consumeGift(gift.id, 1);
+    const ok = await consumeGift(gift.id, qty);
     if (!ok) return;
     setPickerOpen(false);
     const convId = `friend_${target.id}`;
@@ -75,14 +76,16 @@ export default function CompetitorProfileScreen() {
     const h12 = h % 12 === 0 ? 12 : h % 12;
     const giftMsg: ChatMessage = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      text: `🎁 ${gift.name}`,
+      text: qty > 1 ? `🎁 ${qty}× ${gift.name}` : `🎁 ${gift.name}`,
       fromMe: true,
       time: `${h12}:${m} ${period}`,
       seen: false,
       giftId: gift.id,
+      giftQty: qty,
     };
     appendMsg(convId, giftMsg);
     setAnimGift(gift);
+    setAnimQty(qty);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   };
 
@@ -251,6 +254,7 @@ export default function CompetitorProfileScreen() {
       />
       <GiftAnimation
         gift={animGift}
+        count={animQty}
         visible={!!animGift}
         onDone={() => setAnimGift(null)}
       />

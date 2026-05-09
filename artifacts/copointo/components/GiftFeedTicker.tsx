@@ -21,9 +21,10 @@ function aggregate(events: GiftFeedEvent[]): AggregatedEvent[] {
   const buckets = new Map<string, AggregatedEvent>();
   for (const e of events) {
     const k = `${e.senderId}|${e.recipientId}|${e.giftId}`;
+    const qty = Math.max(1, e.giftQty ?? 1);
     const cur = buckets.get(k);
     if (cur) {
-      cur.count += 1;
+      cur.count += qty;
       if (e.createdAt > cur.latestAt) cur.latestAt = e.createdAt;
     } else {
       buckets.set(k, {
@@ -31,7 +32,7 @@ function aggregate(events: GiftFeedEvent[]): AggregatedEvent[] {
         senderName: e.senderName,
         recipientName: e.recipientName,
         giftId: e.giftId,
-        count: 1,
+        count: qty,
         latestAt: e.createdAt,
       });
     }

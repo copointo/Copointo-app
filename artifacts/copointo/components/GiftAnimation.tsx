@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
   Dimensions,
@@ -18,220 +18,172 @@ interface Props {
   fromName?: string;
   visible: boolean;
   onDone: () => void;
+  /** How many gift instances to rain down (defaults to 1). */
+  count?: number;
 }
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 
-/** Duration in ms for each tier — tier 3 is intentionally > 3 s. */
-const DURATIONS: Record<1 | 2 | 3, number> = { 1: 1600, 2: 2600, 3: 4000 };
+const MAX_PARTICLES = 40;          // visible cap for performance
+const FALL_DUR_MIN  = 1800;
+const FALL_DUR_MAX  = 3000;
+const STAGGER_MS    = 110;
+const HOLD_AFTER_MS = 700;         // extra time the caption stays visible
 
 /**
- * Full-screen gift animation overlay. Plays a tier-appropriate effect:
- *  - tier 1: simple emoji pop + drift up
- *  - tier 2: emoji + 6 sparkle particles orbiting
- *  - tier 3: full-screen radial glow + 24 falling/swirling particles + big emoji
- *
- * Auto-dismisses via `onDone` after the duration, or on tap.
+ * Full-screen gift animation overlay. Now renders the gift as a shower of
+ * emojis falling from the top of the screen down past the bottom — the
+ * number of falling emojis matches the quantity sent (capped at
+ * MAX_PARTICLES for performance, but the caption shows the true ×N).
  */
-export default function GiftAnimation({ gift, fromName, visible, onDone }: Props) {
-  const scale   = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-  const drift   = useRef(new Animated.Value(0)).current;
-  const spin    = useRef(new Animated.Value(0)).current;
+export default function GiftAnimation({ gift, fromName, visible, onDone, count = 1 }: Props) {
+  const captionOpacity = useRef(new Animated.Value(0)).current;
+
+  // Total quantity (uncapped, used for the caption "×N" badge)
+  const qty = Math.max(1, count);
+  // Visible particle count (capped for perf)
+  const visibleCount = Math.min(qty, MAX_PARTICLES);
+
+  // Pre-compute per-particle random params once per (gift, count) cycle so
+  // the animation looks consistent and doesn't reshuffle on re-render.
+  const particles = useMemo(() => {
+    if (!gift) return [];
+    return Array.from({ length: visibleCount }).map((_, i) => ({
+      key: `${gift.id}_${i}`,
+      x: Math.random() * (SCREEN_W - 60) + 30,
+      delay: i * STAGGER_MS,
+      duration: FALL_DUR_MIN + Math.random() * (FALL_DUR_MAX - FALL_DUR_MIN),
+      driftX: (Math.random() - 0.5) * 80,
+      rotateDir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
+      size: gift.tier === 3
+        ? 56 + Math.random() * 26
+        : gift.tier === 2
+        ? 44 + Math.random() * 18
+        : 34 + Math.random() * 14,
+    }));
+  }, [gift?.id, visibleCount]);
+
+  // Total scene duration: last particle's start + its fall + a small hold
+  const totalDur = visibleCount > 0
+    ? (visibleCount - 1) * STAGGER_MS + FALL_DUR_MAX + HOLD_AFTER_MS
+    : 1500;
 
   useEffect(() => {
     if (!visible || !gift) return;
-    scale.setValue(0); opacity.setValue(0); drift.setValue(0); spin.setValue(0);
-
-    const dur = DURATIONS[gift.tier];
-
-    Animated.parallel([
-      Animated.sequence([
-        Animated.spring(scale, { toValue: 1, friction: 5, tension: 80, useNativeDriver: true }),
-        Animated.delay(dur - 900),
-        Animated.timing(scale, { toValue: 1.15, duration: 200, useNativeDriver: true }),
-      ]),
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
-        Animated.delay(dur - 600),
-        Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }),
-      ]),
-      Animated.timing(drift, { toValue: 1, duration: dur, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.loop(
-        Animated.timing(spin, { toValue: 1, duration: 4000, easing: Easing.linear, useNativeDriver: true }),
-      ),
+    captionOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(captionOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(totalDur - 600),
+      Animated.timing(captionOpacity, { toValue: 0, duration: 350, useNativeDriver: true }),
     ]).start();
-
-    const t = setTimeout(() => onDone(), dur);
+    const t = setTimeout(() => onDone(), totalDur);
     return () => clearTimeout(t);
-  }, [visible, gift?.id]);
+  }, [visible, gift?.id, visibleCount, totalDur]);
 
   if (!visible || !gift) return null;
-
-  const driftY = drift.interpolate({ inputRange: [0, 1], outputRange: [0, -80] });
-  const spinDeg = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
-
-  // Emoji body size by tier
-  const bodySize = gift.tier === 3 ? 180 : gift.tier === 2 ? 120 : 86;
-
-  // Particle config
-  const particleCount = gift.tier === 3 ? 24 : gift.tier === 2 ? 6 : 0;
-  const particles = gift.particles ?? [];
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onDone}>
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity }]}>
-          {/* Backdrop dim */}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.65)" }]} />
+        {/* Backdrop dim */}
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.55)" }]} />
 
-          {/* Tier 3 radial gradient backdrop */}
-          {gift.tier === 3 && (
-            <LinearGradient
-              colors={[`${gift.color}55`, "transparent", `${gift.color}33`]}
-              start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFill}
+        {/* Tier 3 radial gradient backdrop */}
+        {gift.tier === 3 && (
+          <LinearGradient
+            colors={[`${gift.color}55`, "transparent", `${gift.color}33`]}
+            start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+
+        {/* Falling gift particles */}
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {particles.map(p => (
+            <FallingGift
+              key={p.key}
+              emoji={gift.emoji}
+              x={p.x}
+              size={p.size}
+              delay={p.delay}
+              duration={p.duration}
+              driftX={p.driftX}
+              rotateDir={p.rotateDir}
             />
-          )}
+          ))}
+        </View>
 
-          {/* Animated rotating ring (tier 2 & 3) */}
-          {gift.tier >= 2 && (
-            <Animated.View
-              style={[
-                styles.ring,
-                {
-                  width: bodySize * 2.4,
-                  height: bodySize * 2.4,
-                  borderRadius: bodySize * 1.2,
-                  borderColor: gift.color,
-                  top: SCREEN_H / 2 - bodySize * 1.2,
-                  left: SCREEN_W / 2 - bodySize * 1.2,
-                  transform: [{ rotate: spinDeg }],
-                  opacity: gift.tier === 3 ? 0.55 : 0.4,
-                },
-              ]}
-            />
-          )}
-
-          {/* Particles */}
-          {particleCount > 0 && (
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              {Array.from({ length: particleCount }).map((_, i) => (
-                <Particle
-                  key={i}
-                  index={i}
-                  total={particleCount}
-                  emoji={particles[i % Math.max(1, particles.length)] ?? "✨"}
-                  tier={gift.tier}
-                  color={gift.color}
-                />
-              ))}
-            </View>
-          )}
-
-          {/* Main emoji */}
-          <Animated.View
-            style={[
-              styles.bodyWrap,
-              {
-                top: SCREEN_H / 2 - bodySize / 2,
-                left: SCREEN_W / 2 - bodySize / 2,
-                transform: [{ translateY: driftY }, { scale }],
-              },
-            ]}
-          >
-            <Text style={{ fontSize: bodySize, lineHeight: bodySize * 1.15, textAlign: "center" }}>
-              {gift.emoji}
-            </Text>
-          </Animated.View>
-
-          {/* Caption */}
-          <View style={[styles.caption, { top: SCREEN_H / 2 + bodySize / 2 + 28 }]}>
+        {/* Caption (gift name + ×qty + sender) */}
+        <Animated.View style={[styles.caption, { opacity: captionOpacity }]} pointerEvents="none">
+          <View style={[styles.captionPill, { borderColor: gift.color, backgroundColor: `${gift.color}22` }]}>
+            <Text style={[styles.giftEmoji, { color: gift.color }]}>{gift.emoji}</Text>
             <Text style={[styles.giftName, { color: gift.color }]} numberOfLines={1}>
               {gift.name}
             </Text>
-            {fromName ? (
-              <Text style={styles.fromName} numberOfLines={1}>
-                من {fromName}
-              </Text>
-            ) : null}
+            {qty > 1 && (
+              <View style={[styles.qtyBadge, { backgroundColor: gift.color }]}>
+                <Text style={styles.qtyBadgeText}>×{qty}</Text>
+              </View>
+            )}
           </View>
+          {fromName ? (
+            <Text style={styles.fromName} numberOfLines={1}>
+              من {fromName}
+            </Text>
+          ) : null}
         </Animated.View>
       </Pressable>
     </Modal>
   );
 }
 
-interface ParticleProps {
-  index: number;
-  total: number;
+interface FallingProps {
   emoji: string;
-  tier: 1 | 2 | 3;
-  color: string;
+  x: number;
+  size: number;
+  delay: number;
+  duration: number;
+  driftX: number;
+  rotateDir: 1 | -1;
 }
 
-function Particle({ index, total, emoji, tier, color }: ParticleProps) {
+function FallingGift({ emoji, x, size, delay, duration, driftX, rotateDir }: FallingProps) {
   const t = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    const delay = (index / total) * (tier === 3 ? 1200 : 500);
-    const dur = tier === 3 ? 3000 : 1800;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(t, {
-          toValue: 1,
-          duration: dur,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(t, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => { loop.stop(); };
+    Animated.timing(t, {
+      toValue: 1,
+      duration,
+      delay,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
   }, []);
-
-  // Tier 3: confetti rain from top
-  // Tier 2: orbit around center
-  if (tier === 3) {
-    const xStart = (index / total) * SCREEN_W + ((index % 3) - 1) * 30;
-    const xEnd = xStart + ((index % 2 === 0 ? 1 : -1) * 60);
-    const x = t.interpolate({ inputRange: [0, 1], outputRange: [xStart, xEnd] });
-    const y = t.interpolate({ inputRange: [0, 1], outputRange: [-40, SCREEN_H + 40] });
-    const rot = t.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
-    const op = t.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 0] });
-    return (
-      <Animated.Text
-        style={{
-          position: "absolute",
-          fontSize: 24,
-          color,
-          transform: [{ translateX: x }, { translateY: y }, { rotate: rot }],
-          opacity: op,
-        }}
-      >
-        {emoji}
-      </Animated.Text>
-    );
-  }
-
-  // Tier 2: orbiting sparkles
-  const angle = (index / total) * Math.PI * 2;
-  const radius = 110;
-  const cx = SCREEN_W / 2 + Math.cos(angle) * radius;
-  const cy = SCREEN_H / 2 + Math.sin(angle) * radius;
-  const op = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 1, 0.3] });
-  const sc = t.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.6, 1.2, 0.6] });
+  const translateY = t.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-size - 40, SCREEN_H + size + 40],
+  });
+  const translateX = t.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, driftX],
+  });
+  const rotate = t.interpolate({
+    inputRange: [0, 1],
+    outputRange: rotateDir > 0 ? ["0deg", "540deg"] : ["0deg", "-540deg"],
+  });
+  const opacity = t.interpolate({
+    inputRange: [0, 0.06, 0.94, 1],
+    outputRange: [0, 1, 1, 0],
+  });
   return (
     <Animated.Text
       style={{
         position: "absolute",
-        left: cx - 14,
-        top: cy - 14,
-        fontSize: 22,
-        opacity: op,
-        transform: [{ scale: sc }],
+        left: x - size / 2,
+        top: 0,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        opacity,
+        transform: [{ translateY }, { translateX }, { rotate }],
       }}
     >
       {emoji}
@@ -240,12 +192,24 @@ function Particle({ index, total, emoji, tier, color }: ParticleProps) {
 }
 
 const styles = StyleSheet.create({
-  bodyWrap: { position: "absolute", alignItems: "center", justifyContent: "center" },
-  halo: { position: "absolute" },
-  ring: { position: "absolute", borderWidth: 3, borderStyle: "dashed" },
   caption: {
-    position: "absolute", left: 0, right: 0, alignItems: "center", gap: 4,
+    position: "absolute",
+    left: 0, right: 0,
+    top: SCREEN_H / 2 - 40,
+    alignItems: "center",
+    gap: 8,
   },
-  giftName: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
-  fromName: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" },
+  captionPill: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 18, paddingVertical: 12,
+    borderRadius: 22, borderWidth: 2,
+  },
+  giftEmoji: { fontSize: 32, lineHeight: 36 },
+  giftName: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  qtyBadge: {
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 12,
+  },
+  qtyBadgeText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
+  fromName: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)" },
 });

@@ -25,6 +25,7 @@ interface ServerMsg {
   createdAt: string;
   seenBy: string[];
   giftId?: string;
+  giftQty?: number;
 }
 
 const STORAGE_KEY_CHATS  = "copointo_chats_v2";
@@ -245,7 +246,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       body = { id: msg.id, senderId: user.id, kind: "group", groupId, text: msg.text };
     }
     if (!body) return;
-    if (msg.giftId) body.giftId = msg.giftId;
+    if (msg.giftId) {
+      body.giftId = msg.giftId;
+      body.giftQty = String(msg.giftQty ?? 1);
+    }
     fetch(`${API_BASE}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -348,7 +352,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                   time:   formatTime(sm.createdAt),
                   seen,
                 };
-                if (sm.giftId) cm.giftId = sm.giftId;
+                if (sm.giftId) { cm.giftId = sm.giftId; cm.giftQty = sm.giftQty ?? 1; }
                 if (!isMine) {
                   cm.senderId = sm.senderId;
                   const sender = registeredUsersRef.current.find(u => u.id === sm.senderId);

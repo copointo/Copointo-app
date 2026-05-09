@@ -461,13 +461,14 @@ function UserDetailPanel(p: PanelProps) {
   const { appendMsg } = useMessages();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [animGift, setAnimGift] = useState<GiftDef | null>(null);
+  const [animQty, setAnimQty]   = useState<number>(1);
 
-  const sendGift = async (gift: GiftDef) => {
+  const sendGift = async (gift: GiftDef, qty: number) => {
     if (!u) return;
-    const ok = await consumeGift(gift.id, 1);
+    const ok = await consumeGift(gift.id, qty);
     if (!ok) {
       setPickerOpen(false);
-      Alert.alert("ما عندك من هذي الهدية", "اشتر الهدية من المتجر أولاً.");
+      Alert.alert("ما عندك كفاية من هذي الهدية", "اشتر هدايا إضافية من المتجر أولاً.");
       return;
     }
     setPickerOpen(false);
@@ -479,14 +480,16 @@ function UserDetailPanel(p: PanelProps) {
     const h12 = h % 12 === 0 ? 12 : h % 12;
     const giftMsg: ChatMessage = {
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      text: `🎁 ${gift.name}`,
+      text: qty > 1 ? `🎁 ${qty}× ${gift.name}` : `🎁 ${gift.name}`,
       fromMe: true,
       time: `${h12}:${m} ${period}`,
       seen: false,
       giftId: gift.id,
+      giftQty: qty,
     };
     appendMsg(convId, giftMsg);
     setAnimGift(gift);
+    setAnimQty(qty);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
   };
 
@@ -777,6 +780,7 @@ function UserDetailPanel(p: PanelProps) {
           />
           <GiftAnimation
             gift={animGift}
+            count={animQty}
             visible={!!animGift}
             onDone={() => setAnimGift(null)}
           />

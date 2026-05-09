@@ -690,6 +690,8 @@ router.post("/messages", (req, res): any => {
   const recipientId = String(req.body?.recipientId ?? "").trim();
   const groupId     = String(req.body?.groupId ?? "").trim();
   const giftId      = String(req.body?.giftId ?? "").trim();
+  const giftQtyRaw  = parseInt(String(req.body?.giftQty ?? "1"), 10);
+  const giftQty     = Number.isFinite(giftQtyRaw) ? Math.max(1, Math.min(99, giftQtyRaw)) : 1;
   if (!id || !senderId || !text) {
     return res.status(400).json({ error: "id/senderId/text required" });
   }
@@ -710,7 +712,7 @@ router.post("/messages", (req, res): any => {
     createdAt: new Date().toISOString(),
     seenBy: [senderId],   // sender has implicitly "seen" their own message
   };
-  if (giftId) msg.giftId = giftId;
+  if (giftId) { msg.giftId = giftId; msg.giftQty = giftQty; }
   chatMessages.push(msg);
   persistStore();
   res.status(201).json({ ok: true, message: msg });
@@ -737,6 +739,7 @@ router.get("/gift-feed", (req, res): any => {
     return {
       id: m.id,
       giftId: m.giftId!,
+      giftQty: m.giftQty ?? 1,
       senderId: m.senderId,
       senderName: sender?.username ?? "مستخدم",
       recipientId,

@@ -4,6 +4,7 @@ import { API_BASE } from "@/constants/api";
 export interface GiftFeedEvent {
   id: string;
   giftId: string;
+  giftQty: number;
   senderId: string;
   senderName: string;
   recipientId: string;

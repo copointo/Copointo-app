@@ -22,9 +22,11 @@ interface Props {
   /** Recipient display name shown in the header. */
   toName?: string;
   onClose: () => void;
-  /** Called when user taps "Send". Should consume from inventory. */
-  onSend: (gift: GiftDef) => void;
+  /** Called when user taps "Send". Should consume `qty` from inventory. */
+  onSend: (gift: GiftDef, qty: number) => void;
 }
+
+const QTY_MAX = 99;
 
 /**
  * Sheet for picking which owned gift to send. Uses the user's gift inventory:
@@ -33,19 +35,40 @@ interface Props {
 export default function GiftPicker({ visible, toName, onClose, onSend }: Props) {
   const { countOf } = useGiftInventory();
   const [selected, setSelected] = useState<GiftDef | null>(null);
+  const [qty, setQty] = useState<number>(1);
+
+  const maxForSelected = selected ? Math.min(QTY_MAX, countOf(selected.id)) : 0;
+  const safeQty = Math.max(1, Math.min(qty, Math.max(1, maxForSelected)));
 
   const handleClose = () => {
     setSelected(null);
+    setQty(1);
     onClose();
+  };
+
+  const pickGift = (g: GiftDef) => {
+    Haptics.selectionAsync();
+    setSelected(g);
+    // Reset qty whenever the user switches gifts so the stepper starts at 1.
+    setQty(1);
+  };
+
+  const bumpQty = (delta: number) => {
+    if (!selected) return;
+    const next = Math.max(1, Math.min(maxForSelected, qty + delta));
+    if (next !== qty) Haptics.selectionAsync();
+    setQty(next);
   };
 
   const handleSendTap = () => {
     if (!selected) return;
-    if (countOf(selected.id) <= 0) return;
+    if (countOf(selected.id) < safeQty) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const g = selected;
+    const n = safeQty;
     setSelected(null);
-    onSend(g);
+    setQty(1);
+    onSend(g, n);
   };
 
   const totalOwned = GIFTS.reduce((sum, g) => sum + countOf(g.id), 0);
@@ -80,10 +103,7 @@ export default function GiftPicker({ visible, toName, onClose, onSend }: Props) 
                     key={g.id}
                     activeOpacity={0.85}
                     disabled={!has}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setSelected(g);
-                    }}
+                    onPress={() => pickGift(g)}
                     style={[
                       styles.card,
                       isSel && { borderColor: g.color, backgroundColor: `${g.color}22` },
@@ -110,15 +130,52 @@ export default function GiftPicker({ visible, toName, onClose, onSend }: Props) 
             )}
           </ScrollView>
 
+          {/* Quantity stepper — only meaningful when a gift is selected. */}
+          {selected && (
+            <View style={styles.qtyRow}>
+              <Text style={styles.qtyLabel}>الكمية</Text>
+              <View style={styles.qtyStepper}>
+                <TouchableOpacity
+                  style={[styles.qtyBtn, safeQty <= 1 && styles.qtyBtnDisabled]}
+                  onPress={() => bumpQty(-1)}
+                  disabled={safeQty <= 1}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="minus" size={16} color="#FFF" />
+                </TouchableOpacity>
+                <Text style={styles.qtyValue}>{safeQty}</Text>
+                <TouchableOpacity
+                  style={[styles.qtyBtn, safeQty >= maxForSelected && styles.qtyBtnDisabled]}
+                  onPress={() => bumpQty(+1)}
+                  disabled={safeQty >= maxForSelected}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="plus" size={16} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                style={styles.qtyAllBtn}
+                onPress={() => { Haptics.selectionAsync(); setQty(maxForSelected); }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.qtyAllText}>الكل ({maxForSelected})</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <TouchableOpacity
-            style={[styles.sendBtn, (!selected || countOf(selected?.id ?? "") <= 0) && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, (!selected || maxForSelected <= 0) && styles.sendBtnDisabled]}
             onPress={handleSendTap}
-            disabled={!selected || countOf(selected?.id ?? "") <= 0}
+            disabled={!selected || maxForSelected <= 0}
             activeOpacity={0.85}
           >
             <Feather name="send" size={16} color="#000" />
             <Text style={styles.sendBtnText}>
-              {selected ? `إرسال ${selected.emoji} ${selected.name}` : "اختر هدية"}
+              {selected
+                ? (safeQty > 1
+                    ? `إرسال ${safeQty}× ${selected.emoji} ${selected.name}`
+                    : `إرسال ${selected.emoji} ${selected.name}`)
+                : "اختر هدية"}
             </Text>
           </TouchableOpacity>
         </Pressable>
@@ -184,4 +241,32 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.5 },
   sendBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
+  qtyRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginTop: 12, paddingHorizontal: 4,
+  },
+  qtyLabel: { fontSize: 13, fontFamily: "Inter_700Bold", color: "rgba(232,184,109,0.85)" },
+  qtyStepper: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12, paddingHorizontal: 6, paddingVertical: 4,
+    borderWidth: 1, borderColor: BORDER,
+  },
+  qtyBtn: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: "rgba(232,184,109,0.18)",
+    alignItems: "center", justifyContent: "center",
+  },
+  qtyBtnDisabled: { opacity: 0.35 },
+  qtyValue: {
+    minWidth: 36, textAlign: "center",
+    fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF",
+  },
+  qtyAllBtn: {
+    marginLeft: "auto",
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: "rgba(232,184,109,0.14)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  qtyAllText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
 });
