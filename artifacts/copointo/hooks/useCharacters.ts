@@ -32,20 +32,23 @@ function hydrate(): Promise<State> {
     AsyncStorage.getItem(KEY_OWNED),
     AsyncStorage.getItem(KEY_EQUIPPED),
   ]).then(([rawOwned, rawEq]) => {
-    let owned = DEFAULT_OWNED;
-    try {
-      if (rawOwned) {
+    // First-run users (rawOwned === null) get the starter defaults.
+    // Anyone with a persisted value (even "[]" after an account reset)
+    // gets EXACTLY what was persisted, with no defaults merged in.
+    let owned: string[];
+    if (rawOwned === null) {
+      owned = DEFAULT_OWNED;
+    } else {
+      owned = [];
+      try {
         const parsed = JSON.parse(rawOwned);
-        if (Array.isArray(parsed)) {
-          owned = Array.from(new Set([...DEFAULT_OWNED, ...parsed]));
-        }
-      }
-    } catch {}
-    // First-run users (rawEq === null) auto-equip the default starter so
-    // the cat is visible immediately. Users who explicitly removed it
-    // (rawEq === "") keep nothing equipped.
+        if (Array.isArray(parsed)) owned = parsed;
+      } catch {}
+    }
+    // Only first-run users (rawEq === null AND rawOwned === null) auto-equip
+    // the default starter. Reset writes "" so nothing stays equipped.
     const equipped =
-      rawEq === null
+      rawEq === null && rawOwned === null
         ? (DEFAULT_EQUIPPED && owned.includes(DEFAULT_EQUIPPED) ? DEFAULT_EQUIPPED : null)
         : rawEq && owned.includes(rawEq)
           ? rawEq
@@ -95,5 +98,5 @@ export function useCharacters() {
 }
 
 registerAccountResetHandler(() => {
-  broadcast({ owned: [...DEFAULT_OWNED], equipped: DEFAULT_EQUIPPED });
+  broadcast({ owned: [], equipped: null });
 });

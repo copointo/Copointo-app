@@ -88,5 +88,5 @@ export function useGiftInventory() {
 }
 
 registerAccountResetHandler(() => {
-  broadcast({ ...STARTER_INVENTORY });
+  broadcast({});
 });

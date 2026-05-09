@@ -46,10 +46,11 @@ export function useBadges() {
             if (Array.isArray(parsed)) owned = parsed;
           } catch {}
         }
-        // Default-equip the bronze badge for first-time users so it shows up
-        // immediately in the leaderboard / profile.
+        // Default-equip the bronze badge ONLY for first-time users (rawOwned
+        // also null). After an account reset rawEq may be "" so nothing stays
+        // equipped.
         const equipped =
-          rawEq === null
+          rawEq === null && rawOwned === null
             ? DEFAULT_BADGE_ID
             : rawEq && owned.includes(rawEq)
               ? rawEq
@@ -93,5 +94,5 @@ export function useBadges() {
 }
 
 registerAccountResetHandler(() => {
-  broadcast({ owned: DEFAULT_OWNED, equipped: DEFAULT_BADGE_ID });
+  broadcast({ owned: [], equipped: null });
 });
