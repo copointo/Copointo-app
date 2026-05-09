@@ -17,7 +17,8 @@ import {
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
   reports,
-  persistStore, type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report, type CoinGift,
+  persistStore,
+  type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report, type CoinGift,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
