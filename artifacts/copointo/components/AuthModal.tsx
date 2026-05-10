@@ -140,9 +140,6 @@ export function AuthModal({
               />
             </View>
             <Text style={styles.authBrandName}>{t("auth.brandName")}</Text>
-            <Text style={styles.authBrandSub}>
-              {mode === "login" ? t("auth.welcomeBack") : t("auth.startJourney")}
-            </Text>
           </View>
 
           <View style={styles.authTabs}>
