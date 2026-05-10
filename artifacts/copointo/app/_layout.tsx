@@ -56,18 +56,21 @@ if (typeof document !== "undefined") {
     }) as HTMLMetaElement;
     el.content = content;
   };
-  setMeta("name",     "description",     "موقع مختص بعالم الكوفيهات في سلطنة عمان — اكتشف الكوفيهات، اطلب قهوتك، احجز طاولتك، واستمتع بأجواء كوبوينتو.");
+  const RICH_DESC = "كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً.";
+  setMeta("name",     "description",     RICH_DESC);
+  setMeta("name",     "keywords",        "كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, قسائم شرائية كوفي, coffee Oman, cafes Oman");
   setMeta("name",     "application-name","Copointo");
   setMeta("name",     "theme-color",     "#000000");
   setMeta("property", "og:type",         "website");
   setMeta("property", "og:site_name",    "Copointo");
-  setMeta("property", "og:title",        "Copointo — كوبوينتو");
-  setMeta("property", "og:description",  "موقع مختص بعالم الكوفيهات في سلطنة عمان");
+  setMeta("property", "og:title",        "Copointo — دليل الكوفيهات في سلطنة عمان");
+  setMeta("property", "og:description",  RICH_DESC);
   setMeta("property", "og:image",        "/copointo-logo.png");
+  setMeta("property", "og:url",          "https://copointo.com/");
   setMeta("property", "og:locale",       "ar_OM");
-  setMeta("name",     "twitter:card",    "summary");
-  setMeta("name",     "twitter:title",   "Copointo — كوبوينتو");
-  setMeta("name",     "twitter:description","موقع مختص بعالم الكوفيهات في سلطنة عمان");
+  setMeta("name",     "twitter:card",    "summary_large_image");
+  setMeta("name",     "twitter:title",   "Copointo — دليل الكوفيهات في سلطنة عمان");
+  setMeta("name",     "twitter:description", RICH_DESC);
   setMeta("name",     "twitter:image",   "/copointo-logo.png");
 }
 

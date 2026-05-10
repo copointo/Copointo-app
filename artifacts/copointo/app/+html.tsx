@@ -19,13 +19,15 @@ export default function Root({ children }: PropsWithChildren) {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
-        <title>Copointo — موقع مختص بعالم الكوفيهات في سلطنة عمان</title>
+        <title>Copointo — دليل الكوفيهات في سلطنة عمان</title>
         <meta
           name="description"
-          content="موقع مختص بعالم الكوفيهات في سلطنة عمان — اكتشف الكوفيهات، اطلب قهوتك، احجز طاولتك، واستمتع بأجواء كوبوينتو."
+          content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً."
         />
+        <meta name="keywords" content="كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, قسائم شرائية كوفي, coffee Oman, cafes Oman" />
         <meta name="application-name" content="Copointo" />
         <meta name="theme-color" content="#000000" />
+        <link rel="canonical" href="https://copointo.com/" />
 
         {/* Favicons */}
         <link rel="icon" type="image/png" href="/copointo-logo.png" />
@@ -35,15 +37,16 @@ export default function Root({ children }: PropsWithChildren) {
         {/* Open Graph (Facebook / WhatsApp / LinkedIn) */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Copointo" />
-        <meta property="og:title" content="Copointo — كوبوينتو" />
-        <meta property="og:description" content="موقع مختص بعالم الكوفيهات في سلطنة عمان" />
+        <meta property="og:title" content="Copointo — دليل الكوفيهات في سلطنة عمان" />
+        <meta property="og:description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
         <meta property="og:image" content="/copointo-logo.png" />
+        <meta property="og:url" content="https://copointo.com/" />
         <meta property="og:locale" content="ar_OM" />
 
         {/* Twitter */}
-        <meta name="twitter:card" content="summary" />
-        <meta name="twitter:title" content="Copointo — كوبوينتو" />
-        <meta name="twitter:description" content="موقع مختص بعالم الكوفيهات في سلطنة عمان" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Copointo — دليل الكوفيهات في سلطنة عمان" />
+        <meta name="twitter:description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
         <meta name="twitter:image" content="/copointo-logo.png" />
 
         {/* Structured data for Google search results */}
@@ -55,8 +58,18 @@ export default function Root({ children }: PropsWithChildren) {
               "@type": "WebSite",
               name: "Copointo",
               alternateName: "كوبوينتو",
-              description: "موقع مختص بعالم الكوفيهات في سلطنة عمان",
+              url: "https://copointo.com/",
+              description: "كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان. تصفّح الكوفيهات، اطلب قهوتك، احجز طاولتك، أرسل قسائم إهداء، وشاهد ريلز الكوفيهات.",
               inLanguage: "ar-OM",
+              publisher: {
+                "@type": "Organization",
+                name: "Copointo",
+                url: "https://copointo.com/",
+                logo: {
+                  "@type": "ImageObject",
+                  url: "https://copointo.com/copointo-logo.png",
+                },
+              },
             }),
           }}
         />
