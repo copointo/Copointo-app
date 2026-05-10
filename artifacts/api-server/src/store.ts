@@ -410,14 +410,16 @@ export function friendsOf(userId: string): string[] {
     .map(f => (f.a === userId ? f.b : f.a));
 }
 
-// ─── Disk persistence ────────────────────────────────────────────────────
-// In-memory state is great for fast prototyping, but every server restart
-// (hot reload during development, deploy, crash) wiped all cafés/reels and
-// frustrated the user. We now snapshot the full store to a single JSON file
-// on a debounced timer and restore it on boot.
+// ─── PostgreSQL persistence (autoscale-safe) ─────────────────────────────
+// Previous versions snapshotted the whole store to a local JSON file. That
+// broke on autoscale deployments because each instance had its own disk and
+// would not see writes made by sibling instances. We now persist each
+// collection as one JSONB row in the `kv_store` table and refresh in-memory
+// arrays from the DB before every request handler runs.
+import { db, kvStoreTable } from "@workspace/db";
+import { sql, inArray } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
-const STORE_FILE = path.join(process.cwd(), ".store.json");
 
 const COLLECTIONS: Record<string, any[]> = {
   cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
@@ -426,41 +428,108 @@ const COLLECTIONS: Record<string, any[]> = {
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
   reports, coinGifts,
 };
+const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 
-function loadFromDisk() {
+/** Per-collection version we last loaded into memory, keyed by name. */
+const lastLoadedAt = new Map<string, number>();
+
+function setArrayContents(key: string, incoming: unknown) {
+  const arr = COLLECTIONS[key];
+  if (!arr || !Array.isArray(incoming)) return;
+  arr.length = 0;
+  for (const item of incoming) arr.push(item);
+}
+
+let bootLoadPromise: Promise<void> | null = null;
+async function bootLoad(): Promise<void> {
   try {
-    if (!fs.existsSync(STORE_FILE)) return;
-    const raw = fs.readFileSync(STORE_FILE, "utf-8");
-    if (!raw.trim()) return;
-    const data = JSON.parse(raw) as Record<string, any[]>;
-    for (const [k, arr] of Object.entries(COLLECTIONS)) {
-      const incoming = data[k];
-      if (Array.isArray(incoming)) {
-        arr.length = 0;
-        for (const item of incoming) arr.push(item);
+    const rows = await db.select().from(kvStoreTable);
+    for (const row of rows) {
+      if (!COLLECTIONS[row.key]) continue;
+      setArrayContents(row.key, row.value);
+      lastLoadedAt.set(row.key, row.updatedAt.getTime());
+    }
+    // One-time migration from legacy .store.json if the DB is empty.
+    if (rows.length === 0) {
+      const legacy = path.join(process.cwd(), ".store.json");
+      if (fs.existsSync(legacy)) {
+        try {
+          const data = JSON.parse(fs.readFileSync(legacy, "utf-8")) as Record<string, unknown>;
+          for (const k of COLLECTION_KEYS) setArrayContents(k, data[k]);
+          await flushAll();
+          // eslint-disable-next-line no-console
+          console.log(`[store] migrated ${legacy} → kv_store`);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`[store] legacy migration failed: ${(e as Error).message}`);
+        }
       }
     }
     // eslint-disable-next-line no-console
-    console.log(`[store] restored from ${STORE_FILE}`);
+    console.log(`[store] loaded ${rows.length} collections from kv_store`);
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.warn(`[store] failed to load: ${(e as Error).message}`);
+    console.warn(`[store] boot load failed: ${(e as Error).message}`);
+  }
+}
+
+/** Pull any rows whose `updated_at` is newer than what we have cached.
+ *  Skipped while a flush is queued/running so we don't clobber local
+ *  mutations that haven't been persisted yet. */
+export async function refreshFromDb(): Promise<void> {
+  if (saveTimer || saving) return;
+  try {
+    const stamps = await db
+      .select({ key: kvStoreTable.key, updatedAt: kvStoreTable.updatedAt })
+      .from(kvStoreTable);
+    const stale: string[] = [];
+    for (const { key, updatedAt } of stamps) {
+      if (!COLLECTIONS[key]) continue;
+      const have = lastLoadedAt.get(key) ?? 0;
+      if (updatedAt.getTime() > have) stale.push(key);
+    }
+    if (stale.length === 0) return;
+    // Re-check: a flush may have started while we awaited the SELECT.
+    if (saveTimer || saving) return;
+    const rows = await db
+      .select()
+      .from(kvStoreTable)
+      .where(inArray(kvStoreTable.key, stale));
+    if (saveTimer || saving) return;
+    for (const row of rows) {
+      setArrayContents(row.key, row.value);
+      lastLoadedAt.set(row.key, row.updatedAt.getTime());
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[store] refresh failed: ${(e as Error).message}`);
+  }
+}
+
+async function flushAll(): Promise<void> {
+  for (const key of COLLECTION_KEYS) {
+    const arr = COLLECTIONS[key]!;
+    await db
+      .insert(kvStoreTable)
+      .values({ key, value: arr as unknown as object })
+      .onConflictDoUpdate({
+        target: kvStoreTable.key,
+        set: { value: arr as unknown as object, updatedAt: sql`now()` },
+      });
+    lastLoadedAt.set(key, Date.now());
   }
 }
 
 let saveTimer: NodeJS.Timeout | null = null;
 let saving = false;
-function flush() {
+async function flush() {
   if (saving) return;
   saving = true;
   try {
-    const snapshot: Record<string, any[]> = {};
-    for (const [k, arr] of Object.entries(COLLECTIONS)) snapshot[k] = arr;
-    fs.writeFileSync(STORE_FILE + ".tmp", JSON.stringify(snapshot));
-    fs.renameSync(STORE_FILE + ".tmp", STORE_FILE);
+    await flushAll();
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.warn(`[store] failed to save: ${(e as Error).message}`);
+    console.warn(`[store] flush failed: ${(e as Error).message}`);
   } finally {
     saving = false;
   }
@@ -469,14 +538,26 @@ function flush() {
 /** Debounced save — call from any mutating handler. Coalesces bursts. */
 export function persistStore() {
   if (saveTimer) return;
-  saveTimer = setTimeout(() => { saveTimer = null; flush(); }, 400);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void flush();
+  }, 400);
 }
 
-loadFromDisk();
+/** Awaited at server boot from app.ts so the first request sees full data. */
+export function ensureLoaded(): Promise<void> {
+  if (!bootLoadPromise) bootLoadPromise = bootLoad();
+  return bootLoadPromise;
+}
+
+// Kick off the initial load eagerly.
+void ensureLoaded();
+
 // Best-effort flush on graceful shutdown.
-process.on("SIGTERM", flush);
-process.on("SIGINT",  flush);
-process.on("beforeExit", flush);
+const shutdownFlush = () => { void flush(); };
+process.on("SIGTERM", shutdownFlush);
+process.on("SIGINT",  shutdownFlush);
+process.on("beforeExit", shutdownFlush);
 // Safety net: even if a route forgot to call persistStore(), snapshot every
 // 5 seconds so we never lose more than a few seconds of activity.
-setInterval(() => { if (!saveTimer) flush(); }, 5000).unref();
+setInterval(() => { if (!saveTimer) void flush(); }, 5000).unref();
