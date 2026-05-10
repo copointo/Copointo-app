@@ -10,6 +10,10 @@ export interface Cafe {
 export interface AppUser {
   id: string; username: string; phone: string; level: number;
   totalOrders: number; banned: boolean; joinedAt: string;
+  /** Reason shown to the user when their whole account is banned by super-admin. */
+  banReason?: string | null;
+  /** ISO timestamp of when the account ban was applied. */
+  bannedAt?: string | null;
   /** Permanent game ban (separate from `banned` which blocks the whole account). */
   gameBanned?: boolean;
   /** ISO timestamp; if in the future, the user is temporarily suspended from the game. */

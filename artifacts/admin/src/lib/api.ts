@@ -21,6 +21,10 @@ export const api = {
   deleteCafe: (id: string) => req<any>("DELETE",`${A}/cafes/${id}`),
   getUsers:   ()           => req<any>("GET",   `${A}/users`),
   toggleBan:  (id: string) => req<any>("PATCH", `${A}/users/${id}/ban`),
+  // Ban a user with a required reason (shown to the user in the mobile app
+  // via a full-screen "you've been banned" gate).
+  banUser:    (id: string, reason: string) => req<any>("PATCH", `${A}/users/${id}/ban`, { reason }),
+  unbanUser:  (id: string) => req<any>("PATCH", `${A}/users/${id}/ban`),
   // Super-admin sends a direct message to ONE user (delivered to that user
   // only, appears in their Messages tab as a conversation from "كوبوينتو").
   sendUserMessage: (id: string, message: string) => req<any>("POST", `${A}/users/${id}/message`, { message }),

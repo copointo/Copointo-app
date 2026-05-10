@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { AuthModal } from "@/components/AuthModal";
+import { BannedScreen } from "@/components/BannedScreen";
 
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
@@ -19,8 +20,15 @@ const PRIMARY = "#E8B86D";
  * already-signed-in users while AsyncStorage is still loading.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, hydrated } = useApp();
+  const { user, hydrated, bannedInfo } = useApp();
   const { t } = useT();
+
+  // Banned users see a full-screen ban gate with a logout-only action so
+  // they cannot navigate anywhere else in the app. They can still log out
+  // and sign in with a brand-new account (different phone + username).
+  if (user && bannedInfo) {
+    return <BannedScreen reason={bannedInfo.reason} />;
+  }
 
   if (!hydrated) {
     return (

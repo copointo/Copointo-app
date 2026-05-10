@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface AppUser {
   id: string; username: string; phone: string;
   level: number; totalOrders: number; banned: boolean; joinedAt: string;
+  banReason?: string | null;
+  bannedAt?: string | null;
 }
 
 export default function UsersPage() {
@@ -39,9 +41,38 @@ export default function UsersPage() {
     };
   }, []);
 
-  const toggleBan = async (id: string) => {
-    await api.toggleBan(id);
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, banned: !u.banned } : u));
+  // ─── Ban modal state ───────────────────────────────────────────────────
+  // Banning now REQUIRES a written reason which is shown to the user inside
+  // the mobile app (full-screen ban gate). Unbanning still works as a
+  // single-click action and clears the stored reason.
+  const [banTarget,  setBanTarget]  = useState<AppUser | null>(null);
+  const [banReason,  setBanReason]  = useState("");
+  const [banSaving,  setBanSaving]  = useState(false);
+  const [banErr,     setBanErr]     = useState("");
+  const banInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const openBan = (u: AppUser) => {
+    setBanTarget(u); setBanReason(""); setBanErr("");
+    setTimeout(() => banInputRef.current?.focus(), 50);
+  };
+  const closeBan = () => { if (banSaving) return; setBanTarget(null); setBanReason(""); setBanErr(""); };
+  const submitBan = async () => {
+    if (!banTarget) return;
+    const reason = banReason.trim();
+    if (!reason) { setBanErr("اكتب سبب الحظر"); return; }
+    setBanSaving(true); setBanErr("");
+    try {
+      const res = await api.banUser(banTarget.id, reason);
+      setUsers(prev => prev.map(u => u.id === banTarget.id ? { ...u, ...res.user } : u));
+      setBanTarget(null); setBanReason("");
+    } catch (e: any) {
+      setBanErr(e?.message?.substring(0, 200) || "تعذّر الحظر");
+    } finally { setBanSaving(false); }
+  };
+
+  const unban = async (id: string) => {
+    const res = await api.unbanUser(id);
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...res.user } : u));
   };
 
   // ─── Send-message modal state ──────────────────────────────────────────
@@ -143,10 +174,17 @@ export default function UsersPage() {
                   <td className="px-5 py-4 text-foreground font-semibold">{user.totalOrders}</td>
                   <td className="px-5 py-4 text-muted-foreground text-xs">{fmtDate(user.joinedAt)}</td>
                   <td className="px-5 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${user.banned ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${user.banned ? "bg-red-400" : "bg-green-400"}`} />
-                      {user.banned ? "محظور" : "نشط"}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold w-fit ${user.banned ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${user.banned ? "bg-red-400" : "bg-green-400"}`} />
+                        {user.banned ? "محظور" : "نشط"}
+                      </span>
+                      {user.banned && user.banReason && (
+                        <span className="text-[10px] text-red-300/80 max-w-[200px] truncate" title={user.banReason}>
+                          {user.banReason}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2">
@@ -158,7 +196,7 @@ export default function UsersPage() {
                         <MessageSquare size={14} /> رسالة
                       </button>
                       <button
-                        onClick={() => toggleBan(user.id)}
+                        onClick={() => user.banned ? unban(user.id) : openBan(user)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                           user.banned
                             ? "bg-green-500/15 text-green-400 hover:bg-green-500/25"
@@ -181,6 +219,64 @@ export default function UsersPage() {
           )}
         </div>
       </div>
+
+      {/* ── Ban modal (require reason) ── */}
+      {banTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeBan} />
+          <div className="relative bg-card border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl z-10 overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-red-900/30 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">حظر {banTarget.username}</p>
+                  <p className="text-xs text-muted-foreground" dir="ltr">{banTarget.phone}</p>
+                </div>
+              </div>
+              <button onClick={closeBan} className="text-muted-foreground hover:text-foreground" disabled={banSaving}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs text-muted-foreground mb-2">
+                سبب الحظر <span className="text-red-400">*</span> سيظهر للمستخدم داخل التطبيق ويمنعه من استخدام الموقع أو إعادة التسجيل بنفس الرقم/اليوزر.
+              </p>
+              <textarea
+                ref={banInputRef}
+                value={banReason}
+                onChange={e => setBanReason(e.target.value)}
+                placeholder="مثال: مخالفة شروط الاستخدام، إساءة، طلبات وهمية..."
+                rows={4}
+                maxLength={500}
+                disabled={banSaving}
+                className="w-full bg-input border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-red-500 placeholder:text-muted-foreground resize-none"
+              />
+              <div className="flex items-center justify-between mt-1.5 text-xs text-muted-foreground">
+                <span>{banReason.length} / 500</span>
+                {banErr && <span className="text-red-400">{banErr}</span>}
+              </div>
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  onClick={closeBan}
+                  disabled={banSaving}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={submitBan}
+                  disabled={banSaving || !banReason.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Ban size={14} /> {banSaving ? "جاري الحظر..." : "تأكيد الحظر"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Send-message modal ── */}
       {msgTarget && (

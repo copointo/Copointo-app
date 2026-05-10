@@ -73,12 +73,14 @@ export async function fetchPublicUsers(): Promise<PublicServerUser[]> {
  * super-admin page lists every real registered player (not just those who
  * placed an order). Idempotent: safe to call multiple times for the same id.
  */
+export type AuthResultEx = AuthResult & { banned?: boolean; banReason?: string | null };
+
 export async function syncUserToServer(args: {
   id: string;
   username: string;
   phone: string;
   joinedAt?: string;
-}): Promise<AuthResult> {
+}): Promise<AuthResultEx> {
   try {
     const r = await fetch(`${API_BASE}/users/register`, {
       method: "POST",
@@ -87,9 +89,39 @@ export async function syncUserToServer(args: {
     });
     const data = await r.json().catch(() => ({}));
     if (r.ok && data?.ok) return { ok: true };
+    // Server returns 403 + { banned: true, banReason } when the phone or
+    // username belongs to a banned account — surface that to the caller so
+    // the auth UI can show the proper "you've been banned" message instead
+    // of a generic "phone already registered" error.
+    if (data?.banned) {
+      return {
+        ok: false,
+        banned: true,
+        banReason: data?.banReason ?? null,
+        error: data?.error || "تم حظر هذا الحساب من الموقع",
+      };
+    }
     return { ok: false, error: data?.error || "تعذر تسجيل المستخدم على الخادم" };
   } catch {
     return { ok: false, error: "تعذر الاتصال بالخادم" };
+  }
+}
+
+/** Lightweight ban-status check used by the in-app ban-poll. Returns
+ *  `null` on any network/parse error so callers can distinguish "server
+ *  says not-banned" from "couldn't reach the server" — important so a
+ *  transient failure doesn't accidentally clear a previously-cached ban. */
+export async function fetchUserStatus(
+  userId: string,
+): Promise<{ banned: boolean; banReason?: string | null } | null> {
+  try {
+    const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/status`);
+    if (!r.ok) return null;
+    const data = await r.json().catch(() => null);
+    if (!data || data.ok !== true) return null;
+    return { banned: !!data.banned, banReason: data.banReason ?? null };
+  } catch {
+    return null;
   }
 }
 
@@ -162,6 +194,10 @@ interface AppContextType {
   /** True once the initial AsyncStorage read completes (used by the global
    *  AuthGate to avoid flashing the login screen for signed-in users). */
   hydrated: boolean;
+  /** Set when the server reports the current user is banned. The AuthGate
+   *  swaps the whole UI for a full-screen ban screen showing this reason
+   *  and a logout-only button. `null` while the user is in good standing. */
+  bannedInfo: { reason: string } | null;
   setUser: (user: User | null) => void;
   register: (data: Omit<User, "id" | "level" | "totalOrders" | "points">) => Promise<AuthResult>;
   login: (phone: string, password: string) => Promise<AuthResult>;
@@ -261,10 +297,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Consumers (notably the global AuthGate) wait on this flag so the
   // login screen does not flash for users who are already signed in.
   const [hydrated, setHydrated] = useState(false);
+  // Set when the server reports the current user is banned. The AuthGate
+  // swaps the whole UI for a full-screen ban screen showing this reason
+  // and a logout-only button. `null` while the user is in good standing.
+  const [bannedInfo, setBannedInfo] = useState<{ reason: string } | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // ─── Ban-status poll ───────────────────────────────────────────────────
+  // While a user is signed in, poll the server every 8s to detect when the
+  // super-admin bans this account. The moment `banned: true` flips, the
+  // AuthGate swaps the entire UI for a full-screen ban screen so the user
+  // cannot keep using the app. Cleared on logout / when ban is lifted.
+  //
+  // We also CACHE the last-known ban state per user in AsyncStorage. This
+  // way, if a banned user kills the app and re-opens it offline, we still
+  // gate them — `fetchUserStatus()` returns {banned:false} on network
+  // failure, so without this cache an offline restart would let a banned
+  // user back in until the next successful poll.
+  useEffect(() => {
+    if (!user?.id) { setBannedInfo(null); return; }
+    const uid = user.id;
+    const cacheKey = `ban_cache:${uid}`;
+    let cancelled = false;
+    // Prime from cache so a previously-banned user is gated INSTANTLY on
+    // cold-start even before the first network poll resolves.
+    AsyncStorage.getItem(cacheKey).then(raw => {
+      if (cancelled || !raw) return;
+      try {
+        const cached = JSON.parse(raw) as { banned: boolean; reason?: string };
+        if (cached?.banned) {
+          setBannedInfo({ reason: cached.reason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو" });
+        }
+      } catch {}
+    }).catch(() => {});
+    const check = async () => {
+      const status = await fetchUserStatus(uid);
+      if (cancelled || status === null) return; // network error → keep current state
+      if (status.banned) {
+        const reason = status.banReason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو";
+        setBannedInfo({ reason });
+        AsyncStorage.setItem(cacheKey, JSON.stringify({ banned: true, reason })).catch(() => {});
+      } else {
+        setBannedInfo(null);
+        AsyncStorage.removeItem(cacheKey).catch(() => {});
+      }
+    };
+    check();
+    const t = setInterval(check, 8000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [user?.id]);
 
   const loadData = async () => {
     try {
@@ -617,6 +701,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       if (!found) return { ok: false, error: "رقم الهاتف/اليوزر أو كلمة المرور غير صحيحة" };
 
+      // Block sign-in if the server says this account is banned. Without
+      // this check a banned user could still load the app for ~8s (until
+      // the first ban-status poll resolves) — which is enough to use
+      // features. We don't enter the session at all in that case; the
+      // AuthModal surfaces the ban reason as the login error.
+      const status = await fetchUserStatus(found.id);
+      if (status?.banned) {
+        return {
+          ok: false,
+          error: `🚫 تم حظرك من الموقع: ${status.banReason || "تواصل مع إدارة كوبوينتو"}`,
+        };
+      }
+
       // Persist the (possibly-updated) roster so the adopted credential
       // survives a restart.
       await AsyncStorage.setItem("registeredUsers", JSON.stringify(users));
@@ -899,6 +996,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         hydrated,
+        bannedInfo,
         setUser,
         register,
         login,

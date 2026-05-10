@@ -142,10 +142,27 @@ router.get("/users", (_req, res) => {
 });
 
 // ── PATCH /api/admin/users/:id/ban ─────────
-router.patch("/users/:id/ban", (req, res) => {
+// Body: { reason?: string }
+// Banning REQUIRES a reason (shown to the user in the mobile app). Unbanning
+// (toggling off) clears the reason and bannedAt timestamp. Kept as PATCH +
+// toggle for backwards compatibility with the existing admin UI.
+router.patch("/users/:id/ban", (req, res): any => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
-  user.banned = !user.banned;
+  if (user.banned) {
+    // Already banned → unban (no reason required)
+    user.banned = false;
+    user.banReason = null;
+    user.bannedAt = null;
+  } else {
+    const reason = String(req.body?.reason ?? "").trim();
+    if (!reason) return res.status(400).json({ error: "سبب الحظر مطلوب" });
+    if (reason.length > 500) return res.status(400).json({ error: "سبب الحظر طويل جداً (الحد الأقصى 500 حرف)" });
+    user.banned = true;
+    user.banReason = reason;
+    user.bannedAt = new Date().toISOString();
+  }
+  persistStore();
   res.json({ user });
 });
 

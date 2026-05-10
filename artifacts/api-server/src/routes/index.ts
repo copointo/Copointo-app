@@ -515,7 +515,32 @@ router.post("/users/register", (req, res): any => {
   const usernameClash = usernameRegistry.find(u => u.username === usernameKey && u.userId !== id);
   if (usernameClash) return res.status(409).json({ ok: false, error: "يوزر اللعبة مستخدم مسبقاً" });
   const phoneClash = users.find(u => u.phone === phone && u.id !== id);
-  if (phoneClash)    return res.status(409).json({ ok: false, error: "رقم الهاتف مسجّل مسبقاً" });
+  if (phoneClash) {
+    // If the existing account on this phone is banned, surface that to the
+    // client so it can show the ban screen instead of a generic "phone
+    // already registered" error — prevents banned users from re-registering
+    // with the same phone number.
+    if (phoneClash.banned) {
+      return res.status(403).json({
+        ok: false,
+        banned: true,
+        banReason: phoneClash.banReason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو",
+        error: "تم حظر هذا الحساب من الموقع",
+      });
+    }
+    return res.status(409).json({ ok: false, error: "رقم الهاتف مسجّل مسبقاً" });
+  }
+  // Same protection on the username side: a banned user can't reclaim their
+  // banned game username from a fresh device.
+  const usernameClashUser = users.find(u => u.username.toLowerCase() === usernameKey && u.id !== id);
+  if (usernameClashUser && usernameClashUser.banned) {
+    return res.status(403).json({
+      ok: false,
+      banned: true,
+      banReason: usernameClashUser.banReason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو",
+      error: "تم حظر هذا الحساب من الموقع",
+    });
+  }
 
   // Both checks passed — commit username claim and user row together.
   for (let i = usernameRegistry.length - 1; i >= 0; i--) {
@@ -545,6 +570,25 @@ router.post("/users/register", (req, res): any => {
   users.push(u);
   persistStore();
   res.json({ ok: true, user: u });
+});
+
+// ─── User status (ban poll) ──────────────────────────────────────────────
+// The mobile app polls this endpoint every few seconds while the user is
+// signed in. If `banned` flips to true the AuthGate replaces the whole UI
+// with a "you've been banned" screen showing `banReason` and a logout
+// button — the only action allowed for a banned user.
+router.get("/users/:id/status", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.json({ ok: true, exists: false, banned: false });
+  res.json({
+    ok: true,
+    exists: true,
+    banned: !!u.banned,
+    banReason: u.banReason ?? null,
+    bannedAt:  u.bannedAt  ?? null,
+  });
 });
 
 // ─── User self-reset ─────────────────────────────────────────────────────
