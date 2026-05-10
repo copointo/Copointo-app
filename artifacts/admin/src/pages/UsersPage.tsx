@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface AppUser {
@@ -73,6 +73,35 @@ export default function UsersPage() {
   const unban = async (id: string) => {
     const res = await api.unbanUser(id);
     setUsers(prev => prev.map(u => u.id === id ? { ...u, ...res.user } : u));
+  };
+
+  // ─── Delete-user modal state ───────────────────────────────────────────
+  // Permanently removes the user and frees up their gameUsername so any
+  // other player can claim it. Requires typing the username for confirmation
+  // to avoid accidental deletion.
+  const [delTarget,   setDelTarget]   = useState<AppUser | null>(null);
+  const [delConfirm,  setDelConfirm]  = useState("");
+  const [delSaving,   setDelSaving]   = useState(false);
+  const [delErr,      setDelErr]      = useState("");
+
+  const openDelete = (u: AppUser) => {
+    setDelTarget(u); setDelConfirm(""); setDelErr("");
+  };
+  const closeDelete = () => { if (delSaving) return; setDelTarget(null); setDelConfirm(""); setDelErr(""); };
+  const submitDelete = async () => {
+    if (!delTarget) return;
+    if (delConfirm.trim() !== delTarget.username) {
+      setDelErr("اكتب اسم المستخدم بالضبط للتأكيد");
+      return;
+    }
+    setDelSaving(true); setDelErr("");
+    try {
+      await api.deleteUser(delTarget.id);
+      setUsers(prev => prev.filter(u => u.id !== delTarget.id));
+      setDelTarget(null); setDelConfirm("");
+    } catch (e: any) {
+      setDelErr(e?.message?.substring(0, 200) || "تعذّر الحذف");
+    } finally { setDelSaving(false); }
   };
 
   // ─── Send-message modal state ──────────────────────────────────────────
@@ -205,6 +234,13 @@ export default function UsersPage() {
                       >
                         {user.banned ? <><CheckCircle size={14} /> رفع الحظر</> : <><Ban size={14} /> حظر</>}
                       </button>
+                      <button
+                        onClick={() => openDelete(user)}
+                        title="حذف المستخدم نهائياً"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 hover:bg-red-500/25 transition-colors"
+                      >
+                        <Trash2 size={14} /> حذف
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -271,6 +307,61 @@ export default function UsersPage() {
                   className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Ban size={14} /> {banSaving ? "جاري الحظر..." : "تأكيد الحظر"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete-user modal (require username confirmation) ── */}
+      {delTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeDelete} />
+          <div className="relative bg-card border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl z-10 overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-red-900/30 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400">
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">حذف {delTarget.username}</p>
+                  <p className="text-xs text-muted-foreground" dir="ltr">{delTarget.phone}</p>
+                </div>
+              </div>
+              <button onClick={closeDelete} className="text-muted-foreground hover:text-foreground" disabled={delSaving}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                سيتم حذف هذا المستخدم نهائياً، ويصبح يوزر اللعبة <span className="text-primary font-semibold">@{delTarget.username}</span> متاحاً لأي مستخدم آخر للتسجيل به.
+                <br />
+                للتأكيد، اكتب اسم المستخدم بالضبط:
+              </p>
+              <input
+                value={delConfirm}
+                onChange={e => setDelConfirm(e.target.value)}
+                placeholder={delTarget.username}
+                disabled={delSaving}
+                dir="ltr"
+                className="w-full bg-input border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-red-500 placeholder:text-muted-foreground"
+              />
+              {delErr && <div className="mt-1.5 text-xs text-red-400">{delErr}</div>}
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  onClick={closeDelete}
+                  disabled={delSaving}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={submitDelete}
+                  disabled={delSaving || delConfirm.trim() !== delTarget.username}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 size={14} /> {delSaving ? "جاري الحذف..." : "حذف نهائي"}
                 </button>
               </div>
             </div>

@@ -25,6 +25,8 @@ export const api = {
   // via a full-screen "you've been banned" gate).
   banUser:    (id: string, reason: string) => req<any>("PATCH", `${A}/users/${id}/ban`, { reason }),
   unbanUser:  (id: string) => req<any>("PATCH", `${A}/users/${id}/ban`),
+  // Permanently delete a user (and free up their gameUsername).
+  deleteUser: (id: string) => req<any>("DELETE", `${A}/users/${id}`),
   // Super-admin sends a direct message to ONE user (delivered to that user
   // only, appears in their Messages tab as a conversation from "كوبوينتو").
   sendUserMessage: (id: string, message: string) => req<any>("POST", `${A}/users/${id}/message`, { message }),

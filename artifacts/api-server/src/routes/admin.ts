@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports, type Cafe, type Broadcast, type ChatMsg, type Report } from "../store";
+import { cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports, usernameRegistry, type Cafe, type Broadcast, type ChatMsg, type Report } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 
 // Special "sender id" used when the super-admin direct-messages a user.
@@ -139,6 +139,26 @@ router.delete("/cafes/:id", (req, res) => {
 // ── GET /api/admin/users ────────────────────
 router.get("/users", (_req, res) => {
   res.json({ users });
+});
+
+// ── DELETE /api/admin/users/:id ────────────
+// Super-admin completely removes a user. After deletion the gameUsername
+// becomes available for any other player to claim (the entry is also
+// removed from `usernameRegistry`). The mobile app keeps its own per-device
+// AsyncStorage state — that's expected; the next time it talks to the
+// server (e.g. /users/register on next login) the account is treated as
+// new again.
+router.delete("/users/:id", (req, res): any => {
+  const id  = req.params.id;
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return res.status(404).json({ error: "User not found" });
+  users.splice(idx, 1);
+  // Free up the gameUsername so anyone else can use it.
+  for (let i = usernameRegistry.length - 1; i >= 0; i--) {
+    if (usernameRegistry[i].userId === id) usernameRegistry.splice(i, 1);
+  }
+  persistStore();
+  res.json({ ok: true });
 });
 
 // ── PATCH /api/admin/users/:id/ban ─────────
