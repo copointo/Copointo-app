@@ -1,3 +1,4 @@
+import { Feather } from "@expo/vector-icons";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
@@ -7,6 +8,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,6 +25,9 @@ interface Props {
   onDone: () => void;
   /** How many gift instances to rain down (defaults to 1). */
   count?: number;
+  /** When set, renders a top-right "تخطي" button that skips both the
+   *  current animation and any queued ones. */
+  onSkipAll?: () => void;
 }
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -39,7 +44,7 @@ const HOLD_AFTER_MS = 700;         // extra time the caption stays visible
  * number of falling emojis matches the quantity sent (capped at
  * MAX_PARTICLES for performance, but the caption shows the true ×N).
  */
-export default function GiftAnimation({ gift, fromName, toName, visible, onDone, count = 1 }: Props) {
+export default function GiftAnimation({ gift, fromName, toName, visible, onDone, count = 1, onSkipAll }: Props) {
   const captionOpacity = useRef(new Animated.Value(0)).current;
 
   // Total quantity (uncapped, used for the caption "×N" badge)
@@ -145,6 +150,18 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
             </Text>
           ) : null}
         </Animated.View>
+
+        {/* Skip-all button (top-left) — only shown for the global feed rain */}
+        {onSkipAll && (
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
+            activeOpacity={0.85}
+            style={styles.skipBtn}
+          >
+            <Feather name="x" size={14} color="#FFF" />
+            <Text style={styles.skipText}>تخطي الهدايا</Text>
+          </TouchableOpacity>
+        )}
       </Pressable>
     </Modal>
   );
@@ -239,5 +256,24 @@ const styles = StyleSheet.create({
   namesArrow: {
     fontSize: 14, fontFamily: "Inter_700Bold",
     color: "rgba(255,255,255,0.85)",
+  },
+  skipBtn: {
+    position: "absolute",
+    top: 50,
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.5)",
+  },
+  skipText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
   },
 });

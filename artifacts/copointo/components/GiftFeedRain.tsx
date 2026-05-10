@@ -86,6 +86,11 @@ export default function GiftFeedRain() {
 
   if (!active) return null;
 
+  const skipAll = () => {
+    setQueue([]);
+    setActive(null);
+  };
+
   return (
     <GiftAnimation
       gift={active.gift}
@@ -94,6 +99,7 @@ export default function GiftFeedRain() {
       count={active.count}
       visible
       onDone={() => setActive(null)}
+      onSkipAll={skipAll}
     />
   );
 }
