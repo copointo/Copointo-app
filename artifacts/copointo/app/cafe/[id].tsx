@@ -75,6 +75,70 @@ export default function CafeLandingScreen() {
     setReportDesc("");
     setReportOpen(true);
   };
+
+  // ── Gift voucher (اهدي من تحب) ───────────────────────────────────
+  // Multi-step modal: amount → sender → recipient → fromMode → fake pay → done.
+  type GiftStep = "amount" | "sender" | "recipient" | "from" | "pay" | "done";
+  const [giftOpen, setGiftOpen]               = useState(false);
+  const [giftStep, setGiftStep]               = useState<GiftStep>("amount");
+  const [giftAmount, setGiftAmount]           = useState("");
+  const [giftSenderName, setGiftSenderName]   = useState("");
+  const [giftSenderPhone, setGiftSenderPhone] = useState("");
+  const [giftRecName, setGiftRecName]         = useState("");
+  const [giftRecPhone, setGiftRecPhone]       = useState("");
+  const [giftFromMode, setGiftFromMode]       = useState<"anonymous"|"friend"|"named"|null>(null);
+  const [giftFromDisplay, setGiftFromDisplay] = useState("");
+  const [giftSending, setGiftSending]         = useState(false);
+
+  const openGift = () => {
+    setGiftStep("amount");
+    setGiftAmount("");
+    setGiftSenderName(user?.name ?? "");
+    setGiftSenderPhone(user?.phone ?? "");
+    setGiftRecName("");
+    setGiftRecPhone("");
+    setGiftFromMode(null);
+    setGiftFromDisplay(user?.name ?? "");
+    setGiftSending(false);
+    setGiftOpen(true);
+  };
+  const closeGift = () => setGiftOpen(false);
+
+  const submitGift = async () => {
+    if (giftSending) return;
+    const amount = Number(giftAmount);
+    if (!Number.isFinite(amount) || amount < 2) {
+      Alert.alert("القيمة غير صالحة", "أقل قيمة للقسيمة 2 ر.ع");
+      setGiftStep("amount");
+      return;
+    }
+    if (!giftSenderName.trim() || !giftSenderPhone.trim()) {
+      Alert.alert("بيانات المُرسِل ناقصة"); setGiftStep("sender"); return;
+    }
+    if (!giftRecName.trim() || !giftRecPhone.trim()) {
+      Alert.alert("بيانات المُرسَل إليه ناقصة"); setGiftStep("recipient"); return;
+    }
+    if (!giftFromMode) { setGiftStep("from"); return; }
+
+    try {
+      setGiftSending(true);
+      await apiPost(`/cafe/${id}/gift-vouchers`, {
+        amount,
+        senderName:     giftSenderName.trim(),
+        senderPhone:    giftSenderPhone.trim(),
+        recipientName:  giftRecName.trim(),
+        recipientPhone: giftRecPhone.trim(),
+        fromMode:       giftFromMode,
+        fromDisplay:    giftFromMode === "named" ? (giftFromDisplay.trim() || giftSenderName.trim()) : undefined,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setGiftStep("done");
+    } catch {
+      Alert.alert("تعذّر إتمام الطلب", "حاول مرة أخرى لاحقاً");
+    } finally {
+      setGiftSending(false);
+    }
+  };
   const submitReport = async () => {
     const name = reportName.trim();
     const phone = reportPhone.trim();
@@ -523,6 +587,39 @@ export default function CafeLandingScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ── Gift voucher wide card (اهدي من تحب) ── */}
+        <TouchableOpacity
+          onPress={openGift}
+          activeOpacity={0.85}
+          style={[styles.actionWideWrap, { marginTop: 14 }]}
+        >
+          <View style={[styles.actionWideDepth, { backgroundColor: "#3a1f08" }]} />
+          <LinearGradient
+            colors={["#E8B86D", "#C67C4E", "#8B4513"]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={[styles.actionWide, { paddingVertical: 22 }]}
+          >
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.shimmerStrip, { transform: [{ translateX: shimmerX }, { rotate: "20deg" }] }]}
+            >
+              <LinearGradient
+                colors={["rgba(255,255,255,0)", "rgba(255,255,255,0.30)", "rgba(255,255,255,0)"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ flex: 1 }}
+              />
+            </Animated.View>
+            <View style={styles.giftBtnRow}>
+              <Feather name="gift" size={26} color="#FFF" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.giftBtnTitle}>اهدي من تحب</Text>
+                <Text style={styles.giftBtnSub}>قسيمة شرائية لصديق أو من تحب</Text>
+              </View>
+              <Feather name="chevron-left" size={22} color="rgba(255,255,255,0.85)" />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
         {/* ── Rating panel (optional) ── */}
         <View style={styles.ratingCard}>
           <View style={styles.ratingHeaderRow}>
@@ -576,6 +673,277 @@ export default function CafeLandingScreen() {
           <Text style={styles.reportBtnText}>الإبلاغ عن هذا الكوفي</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* ── Gift voucher modal ── */}
+      <Modal visible={giftOpen} transparent animationType="fade" onRequestClose={closeGift}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.reportOverlay}>
+          <View style={[styles.reportCard, { gap: 16 }]}>
+            <TouchableOpacity style={styles.reportClose} onPress={closeGift}>
+              <Feather name="x" size={20} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+
+            <View style={styles.reportHeader}>
+              <View style={[styles.reportIconWrap, { backgroundColor: "rgba(232,184,109,0.18)", borderColor: "rgba(232,184,109,0.45)" }]}>
+                <Feather name="gift" size={22} color={PRIMARY} />
+              </View>
+              <Text style={styles.reportTitle}>اهدي من تحب</Text>
+              <Text style={styles.reportSub}>قسيمة شرائية في {cafe.name}</Text>
+            </View>
+
+            {/* Step indicator */}
+            {giftStep !== "done" && (
+              <View style={styles.giftSteps}>
+                {(["amount","sender","recipient","from","pay"] as const).map((s, idx) => {
+                  const order = ["amount","sender","recipient","from","pay"];
+                  const cur = order.indexOf(giftStep);
+                  const active = idx <= cur;
+                  return <View key={s} style={[styles.giftStepDot, active && styles.giftStepDotOn]} />;
+                })}
+              </View>
+            )}
+
+            {giftStep === "amount" && (
+              <>
+                <View style={styles.reportField}>
+                  <Text style={styles.reportLabel}>قيمة القسيمة (ر.ع) — أقل قيمة 2</Text>
+                  <TextInput
+                    style={[styles.reportInput, { fontSize: 22, textAlign: "center", fontFamily: "Inter_700Bold" }]}
+                    value={giftAmount}
+                    onChangeText={(t) => setGiftAmount(t.replace(/[^0-9.]/g, ""))}
+                    placeholder="مثال: 5"
+                    placeholderTextColor="rgba(255,255,255,0.30)"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View style={styles.giftQuickRow}>
+                  {[2, 5, 10, 20].map((v) => (
+                    <TouchableOpacity key={v} style={styles.giftQuickPill} onPress={() => setGiftAmount(String(v))}>
+                      <Text style={styles.giftQuickText}>{v} ر.ع</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  style={styles.giftPrimaryBtn}
+                  onPress={() => {
+                    const a = Number(giftAmount);
+                    if (!Number.isFinite(a) || a < 2) {
+                      Alert.alert("القيمة غير صالحة", "أقل قيمة للقسيمة 2 ر.ع");
+                      return;
+                    }
+                    setGiftStep("sender");
+                  }}
+                >
+                  <Text style={styles.giftPrimaryText}>التالي</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {giftStep === "sender" && (
+              <>
+                <View style={styles.reportField}>
+                  <Text style={styles.reportLabel}>اسمك</Text>
+                  <TextInput
+                    style={styles.reportInput}
+                    value={giftSenderName}
+                    onChangeText={setGiftSenderName}
+                    placeholder="اسمك الكامل"
+                    placeholderTextColor="rgba(255,255,255,0.30)"
+                    textAlign="right"
+                  />
+                </View>
+                <View style={styles.reportField}>
+                  <Text style={styles.reportLabel}>رقم هاتفك</Text>
+                  <TextInput
+                    style={styles.reportInput}
+                    value={giftSenderPhone}
+                    onChangeText={setGiftSenderPhone}
+                    placeholder="9XXXXXXX"
+                    placeholderTextColor="rgba(255,255,255,0.30)"
+                    keyboardType="phone-pad"
+                    textAlign="right"
+                  />
+                </View>
+                <View style={styles.giftNavRow}>
+                  <TouchableOpacity style={styles.giftSecondaryBtn} onPress={() => setGiftStep("amount")}>
+                    <Text style={styles.giftSecondaryText}>السابق</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.giftPrimaryBtn, { flex: 1 }]}
+                    onPress={() => {
+                      if (!giftSenderName.trim() || !giftSenderPhone.trim()) {
+                        Alert.alert("بيانات ناقصة", "أدخل الاسم ورقم الهاتف");
+                        return;
+                      }
+                      setGiftStep("recipient");
+                    }}
+                  >
+                    <Text style={styles.giftPrimaryText}>التالي</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {giftStep === "recipient" && (
+              <>
+                <View style={styles.reportField}>
+                  <Text style={styles.reportLabel}>اسم المُهدى إليه</Text>
+                  <TextInput
+                    style={styles.reportInput}
+                    value={giftRecName}
+                    onChangeText={setGiftRecName}
+                    placeholder="اسم من تريد إهداءه"
+                    placeholderTextColor="rgba(255,255,255,0.30)"
+                    textAlign="right"
+                  />
+                </View>
+                <View style={styles.reportField}>
+                  <Text style={styles.reportLabel}>رقم هاتف المُهدى إليه</Text>
+                  <TextInput
+                    style={styles.reportInput}
+                    value={giftRecPhone}
+                    onChangeText={setGiftRecPhone}
+                    placeholder="9XXXXXXX"
+                    placeholderTextColor="rgba(255,255,255,0.30)"
+                    keyboardType="phone-pad"
+                    textAlign="right"
+                  />
+                </View>
+                <View style={styles.giftNavRow}>
+                  <TouchableOpacity style={styles.giftSecondaryBtn} onPress={() => setGiftStep("sender")}>
+                    <Text style={styles.giftSecondaryText}>السابق</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.giftPrimaryBtn, { flex: 1 }]}
+                    onPress={() => {
+                      if (!giftRecName.trim() || !giftRecPhone.trim()) {
+                        Alert.alert("بيانات ناقصة", "أدخل اسم ورقم المُهدى إليه");
+                        return;
+                      }
+                      setGiftStep("from");
+                    }}
+                  >
+                    <Text style={styles.giftPrimaryText}>التالي</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {giftStep === "from" && (
+              <>
+                <Text style={[styles.reportLabel, { textAlign: "center" }]}>كيف تريد أن تظهر القسيمة للمستلم؟</Text>
+                {([
+                  { k: "anonymous" as const, t: "من طرف مجهول", s: "لن يعلم اسمك" },
+                  { k: "friend"    as const, t: "من صديق/ة",    s: "يظهر فقط أنه من صديق" },
+                  { k: "named"     as const, t: "باسم محدد",    s: "اكتب الاسم الذي يظهر للمستلم" },
+                ]).map((opt) => {
+                  const selected = giftFromMode === opt.k;
+                  return (
+                    <TouchableOpacity
+                      key={opt.k}
+                      onPress={() => setGiftFromMode(opt.k)}
+                      activeOpacity={0.85}
+                      style={[styles.giftFromOpt, selected && styles.giftFromOptOn]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.giftFromTitle, selected && { color: PRIMARY }]}>{opt.t}</Text>
+                        <Text style={styles.giftFromSub}>{opt.s}</Text>
+                      </View>
+                      <Feather
+                        name={selected ? "check-circle" : "circle"}
+                        size={22}
+                        color={selected ? PRIMARY : "rgba(255,255,255,0.35)"}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
+                {giftFromMode === "named" && (
+                  <View style={styles.reportField}>
+                    <Text style={styles.reportLabel}>الاسم الذي يظهر للمستلم</Text>
+                    <TextInput
+                      style={styles.reportInput}
+                      value={giftFromDisplay}
+                      onChangeText={setGiftFromDisplay}
+                      placeholder="مثال: أحمد"
+                      placeholderTextColor="rgba(255,255,255,0.30)"
+                      textAlign="right"
+                    />
+                  </View>
+                )}
+                <View style={styles.giftNavRow}>
+                  <TouchableOpacity style={styles.giftSecondaryBtn} onPress={() => setGiftStep("recipient")}>
+                    <Text style={styles.giftSecondaryText}>السابق</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.giftPrimaryBtn, { flex: 1, opacity: giftFromMode ? 1 : 0.5 }]}
+                    disabled={!giftFromMode}
+                    onPress={() => setGiftStep("pay")}
+                  >
+                    <Text style={styles.giftPrimaryText}>التالي</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {giftStep === "pay" && (
+              <>
+                <View style={styles.giftSummary}>
+                  <View style={styles.giftSumRow}>
+                    <Text style={styles.giftSumLabel}>قيمة القسيمة</Text>
+                    <Text style={styles.giftSumVal}>{Number(giftAmount).toFixed(3)} ر.ع</Text>
+                  </View>
+                  <View style={styles.giftSumRow}>
+                    <Text style={styles.giftSumLabel}>المُرسَل إليه</Text>
+                    <Text style={styles.giftSumVal}>{giftRecName}</Text>
+                  </View>
+                  <View style={styles.giftSumRow}>
+                    <Text style={styles.giftSumLabel}>تظهر له بصيغة</Text>
+                    <Text style={styles.giftSumVal}>
+                      {giftFromMode === "anonymous" ? "من طرف مجهول"
+                        : giftFromMode === "friend" ? "من صديق/ة"
+                        : `باسم ${giftFromDisplay || giftSenderName}`}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.giftPayHint}>
+                  💳 الدفع تجريبي حالياً — اضغط "ادفع الآن" لإتمام طلب القسيمة. سيتواصل معك الكوفي عبر واتساب لتأكيد التسليم.
+                </Text>
+                <View style={styles.giftNavRow}>
+                  <TouchableOpacity style={styles.giftSecondaryBtn} onPress={() => setGiftStep("from")} disabled={giftSending}>
+                    <Text style={styles.giftSecondaryText}>السابق</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.giftPrimaryBtn, { flex: 1 }, giftSending && { opacity: 0.6 }]}
+                    onPress={submitGift}
+                    disabled={giftSending}
+                  >
+                    {giftSending
+                      ? <ActivityIndicator color="#000" />
+                      : <Text style={styles.giftPrimaryText}>ادفع الآن {Number(giftAmount).toFixed(3)} ر.ع</Text>}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+
+            {giftStep === "done" && (
+              <>
+                <View style={{ alignItems: "center", paddingVertical: 10, gap: 10 }}>
+                  <View style={[styles.reportIconWrap, { backgroundColor: "rgba(102,187,106,0.18)", borderColor: "rgba(102,187,106,0.45)" }]}>
+                    <Feather name="check" size={26} color="#66BB6A" />
+                  </View>
+                  <Text style={[styles.reportTitle, { color: "#66BB6A" }]}>تم إرسال طلب القسيمة</Text>
+                  <Text style={[styles.reportSub, { textAlign: "center", lineHeight: 20 }]}>
+                    سيتواصل معك الكوفي عبر واتساب على الرقم الذي أدخلته،{"\n"}
+                    وسنبلّغ {giftRecName} بالقسيمة فور تأكيدها.
+                  </Text>
+                </View>
+                <TouchableOpacity style={styles.giftPrimaryBtn} onPress={closeGift}>
+                  <Text style={styles.giftPrimaryText}>تم</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── Report modal ── */}
       <Modal visible={reportOpen} transparent animationType="fade" onRequestClose={() => setReportOpen(false)}>
@@ -917,4 +1285,42 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
+
+  // Gift voucher card + modal
+  giftBtnRow:   { flexDirection: "row", alignItems: "center", gap: 12, width: "100%", paddingHorizontal: 4 },
+  giftBtnTitle: { fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFF",
+                  textShadowColor: "rgba(0,0,0,0.5)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  giftBtnSub:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.85)", marginTop: 2 },
+
+  giftSteps:    { flexDirection: "row", justifyContent: "center", gap: 6 },
+  giftStepDot:  { width: 22, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)" },
+  giftStepDotOn:{ backgroundColor: PRIMARY },
+
+  giftPrimaryBtn:  { backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  giftPrimaryText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
+  giftSecondaryBtn:  { paddingVertical: 14, paddingHorizontal: 18, borderRadius: 14,
+                       backgroundColor: "rgba(255,255,255,0.08)", borderWidth: 1, borderColor: BORDER },
+  giftSecondaryText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.75)" },
+  giftNavRow:        { flexDirection: "row", gap: 10, alignItems: "stretch" },
+
+  giftQuickRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
+  giftQuickPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                   backgroundColor: "rgba(232,184,109,0.12)", borderWidth: 1, borderColor: "rgba(232,184,109,0.40)" },
+  giftQuickText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  giftFromOpt:   { flexDirection: "row", alignItems: "center", gap: 12,
+                   padding: 14, borderRadius: 14,
+                   backgroundColor: "rgba(255,255,255,0.04)",
+                   borderWidth: 1, borderColor: BORDER },
+  giftFromOptOn: { backgroundColor: "rgba(232,184,109,0.10)", borderColor: PRIMARY },
+  giftFromTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF" },
+  giftFromSub:   { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", marginTop: 2 },
+
+  giftSummary:  { backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: BORDER,
+                  borderRadius: 14, padding: 14, gap: 10 },
+  giftSumRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
+  giftSumLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)" },
+  giftSumVal:   { fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", flex: 1, textAlign: "left" },
+  giftPayHint:  { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)",
+                  textAlign: "center", lineHeight: 18 },
 });

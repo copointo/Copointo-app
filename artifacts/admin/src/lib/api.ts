@@ -80,6 +80,11 @@ export const api = {
   deleteChatInfo:(id: string, cid: string) => req<any>("DELETE", `${C(id)}/chat/${cid}`),
   cafeInvoices:  (id: string)              => req<any>("GET",    `${C(id)}/invoices`),
 
+  // Gift vouchers (قسائم شرائية)
+  giftVouchers:        (id: string)             => req<any>("GET",    `${C(id)}/gift-vouchers`),
+  confirmGiftVoucher:  (id: string, vid: string)=> req<any>("POST",   `${C(id)}/gift-vouchers/${vid}/confirm`),
+  deleteGiftVoucher:   (id: string, vid: string)=> req<any>("DELETE", `${C(id)}/gift-vouchers/${vid}`),
+
   // Discount codes
   discountCodes:       (id: string)            => req<any>("GET",    `${C(id)}/discount-codes`),
   addDiscountCode:     (id: string, body: { code: string; percent: number; expiresAt?: string | null }) =>

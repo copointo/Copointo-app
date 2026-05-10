@@ -410,6 +410,34 @@ export function friendsOf(userId: string): string[] {
     .map(f => (f.a === userId ? f.b : f.a));
 }
 
+// ─── Gift Vouchers (قسائم شرائية) ────────────────────────────────────────
+// Customers gift a money-amount voucher to a friend through the cafe page.
+// Payment is recorded immediately (fake-payment for now), and the cafe staff
+// confirm fulfilment after contacting the recipient on WhatsApp. Confirmed
+// vouchers create an Invoice row so they roll into revenue/analytics.
+export interface GiftVoucher {
+  id: string;
+  cafeId: string;
+  /** Voucher value in OMR (minimum 2). */
+  amount: number;
+  senderName: string;
+  senderPhone: string;
+  recipientName: string;
+  recipientPhone: string;
+  /** How the sender wants to appear to the recipient. */
+  fromMode: "anonymous" | "friend" | "named";
+  /** Free-text label used when fromMode === "named". */
+  fromDisplay?: string;
+  status: "pending" | "confirmed";
+  /** Paid (mock) at creation time. */
+  paidAt: string;
+  confirmedAt?: string;
+  /** Linked invoice id once the cafe confirms the voucher. */
+  invoiceId?: string;
+  createdAt: string;
+}
+export const giftVouchers: GiftVoucher[] = [];
+
 // ─── PostgreSQL persistence (autoscale-safe) ─────────────────────────────
 // Previous versions snapshotted the whole store to a local JSON file. That
 // broke on autoscale deployments because each instance had its own disk and
@@ -426,7 +454,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
-  reports, coinGifts,
+  reports, coinGifts, giftVouchers,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 

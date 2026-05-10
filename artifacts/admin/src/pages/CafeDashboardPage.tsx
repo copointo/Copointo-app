@@ -19,7 +19,7 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 
-type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode";
+type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
 // ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
 function playSyntheticBell() {
@@ -352,6 +352,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"templates", label:"تعديل الفواتير",    icon: FileText         },
   { id:"reels",     label:"Copointo ريلز",     icon: Video            },
   { id:"barcode",   label:"الباركود",          icon: QrCode           },
+  { id:"vouchers",  label:"القسائم الشرائية",  icon: Gift             },
 ];
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
@@ -426,6 +427,9 @@ function StatsTab({ id }: { id: string }) {
         <StatBox label="إجمالي الإيرادات" value={`${data.totalRevenue} OMR`} Icon={Wallet} />
         <StatBox label="طلبات بانتظار"    value={data.pendingOrders}  Icon={Clock} />
         <StatBox label="حجوزات مؤكدة"    value={data.confirmedBookings} Icon={CheckCircle} />
+        <StatBox label="القسائم الشرائية"        value={data.totalVouchers ?? 0} Icon={Gift} />
+        <StatBox label="قسائم بانتظار"           value={data.pendingVouchers ?? 0} Icon={Clock} />
+        <StatBox label="منها قسائم (مُحتسبة بالإيرادات)" value={`${(data.voucherRevenue ?? 0).toFixed(3)} OMR`} Icon={Gift} />
       </div>
 
       {data.chartData?.length > 0 && (
@@ -4259,6 +4263,7 @@ export default function CafeDashboardPage() {
         {tab === "templates" && <TemplatesTab id={id} />}
         {tab === "reels"     && <ReelsTab     id={id} />}
         {tab === "barcode"   && <BarcodeTab   id={id} cafeName={cafe?.name} />}
+        {tab === "vouchers"  && <VouchersTab  id={id} cafeName={cafe?.name} />}
       </div>
 
     </div>
@@ -5279,6 +5284,173 @@ function ReelsTab({ id }: { id: string }) {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Gift Vouchers Tab (القسائم الشرائية) ──────────────────────────
+function VouchersTab({ id, cafeName }: { id: string; cafeName?: string }) {
+  const [vouchers, setVouchers] = useState<any[]>([]);
+  const [loading, setLoading]   = useState(false);
+  const [filter, setFilter]     = useState<"all" | "pending" | "confirmed">("all");
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.giftVouchers(id)
+      .then(d => setVouchers(d.vouchers ?? []))
+      .catch(() => setVouchers([]))
+      .finally(() => setLoading(false));
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  const fromLabel = (v: any) => {
+    if (v.fromMode === "anonymous") return "من طرف مجهول";
+    if (v.fromMode === "friend")    return "من صديق/ة";
+    return `باسم ${v.fromDisplay || v.senderName}`;
+  };
+
+  const onConfirm = async (vid: string) => {
+    if (!confirm("تأكيد تسليم القسيمة؟ سيتم إنشاء فاتورة وإضافتها للإيرادات.")) return;
+    try {
+      await api.confirmGiftVoucher(id, vid);
+      load();
+    } catch { alert("تعذّر التأكيد. حاول مرة أخرى."); }
+  };
+  const onDelete = async (vid: string) => {
+    if (!confirm("حذف هذه القسيمة نهائياً؟")) return;
+    try {
+      await api.deleteGiftVoucher(id, vid);
+      load();
+    } catch { alert("تعذّر الحذف."); }
+  };
+
+  const openWhatsApp = (phone: string, voucher: any) => {
+    const cleaned = phone.replace(/[^\d]/g, "");
+    const intl = cleaned.startsWith("968") ? cleaned : `968${cleaned}`;
+    const sender = voucher.fromMode === "anonymous"
+      ? "شخص يتمنى لك يوماً جميلاً"
+      : voucher.fromMode === "friend"
+        ? "صديق/ة لك"
+        : (voucher.fromDisplay || voucher.senderName);
+    const cafeText = cafeName ? `كوفي ${cafeName}` : "الكوفي";
+    const msg = encodeURIComponent(
+      `🎁 مرحباً ${voucher.recipientName}\n\nأرسل لك ${sender} قسيمة شرائية بقيمة ${Number(voucher.amount).toFixed(3)} ر.ع لاستخدامها في ${cafeText}.\n\nيمكنك المرور على الكوفي لاستلامها. نتمنى لك وقتاً ممتعاً ☕`
+    );
+    window.open(`https://wa.me/${intl}?text=${msg}`, "_blank");
+  };
+
+  const filtered = vouchers.filter(v => filter === "all" ? true : v.status === filter);
+  const pendingCount   = vouchers.filter(v => v.status === "pending").length;
+  const confirmedCount = vouchers.filter(v => v.status === "confirmed").length;
+  const totalRevenue   = vouchers
+    .filter(v => v.status === "confirmed")
+    .reduce((s, v) => s + (Number(v.amount) || 0), 0);
+
+  return (
+    <div className="space-y-5">
+      {/* Summary header */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatBox label="إجمالي القسائم"     value={vouchers.length}                       Icon={Gift} />
+        <StatBox label="بانتظار التأكيد"     value={pendingCount}                          Icon={Clock} />
+        <StatBox label="مؤكدة"               value={confirmedCount}                        Icon={CheckCircle} />
+        <StatBox label="إيرادات القسائم"    value={`${totalRevenue.toFixed(3)} OMR`}      Icon={Wallet} />
+      </div>
+
+      {/* Filter pills */}
+      <div className="flex gap-2 flex-wrap">
+        {[
+          { k: "all" as const,       l: "الكل"        },
+          { k: "pending" as const,   l: "بانتظار"     },
+          { k: "confirmed" as const, l: "مؤكدة"      },
+        ].map(p => (
+          <button key={p.k} onClick={() => setFilter(p.k)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${
+              filter === p.k
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card text-muted-foreground border-border hover:text-foreground"
+            }`}>
+            {p.l}
+          </button>
+        ))}
+      </div>
+
+      {loading ? <Loader /> : filtered.length === 0 ? (
+        <Card className="p-8 text-center text-muted-foreground text-sm">
+          لا توجد قسائم شرائية حالياً.
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map(v => (
+            <Card key={v.id} className="p-5">
+              <div className="flex items-start gap-4 flex-wrap">
+                {/* Amount badge */}
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#E8B86D] to-[#B8884A] text-black flex flex-col items-center justify-center shrink-0">
+                  <Gift size={20} />
+                  <div className="text-base font-bold leading-tight mt-0.5">{Number(v.amount).toFixed(3)}</div>
+                  <div className="text-[9px] font-bold opacity-70">OMR</div>
+                </div>
+
+                {/* Details */}
+                <div className="flex-1 min-w-[240px] space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                      v.status === "confirmed"
+                        ? "bg-green-500/15 text-green-400"
+                        : "bg-yellow-500/15 text-yellow-400"
+                    }`}>
+                      {v.status === "confirmed" ? "مؤكدة ✓" : "بانتظار"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {new Date(v.createdAt).toLocaleString("ar-OM")}
+                    </span>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                    <div className="bg-input/50 rounded-lg p-2.5">
+                      <div className="text-[10px] text-muted-foreground mb-0.5">المُرسِل</div>
+                      <div className="font-semibold text-foreground">{v.senderName}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">{v.senderPhone}</div>
+                    </div>
+                    <div className="bg-input/50 rounded-lg p-2.5">
+                      <div className="text-[10px] text-muted-foreground mb-0.5">المُرسَل إليه</div>
+                      <div className="font-semibold text-foreground">{v.recipientName}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">{v.recipientPhone}</div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    تظهر للمستلم بصيغة: <span className="text-foreground font-semibold">{fromLabel(v)}</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => openWhatsApp(v.recipientPhone, v)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#25D366] text-white text-xs font-bold hover:opacity-90"
+                  >
+                    <MessageSquare size={14}/> فتح واتساب
+                  </button>
+                  {v.status === "pending" && (
+                    <button
+                      onClick={() => onConfirm(v.id)}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:opacity-90"
+                    >
+                      <CheckCircle size={14}/> تأكيد الطلب
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onDelete(v.id)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-red-500/15 text-red-400 text-xs font-bold hover:bg-red-500/25"
+                  >
+                    <Trash2 size={14}/> حذف
+                  </button>
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
       )}
     </div>

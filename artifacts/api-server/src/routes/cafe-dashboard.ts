@@ -4,10 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
   expenses, invoiceTemplates, freeCoffees, inventoryItems,
-  reels, reelLikes, reelComments, reelViews,
+  reels, reelLikes, reelComments, reelViews, giftVouchers,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
   type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem,
-  type Reel, persistStore } from "../store";
+  type Reel, type GiftVoucher, persistStore } from "../store";
 
 // ── Reel video uploads ────────────────────────────────────────────────
 // Videos are large, so we stream them to disk via multer (multipart) instead
@@ -90,6 +90,12 @@ router.get("/stats", (req: any, res) => {
     byDay[day] = (byDay[day] || 0) + o.total;
   });
   const chartData = Object.entries(byDay).map(([date, revenue]) => ({ date, revenue })).slice(-7);
+  // ── Gift voucher stats (separate from regular orders) ─────────────
+  const cafeVouchers = giftVouchers.filter(v => v.cafeId === id);
+  const confirmedVouchers = cafeVouchers.filter(v => v.status === "confirmed");
+  const voucherRevenue = confirmedVouchers.reduce((s, v) => s + (Number(v.amount) || 0), 0);
+  const pendingVouchers = cafeVouchers.filter(v => v.status === "pending").length;
+
   res.json({
     totalOrders: cafeOrders.length, totalBookings: cafeBookings.length,
     totalMenuItems: cafeMenu.length, totalRevenue: +totalRevenue.toFixed(3),
@@ -98,7 +104,102 @@ router.get("/stats", (req: any, res) => {
     chartData,
     topItems: cafeOrders.flatMap(o => o.items)
       .reduce((acc: Record<string, number>, item) => { acc[item.name] = (acc[item.name] || 0) + item.qty; return acc; }, {}),
+    totalVouchers: cafeVouchers.length,
+    confirmedVouchers: confirmedVouchers.length,
+    pendingVouchers,
+    voucherRevenue: +voucherRevenue.toFixed(3),
   });
+});
+
+// ── Gift Vouchers (قسائم شرائية) ─────────────────────────────────────────
+// Public POST: any mobile user can buy a voucher for this cafe (mock payment).
+// Admin GET / confirm: cafe staff list and fulfil vouchers.
+router.post("/gift-vouchers", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const b = req.body ?? {};
+  const amount = Number(b.amount);
+  if (!Number.isFinite(amount) || amount < 2) {
+    return res.status(400).json({ error: "أقل قيمة للقسيمة 2 ريال عماني" });
+  }
+  const senderName     = String(b.senderName ?? "").trim();
+  const senderPhone    = String(b.senderPhone ?? "").trim();
+  const recipientName  = String(b.recipientName ?? "").trim();
+  const recipientPhone = String(b.recipientPhone ?? "").trim();
+  const fromMode = (b.fromMode === "anonymous" || b.fromMode === "friend" || b.fromMode === "named")
+    ? b.fromMode as GiftVoucher["fromMode"]
+    : null;
+  if (!senderName || !senderPhone || !recipientName || !recipientPhone || !fromMode) {
+    return res.status(400).json({ error: "بيانات ناقصة" });
+  }
+  const fromDisplay = fromMode === "named"
+    ? String(b.fromDisplay ?? senderName).trim() || senderName
+    : undefined;
+
+  const now = new Date().toISOString();
+  const voucher: GiftVoucher = {
+    id: `gv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    cafeId,
+    amount: +amount.toFixed(3),
+    senderName, senderPhone, recipientName, recipientPhone,
+    fromMode, fromDisplay,
+    status: "pending",
+    paidAt: now,
+    createdAt: now,
+  };
+  giftVouchers.push(voucher);
+  persistStore();
+  res.json({ ok: true, voucher });
+});
+
+router.get("/gift-vouchers", (req: any, res) => {
+  const cafeId = req.params.cafeId;
+  const list = giftVouchers
+    .filter(v => v.cafeId === cafeId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json({ vouchers: list });
+});
+
+router.post("/gift-vouchers/:id/confirm", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const v = giftVouchers.find(x => x.id === req.params.id && x.cafeId === cafeId);
+  if (!v) return res.status(404).json({ error: "القسيمة غير موجودة" });
+  if (v.status === "confirmed") return res.json({ ok: true, voucher: v });
+
+  const now = new Date().toISOString();
+  v.status = "confirmed";
+  v.confirmedAt = now;
+
+  // Mirror as an Invoice so it shows up in the cafe's invoices list and
+  // rolls into revenue/analytics aggregations.
+  const invoice: Invoice = {
+    id:           `inv_v_${v.id}`,
+    cafeId,
+    orderId:      v.id,
+    customerName: `قسيمة شرائية → ${v.recipientName}`,
+    items:        [{ name: `قسيمة شرائية (${v.amount.toFixed(3)} ر.ع)`, qty: 1, price: v.amount }],
+    total:        v.amount,
+    type:         "order",
+    createdAt:    now,
+  };
+  invoices.push(invoice);
+  v.invoiceId = invoice.id;
+
+  persistStore();
+  res.json({ ok: true, voucher: v });
+});
+
+router.delete("/gift-vouchers/:id", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const idx = giftVouchers.findIndex(x => x.id === req.params.id && x.cafeId === cafeId);
+  if (idx === -1) return res.status(404).json({ error: "القسيمة غير موجودة" });
+  const [removed] = giftVouchers.splice(idx, 1);
+  // Also remove the linked invoice if any.
+  if (removed?.invoiceId) {
+    const i = invoices.findIndex(inv => inv.id === removed.invoiceId);
+    if (i !== -1) invoices.splice(i, 1);
+  }
+  persistStore();
+  res.json({ ok: true });
 });
 
 // ── Orders ────────────────────────────────────────────────────
