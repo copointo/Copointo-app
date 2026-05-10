@@ -17,12 +17,12 @@ export interface GiftDef {
 
 export const GIFTS: GiftDef[] = [
   // ── all gifts: simple, no halos, no particles ─────────────────────
-  { id: "gift-3",  name: "جوهرة",         emoji: "💎", price: 50,   tier: 1, color: "#06B6D4" },
-  { id: "gift-6",  name: "دونات",         emoji: "🍩", price: 50,   tier: 1, color: "#F59E0B" },
-  { id: "gift-9",  name: "نجمة",          emoji: "⭐", price: 50,   tier: 1, color: "#FBBF24" },
-  { id: "gift-12", name: "وردة استوائية", emoji: "🌺", price: 50, tier: 1, color: "#F97316" },
-  { id: "gift-15", name: "تاج",           emoji: "👑", price: 50, tier: 1, color: "#FFD700" },
-  { id: "gift-19", name: "مطر القلوب",    emoji: "💖", price: 50, tier: 1, color: "#EC4899" },
+  { id: "gift-3",  name: "جوهرة",         emoji: "💎", price: 20,   tier: 1, color: "#06B6D4" },
+  { id: "gift-6",  name: "دونات",         emoji: "🍩", price: 20,   tier: 1, color: "#F59E0B" },
+  { id: "gift-9",  name: "نجمة",          emoji: "⭐", price: 20,   tier: 1, color: "#FBBF24" },
+  { id: "gift-12", name: "وردة استوائية", emoji: "🌺", price: 20, tier: 1, color: "#F97316" },
+  { id: "gift-15", name: "تاج",           emoji: "👑", price: 20, tier: 1, color: "#FFD700" },
+  { id: "gift-19", name: "مطر القلوب",    emoji: "💖", price: 20, tier: 1, color: "#EC4899" },
 ];
 
 export function getGift(id: string | null | undefined): GiftDef | null {
