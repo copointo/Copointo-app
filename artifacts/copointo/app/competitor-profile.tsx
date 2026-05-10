@@ -93,8 +93,10 @@ export default function CompetitorProfileScreen() {
       recipientName: target.gameUsername || target.name,
     };
     appendMsg(convId, giftMsg);
-    // No immediate preview — the rain animation appears on the Levels page.
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Take the sender to the Copointo Hub home so they see the rain
+    // animation just like every other user on the platform.
+    router.replace("/(tabs)/game");
   };
 
   if (!target) {

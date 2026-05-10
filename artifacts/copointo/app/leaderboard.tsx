@@ -452,6 +452,7 @@ interface PanelProps {
 function UserDetailPanel(p: PanelProps) {
   const insets = useSafeAreaInsets();
   const { t } = useT();
+  const router = useRouter();
   const open = !!p.targetUser;
   const u = p.targetUser;
   const isMe = !!(u && p.myId && u.id === p.myId);
@@ -489,9 +490,11 @@ function UserDetailPanel(p: PanelProps) {
       recipientName: u.gameUsername || u.name,
     };
     appendMsg(convId, giftMsg);
-    // No immediate preview — the falling-rain animation will appear on the
-    // Levels (game) page for the sender + everyone else via the global feed.
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    // Close the panel and take the sender to the Copointo Hub home so they
+    // see the rain animation alongside every other user on the platform.
+    p.onClose();
+    router.replace("/(tabs)/game");
   };
 
   const cafes: CafeProgress[] = useMemo(() => {
