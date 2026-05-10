@@ -21,6 +21,12 @@ const BORDER  = "rgba(232,184,109,0.35)";
 const PRIMARY = "#E8B86D";
 const DANGER  = "#E55353";
 
+// Game username: English letters, digits, underscore, dot, hyphen only.
+const USERNAME_EN_RE   = /^[A-Za-z0-9_.-]+$/;
+// Password: any printable ASCII (letters, digits, symbols, spaces) — i.e.
+// "English only", explicitly rejecting Arabic and other non-ASCII characters.
+const ASCII_PRINTABLE_RE = /^[\x20-\x7E]+$/;
+
 /**
  * Shared login / register modal. Originally lived inside profile.tsx — now
  * extracted so the global AuthGate can show the same UI for any unauthenticated
@@ -76,6 +82,7 @@ export function AuthModal({
   const submitLogin = async () => {
     setErr("");
     if (!logPhone.trim() || !logPass.trim()) { setErr(t("auth.errFillAll")); return; }
+    if (!ASCII_PRINTABLE_RE.test(logPass)) { setErr(t("auth.errPasswordEn")); return; }
     setBusy(true);
     const r = await login(logPhone.trim(), logPass);
     setBusy(false);
@@ -90,7 +97,11 @@ export function AuthModal({
       setErr(t("auth.errFillAll")); return;
     }
     if (!regGender) { setErr(t("auth.errPickGender")); return; }
+    const u = gameUser.trim();
+    if (u.length < 3) { setErr(t("auth.errUsernameShort")); return; }
+    if (!USERNAME_EN_RE.test(u)) { setErr(t("auth.errUsernameEn")); return; }
     if (pass.length < 6) { setErr(t("auth.errPasswordShort")); return; }
+    if (!ASCII_PRINTABLE_RE.test(pass)) { setErr(t("auth.errPasswordEn")); return; }
     setBusy(true);
     const r = await register({
       name: name.trim(),
