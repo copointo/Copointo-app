@@ -145,7 +145,7 @@ export default function UsersPage() {
   if (loading) return <div className="flex items-center justify-center h-full text-muted-foreground">جاري التحميل...</div>;
 
   return (
-    <div className="p-8" dir="rtl">
+    <div className="p-4 sm:p-6 lg:p-8" dir="rtl">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">المستخدمون</h1>

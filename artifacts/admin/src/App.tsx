@@ -60,31 +60,31 @@ function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6" dir="rtl">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 sm:px-6 py-8" dir="rtl">
       {/* Logo */}
-      <div className="text-center mb-14">
-        <div className="mx-auto mb-5 w-20 h-20 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 shadow-lg shadow-[#E8B86D]/15 overflow-hidden">
+      <div className="text-center mb-8 sm:mb-12 lg:mb-14">
+        <div className="mx-auto mb-4 sm:mb-5 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 shadow-lg shadow-[#E8B86D]/15 overflow-hidden">
           <img src={logoUrl} alt="Copointo" className="w-full h-full object-contain" />
         </div>
-        <h1 className="text-4xl font-bold text-foreground">Copointo</h1>
-        <p className="text-muted-foreground mt-2 text-lg">لوحة تحكم المدير</p>
+        <h1 className="text-3xl sm:text-4xl font-bold text-foreground">Copointo</h1>
+        <p className="text-muted-foreground mt-1.5 sm:mt-2 text-base sm:text-lg">لوحة تحكم المدير</p>
       </div>
 
-      {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-4xl">
+      {/* Cards: 1 col on phone, 2 on tablet, 3 on small laptop, 5 on desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5 w-full max-w-5xl">
         {cards.map(({ href, Icon, iconImg, label, sub, grad, border }) => (
           <Link key={href} href={href}
-            className={`group relative flex flex-col items-center justify-center gap-4 p-8 rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 group-hover:bg-[#E8B86D]/20 transition-colors overflow-hidden">
+            className={`group relative flex flex-col items-center justify-center gap-3 sm:gap-4 p-5 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
+            <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-2xl flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 group-hover:bg-[#E8B86D]/20 transition-colors overflow-hidden">
               {iconImg
                 ? <img src={iconImg} alt="" className="w-full h-full object-contain p-1.5" />
-                : <Icon size={32} className="text-[#E8B86D]" strokeWidth={1.75} />}
+                : <Icon className="text-[#E8B86D] w-7 h-7 sm:w-8 sm:h-8" strokeWidth={1.75} />}
             </div>
             <div className="text-center">
-              <p className="text-[#E8B86D] font-bold text-lg">{label}</p>
-              <p className="text-[#F5E6CC]/60 text-xs mt-1">{sub}</p>
+              <p className="text-[#E8B86D] font-bold text-base sm:text-lg">{label}</p>
+              <p className="text-[#F5E6CC]/60 text-[11px] sm:text-xs mt-1">{sub}</p>
             </div>
-            <div className="absolute bottom-4 left-4 w-7 h-7 rounded-full bg-[#E8B86D]/10 flex items-center justify-center group-hover:bg-[#E8B86D]/20 transition-colors">
+            <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#E8B86D]/10 flex items-center justify-center group-hover:bg-[#E8B86D]/20 transition-colors">
               <ArrowRight size={14} className="text-[#E8B86D]" />
             </div>
           </Link>
@@ -99,14 +99,14 @@ export function PageLayout({ title, children }: { title: string; children: React
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col" dir="rtl">
       {/* Top bar */}
-      <header className="flex items-center gap-4 px-6 py-4 border-b border-border bg-card shrink-0 sticky top-0 z-10">
-        <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+      <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-border bg-card shrink-0 sticky top-0 z-10">
+        <Link href="/" className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm font-medium shrink-0">
           <ArrowRight size={18} />
-          الرئيسية
+          <span className="hidden sm:inline">الرئيسية</span>
         </Link>
-        <div className="w-px h-5 bg-border" />
-        <img src={logoUrl} alt="" className="w-6 h-6 object-contain" />
-        <h1 className="font-bold text-foreground text-lg">{title}</h1>
+        <div className="w-px h-5 bg-border shrink-0" />
+        <img src={logoUrl} alt="" className="w-5 h-5 sm:w-6 sm:h-6 object-contain shrink-0" />
+        <h1 className="font-bold text-foreground text-sm sm:text-lg truncate">{title}</h1>
       </header>
 
       {/* Content */}

@@ -39,7 +39,7 @@ export default function DashboardPage() {
   if (!stats)  return <div className="flex items-center justify-center h-full text-destructive">حدث خطأ</div>;
 
   return (
-    <div className="p-8" dir="rtl">
+    <div className="p-4 sm:p-6 lg:p-8" dir="rtl">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">لوحة التحكم</h1>

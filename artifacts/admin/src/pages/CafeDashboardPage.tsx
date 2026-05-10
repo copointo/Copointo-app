@@ -4158,15 +4158,15 @@ export default function CafeDashboardPage() {
   return (
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
-      <header className="flex items-center gap-4 px-6 py-4 border-b border-border bg-card shrink-0">
+      <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-border bg-card shrink-0">
         {cafe?.logo
-          ? <img src={cafe.logo} className="w-9 h-9 rounded-xl object-cover" alt="" />
-          : <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-xl">☕</div>}
-        <div>
-          <p className="font-bold text-foreground">{cafe?.name ?? "..."}</p>
-          <p className="text-xs text-muted-foreground">{cafe?.address ?? ""}</p>
+          ? <img src={cafe.logo} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shrink-0" alt="" />
+          : <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-muted flex items-center justify-center text-xl shrink-0">☕</div>}
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-foreground text-sm sm:text-base truncate">{cafe?.name ?? "..."}</p>
+          <p className="text-[11px] sm:text-xs text-muted-foreground truncate">{cafe?.address ?? ""}</p>
         </div>
-        <div className="mr-auto">
+        <div className="mr-auto shrink-0">
           <span className={`text-xs font-semibold px-3 py-1 rounded-full ${cafe?.active ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
             {cafe?.active ? "نشط" : "موقوف"}
           </span>
@@ -4249,7 +4249,7 @@ export default function CafeDashboardPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
         {tab === "stats"    && <StatsTab    id={id} />}
         {tab === "orders"   && <OrdersTab   id={id} />}
         {tab === "direct"   && <DirectOrderTab id={id} onCreated={() => setTab("orders")} />}
@@ -4468,20 +4468,20 @@ export function ManagerAnalyticsPage() {
   return (
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/10 to-card shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/10 to-card shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
           <Link href={`/cafe/${cafeId}`}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-sm">
-            <ArrowLeft size={18}/> العودة للوحة الكوفي
+            className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm shrink-0">
+            <ArrowLeft size={18}/> <span className="hidden sm:inline">العودة للوحة الكوفي</span>
           </Link>
-          <div className="w-px h-5 bg-border" />
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center shadow-lg shadow-[#E8B86D]/30">
-              <Crown size={20} className="text-black" />
+          <div className="hidden sm:block w-px h-5 bg-border" />
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-[#E8B86D] to-[#7A4F1E] flex items-center justify-center shadow-lg shadow-[#E8B86D]/30 shrink-0">
+              <Crown size={18} className="text-black sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-extrabold text-[#F5E6CC]">إحصائيات المدير</h2>
-              <p className="text-xs text-[#E8B86D]/70">{cafe?.name ?? "..."}</p>
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-lg font-extrabold text-[#F5E6CC] truncate">إحصائيات المدير</h2>
+              <p className="text-[11px] sm:text-xs text-[#E8B86D]/70 truncate">{cafe?.name ?? "..."}</p>
             </div>
           </div>
         </div>
@@ -4496,7 +4496,7 @@ export function ManagerAnalyticsPage() {
       </header>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
         {step === "auth" ? (
           <form onSubmit={submit} className="max-w-md mx-auto py-16 space-y-6">
             <div className="text-center space-y-3">
