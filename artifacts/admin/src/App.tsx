@@ -77,7 +77,7 @@ function HomePage() {
             className={`group relative flex flex-col items-center justify-center gap-3 sm:gap-4 p-5 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-br ${grad} border ${border} cursor-pointer hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 shadow-xl shadow-[#E8B86D]/10`}>
             <div className={`w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 ${iconImg ? "rounded-full" : "rounded-2xl"} flex items-center justify-center bg-[#E8B86D]/12 border border-[#E8B86D]/40 group-hover:bg-[#E8B86D]/20 transition-colors overflow-hidden`}>
               {iconImg
-                ? <img src={iconImg} alt="" className="w-full h-full object-cover" />
+                ? <img src={iconImg} alt="" className="w-[70%] h-[70%] object-contain" />
                 : <Icon className="text-[#E8B86D] w-7 h-7 sm:w-8 sm:h-8" strokeWidth={1.75} />}
             </div>
             <div className="text-center">
