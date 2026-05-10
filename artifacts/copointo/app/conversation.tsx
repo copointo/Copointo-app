@@ -63,6 +63,11 @@ export default function ConversationScreen() {
   const insets  = useSafeAreaInsets();
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const { id, name, type } = useLocalSearchParams<{ id: string; name: string; type: string }>();
+  // Conversations originating from the super-admin (sender id `copointo-admin`,
+  // wrapped as `friend_copointo-admin` on the conv side) are READ-ONLY: the
+  // user cannot reply to system / Copointo broadcasts. We hide the input bar
+  // entirely for that conv id and show a small note instead.
+  const isCopointoAdminConv = id === "friend_copointo-admin";
 
   const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv } = useMessages();
   const { equipped: equippedTextStyleId } = useTextStyles();
@@ -349,38 +354,47 @@ export default function ConversationScreen() {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Input bar */}
-      <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
-        <TouchableOpacity
-          style={styles.giftBtn}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickerOpen(true); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="gift" size={20} color={PRIMARY} />
-        </TouchableOpacity>
-        <TextInput
-          style={styles.inputField}
-          value={text}
-          onChangeText={setText}
-          placeholder={t("conv.inputPlaceholder")}
-          placeholderTextColor="rgba(232,184,109,0.40)"
-          multiline
-          maxLength={500}
-          selectionColor={PRIMARY}
-          returnKeyType="default"
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-          onPress={sendMessage}
-          activeOpacity={0.85}
-          disabled={!text.trim()}
-        >
-          <Feather name="send" size={18} color="#000" />
-        </TouchableOpacity>
-      </View>
+      {/* Input bar — hidden entirely for Copointo broadcast conv (read-only) */}
+      {isCopointoAdminConv ? (
+        <View style={[styles.readOnlyBar, { paddingBottom: insets.bottom + 10 }]}>
+          <Feather name="lock" size={14} color="rgba(232,184,109,0.65)" />
+          <Text style={styles.readOnlyText}>
+            لا يمكن الرد على رسائل Copointo
+          </Text>
+        </View>
+      ) : (
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+          <TouchableOpacity
+            style={styles.giftBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickerOpen(true); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="gift" size={20} color={PRIMARY} />
+          </TouchableOpacity>
+          <TextInput
+            style={styles.inputField}
+            value={text}
+            onChangeText={setText}
+            placeholder={t("conv.inputPlaceholder")}
+            placeholderTextColor="rgba(232,184,109,0.40)"
+            multiline
+            maxLength={500}
+            selectionColor={PRIMARY}
+            returnKeyType="default"
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+            onPress={sendMessage}
+            activeOpacity={0.85}
+            disabled={!text.trim()}
+          >
+            <Feather name="send" size={18} color="#000" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <GiftPicker
-        visible={pickerOpen}
+        visible={pickerOpen && !isCopointoAdminConv}
         toName={typeof name === "string" ? name : undefined}
         onClose={() => setPickerOpen(false)}
         onSend={sendGift}
@@ -470,6 +484,18 @@ const styles = StyleSheet.create({
   // Ticks
   ticksRow: { flexDirection: "row", alignItems: "center" },
   tick:     { fontSize: 12, fontFamily: "Inter_700Bold" },
+
+  // Read-only banner shown for Copointo broadcast conversations.
+  readOnlyBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingHorizontal: 16, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: BORDER,
+    backgroundColor: BG,
+  },
+  readOnlyText: {
+    fontSize: 12, fontFamily: "Inter_500Medium",
+    color: "rgba(232,184,109,0.75)",
+  },
 
   // Input bar
   inputBar: {

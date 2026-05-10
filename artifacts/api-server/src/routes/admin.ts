@@ -4,7 +4,7 @@ import { geocodeAddress } from "../utils/geocode";
 
 // Special "sender id" used when the super-admin direct-messages a user.
 // The mobile app recognizes this id and renders the conversation as
-// coming from "كوبوينتو" with a brand avatar.
+// coming from "Copointo" with a brand avatar.
 export const COPOINTO_ADMIN_ID = "copointo-admin";
 
 const router = Router();
@@ -218,7 +218,7 @@ router.post("/users/:id/game-clear", (req, res) => {
 // Super-admin sends a direct message to ONE user. Stored as a regular
 // chatMessage with senderId = COPOINTO_ADMIN_ID so the mobile app picks
 // it up via its existing /messages poll loop and renders it as a
-// conversation from "كوبوينتو".
+// conversation from "Copointo".
 router.post("/users/:id/message", (req, res): any => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });

@@ -13,8 +13,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
-import { COMMUNITY_ROLE_LABEL_AR, getCommunityRole } from "@/data/mockData";
+import { COMMUNITY_ROLE_LABEL_AR, COMMUNITY_ROLE_LABEL_EN, getCommunityRole } from "@/data/mockData";
 
 const BG     = "#000000";
 const CARD   = "#0A0606";
@@ -27,6 +28,8 @@ export default function CommunitiesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const { t, isAr } = useT();
+  const ROLE_LABEL = isAr ? COMMUNITY_ROLE_LABEL_AR : COMMUNITY_ROLE_LABEL_EN;
 
   const { user } = useApp();
   const {
@@ -54,7 +57,7 @@ export default function CommunitiesScreen() {
         >
           <Feather name="arrow-left" size={22} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🏛️ المجتمعات</Text>
+        <Text style={styles.headerTitle}>{t("comm.headerTitle")}</Text>
 
         <TouchableOpacity
           style={styles.invitesBtn}
@@ -81,7 +84,7 @@ export default function CommunitiesScreen() {
           activeOpacity={0.85}
         >
           <Text style={[styles.tabText, tab === "mine" && styles.tabTextOn]}>
-            مجتمعاتي ({myCommunities.length})
+            {t("comm.tabMine", { n: myCommunities.length })}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -90,7 +93,7 @@ export default function CommunitiesScreen() {
           activeOpacity={0.85}
         >
           <Text style={[styles.tabText, tab === "ranking" && styles.tabTextOn]}>
-            الترتيب
+            {t("comm.tabRanking")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -103,9 +106,9 @@ export default function CommunitiesScreen() {
           myCommunities.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={{ fontSize: 56 }}>🏛️</Text>
-              <Text style={styles.emptyTitle}>لا توجد مجتمعات</Text>
+              <Text style={styles.emptyTitle}>{t("comm.emptyTitle")}</Text>
               <Text style={styles.emptySub}>
-                ابدأ بإنشاء مجتمع وادعُ أصدقاءك لمنافسة المجتمعات الأخرى.
+                {t("comm.emptySubLong")}
               </Text>
               <TouchableOpacity
                 style={[styles.emptyCta, alreadyInOne && { opacity: 0.5 }]}
@@ -114,7 +117,7 @@ export default function CommunitiesScreen() {
                 disabled={alreadyInOne}
               >
                 <Feather name="plus" size={14} color="#000" />
-                <Text style={styles.emptyCtaText}>إنشاء مجتمع</Text>
+                <Text style={styles.emptyCtaText}>{t("comm.createAction")}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -152,13 +155,13 @@ export default function CommunitiesScreen() {
                         {myRole && (
                           <View style={[styles.creatorTag, { backgroundColor: roleColor + "22", borderColor: roleColor + "55", borderWidth: 1 }]}>
                             <Text style={[styles.creatorTagText, { color: roleColor }]}>
-                              {COMMUNITY_ROLE_LABEL_AR[myRole]}
+                              {ROLE_LABEL[myRole]}
                             </Text>
                           </View>
                         )}
                       </View>
                       <Text style={styles.metaText}>
-                        👥 {c.members.length} · ☕ {score}
+                        {t("comm.metaMembersDrinks", { members: c.members.length, score })}
                       </Text>
                     </View>
                     <Feather name="chevron-left" size={18} color="rgba(255,255,255,0.4)" />
@@ -170,9 +173,9 @@ export default function CommunitiesScreen() {
           rankingList.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={{ fontSize: 56 }}>🏆</Text>
-              <Text style={styles.emptyTitle}>لا يوجد ترتيب</Text>
+              <Text style={styles.emptyTitle}>{t("comm.emptyRankingTitle")}</Text>
               <Text style={styles.emptySub}>
-                انضم إلى مجتمع أو أنشئ واحداً لرؤية الترتيب.
+                {t("comm.emptyRankingSub")}
               </Text>
             </View>
           ) : (
@@ -207,11 +210,11 @@ export default function CommunitiesScreen() {
                       {r.community.name}
                     </Text>
                     <Text style={styles.metaText}>
-                      👥 {r.community.members.length} عضو
+                      {t("comm.rankMembers", { n: r.community.members.length })}
                     </Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={styles.scoreText}>☕ {r.score}</Text>
+                    <Text style={styles.scoreText}>{t("comm.rankScore", { n: r.score })}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -231,7 +234,7 @@ export default function CommunitiesScreen() {
           activeOpacity={0.85}
         >
           <Feather name="plus" size={20} color="#000" />
-          <Text style={styles.fabText}>إنشاء مجتمع</Text>
+          <Text style={styles.fabText}>{t("comm.createAction")}</Text>
         </TouchableOpacity>
       )}
     </View>

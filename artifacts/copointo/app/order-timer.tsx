@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 import { apiFetch } from "@/constants/api";
 
 const BG      = "#000000";
@@ -23,11 +24,13 @@ const PRIMARY = "#E8B86D";
 const CREAM   = "#F5E6CC";
 const SUCCESS = "#4ADE80";
 
-function levelsLabel(n: number): string {
-  if (n === 1) return "مستوى واحد";
-  if (n === 2) return "مستويين";
-  if (n >= 3 && n <= 10) return `${n} مستويات`;
-  return `${n} مستوى`;
+function makeLevelsLabel(t: (k: string, p?: Record<string, string | number>) => string) {
+  return (n: number): string => {
+    if (n === 1) return t("timer.levelsOne");
+    if (n === 2) return t("timer.levelsTwo");
+    if (n >= 3 && n <= 10) return t("timer.levelsFew", { n });
+    return t("timer.levelsMany", { n });
+  };
 }
 
 interface ServerOrder {
@@ -45,6 +48,8 @@ export default function OrderTimerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, setActiveOrder, addCafeOrder } = useApp();
+  const { t } = useT();
+  const levelsLabel = makeLevelsLabel(t);
   const params = useLocalSearchParams<{
     orderId: string; cafeId: string; cafeName?: string; minutes: string; drinks: string;
   }>();
@@ -147,12 +152,11 @@ export default function OrderTimerScreen() {
           <View style={styles.successIcon}>
             <Text style={{ fontSize: 64 }}>✅</Text>
           </View>
-          <Text style={styles.successTitle}>انتهاء تحضير طلبك</Text>
+          <Text style={styles.successTitle}>{t("timer.successTitle")}</Text>
           <Text style={styles.successSub}>
-            سوف تستلمه الآن{"\n"}
             {order?.type === "dine"
-              ? `على الطاولة رقم ${order.tableNumber}`
-              : `إلى سيارتك (${order?.plateNumber} ${order?.plateSymbol})`}
+              ? t("timer.successSubDine", { table: order.tableNumber ?? "" })
+              : t("timer.successSubCar", { plateNum: order?.plateNumber ?? "", plateSym: order?.plateSymbol ?? "" })}
           </Text>
 
           <LinearGradient
@@ -162,7 +166,7 @@ export default function OrderTimerScreen() {
           >
             <Text style={styles.pointsIcon}>🎮</Text>
             <View>
-              <Text style={styles.pointsLabel}>تقدمت في اللعبة</Text>
+              <Text style={styles.pointsLabel}>{t("timer.gameProgress")}</Text>
               <Text style={styles.pointsValue}>{levelsLabel(pointsAwarded)}</Text>
             </View>
           </LinearGradient>
@@ -172,7 +176,7 @@ export default function OrderTimerScreen() {
             onPress={() => { setActiveOrder(null); router.replace("/(tabs)"); }}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnText}>العودة للرئيسية</Text>
+            <Text style={styles.btnText}>{t("timer.backHome")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -190,18 +194,18 @@ export default function OrderTimerScreen() {
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={goBackToMenu} style={styles.backBtn} activeOpacity={0.85}>
           <Feather name="arrow-right" size={18} color={CREAM} />
-          <Text style={styles.backBtnText}>القائمة</Text>
+          <Text style={styles.backBtnText}>{t("timer.headerMenuBack")}</Text>
         </TouchableOpacity>
         <View style={styles.statusPill}>
           <View style={[styles.statusDot, (confirmed || isReadyOrDone) && { backgroundColor: SUCCESS }]} />
           <Text style={styles.statusText}>
-            {isReadyOrDone ? "جاهز للاستلام" : confirmed ? "قيد التحضير" : "قيد الانتظار"}
+            {isReadyOrDone ? t("timer.pillReady") : confirmed ? t("timer.pillPreparing") : t("timer.pillPending")}
           </Text>
         </View>
       </View>
 
       <View style={styles.center}>
-        <Text style={styles.ringLabel}>جهازية الطلب</Text>
+        <Text style={styles.ringLabel}>{t("timer.ringLabel")}</Text>
 
         <View style={styles.ringWrap}>
           {/* Pulse ring */}
@@ -228,34 +232,34 @@ export default function OrderTimerScreen() {
 
         <Text style={styles.subline}>
           {isReadyOrDone
-            ? "طلبك جاهز ✅ — يمكنك استلامه الآن"
+            ? t("timer.subReady")
             : progress > 0
-              ? `سيتم تحضير طلبك خلال ${Math.ceil((progress / 100) * totalMin)} دقيقة تقريباً`
-              : "في انتظار تأكيد الكوفي..."}
+              ? t("timer.subPreparing", { min: Math.ceil((progress / 100) * totalMin) })
+              : t("timer.subWaiting")}
         </Text>
 
         <View style={styles.detailsBox}>
           <View style={styles.detailRow}>
             <Feather name="hash" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>رقم الطلب</Text>
+            <Text style={styles.detailLabel}>{t("timer.detailOrderId")}</Text>
             <Text style={styles.detailValue}>#{orderId?.slice(-6)}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.detailRow}>
             <Feather name="coffee" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>عدد المشروبات</Text>
+            <Text style={styles.detailLabel}>{t("timer.detailDrinks")}</Text>
             <Text style={styles.detailValue}>{drinkQty}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.detailRow}>
             <Feather name="clock" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>مدة التحضير</Text>
-            <Text style={styles.detailValue}>{totalMin} دقيقة</Text>
+            <Text style={styles.detailLabel}>{t("timer.detailPrepTime")}</Text>
+            <Text style={styles.detailValue}>{t("timer.minuteUnit", { n: totalMin })}</Text>
           </View>
         </View>
 
         <Text style={styles.tip}>
-          ⏳  سيظهر طلبك للكوفي مباشرة. ستتقدم في اللعبة بمجرد بدء التحضير.
+          {t("timer.tip")}
         </Text>
       </View>
     </View>

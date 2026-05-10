@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
 
 const BG = "#000000";
 const ACCENT = "#E8B86D";
@@ -22,6 +23,7 @@ export default function AddFriendScreen() {
   const router   = useRouter();
   const insets   = useSafeAreaInsets();
   const topPad   = Platform.OS === "web" ? 67 : insets.top;
+  const { t } = useT();
   const {
     user, registeredUsers, friends,
     outgoingRequests, incomingRequests,
@@ -58,7 +60,7 @@ export default function AddFriendScreen() {
         >
           <Feather name="arrow-left" size={22} color="#FFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>إضافة صديق</Text>
+        <Text style={styles.headerTitle}>{t("addFriend.title")}</Text>
       </View>
 
       {/* Search bar */}
@@ -66,7 +68,7 @@ export default function AddFriendScreen() {
         <Feather name="search" size={18} color={ACCENT} style={{ marginLeft: 14 }} />
         <TextInput
           style={styles.searchInput}
-          placeholder="ابحث بالاسم أو يوزر اللعبة..."
+          placeholder={t("addFriend.searchPlaceholder")}
           placeholderTextColor="rgba(255,255,255,0.35)"
           value={query}
           onChangeText={setQuery}
@@ -83,7 +85,7 @@ export default function AddFriendScreen() {
 
       {/* Section label */}
       <Text style={styles.sectionLabel}>
-        {query.trim() ? "نتائج البحث" : "المستخدمون"}
+        {query.trim() ? t("addFriend.searchResults") : t("addFriend.users")}
       </Text>
 
       {/* Results */}
@@ -96,7 +98,7 @@ export default function AddFriendScreen() {
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>{query.trim() ? "🔍" : "👥"}</Text>
             <Text style={styles.emptyText}>
-              {query.trim() ? "لا توجد نتائج" : "لا يوجد مستخدمون آخرون بعد"}
+              {query.trim() ? t("addFriend.empty") : t("addFriend.emptyOthers")}
             </Text>
           </View>
         ) : (
@@ -106,18 +108,18 @@ export default function AddFriendScreen() {
             const hasIncoming = incomingRequests.includes(s.id);
 
             // Decide button appearance + action
-            let label  = "إضافة";
+            let label  = t("addFriend.btnAdd");
             let icon: "user-plus" | "check" | "clock" = "user-plus";
             let kind: "send" | "cancel" | "accept" = "send";
             let extraStyle = {};
             let textColor = "#0F0A2E";
 
             if (isFriend) {
-              label = "صديق"; icon = "check"; extraStyle = styles.addBtnSent; textColor = "#FFF";
+              label = t("addFriend.btnFriend"); icon = "check"; extraStyle = styles.addBtnSent; textColor = "#FFF";
             } else if (hasIncoming) {
-              label = "قبول"; icon = "check"; kind = "accept";
+              label = t("addFriend.btnAccept"); icon = "check"; kind = "accept";
             } else if (isPending) {
-              label = "معلّق"; icon = "clock"; kind = "cancel"; extraStyle = styles.addBtnPending; textColor = "#FFF";
+              label = t("addFriend.btnPending"); icon = "clock"; kind = "cancel"; extraStyle = styles.addBtnPending; textColor = "#FFF";
             }
 
             return (
@@ -137,7 +139,7 @@ export default function AddFriendScreen() {
                 <View style={styles.info}>
                   <Text style={styles.name}>{s.name}</Text>
                   <Text style={styles.sub}>
-                    @{s.gameUsername} · مستوى {s.level}
+                    {t("addFriend.userMeta", { user: s.gameUsername, level: s.level })}
                   </Text>
                 </View>
 

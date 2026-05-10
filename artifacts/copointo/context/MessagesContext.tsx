@@ -37,7 +37,7 @@ const STORAGE_KEY_GROUPS = "copointo_groups_v2";
 // `friend_${COPOINTO_ADMIN_ID}` are rendered as coming from "كوبوينتو".
 export const COPOINTO_ADMIN_ID = "copointo-admin";
 const COPOINTO_ADMIN_CONV      = `friend_${COPOINTO_ADMIN_ID}`;
-const COPOINTO_ADMIN_NAME      = "كوبوينتو";
+const COPOINTO_ADMIN_NAME      = "Copointo";
 const COPOINTO_ADMIN_AVATAR    = "☕";
 
 const chatsKey  = (uid: string) => `${STORAGE_KEY_CHATS}:${uid}`;

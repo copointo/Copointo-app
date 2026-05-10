@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { apiFetch } from "@/constants/api";
+import { useT } from "@/context/LanguageContext";
 
 interface ApiCafe {
   id: string; name: string; logo: string; image: string;
@@ -54,9 +55,11 @@ function safeJsonForScript(value: unknown): string {
 function buildMapHtml(opts: {
   cafes: { id: string; name: string; lat: number; lng: number }[];
   user: { lat: number; lng: number } | null;
+  youLabel: string;
 }): string {
   const cafesJson = safeJsonForScript(opts.cafes);
   const userJson  = safeJsonForScript(opts.user);
+  const youLabelJson = safeJsonForScript(opts.youLabel);
   return `<!DOCTYPE html>
 <html lang="ar">
 <head>
@@ -121,7 +124,7 @@ function buildMapHtml(opts: {
   if (me) {
     L.marker([me.lat, me.lng], {
       icon: L.divIcon({ className: '', html: '<div class="me-pin"></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
-    }).addTo(map).bindPopup('موقعك');
+    }).addTo(map).bindPopup(${youLabelJson});
   }
 
   // Cafe pins
@@ -156,6 +159,7 @@ export default function CafesMapScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
+  const { t } = useT();
 
   const [cafes,    setCafes]    = useState<ApiCafe[]>([]);
   const [userLoc,  setUserLoc]  = useState<{ lat: number; lng: number } | null>(null);
@@ -181,12 +185,13 @@ export default function CafesMapScreen() {
         const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
         if (alive) setCafes(data.cafes);
       } catch {
-        if (alive) setError("تعذّر تحميل الكافيهات");
+        if (alive) setError(t("cafesMap.errorLoad"));
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Cafes that actually have coordinates (the map can only plot those)
@@ -195,12 +200,14 @@ export default function CafesMapScreen() {
     [cafes]
   );
 
+  const youLabel = t("cafesMap.youLabel");
   const html = useMemo(
     () => buildMapHtml({
       cafes: plottable.map(c => ({ id: c.id, name: c.name, lat: c.lat, lng: c.lng })),
       user:  userLoc,
+      youLabel,
     }),
-    [plottable, userLoc]
+    [plottable, userLoc, youLabel]
   );
 
   // ── Message handler (native WebView) ───────────────────────────────────
@@ -244,9 +251,9 @@ export default function CafesMapScreen() {
           <Feather name="arrow-left" size={20} color="#fff" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>الكافيهات في الخريطة</Text>
+          <Text style={styles.headerTitle}>{t("cafesMap.title")}</Text>
           <Text style={styles.headerSub}>
-            {loading ? "جارٍ التحميل…" : `${plottable.length} كوفي على الخريطة`}
+            {loading ? t("cafesMap.loadingShort") : t("cafesMap.subtitle", { n: plottable.length })}
           </Text>
         </View>
       </View>
@@ -265,7 +272,7 @@ export default function CafesMapScreen() {
         ) : plottable.length === 0 ? (
           <View style={styles.center}>
             <Feather name="map-pin" size={40} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.errorText}>لا توجد كافيهات بإحداثيات على الخريطة بعد</Text>
+            <Text style={styles.errorText}>{t("cafesMap.noCoords")}</Text>
           </View>
         ) : Platform.OS === "web" ? (
           <iframe
@@ -314,7 +321,7 @@ export default function CafesMapScreen() {
               activeOpacity={0.85}
             >
               <Feather name="external-link" size={16} color="#fff" />
-              <Text style={styles.sheetCtaText}>زيارة صفحة الكوفي</Text>
+              <Text style={styles.sheetCtaText}>{t("cafesMap.visitCafe")}</Text>
             </TouchableOpacity>
           </View>
         </View>
