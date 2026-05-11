@@ -1168,13 +1168,65 @@ function OrdersTab({ id }: { id: string }) {
     await api.cafeOrderStatus(id, oid, "done");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "done" } : o));
   };
-  const setPayment = async (oid: string, method: "cash" | "visa" | "free") => {
-    await api.cafeOrderPayment(id, oid, method);
-    setOrders(prev => prev.map(o => o.id === oid ? { ...o, paymentMethod: method } : o));
+  // Per-order in-progress payment form: { cash, visa } as strings while editing.
+  // Opening this form replaces the cash/visa choice buttons with inputs.
+  const [payForms, setPayForms] = useState<Record<string, { cash: string; visa: string } | undefined>>({});
+  const openPayForm = (oid: string, prefer: "cash" | "visa") => {
+    const o = orders.find(x => x.id === oid);
+    const tot = Number(o?.total ?? 0).toFixed(3);
+    setPayForms(prev => ({
+      ...prev,
+      [oid]: prefer === "cash" ? { cash: tot, visa: "0.000" } : { cash: "0.000", visa: tot },
+    }));
+  };
+  const closePayForm = (oid: string) => {
+    setPayForms(prev => { const next = { ...prev }; delete next[oid]; return next; });
+  };
+  const updatePayForm = (oid: string, field: "cash" | "visa", value: string) => {
+    setPayForms(prev => ({ ...prev, [oid]: { ...(prev[oid] ?? { cash: "0.000", visa: "0.000" }), [field]: value } }));
+  };
+  const fillPayForm = (oid: string, mode: "all-cash" | "all-visa" | "half") => {
+    const o = orders.find(x => x.id === oid);
+    const tot = Number(o?.total ?? 0);
+    if (mode === "all-cash") setPayForms(p => ({ ...p, [oid]: { cash: tot.toFixed(3), visa: "0.000" } }));
+    else if (mode === "all-visa") setPayForms(p => ({ ...p, [oid]: { cash: "0.000", visa: tot.toFixed(3) } }));
+    else setPayForms(p => ({ ...p, [oid]: { cash: (tot / 2).toFixed(3), visa: (tot / 2).toFixed(3) } }));
+  };
+  const confirmPayment = async (oid: string) => {
+    const form = payForms[oid];
+    if (!form) return;
+    const o = orders.find(x => x.id === oid);
+    const tot = +Number(o?.total ?? 0).toFixed(3);
+    const cashAmount = +Number(form.cash || 0).toFixed(3);
+    const visaAmount = +Number(form.visa || 0).toFixed(3);
+    if (!Number.isFinite(cashAmount) || !Number.isFinite(visaAmount) || cashAmount < 0 || visaAmount < 0) {
+      window.alert("❌ المبالغ يجب أن تكون أرقاماً موجبة");
+      return;
+    }
+    const sum = +(cashAmount + visaAmount).toFixed(3);
+    if (Math.abs(sum - tot) > 0.005) {
+      window.alert(`❌ مجموع المدفوع (${sum.toFixed(3)}) لا يساوي إجمالي الطلب (${tot.toFixed(3)})`);
+      return;
+    }
+    let method: "cash" | "visa" | "split" = "split";
+    if (cashAmount > 0 && visaAmount === 0) method = "cash";
+    else if (visaAmount > 0 && cashAmount === 0) method = "visa";
+    try {
+      const { order } = await api.cafeOrderPayment(id, oid, { paymentMethod: method, cashAmount, visaAmount });
+      setOrders(prev => prev.map(x => x.id === oid ? { ...x, ...order } : x));
+      closePayForm(oid);
+    } catch (e: any) {
+      window.alert(`❌ ${e?.message ?? "تعذّر تثبيت الدفع"}`);
+    }
   };
   const setFreePayment = async (oid: string) => {
     if (!window.confirm("⚠️ تأكيد: هل تريد جعل هذا الطلب على حساب الكوفي (مجاناً)؟\nسيتم خصم كامل المبلغ من الفاتورة وإظهارها كـ 0.000 ر.ع، ولن تُحتسب في الإيرادات.")) return;
-    await setPayment(oid, "free");
+    try {
+      const { order } = await api.cafeOrderPayment(id, oid, { paymentMethod: "free" });
+      setOrders(prev => prev.map(x => x.id === oid ? { ...x, ...order } : x));
+    } catch (e: any) {
+      window.alert(`❌ ${e?.message ?? "تعذّر التثبيت"}`);
+    }
   };
   const applyDiscountCode = async (oid: string) => {
     const code = window.prompt("🏷️ أدخل كود التخفيض المسجَّل:");
@@ -1301,10 +1353,16 @@ function OrdersTab({ id }: { id: string }) {
                     ? "bg-emerald-500/15 text-emerald-400"
                     : o.paymentMethod === "visa"
                     ? "bg-blue-500/15 text-blue-400"
+                    : o.paymentMethod === "split"
+                    ? "bg-purple-500/15 text-purple-400 border border-purple-500/40"
                     : "bg-primary/20 text-primary border border-primary/40"
                 }`}>
-                  {o.paymentMethod === "cash" ? "💵 كاش"
-                   : o.paymentMethod === "visa" ? "💳 فيزا"
+                  {o.paymentMethod === "cash"
+                    ? `💵 كاش${Number(o.cashAmount) > 0 ? ` ${Number(o.cashAmount).toFixed(3)}` : ""}`
+                   : o.paymentMethod === "visa"
+                    ? `💳 فيزا${Number(o.visaAmount) > 0 ? ` ${Number(o.visaAmount).toFixed(3)}` : ""}`
+                   : o.paymentMethod === "split"
+                    ? `💵 ${Number(o.cashAmount).toFixed(3)} + 💳 ${Number(o.visaAmount).toFixed(3)}`
                    : "🎁 الحساب مجاناً"}
                 </span>
               )}
@@ -1332,16 +1390,16 @@ function OrdersTab({ id }: { id: string }) {
               {/* Step 3 — ready, no payment yet: choose cash/visa.
                   Free-coffee redemption is now done by the customer in the mobile app at checkout
                   (and arrives baked into the order), so no manual button here. */}
-              {o.status === "ready" && !o.paymentMethod && (
+              {o.status === "ready" && !o.paymentMethod && !payForms[o.id] && (
                 <>
                   <button
-                    onClick={() => setPayment(o.id, "cash")}
+                    onClick={() => openPayForm(o.id, "cash")}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 text-xs font-bold hover:bg-emerald-500/30"
                   >
                     💵 كاش
                   </button>
                   <button
-                    onClick={() => setPayment(o.id, "visa")}
+                    onClick={() => openPayForm(o.id, "visa")}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/30"
                   >
                     💳 فيزا
@@ -1366,6 +1424,60 @@ function OrdersTab({ id }: { id: string }) {
                   </button>
                 </>
               )}
+
+              {/* Step 3b — split-payment form: opened by clicking كاش or فيزا.
+                  Cashier enters how much was paid in cash and how much in visa.
+                  Sum must equal the order total. Quick presets fill the inputs. */}
+              {o.status === "ready" && !o.paymentMethod && payForms[o.id] && (() => {
+                const f = payForms[o.id]!;
+                const tot = +Number(o.total ?? 0).toFixed(3);
+                const sum = +(Number(f.cash || 0) + Number(f.visa || 0)).toFixed(3);
+                const ok = Math.abs(sum - tot) < 0.005;
+                return (
+                  <div className="w-full mt-2 p-3 rounded-xl bg-card border border-border/60 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">💳 تثبيت الدفع — الإجمالي: {tot.toFixed(3)} ر.ع</span>
+                      <button onClick={() => closePayForm(o.id)} className="text-[11px] text-muted-foreground hover:text-foreground">إلغاء ✕</button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => fillPayForm(o.id, "all-cash")} className="px-3 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-[11px] font-semibold border border-emerald-500/30 hover:bg-emerald-500/20">كل المبلغ كاش</button>
+                      <button onClick={() => fillPayForm(o.id, "all-visa")} className="px-3 py-1 rounded-md bg-blue-500/10 text-blue-400 text-[11px] font-semibold border border-blue-500/30 hover:bg-blue-500/20">كل المبلغ فيزا</button>
+                      <button onClick={() => fillPayForm(o.id, "half")} className="px-3 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold border border-primary/30 hover:bg-primary/20">نص-نص</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-emerald-400 font-semibold">💵 كاش (ر.ع)</span>
+                        <input
+                          type="number" step="0.001" min="0"
+                          value={f.cash}
+                          onChange={(e) => updatePayForm(o.id, "cash", e.target.value)}
+                          className="px-3 py-2 rounded-md bg-background border border-emerald-500/30 text-emerald-300 text-sm font-mono"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-blue-400 font-semibold">💳 فيزا (ر.ع)</span>
+                        <input
+                          type="number" step="0.001" min="0"
+                          value={f.visa}
+                          onChange={(e) => updatePayForm(o.id, "visa", e.target.value)}
+                          className="px-3 py-2 rounded-md bg-background border border-blue-500/30 text-blue-300 text-sm font-mono"
+                        />
+                      </label>
+                    </div>
+                    <div className={`flex items-center justify-between text-xs font-semibold ${ok ? "text-emerald-400" : "text-orange-400"}`}>
+                      <span>المجموع: {sum.toFixed(3)} ر.ع</span>
+                      <span>{ok ? "✓ مطابق" : `الفرق: ${(sum - tot).toFixed(3)}`}</span>
+                    </div>
+                    <button
+                      onClick={() => confirmPayment(o.id)}
+                      disabled={!ok}
+                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/90"
+                    >
+                      ✔ تثبيت الدفع
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Step 4 — payment set (or already done): show print invoice */}
               {((o.status === "ready" && o.paymentMethod) || o.status === "done") && (
@@ -2671,9 +2783,21 @@ function aggregateOrders(orderList: any[], from: Date, to: Date) {
       freeTotal += amt; freeCount++;
     } else {
       total += amt;
-      if (pm === "cash")      { cashTotal += amt; cashCount++; }
-      else if (pm === "visa") { visaTotal += amt; visaCount++; }
-      else                    { unspecifiedTotal += amt; unspecifiedCount++; }
+      if (pm === "split") {
+        // مدفوع بشكل مقسوم: نُوزِّع المبلغ بدقة على كاش/فيزا حسب ما أدخله الكاشير.
+        // العدّاد يحسب طلباً واحداً لكل قناة استُخدمت فيها.
+        const c = Number(o.cashAmount) || 0;
+        const v = Number(o.visaAmount) || 0;
+        cashTotal += c; if (c > 0) cashCount++;
+        visaTotal += v; if (v > 0) visaCount++;
+      } else if (pm === "cash") {
+        // إذا كان الكاشير سجَّل مبلغاً صريحاً نأخذه؛ وإلا الإجمالي.
+        cashTotal += (Number(o.cashAmount) || amt); cashCount++;
+      } else if (pm === "visa") {
+        visaTotal += (Number(o.visaAmount) || amt); visaCount++;
+      } else {
+        unspecifiedTotal += amt; unspecifiedCount++;
+      }
     }
     for (const it of (o.items ?? [])) {
       const cat = classifyItem(String(it.name ?? ""), it.category);
@@ -2869,10 +2993,20 @@ ${freeAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم الكو
 ${compAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 الحساب مجاناً / On the House</span><span class="val">− ${compAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ` : "";
 
-  const payLabel = o.paymentMethod === "cash" ? "💵 كاش / Cash"
-                 : o.paymentMethod === "visa" ? "💳 فيزا / Visa"
-                 : o.paymentMethod === "free" ? "🎁 الحساب مجاناً / On the House"
+  const cashAmt2 = Number(o.cashAmount) || 0;
+  const visaAmt2 = Number(o.visaAmount) || 0;
+  const payLabel = o.paymentMethod === "cash"  ? `💵 كاش / Cash${cashAmt2 > 0 ? ` — ${cashAmt2.toFixed(3)} ر.ع` : ""}`
+                 : o.paymentMethod === "visa"  ? `💳 فيزا / Visa${visaAmt2 > 0 ? ` — ${visaAmt2.toFixed(3)} ر.ع` : ""}`
+                 : o.paymentMethod === "split" ? `💵 كاش ${cashAmt2.toFixed(3)} + 💳 فيزا ${visaAmt2.toFixed(3)} ر.ع / Split`
+                 : o.paymentMethod === "free"  ? "🎁 الحساب مجاناً / On the House"
                  : "—";
+  // تفصيل قناتي الدفع (يظهر فقط عند التقسيم) — يُضاف داخل خانة بيانات الطلب.
+  const splitBreakdownHtml = o.paymentMethod === "split" ? `
+  <div style="margin-top:1mm;padding:1mm 2mm;border:1px dashed #000">
+    <div><b>تفصيل الدفع / Payment Split:</b></div>
+    <div>💵 كاش / Cash: ${cashAmt2.toFixed(3)} ر.ع / OMR</div>
+    <div>💳 فيزا / Visa: ${visaAmt2.toFixed(3)} ر.ع / OMR</div>
+  </div>` : "";
 
   const body = `
 ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
@@ -2884,6 +3018,7 @@ ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
   <div><b>المكان / Location:</b> ${where}</div>`}
   <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
   <div><b>طريقة الدفع / Payment:</b> ${payLabel}</div>
+  ${splitBreakdownHtml}
 </td></tr>
 <tr><td class="cell sec-title-cell">تفاصيل الطلب / Order Details</td></tr>
 <tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>

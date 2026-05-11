@@ -458,10 +458,38 @@ router.patch("/orders/:orderId/payment", (req: any, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
   const raw = String(req.body?.paymentMethod ?? "").trim().toLowerCase();
-  if (raw !== "cash" && raw !== "visa" && raw !== "free") {
-    return res.status(400).json({ error: "paymentMethod must be 'cash', 'visa', or 'free'" });
+  if (raw !== "cash" && raw !== "visa" && raw !== "split" && raw !== "free") {
+    return res.status(400).json({ error: "paymentMethod must be 'cash', 'visa', 'split', or 'free'" });
   }
-  order.paymentMethod = raw as "cash" | "visa" | "free";
+  // For free orders we don't track split amounts.
+  if (raw === "free") {
+    order.paymentMethod = "free";
+    order.cashAmount = undefined;
+    order.visaAmount = undefined;
+    persistStore();
+    return res.json({ order });
+  }
+
+  // For cash/visa/split: validate cashAmount + visaAmount sum to order total.
+  const orderTotal = +Number(order.total ?? 0).toFixed(3);
+  const cashAmt = +Number(req.body?.cashAmount ?? 0).toFixed(3);
+  const visaAmt = +Number(req.body?.visaAmount ?? 0).toFixed(3);
+  if (!Number.isFinite(cashAmt) || cashAmt < 0 || !Number.isFinite(visaAmt) || visaAmt < 0) {
+    return res.status(400).json({ error: "المبالغ يجب أن تكون أرقاماً موجبة" });
+  }
+  const sum = +(cashAmt + visaAmt).toFixed(3);
+  if (Math.abs(sum - orderTotal) > 0.005) {
+    return res.status(400).json({ error: `مجموع المدفوع (${sum.toFixed(3)}) لا يساوي إجمالي الطلب (${orderTotal.toFixed(3)})` });
+  }
+  // Derive method from amounts if cashAmt/visaAmt provided & both > 0 → split.
+  let method: "cash" | "visa" | "split" = raw as any;
+  if (cashAmt > 0 && visaAmt > 0) method = "split";
+  else if (cashAmt > 0 && visaAmt === 0) method = "cash";
+  else if (visaAmt > 0 && cashAmt === 0) method = "visa";
+
+  order.paymentMethod = method;
+  order.cashAmount = cashAmt;
+  order.visaAmount = visaAmt;
   persistStore();
   return res.json({ order });
 });
