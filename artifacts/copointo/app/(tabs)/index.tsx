@@ -66,10 +66,33 @@ function formatDist(km: number, kmLabel: string, mLabel: string): string {
   return `${km.toFixed(2)} ${kmLabel}`;
 }
 
-function mapCafe(c: ApiCafe, kmLabel: string, mLabel: string, userLat?: number, userLng?: number): Cafe {
+/** Fetch real driving distance (in km) from the public OSRM server.
+ *  Falls back to `null` on any failure — caller should use haversine as a
+ *  fallback display so the user always sees something. */
+async function fetchRoadKm(
+  uLat: number, uLng: number, cLat: number, cLng: number,
+  signal?: AbortSignal,
+): Promise<number | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${uLng},${uLat};${cLng},${cLat}?overview=false&alternatives=false&steps=false`;
+    const r = await fetch(url, { signal });
+    if (!r.ok) return null;
+    const j: any = await r.json();
+    const meters = j?.routes?.[0]?.distance;
+    if (typeof meters !== "number" || meters <= 0) return null;
+    return meters / 1000;
+  } catch {
+    return null;
+  }
+}
+
+function mapCafe(c: ApiCafe, kmLabel: string, mLabel: string, userLat?: number, userLng?: number, roadKm?: number | null): Cafe {
   let distance = "";
   if (userLat != null && userLng != null && c.lat != null && c.lng != null) {
-    distance = formatDist(haversineKm(userLat, userLng, c.lat, c.lng), kmLabel, mLabel);
+    const km = roadKm != null && roadKm > 0
+      ? roadKm
+      : haversineKm(userLat, userLng, c.lat, c.lng);
+    distance = formatDist(km, kmLabel, mLabel);
   }
   return {
     id:          c.id,
@@ -151,12 +174,40 @@ export default function HomeScreen() {
     })();
   }, []);
 
-  // Re-map cafes whenever raw data, user location, or language changes
+  // Cache of cafeId → road-distance (km), keyed alongside the user location
+  // it was computed for so we recompute when the user moves.
+  const [roadKmByCafe, setRoadKmByCafe] = useState<Record<string, number>>({});
+
+  // Re-map cafes whenever raw data, user location, road-distance cache, or
+  // language changes. Distance prefers the road distance from OSRM and falls
+  // back to the straight-line haversine while OSRM is still loading.
   useEffect(() => {
     const kmLabel = t("common.km");
     const mLabel = t("common.m");
-    setApiCafes(rawCafes.map(c => mapCafe(c, kmLabel, mLabel, userLoc?.lat, userLoc?.lng)));
-  }, [rawCafes, userLoc, t]);
+    setApiCafes(rawCafes.map(c =>
+      mapCafe(c, kmLabel, mLabel, userLoc?.lat, userLoc?.lng, roadKmByCafe[c.id]),
+    ));
+  }, [rawCafes, userLoc, roadKmByCafe, t]);
+
+  // Whenever we have a user location and a list of cafes with coordinates,
+  // fetch real driving distances from the OSRM public server in parallel.
+  // Each result updates the per-cafe cache as soon as it lands, so cards
+  // refresh progressively from straight-line → real road distance.
+  useEffect(() => {
+    if (!userLoc || rawCafes.length === 0) return;
+    const ac = new AbortController();
+    const targets = rawCafes.filter(c => c.lat != null && c.lng != null);
+    setRoadKmByCafe({}); // reset on user-location change so stale values don't leak
+    targets.forEach(c => {
+      fetchRoadKm(userLoc.lat, userLoc.lng, c.lat as number, c.lng as number, ac.signal)
+        .then(km => {
+          if (km == null || ac.signal.aborted) return;
+          setRoadKmByCafe(prev => ({ ...prev, [c.id]: km }));
+        })
+        .catch(() => { /* ignore — falls back to haversine */ });
+    });
+    return () => ac.abort();
+  }, [userLoc, rawCafes]);
 
   const fetchCafes = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
