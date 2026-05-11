@@ -26,6 +26,8 @@ import UsernameText from "@/components/UsernameText";
 import Character from "@/components/Character";
 import { getCharacter } from "@/data/characters";
 import { useCharacters } from "@/hooks/useCharacters";
+import { useFrames } from "@/hooks/useFrames";
+import { useBadges } from "@/hooks/useBadges";
 import { useMessages } from "@/context/MessagesContext";
 import { useUsernameColors } from "@/hooks/useUsernameColors";
 import { useTextStyles } from "@/hooks/useTextStyles";
@@ -57,6 +59,15 @@ interface Entry {
   hasIncoming: boolean;
   avatar?: string;
   gender?: "male" | "female";
+  /** Equipped cosmetics — populated from the server-mirrored loadout so
+   *  every viewer sees every player's frame / badge / character / colors,
+   *  not just their own. Falls back to null when the player has nothing
+   *  equipped or the field hasn't synced yet. */
+  equippedFrame: string | null;
+  equippedBadge: string | null;
+  equippedBackground: string | null;
+  equippedCharacter: string | null;
+  equippedUsernameColor: string | null;
 }
 
 export default function LeaderboardScreen() {
@@ -74,6 +85,8 @@ export default function LeaderboardScreen() {
   const { equipped: equippedUsernameColorId } = useUsernameColors();
   const { equipped: equippedTextStyleId } = useTextStyles();
   const { equipped: equippedBackgroundId } = useBackgrounds();
+  const { equipped: equippedFrameId } = useFrames();
+  const { equipped: equippedBadgeId } = useBadges();
   const { chats } = useMessages();
   const giftsReceived = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -108,19 +121,32 @@ export default function LeaderboardScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const toEntry = (u: User): Entry => ({
-    id: u.id,
-    name: u.name,
-    username: u.gameUsername,
-    level: u.level,
-    totalOrders: u.totalOrders ?? 0,
-    isMe: u.id === user?.id,
-    isFriend: friends.includes(u.id),
-    isPending: outgoingRequests.includes(u.id),
-    hasIncoming: incomingRequests.includes(u.id),
-    avatar: u.avatar,
-    gender: u.gender,
-  });
+  const toEntry = (u: User): Entry => {
+    const isMe = u.id === user?.id;
+    return {
+      id: u.id,
+      name: u.name,
+      username: u.gameUsername,
+      level: u.level,
+      totalOrders: u.totalOrders ?? 0,
+      isMe,
+      isFriend: friends.includes(u.id),
+      isPending: outgoingRequests.includes(u.id),
+      hasIncoming: incomingRequests.includes(u.id),
+      avatar: u.avatar,
+      gender: u.gender,
+      // For the current user we prefer the locally-equipped IDs (the
+      // per-cosmetic hooks are the source of truth on this device, and they
+      // update instantly on equip without waiting for the next server poll).
+      // For everyone else we use the server-mirrored values that arrived via
+      // refreshAllUsers().
+      equippedFrame:         isMe ? equippedFrameId         : (u.equippedFrame         ?? null),
+      equippedBadge:         isMe ? equippedBadgeId         : (u.equippedBadge         ?? null),
+      equippedBackground:    isMe ? equippedBackgroundId    : (u.equippedBackground    ?? null),
+      equippedCharacter:     isMe ? equippedCharacterId     : (u.equippedCharacter     ?? null),
+      equippedUsernameColor: isMe ? equippedUsernameColorId : (u.equippedUsernameColor ?? null),
+    };
+  };
 
   const sortDesc = (a: Entry, b: Entry) => b.level - a.level;
 
@@ -282,6 +308,12 @@ export default function LeaderboardScreen() {
           </View>
         ) : entries.map((entry, i) => {
           const rankInfo = getRank(entry.level);
+          // Resolve each cosmetic from the entry's own equipped IDs so EVERY
+          // viewer sees the player's actual loadout — frame, badge, character,
+          // username color and background — not just their own.
+          const entryCharacter = getCharacter(entry.equippedCharacter);
+          const entryUsernameColor = getUsernameColor(entry.equippedUsernameColor);
+          const entryBg = entry.equippedBackground;
           const rowInner = (
             <>
               <Text style={[
@@ -294,7 +326,7 @@ export default function LeaderboardScreen() {
               <AvatarWithFrame
                 size={44}
                 scale={1.55}
-                frameId={entry.isMe ? undefined : null}
+                frameId={entry.equippedFrame}
               >
                 {entry.avatar ? (
                   <Image source={{ uri: entry.avatar }} style={styles.avatarImg} />
@@ -308,19 +340,14 @@ export default function LeaderboardScreen() {
 
               <View style={styles.entryInfo}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  {entry.isMe ? (
-                    <UsernameText
-                      text={`${entry.name}${t("lb.youSuffix")}`}
-                      style={[styles.entryName, { color: "#E8B86D" }]}
-                      fallbackColor="#E8B86D"
-                      numberOfLines={1}
-                    />
-                  ) : (
-                    <Text style={styles.entryName}>
-                      {entry.name}
-                    </Text>
-                  )}
-                  {entry.isMe && <UserBadge size={18} />}
+                  <UsernameText
+                    text={entry.isMe ? `${entry.name}${t("lb.youSuffix")}` : entry.name}
+                    style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}
+                    override={entryUsernameColor}
+                    fallbackColor={entry.isMe ? "#E8B86D" : "#FFFFFF"}
+                    numberOfLines={1}
+                  />
+                  <UserBadge badgeId={entry.equippedBadge} size={18} />
                 </View>
                 <Text style={styles.entryLevel}>
                   {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
@@ -364,7 +391,10 @@ export default function LeaderboardScreen() {
               )}
             </>
           );
-          if (entry.isMe) {
+          // Wrap rows that have a background in UsernameBackground so the
+          // animated card shows for every player (not just the current user).
+          // Rows without a background fall back to the plain entryRow style.
+          if (entryBg) {
             return (
               <TouchableOpacity
                 key={entry.id}
@@ -373,15 +403,16 @@ export default function LeaderboardScreen() {
                 style={{ borderRadius: 18 }}
               >
                 <UsernameBackground
+                  backgroundId={entryBg}
                   borderRadius={18}
                   paddingHorizontal={14}
                   paddingVertical={14}
                   style={{ alignSelf: "stretch" }}
                 >
                   <View style={styles.entryRowContent}>{rowInner}</View>
-                  {equippedCharacter && (
+                  {entryCharacter && (
                     <View style={styles.charBadge} pointerEvents="none">
-                      <Character def={equippedCharacter} size={28} />
+                      <Character def={entryCharacter} size={28} />
                     </View>
                   )}
                 </UsernameBackground>
