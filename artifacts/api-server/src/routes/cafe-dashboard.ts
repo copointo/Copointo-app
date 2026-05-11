@@ -387,6 +387,28 @@ router.post("/orders", (req: any, res): any => {
   // Invoice is created only when the manager confirms preparation.
   return res.status(201).json({ order: o });
 });
+// Look up a registered Copointo Hub player by phone. Used by the cafe
+// dashboard's "اطلب مباشر" tab so the cashier can attach a walk-in order to
+// a real game user (so loyalty points are credited). Returns { user: null } if
+// no match — never errors on "not found", since this is a lightweight lookup.
+router.get("/lookup-user", (req: any, res): any => {
+  const phone = String(req.query?.phone ?? "").trim();
+  if (!phone) return res.json({ user: null });
+  const u = users.find(x => x.phone === phone);
+  if (!u) return res.json({ user: null });
+  return res.json({
+    user: {
+      id: u.id,
+      username: u.username,
+      phone: u.phone,
+      level: u.level,
+      totalOrders: u.totalOrders,
+      banned: !!u.banned,
+      gameBanned: !!u.gameBanned,
+    },
+  });
+});
+
 router.get("/orders/:orderId", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
@@ -395,11 +417,17 @@ router.get("/orders/:orderId", (req, res): any => {
 // Award drink-count progress to the customer (idempotent — only fires once per order).
 function awardOrderProgress(order: any) {
   if (order.pointsAwarded) return;
-  // Direct in-cafe orders (placed by the cafe staff on behalf of a walk-in
-  // customer) intentionally do NOT contribute to game/loyalty progress.
+  // Direct in-cafe orders without a registered customer phone do NOT contribute
+  // to game/loyalty progress. If the cashier captured a verified game-user
+  // phone (and the lookup matched a real user), we DO award progress just like
+  // any normal order.
   if (order.source === "direct") {
-    order.pointsAwarded = true;
-    return;
+    const phone = String(order.customerPhone ?? "").trim();
+    const matched = phone ? users.find(u => u.phone === phone) : null;
+    if (!matched) {
+      order.pointsAwarded = true;
+      return;
+    }
   }
   // Always recompute drinks server-side from items so we cannot be over-credited
   // by a client (chat / mobile / direct) that sent an inflated `drinkCount`.

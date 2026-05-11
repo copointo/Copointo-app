@@ -880,6 +880,13 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
   const [items, setItems]           = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [customerName, setCustomerName] = useState("");
+  // Optional Copointo-Hub phone lookup. When the cashier types a phone, we
+  // probe the server and (if matched) lock the player so loyalty points are
+  // awarded on this direct order.
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [matchedUser, setMatchedUser] = useState<null | { id: string; username: string; phone: string; level: number }>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupTried, setLookupTried] = useState(false);
   const [cart, setCart]             = useState<Record<string, number>>({});
   const [notes, setNotes]           = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -921,18 +928,53 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     0,
   );
 
-  const reset = () => { setCart({}); setCustomerName(""); setNotes(""); setErr(""); };
+  const reset = () => {
+    setCart({}); setCustomerName(""); setCustomerPhone("");
+    setMatchedUser(null); setLookupTried(false); setNotes(""); setErr("");
+  };
+
+  // Debounced auto-lookup when the cashier finishes typing the phone.
+  useEffect(() => {
+    const phone = customerPhone.trim();
+    if (!phone) { setMatchedUser(null); setLookupTried(false); return; }
+    setLookingUp(true);
+    const t = window.setTimeout(async () => {
+      try {
+        const { user } = await api.cafeLookupUser(id, phone);
+        setMatchedUser(user);
+        if (user && !customerName.trim()) setCustomerName(user.username);
+      } catch {
+        setMatchedUser(null);
+      } finally {
+        setLookingUp(false);
+        setLookupTried(true);
+      }
+    }, 400);
+    return () => { window.clearTimeout(t); setLookingUp(false); };
+    // We intentionally omit customerName from deps — we only seed it once on lookup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerPhone, id]);
 
   const submit = async () => {
     setErr("");
     const name = customerName.trim();
     if (!name)               { setErr("أدخل اسم الزبون"); return; }
     if (cartLines.length === 0) { setErr("اختر منتجاً واحداً على الأقل"); return; }
+    // If a phone was typed but does not match a registered player, ask the
+    // cashier to either clear it or correct it before sending. (Awarding only
+    // happens when phone matches; an unmatched phone is just dead weight.)
+    const phone = customerPhone.trim();
+    if (phone && !matchedUser) {
+      setErr("الرقم غير مسجَّل في Copointo Hub — امسحه أو صحّحه قبل الإرسال");
+      return;
+    }
     setSubmitting(true);
     try {
       await api.addCafeOrder(id, {
         customerName: name,
-        customerPhone: "",
+        // Only attach phone when it matched a real game user — that's the trigger
+        // for the server to credit loyalty points for this direct order.
+        customerPhone: matchedUser ? matchedUser.phone : "",
         source: "direct",
         type: "dine",
         tableNumber: "",
@@ -1055,6 +1097,40 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
               <Inp value={customerName} onChange={setCustomerName} placeholder="مثال: أحمد" />
             </div>
             <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block flex items-center gap-1.5">
+                <span>📱 رقم Copointo Hub (اختياري)</span>
+                {lookingUp && <span className="text-[10px] text-muted-foreground">جارٍ البحث…</span>}
+              </label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d]/g, ""))}
+                placeholder="مثال: 99887766"
+                className={`w-full bg-input border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 placeholder:text-muted-foreground ${
+                  matchedUser
+                    ? "border-emerald-500/60 focus:ring-emerald-500/50"
+                    : customerPhone.trim() && lookupTried && !lookingUp
+                    ? "border-orange-500/60 focus:ring-orange-500/50"
+                    : "border-border focus:ring-primary"
+                }`}
+              />
+              {matchedUser ? (
+                <div className="mt-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40 flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-bold shrink-0">✓</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-emerald-300 truncate">{matchedUser.username}</p>
+                    <p className="text-[10px] text-emerald-300/70 tabular-nums" dir="ltr">{matchedUser.phone} · Lv {matchedUser.level}</p>
+                  </div>
+                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-1 rounded-md">سيُحتسب</span>
+                </div>
+              ) : customerPhone.trim() && lookupTried && !lookingUp ? (
+                <p className="mt-1 text-[11px] text-orange-400">⚠️ غير مسجَّل في Copointo Hub — لن تُحتسب نقاط</p>
+              ) : (
+                <p className="mt-1 text-[11px] text-muted-foreground">إذا كان الزبون لاعب مسجَّل، اكتب رقمه ليُربط بالطلب وتُحتسب له النقاط.</p>
+              )}
+            </div>
+            <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">
                 ملاحظات (اختياري)
               </label>
@@ -1105,10 +1181,15 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
             </div>
           )}
 
-          <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 mb-4">
-            <p className="text-[11px] text-amber-300 leading-relaxed">
-              ℹ️ هذا طلب مباشر من داخل الكوفي — لن يحتسب أي تقدّم في اللعبة للزبون،
-              وستظهر الفاتورة بصيغة «طلب مباشر من الكوفي».
+          <div className={`rounded-lg px-3 py-2 mb-4 border ${
+            matchedUser
+              ? "bg-emerald-500/10 border-emerald-500/30"
+              : "bg-amber-500/10 border-amber-500/30"
+          }`}>
+            <p className={`text-[11px] leading-relaxed ${matchedUser ? "text-emerald-300" : "text-amber-300"}`}>
+              {matchedUser
+                ? `✅ سيُربط هذا الطلب بـ ${matchedUser.username} وستُضاف له نقاط Copointo Hub حسب عدد المشروبات.`
+                : "ℹ️ هذا طلب مباشر من داخل الكوفي — بدون رقم لن يحتسب أي تقدّم في اللعبة، وستظهر الفاتورة بصيغة «طلب مباشر من الكوفي»."}
             </p>
           </div>
 

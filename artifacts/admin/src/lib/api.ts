@@ -61,6 +61,10 @@ export const api = {
     body: { paymentMethod: "cash"|"visa"|"split"|"free"; cashAmount?: number; visaAmount?: number }
   ) => req<any>("PATCH", `${C(id)}/orders/${oid}/payment`, body),
   cafeOrderDiscount:(id:string,oid:string,body:{code?:string;amount?:number}) => req<any>("PATCH", `${C(id)}/orders/${oid}/discount`, body),
+  cafeLookupUser: (id: string, phone: string) =>
+    req<{ user: null | { id: string; username: string; phone: string; level: number; totalOrders: number; banned: boolean; gameBanned: boolean } }>(
+      "GET", `${C(id)}/lookup-user?phone=${encodeURIComponent(phone)}`
+    ),
   cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
   cafeOrdersClear: (id: string, from?: string, to?: string) => {
     const qs = new URLSearchParams();
