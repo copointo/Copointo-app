@@ -4926,12 +4926,25 @@ function ReelsTab({ id }: { id: string }) {
         if (xhr.status >= 200 && xhr.status < 300) {
           try { res(JSON.parse(xhr.responseText)); } catch { res({}); }
         } else {
-          let msg = "فشل الرفع";
-          try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch { /* ignore */ }
+          // Try to extract a JSON error first; otherwise surface the raw
+          // response text + status so the user can see the real reason
+          // instead of a generic "فشل الرفع".
+          let msg = "";
+          try {
+            const j = JSON.parse(xhr.responseText);
+            msg = j.error || j.message || "";
+          } catch { /* not JSON */ }
+          if (!msg) {
+            const raw = (xhr.responseText || "").trim().slice(0, 200);
+            msg = raw
+              ? `فشل الرفع (${xhr.status}): ${raw}`
+              : `فشل الرفع — رمز الخطأ ${xhr.status}`;
+          }
           rej(new Error(msg));
         }
       };
-      xhr.onerror = () => rej(new Error("خطأ في الشبكة"));
+      xhr.onerror = () => rej(new Error("خطأ في الشبكة — تأكد من الاتصال"));
+      xhr.ontimeout = () => rej(new Error("انتهت مهلة الرفع — جرّب فيديو أصغر"));
       xhr.send(fd);
     });
 

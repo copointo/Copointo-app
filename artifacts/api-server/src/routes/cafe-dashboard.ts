@@ -23,8 +23,28 @@ const reelUpload = multer({
       cb(null, `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
     },
   }),
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB hard cap
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1 GB hard cap
 });
+
+/** Wrap multer.single() so any error (file-too-large, multipart parse error,
+ *  disk write failure, …) is surfaced as a JSON response instead of falling
+ *  through to Express's default HTML error page — the admin client can then
+ *  show the real reason instead of the generic "فشل الرفع". */
+function reelUploadSafe(req: any, res: any, next: any) {
+  reelUpload.single("video")(req, res, (err: any) => {
+    if (!err) return next();
+    let message = err?.message || "فشل رفع الملف";
+    if (err?.code === "LIMIT_FILE_SIZE") {
+      message = "حجم الفيديو كبير جداً — الحد الأقصى 1 جيجابايت";
+    } else if (err?.code === "LIMIT_UNEXPECTED_FILE") {
+      message = "حقل الملف غير صحيح — يجب أن يكون باسم \"video\"";
+    } else if (err?.code === "ENOSPC") {
+      message = "لا توجد مساحة كافية على الخادم لحفظ الفيديو";
+    }
+    req.log?.error?.({ err, code: err?.code }, "reel upload failed");
+    return res.status(400).json({ error: message, code: err?.code ?? "UPLOAD_ERROR" });
+  });
+}
 
 // ── Free-coffee code helpers ─────────────────────────────────
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I,O,0,1
@@ -1310,7 +1330,7 @@ router.get("/reels", (req: any, res) => {
   res.json({ reels: list });
 });
 
-router.post("/reels", reelUpload.single("video"), (req: any, res) => {
+router.post("/reels", reelUploadSafe, (req: any, res) => {
   const cid  = req.params.cafeId;
   const cafe = cafes.find(c => c.id === cid);
   if (!cafe) {
