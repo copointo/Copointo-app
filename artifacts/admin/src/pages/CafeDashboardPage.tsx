@@ -2638,12 +2638,49 @@ function aggregateExpenses(expList: any[], from: Date, to: Date) {
 }
 
 async function loadAggData(id: string) {
-  const [{ orders }, { expenses }, bk] = await Promise.all([
+  const [{ orders }, { expenses }, bk, gv] = await Promise.all([
     api.cafeOrders(id),
     api.expenses(id).catch(() => ({ expenses: [] })),
     api.cafeBookings(id).catch(() => ({ bookings: [] })),
+    api.giftVouchers(id).catch(() => ({ vouchers: [] })),
   ]);
-  return { orders: orders ?? [], expenses: expenses ?? [], bookings: bk?.bookings ?? [] };
+  return {
+    orders:    orders   ?? [],
+    expenses:  expenses ?? [],
+    bookings:  bk?.bookings ?? [],
+    vouchers:  gv?.vouchers ?? [],
+  };
+}
+
+// Aggregate confirmed gift vouchers within a date window. Only "confirmed"
+// vouchers count toward revenue (matches what the server stores as an Invoice
+// on confirmation). Timestamp used is `confirmedAt` if present, otherwise
+// falls back to `paidAt` / `createdAt`.
+function aggregateVouchers(voucherList: any[], from: Date, to: Date) {
+  const inRange = voucherList.filter(v => {
+    if (v.status !== "confirmed") return false;
+    const ts = v.confirmedAt ?? v.paidAt ?? v.createdAt;
+    if (!ts) return false;
+    const t = new Date(ts).getTime();
+    return t >= from.getTime() && t < to.getTime();
+  });
+  const total = inRange.reduce((s, v) => s + (Number(v.amount) || 0), 0);
+  return { inRange, total };
+}
+
+function vouchersBlockHtml(v: { inRange: any[]; total: number }, label: string) {
+  if (v.inRange.length === 0) return "";
+  const rows = v.inRange.map(x =>
+    `<tr><td>#${String(x.id).slice(-5)}</td><td>${x.senderName ?? "-"}</td><td>${x.recipientName ?? "-"}</td><td style="font-size:9.5px">${fmtDateTimeAr(x.confirmedAt ?? x.paidAt ?? x.createdAt)}</td><td style="text-align:left">${(Number(x.amount) || 0).toFixed(3)}</td></tr>`
+  ).join("");
+  return `
+<tr><td class="cell sec-title-cell">قسائم شرائية / Gift Vouchers (${label})</td></tr>
+<tr><td class="cell items-cell"><table class="items">
+  <thead><tr><th>رقم<br>No.</th><th>المُرسِل<br>Sender</th><th>المُستلِم<br>Recipient</th><th>الوقت<br>Time</th><th>المبلغ<br>Amount</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table></td></tr>
+<tr><td class="cell row-cell"><span class="lbl">إجمالي القسائم / Vouchers Total (${v.inRange.length})</span><span class="val">${v.total.toFixed(3)} ر.ع / OMR</span></td></tr>
+`;
 }
 
 // Aggregate confirmed bookings within a date window. Only "confirmed" bookings
@@ -2778,13 +2815,14 @@ ${tplFooterHtml(tpl)}
 
 async function printDailyInvoice(id: string, dateStr: string): Promise<{ from: Date; to: Date; count: number }> {
   const tpl = (await api.invoiceTemplate(id, "daily").catch(() => ({ template: null }))).template;
-  const { orders, bookings } = await loadAggData(id);
+  const { orders, bookings, vouchers } = await loadAggData(id);
   const from = new Date(dateStr + "T00:00:00");
   const to   = new Date(from); to.setDate(to.getDate() + 1);
   const agg = aggregateOrders(orders, from, to);
   const { inRange, byCat, total } = agg;
-  const bookAgg = aggregateBookings(bookings, from, to);
-  const grandTotal = total + bookAgg.total;
+  const bookAgg    = aggregateBookings(bookings, from, to);
+  const voucherAgg = aggregateVouchers(vouchers, from, to);
+  const grandTotal = total + bookAgg.total + voucherAgg.total;
 
   const ordersRows = inRange.map(o => {
     const pm = o.paymentMethod === "cash" ? "💵"
@@ -2812,6 +2850,7 @@ ${tplHeaderHtml(tpl, "الفاتورة اليومية / Daily Invoice", `${fmtDa
 ${paymentBreakdownRows(agg)}
 <tr><td class="cell row-cell"><span class="lbl">مبيعات الطلبات / Orders Revenue</span><span class="val">${total.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${bookingsBlockHtml(bookAgg, "اليوم / Today")}
+${vouchersBlockHtml(voucherAgg, "اليوم / Today")}
 <tr><td class="cell total-cell"><span class="lbl">إجمالي اليوم / Daily Total</span><span class="val">${grandTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
@@ -2821,14 +2860,15 @@ ${tplFooterHtml(tpl)}
 
 async function printMonthlyInvoice(id: string, year: number, month: number) {
   const tpl = (await api.invoiceTemplate(id, "monthly").catch(() => ({ template: null }))).template;
-  const { orders, expenses, bookings } = await loadAggData(id);
+  const { orders, expenses, bookings, vouchers } = await loadAggData(id);
   const from = new Date(year, month - 1, 1);
   const to   = new Date(year, month,     1);
   const agg = aggregateOrders(orders, from, to);
   const { inRange: ordersIn, byCat, total: ordersTotal } = agg;
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
-  const bookAgg = aggregateBookings(bookings, from, to);
-  const revenue = ordersTotal + bookAgg.total;
+  const bookAgg    = aggregateBookings(bookings, from, to);
+  const voucherAgg = aggregateVouchers(vouchers, from, to);
+  const revenue = ordersTotal + bookAgg.total + voucherAgg.total;
   const net = revenue - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
     `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
@@ -2848,6 +2888,7 @@ ${tplHeaderHtml(tpl, "الفاتورة الشهرية / Monthly Invoice", `${mon
 ${paymentBreakdownRows(agg)}
 <tr><td class="cell row-cell"><span class="lbl">مبيعات الطلبات / Orders Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${bookingsBlockHtml(bookAgg, monthName)}
+${vouchersBlockHtml(voucherAgg, monthName)}
 <tr><td class="cell row-cell"><span class="lbl">إجمالي الإيرادات / Total Revenue</span><span class="val">${revenue.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 <tr><td class="cell total-cell"><span class="lbl">الصافي / Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
@@ -2858,14 +2899,15 @@ ${tplFooterHtml(tpl)}
 
 async function printYearlyInvoice(id: string, year: number) {
   const tpl = (await api.invoiceTemplate(id, "yearly").catch(() => ({ template: null }))).template;
-  const { orders, expenses, bookings } = await loadAggData(id);
+  const { orders, expenses, bookings, vouchers } = await loadAggData(id);
   const from = new Date(year, 0, 1);
   const to   = new Date(year + 1, 0, 1);
   const agg = aggregateOrders(orders, from, to);
   const { inRange: ordersIn, byCat, total: ordersTotal } = agg;
   const { total: expTotal } = aggregateExpenses(expenses, from, to);
-  const bookAgg = aggregateBookings(bookings, from, to);
-  const revenue = ordersTotal + bookAgg.total;
+  const bookAgg    = aggregateBookings(bookings, from, to);
+  const voucherAgg = aggregateVouchers(vouchers, from, to);
+  const revenue = ordersTotal + bookAgg.total + voucherAgg.total;
   const net = revenue - expTotal;
   const catRows = Object.entries(byCat).map(([k, v]) =>
     `<tr><td>${k}</td><td style="text-align:center">${v.qty}</td><td style="text-align:left">${v.amount.toFixed(3)}</td></tr>`
@@ -2884,6 +2926,7 @@ ${tplHeaderHtml(tpl, "الفاتورة السنوية / Yearly Invoice", `سنة
 ${paymentBreakdownRows(agg)}
 <tr><td class="cell row-cell"><span class="lbl">مبيعات الطلبات / Orders Revenue</span><span class="val">${ordersTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${bookingsBlockHtml(bookAgg, `سنة / Year ${year}`)}
+${vouchersBlockHtml(voucherAgg, `سنة / Year ${year}`)}
 <tr><td class="cell row-cell"><span class="lbl">إجمالي الإيرادات / Total Revenue</span><span class="val">${revenue.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${expTotal > 0 ? `<tr><td class="cell row-cell"><span class="lbl">إجمالي المصاريف / Expenses</span><span class="val">− ${expTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 <tr><td class="cell total-cell"><span class="lbl">الصافي السنوي / Yearly Net</span><span class="val">${net.toFixed(3)} ر.ع / OMR</span></td></tr>
