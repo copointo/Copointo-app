@@ -10,7 +10,7 @@ import {
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
-  QrCode, Copy,
+  QrCode, Copy, Download, Share2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -3949,66 +3949,57 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
     }
   };
 
-  // Print one or both QR codes on a sticker-sized page that matches the
-  // QR exactly — no long A4 with empty space. Single-QR prints use an
-  // 80×100mm page, "both" stacks two on an 80×200mm strip. The QR image
-  // itself is sized to nearly fill the page width (≈70mm) for maximum
-  // scannability when stuck on tables.
-  const printQrs = (which: "cafe" | "dashboard" | "both") => {
-    const w = window.open("", "_blank", "width=420,height=720");
-    if (!w) { alert("المتصفّح منع فتح نافذة الطباعة — اسمح بالنوافذ المنبثقة"); return; }
-    // All dynamic strings are HTML-escaped before interpolation to prevent
-    // XSS from a malicious cafe name. URLs go through encodeURI for the
-    // qrserver image src and escHtml for the visible caption.
-    const safeName = escHtml(cafeName ?? "");
-    // Each QR block is sized to fit exactly inside one 80×100mm sticker.
-    // Using `size=800x800` from the QR service guarantees a sharp image
-    // at 70mm print size (≈265dpi).
-    const block = (_title: string, url: string) => `
-      <section class="block">
-        <div class="qr-wrap"><img src="https://api.qrserver.com/v1/create-qr-code/?size=800x800&amp;margin=0&amp;ecc=M&amp;data=${encodeURIComponent(url)}" alt="QR" /></div>
-      </section>`;
-    const blocks =
-      which === "cafe"      ? block("صفحة الزبائن", cafePageUrl)
-    : which === "dashboard" ? block("لوحة التحكم",   dashboardUrl)
-    :                          block("صفحة الزبائن", cafePageUrl) + block("لوحة التحكم", dashboardUrl);
-    // Page is sized to the QR itself: 70×70mm sticker, nothing else.
-    const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>باركود ${safeName}</title>
-      <style>
-        @page { size: 70mm 70mm; margin: 0; }
-        * { box-sizing: border-box; }
-        html, body { margin:0; padding:0; }
-        body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color:#000; background:#fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .block {
-          width: 70mm; height: 70mm;
-          padding: 0;
-          display: flex; align-items: center; justify-content: center;
-          page-break-after: always; break-after: page;
-        }
-        .block:last-child { page-break-after: auto; break-after: auto; }
-        .qr-wrap { width: 70mm; height: 70mm; display:flex; align-items:center; justify-content:center; }
-        .qr-wrap img { width: 70mm; height: 70mm; image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges; }
-        .toolbar { padding: 12px; text-align:center; }
-        @media print { .toolbar { display:none; } }
-      </style></head><body>
-      ${blocks}
-      <div class="toolbar">
-        <button onclick="window.print()" style="padding:10px 22px;font-size:14px;background:#E8B86D;border:0;border-radius:10px;cursor:pointer;font-weight:bold">🖨️ طباعة</button>
-      </div>
-      </body></html>`;
-    w.document.write(html);
-    w.document.close();
-    // Wait for the QR images to load before triggering print, otherwise
-    // the print preview can show a blank/broken image.
-    const trigger = () => { try { w.focus(); w.print(); } catch {} };
-    const imgs = w.document.images;
-    let pending = imgs.length;
-    if (pending === 0) { setTimeout(trigger, 300); return; }
-    const done = () => { if (--pending <= 0) setTimeout(trigger, 200); };
-    for (let i = 0; i < imgs.length; i++) {
-      const img = imgs[i];
-      if (img.complete) done();
-      else { img.addEventListener("load", done); img.addEventListener("error", done); }
+  // Build a sanitized PNG file name from the cafe name + QR kind.
+  const qrFileName = (kind: "cafe" | "dashboard") => {
+    const base = (cafeName ?? "copointo").replace(/[\\/:*?"<>|]+/g, "").trim() || "copointo";
+    const suffix = kind === "cafe" ? "customer" : "dashboard";
+    return `${base}-${suffix}.png`;
+  };
+
+  // Fetch the QR as a high-res PNG blob from the qrserver image API.
+  const fetchQrBlob = async (url: string): Promise<Blob> => {
+    const src = `https://api.qrserver.com/v1/create-qr-code/?size=800x800&margin=0&ecc=M&data=${encodeURIComponent(url)}`;
+    const res = await fetch(src);
+    if (!res.ok) throw new Error("qr fetch failed");
+    return await res.blob();
+  };
+
+  // Download the QR image as a PNG file.
+  const downloadQr = async (kind: "cafe" | "dashboard", url: string) => {
+    try {
+      const blob = await fetchQrBlob(url);
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = qrFileName(kind);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    } catch {
+      alert("تعذّر تنزيل الباركود — تحقق من الاتصال بالإنترنت");
+    }
+  };
+
+  // Share the QR image via the native share sheet, with safe fallbacks.
+  const shareQr = async (kind: "cafe" | "dashboard", url: string) => {
+    try {
+      const blob = await fetchQrBlob(url);
+      const file = new File([blob], qrFileName(kind), { type: "image/png" });
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], title: cafeName ?? "Copointo", text: url });
+        return;
+      }
+      if (nav.share) {
+        await nav.share({ title: cafeName ?? "Copointo", text: url, url });
+        return;
+      }
+      // Final fallback: copy the link to clipboard.
+      await copy(kind, url);
+      alert("تم نسخ الرابط — جهازك لا يدعم المشاركة المباشرة");
+    } catch {
+      // User cancelled or share failed silently — no-op.
     }
   };
 
@@ -4046,21 +4037,28 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
           <p className="text-[10px] text-green-400 mt-1 font-bold">✓ تم النسخ</p>
         )}
       </div>
-      <div className="flex gap-2 w-full">
+      <div className="flex gap-2 w-full flex-wrap">
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-bold text-center hover:bg-muted/80"
+          className="flex-1 min-w-[80px] px-3 py-2 rounded-lg bg-muted text-foreground text-xs font-bold text-center hover:bg-muted/80"
         >
           🔗 فتح
         </a>
         <button
-          onClick={() => printQrs(kind)}
-          className="flex-1 px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1"
+          onClick={() => downloadQr(kind, url)}
+          className="flex-1 min-w-[80px] px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1"
           style={{ background: accent, color: "#000" }}
         >
-          <Printer size={12} /> طباعة
+          <Download size={12} /> تنزيل
+        </button>
+        <button
+          onClick={() => shareQr(kind, url)}
+          className="flex-1 min-w-[80px] px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border-2"
+          style={{ borderColor: accent, color: accent, background: "transparent" }}
+        >
+          <Share2 size={12} /> مشاركة
         </button>
       </div>
     </div>
@@ -4074,16 +4072,10 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
             <QrCode size={22} className="text-primary" /> الباركود
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            أكواد QR لروابط الكوفي — اطبع كود الزبائن وضعه على الطاولات،
+            أكواد QR لروابط الكوفي — نزّل كود الزبائن أو شاركه ليصل لزبائنك،
             وكود لوحة التحكم احتفظ به لفتح الإدارة بسرعة.
           </p>
         </div>
-        <button
-          onClick={() => printQrs("both")}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-bold flex items-center gap-2 hover:opacity-90"
-        >
-          <Printer size={14} /> طباعة الاثنين
-        </button>
       </div>
 
       <div className="grid md:grid-cols-2 gap-5">
@@ -4106,8 +4098,8 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
       <Card className="p-4 bg-yellow-500/5 border border-yellow-500/30">
         <p className="text-xs text-foreground leading-relaxed">
           <strong className="text-yellow-500">💡 نصيحة:</strong>{" "}
-          الكود الذهبي هو الكود الذي يجب طباعته ووضعه على الطاولات —
-          الزبون يصوّره بكاميرا الجوال فيفتح صفحة الكوفي مباشرة ويطلب أو يحجز.
+          الكود الذهبي هو كود الزبائن — نزّله كصورة وضعه على الطاولات أو شاركه على وسائل التواصل،
+          ليفتح الزبون صفحة الكوفي مباشرة ويطلب أو يحجز.
           الكود الأزرق للموظفين فقط — لا تنشره خارج الكوفي.
         </p>
       </Card>
