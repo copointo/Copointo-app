@@ -26,8 +26,7 @@ const ASCII_PRINTABLE_RE = /^[\x20-\x7E]+$/;
 
 type Step =
   | "login"
-  | "register-form"      // collect name/phone/etc
-  | "register-otp"       // confirm SMS code, then create account
+  | "register-form"      // form + inline OTP field/button — single screen
   | "forgot-phone"       // enter phone for reset
   | "forgot-otp"         // confirm SMS code (reset)
   | "forgot-newpass";    // pick new password & sign in
@@ -57,11 +56,18 @@ export function AuthModal({
   const [gameUser, setGameUser] = useState("");
   const [pass, setPass] = useState("");
 
-  // OTP (shared by register-otp + forgot-otp)
+  // OTP (shared by inline-register + forgot-otp)
   const [otpCode, setOtpCode] = useState("");
   const [otpToken, setOtpToken] = useState("");        // set after verify
   const [resendIn, setResendIn] = useState(0);          // seconds until resend allowed
   const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // True once an OTP has been sent for the current register-form session,
+  // so the code input + verify button stay visible afterwards.
+  const [regOtpSent, setRegOtpSent] = useState(false);
+  // Phone the OTP was actually sent to. If the user edits `phone` after
+  // sending we invalidate the code so they can't accidentally verify a
+  // mismatched number.
+  const [regOtpPhone, setRegOtpPhone] = useState("");
 
   // Forgot
   const [resetPhone, setResetPhone] = useState("");
@@ -90,6 +96,7 @@ export function AuthModal({
     setRegAvatar(null); setRegGender(null);
     setName(""); setPhone(""); setGameUser(""); setPass("");
     setOtpCode(""); setOtpToken(""); setResendIn(0);
+    setRegOtpSent(false); setRegOtpPhone("");
     setResetPhone(""); setNewPass("");
     setErr(""); setBusy(false);
     if (resendTimerRef.current) clearInterval(resendTimerRef.current);
@@ -122,8 +129,29 @@ export function AuthModal({
     close();
   };
 
-  // Step 1 of register: validate the form, send the OTP, advance to OTP step.
-  const submitRegisterForm = async () => {
+  // Send OTP to the typed phone number. Just needs a plausible phone — the
+  // rest of the form can still be empty when the user requests the code.
+  const sendRegisterOtp = async () => {
+    setErr("");
+    const p = phone.trim();
+    if (!p) { setErr("الرجاء إدخال رقم الهاتف أولاً"); return; }
+    setBusy(true);
+    const sent = await sendOtp(p, "register");
+    setBusy(false);
+    if (!sent.ok) {
+      setErr(sent.error);
+      if (sent.retryAfterSec) startResendTimer(sent.retryAfterSec);
+      return;
+    }
+    setOtpCode(""); setOtpToken("");
+    setRegOtpSent(true);
+    setRegOtpPhone(p);
+    startResendTimer(45);
+  };
+
+  // Final register: validate everything, verify the OTP code, then create
+  // the account — all in one tap from the same screen.
+  const submitRegister = async () => {
     setErr("");
     if (!name.trim() || !phone.trim() || !gameUser.trim() || !pass) {
       setErr(t("auth.errFillAll")); return;
@@ -134,22 +162,11 @@ export function AuthModal({
     if (!USERNAME_EN_RE.test(u)) { setErr(t("auth.errUsernameEn")); return; }
     if (pass.length < 6) { setErr(t("auth.errPasswordShort")); return; }
     if (!ASCII_PRINTABLE_RE.test(pass)) { setErr(t("auth.errPasswordEn")); return; }
-    setBusy(true);
-    const sent = await sendOtp(phone.trim(), "register");
-    setBusy(false);
-    if (!sent.ok) {
-      setErr(sent.error);
-      if (sent.retryAfterSec) startResendTimer(sent.retryAfterSec);
+    if (!regOtpSent) { setErr("اضغط (إرسال الرمز) أولاً، ثم أدخل الرمز المُرسل إلى هاتفك"); return; }
+    if (regOtpPhone !== phone.trim()) {
+      setErr("تم تغيير رقم الهاتف بعد إرسال الرمز — أعد إرسال الرمز");
       return;
     }
-    setOtpCode(""); setOtpToken("");
-    startResendTimer(45);
-    setStep("register-otp");
-  };
-
-  // Step 2 of register: verify the OTP and create the account.
-  const submitRegisterOtp = async () => {
-    setErr("");
     if (!/^\d{6}$/.test(otpCode)) { setErr("الرجاء إدخال الرمز المكون من 6 أرقام"); return; }
     setBusy(true);
     const v = await verifyOtp(phone.trim(), otpCode, "register");
@@ -222,8 +239,8 @@ export function AuthModal({
 
   const resendOtp = async () => {
     if (resendIn > 0) return;
-    const target = step === "register-otp" ? phone.trim() : resetPhone.trim();
-    const purpose = step === "register-otp" ? "register" : "reset";
+    const target = step === "register-form" ? phone.trim() : resetPhone.trim();
+    const purpose = step === "register-form" ? "register" : "reset";
     setErr("");
     setBusy(true);
     const sent = await sendOtp(target, purpose);
@@ -242,14 +259,13 @@ export function AuthModal({
   const showBack = step !== "login" && step !== "register-form";
   const goBack = () => {
     setErr("");
-    if (step === "register-otp") setStep("register-form");
-    else if (step === "forgot-phone") setStep("login");
+    if (step === "forgot-phone") setStep("login");
     else if (step === "forgot-otp") setStep("forgot-phone");
     else if (step === "forgot-newpass") setStep("forgot-otp");
   };
 
-  const isOtpStep = step === "register-otp" || step === "forgot-otp";
-  const otpTargetPhone = step === "register-otp" ? phone : resetPhone;
+  const isOtpStep = step === "forgot-otp";
+  const otpTargetPhone = resetPhone;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={dismissible ? close : () => {}}>
@@ -341,7 +357,66 @@ export function AuthModal({
                 </View>
 
                 <AuthField icon="user" placeholder={t("auth.fieldName")} value={name} onChange={setName} />
-                <AuthField icon="phone" placeholder={t("auth.fieldPhone")} value={phone} onChange={setPhone} keyboardType="phone-pad" />
+                <AuthField
+                  icon="phone"
+                  placeholder={t("auth.fieldPhone")}
+                  value={phone}
+                  onChange={(v) => {
+                    setPhone(v);
+                    // Editing the phone after sending invalidates the
+                    // previously-mailed code so the user has to resend.
+                    // Also clear the resend cooldown — the timer was
+                    // tied to the old number, and forcing the user to
+                    // wait it out for a new number is bad UX.
+                    if (regOtpSent && v.trim() !== regOtpPhone) {
+                      setRegOtpSent(false);
+                      setOtpCode("");
+                      setOtpToken("");
+                      setResendIn(0);
+                      if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+                    }
+                  }}
+                  keyboardType="phone-pad"
+                />
+
+                {/* Inline OTP row — code input + send/resend button. The
+                    code field stays disabled until the first send so it's
+                    clear which order to use. */}
+                <View style={styles.otpRow}>
+                  <View style={{ flex: 1, opacity: regOtpSent ? 1 : 0.5 }}>
+                    <AuthField
+                      icon="hash"
+                      placeholder="رمز التحقق (6 أرقام)"
+                      value={otpCode}
+                      onChange={(v) => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={sendRegisterOtp}
+                    disabled={busy || resendIn > 0}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.otpSendBtn,
+                      (busy || resendIn > 0) && { opacity: 0.55 },
+                    ]}
+                  >
+                    <Feather name="send" size={14} color="#FFF" />
+                    <Text style={styles.otpSendText}>
+                      {resendIn > 0
+                        ? `${resendIn}s`
+                        : regOtpSent
+                          ? "إعادة الإرسال"
+                          : "إرسال الرمز"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {regOtpSent && regOtpPhone === phone.trim() && (
+                  <Text style={styles.otpHintInline}>
+                    تم إرسال الرمز إلى{" "}
+                    <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{regOtpPhone}</Text>
+                  </Text>
+                )}
 
                 <View>
                   <Text style={styles.fieldLabel}>{t("auth.fieldGenderLabel")}</Text>
@@ -419,8 +494,7 @@ export function AuthModal({
             <TouchableOpacity
               onPress={
                 step === "login"           ? submitLogin
-              : step === "register-form"   ? submitRegisterForm
-              : step === "register-otp"    ? submitRegisterOtp
+              : step === "register-form"   ? submitRegister
               : step === "forgot-phone"    ? submitForgotPhone
               : step === "forgot-otp"      ? submitForgotOtp
               :                              submitForgotNewPass
@@ -432,8 +506,7 @@ export function AuthModal({
               <Text style={styles.authPrimaryText}>
                 {busy ? t("auth.busy")
                   : step === "login"         ? t("auth.btnLogin")
-                  : step === "register-form" ? "إرسال رمز التحقق"
-                  : step === "register-otp"  ? "تأكيد وإنشاء الحساب"
+                  : step === "register-form" ? t("auth.btnRegister")
                   : step === "forgot-phone"  ? "إرسال رمز التحقق"
                   : step === "forgot-otp"    ? "تحقق من الرمز"
                   :                            "حفظ كلمة المرور الجديدة"}
@@ -534,6 +607,20 @@ const styles = StyleSheet.create({
     fontSize: 13, fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.75)", textAlign: "center",
     lineHeight: 20, marginVertical: 4,
+  },
+  otpRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  otpSendBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    backgroundColor: PRIMARY, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+    shadowColor: PRIMARY, shadowOpacity: 0.35,
+    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+  },
+  otpSendText: { color: "#FFF", fontSize: 12, fontFamily: "Inter_700Bold" },
+  otpHintInline: {
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.65)", textAlign: "right",
+    marginTop: -4,
   },
 
   authCard: {

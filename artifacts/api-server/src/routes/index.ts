@@ -506,44 +506,26 @@ router.post("/users/register", (req, res): any => {
   const phone     = String(req.body?.phone ?? "").trim();
   const joinedAt  = String(req.body?.joinedAt ?? "").trim() || new Date().toISOString();
   const otpToken  = String(req.body?.otpToken ?? "").trim();
-  // Phone-OTP gate. Required for:
-  //   • genuinely-new accounts (proves the new phone really belongs to the
-  //     person signing up).
-  //   • any change to an existing account's phone or username (prevents an
-  //     attacker from POSTing another user's id and silently rebinding their
-  //     phone to an attacker-controlled number — which would otherwise
-  //     defeat the password-reset flow's phone-ownership check).
-  // Pure idempotent calls (same id, same phone, same username) skip the
-  // check so login-backfill keeps working without re-prompting for SMS.
+  // Normalize phone strings so "+968 1234 5678" and "+96812345678" compare
+  // as equal everywhere (OTP match, uniqueness, etc).
   const norm = (p: string) => p.replace(/\s+/g, "").replace(/(?!^\+)\D/g, "");
-  const existingUser = users.find(u => u.id === id);
-  const isMutatingExisting =
-    existingUser && (norm(existingUser.phone) !== norm(phone) || existingUser.username.toLowerCase() !== username.toLowerCase());
-  const requireOtp = !existingUser || isMutatingExisting;
-  if (requireOtp) {
-    if (!otpToken) {
-      return res.status(401).json({ ok: false, error: "رمز التحقق مطلوب" });
-    }
-    const v = consumeOtpToken(otpToken, "register");
-    if (!v) {
-      return res.status(401).json({ ok: false, error: "انتهت صلاحية رمز التحقق — أعد الإرسال" });
-    }
-    if (norm(v.phone) !== norm(phone)) {
-      return res.status(401).json({ ok: false, error: "رقم الهاتف لا يطابق الرمز الذي تم التحقق منه" });
-    }
-  }
+
+  // ─── Step 1: cheap field validation BEFORE consuming any OTP token, so a
+  // bad/empty payload doesn't burn the user's single-use code. ───
   if (!id)       return res.status(400).json({ ok: false, error: "id required" });
   if (!username) return res.status(400).json({ ok: false, error: "يوزر اللعبة مطلوب" });
   if (!phone)    return res.status(400).json({ ok: false, error: "رقم الهاتف مطلوب" });
   if (username.length < 3 || username.length > 24) {
     return res.status(400).json({ ok: false, error: "يوزر اللعبة يجب أن يكون بين 3 و 24 حرفاً" });
   }
-  // ATOMIC: validate BOTH constraints before mutating either collection so a
-  // failure cannot leave an orphaned username claim or an orphaned user row.
+
+  // ─── Step 2: uniqueness checks — also BEFORE OTP consumption. Using
+  // normalized phone equality so "+968 1234 5678" can't sneak past as a
+  // different account than "+96812345678". ───
   const usernameKey = username.toLowerCase();
   const usernameClash = usernameRegistry.find(u => u.username === usernameKey && u.userId !== id);
   if (usernameClash) return res.status(409).json({ ok: false, error: "يوزر اللعبة مستخدم مسبقاً" });
-  const phoneClash = users.find(u => u.phone === phone && u.id !== id);
+  const phoneClash = users.find(u => norm(u.phone) === norm(phone) && u.id !== id);
   if (phoneClash) {
     // If the existing account on this phone is banned, surface that to the
     // client so it can show the ban screen instead of a generic "phone
@@ -571,6 +553,40 @@ router.post("/users/register", (req, res): any => {
     });
   }
 
+  // ─── Step 3: OTP gate (after validation, before mutation). ───
+  //   • New accounts → OTP must match the NEW phone (proves the signer
+  //     owns the phone they're registering).
+  //   • Existing account being mutated (phone or username change) → OTP
+  //     must match the CURRENT phone on file. This is the critical
+  //     authorization check: anyone can read another user's id+username
+  //     from the public roster, so without binding the OTP to the
+  //     existing phone an attacker could rebind a victim's account to
+  //     their own number. Requiring the code to land on the *current*
+  //     owner's phone proves the request is consented.
+  //   • Pure idempotent calls (same id, same phone, same username) skip
+  //     the gate so login-backfill works without reprompting.
+  const existing = users.find(u => u.id === id);
+  const isMutatingExisting =
+    existing && (norm(existing.phone) !== norm(phone) || existing.username.toLowerCase() !== usernameKey);
+  if (!existing || isMutatingExisting) {
+    if (!otpToken) {
+      return res.status(401).json({ ok: false, error: "رمز التحقق مطلوب" });
+    }
+    const v = consumeOtpToken(otpToken, "register");
+    if (!v) {
+      return res.status(401).json({ ok: false, error: "انتهت صلاحية رمز التحقق — أعد الإرسال" });
+    }
+    const expectedPhone = existing ? existing.phone : phone;
+    if (norm(v.phone) !== norm(expectedPhone)) {
+      return res.status(401).json({
+        ok: false,
+        error: existing
+          ? "لتعديل الحساب يجب التحقق من الرقم الحالي المسجَّل عليه"
+          : "رقم الهاتف لا يطابق الرمز الذي تم التحقق منه",
+      });
+    }
+  }
+
   // Both checks passed — commit username claim and user row together.
   for (let i = usernameRegistry.length - 1; i >= 0; i--) {
     if (usernameRegistry[i].userId === id) usernameRegistry.splice(i, 1);
@@ -580,7 +596,6 @@ router.post("/users/register", (req, res): any => {
     claimedAt: new Date().toISOString(),
   });
 
-  const existing = users.find(u => u.id === id);
   if (existing) {
     // Idempotent: refresh username/phone but preserve game state, ban flags,
     // totalOrders earned through real orders, etc.
