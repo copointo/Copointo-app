@@ -4607,6 +4607,7 @@ export default function CafeDashboardPage() {
   const id     = params.id;
   const [_, navigate] = useLocation();
   const [cafe,    setCafe]    = useState<any>(null);
+  const [notFound, setNotFound] = useState(false);
   const [tab,     setTab]     = useState<Tab>("stats");
   // Collapse the entire tabs panel so the active tab's content takes full screen.
   // Toggle via the chevron strip at the bottom of the panel (or its remnant when collapsed).
@@ -4631,12 +4632,30 @@ export default function CafeDashboardPage() {
       const found = d.cafes?.find((c: any) => c.id === id);
       if (found) {
         setCafe(found);
+        setNotFound(false);
       } else {
-        alert("هذا الكوفي لم يعد موجوداً (ربما حُذف أو تم إعادة تشغيل الخادم).");
-        navigate("/cafes");
+        // Show an inline "not found" screen instead of redirecting to the
+        // super-admin cafes list — cafe owners on /cafe/:id should never be
+        // pushed into the super-admin area accidentally.
+        setNotFound(true);
       }
     }).catch(() => {});
-  }, [id, navigate]);
+  }, [id]);
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6" dir="rtl">
+        <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center space-y-4">
+          <div className="text-5xl">☕</div>
+          <h1 className="text-xl font-bold text-foreground">هذا الكوفي غير متاح</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            الرابط الذي فتحته لم يعد صالحاً. ربما حُذف الكوفي أو تم تغيير الرابط.
+            تواصل مع الإدارة للحصول على رابط الدخول الصحيح.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen bg-background" dir="rtl">
@@ -4930,8 +4949,8 @@ function DiscountCodesTab({ id }: { id: string }) {
 export function ManagerAnalyticsPage() {
   const params = useParams<{ id: string }>();
   const cafeId = params.id;
-  const [, navigate] = useLocation();
   const [cafe, setCafe] = useState<any>(null);
+  const [notFound, setNotFound] = useState(false);
   const [step, setStep]         = useState<"auth" | "view">("auth");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState<string | null>(null);
@@ -4944,11 +4963,25 @@ export function ManagerAnalyticsPage() {
       .then(r => r.json())
       .then(d => {
         const found = d.cafes?.find((c: any) => c.id === cafeId);
-        if (found) setCafe(found);
-        else { alert("هذا الكوفي لم يعد موجوداً."); navigate(`/cafes`); }
+        if (found) { setCafe(found); setNotFound(false); }
+        else setNotFound(true);
       })
       .catch(() => {});
-  }, [cafeId, navigate]);
+  }, [cafeId]);
+
+  if (notFound) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6" dir="rtl">
+        <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center space-y-4">
+          <div className="text-5xl">📊</div>
+          <h1 className="text-xl font-bold text-foreground">لوحة التحليلات غير متاحة</h1>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            هذا الكوفي لم يعد موجوداً. تواصل مع الإدارة للحصول على رابط صحيح.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
