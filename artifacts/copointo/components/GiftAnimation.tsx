@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { GiftDef } from "../data/gifts";
 
 interface Props {
@@ -93,17 +92,8 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onDone}>
-        {/* Backdrop dim */}
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.55)" }]} />
-
-        {/* Tier 3 radial gradient backdrop */}
-        {gift.tier === 3 && (
-          <LinearGradient
-            colors={[`${gift.color}55`, "transparent", `${gift.color}33`]}
-            start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        )}
+        {/* No backdrop dim — gift overlay is fully transparent so the
+            screen underneath stays visible. */}
 
         {/* Falling gift particles */}
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -121,33 +111,41 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           ))}
         </View>
 
-        {/* Caption (gift name + ×qty + sender) */}
+        {/* Caption (gift name + ×qty + sender → recipient).
+            Now fully background-less: just text + emoji with a subtle
+            shadow so it stays readable over any underlying screen. */}
         <Animated.View style={[styles.caption, { opacity: captionOpacity }]} pointerEvents="none">
-          <View style={[styles.captionPill, { borderColor: gift.color, backgroundColor: `${gift.color}22` }]}>
-            <Text style={[styles.giftEmoji, { color: gift.color }]}>{gift.emoji}</Text>
-            <Text style={[styles.giftName, { color: gift.color }]} numberOfLines={1}>
+          <View style={styles.captionRow}>
+            <Text style={[styles.giftEmoji, styles.textShadow, { color: gift.color }]}>{gift.emoji}</Text>
+            <Text style={[styles.giftName, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
               {gift.name}
             </Text>
             {qty > 1 && (
-              <View style={[styles.qtyBadge, { backgroundColor: gift.color }]}>
-                <Text style={styles.qtyBadgeText}>×{qty}</Text>
-              </View>
+              <Text style={[styles.qtyText, styles.textShadow, { color: gift.color }]}>×{qty}</Text>
             )}
           </View>
           {fromName && toName ? (
-            <View style={styles.namesRow}>
-              <Text style={[styles.nameStrong, { color: gift.color }]} numberOfLines={1}>
-                {fromName}
-              </Text>
-              <Text style={styles.namesArrow}>  ←  </Text>
-              <Text style={[styles.nameStrong, { color: gift.color }]} numberOfLines={1}>
-                {toName}
-              </Text>
+            <View style={styles.namesBlock}>
+              <View style={styles.nameLine}>
+                <Text style={[styles.nameLabel, styles.textShadow]}>من: </Text>
+                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
+                  {fromName}
+                </Text>
+              </View>
+              <View style={styles.nameLine}>
+                <Text style={[styles.nameLabel, styles.textShadow]}>إلى: </Text>
+                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
+                  {toName}
+                </Text>
+              </View>
             </View>
           ) : fromName ? (
-            <Text style={styles.fromName} numberOfLines={1}>
-              من {fromName}
-            </Text>
+            <View style={styles.nameLine}>
+              <Text style={[styles.nameLabel, styles.textShadow]}>من: </Text>
+              <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
+                {fromName}
+              </Text>
+            </View>
           ) : null}
         </Animated.View>
 
@@ -225,37 +223,37 @@ const styles = StyleSheet.create({
   caption: {
     position: "absolute",
     left: 0, right: 0,
-    top: SCREEN_H / 2 - 40,
+    top: SCREEN_H / 2 - 60,
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
-  captionPill: {
+  captionRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 18, paddingVertical: 12,
-    borderRadius: 22, borderWidth: 2,
+    paddingHorizontal: 12,
   },
-  giftEmoji: { fontSize: 32, lineHeight: 36 },
-  giftName: { fontSize: 22, fontFamily: "Inter_700Bold" },
-  qtyBadge: {
-    paddingHorizontal: 10, paddingVertical: 3,
-    borderRadius: 12,
+  giftEmoji: { fontSize: 36, lineHeight: 40 },
+  giftName: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  qtyText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  namesBlock: {
+    alignItems: "center",
+    gap: 4,
   },
-  qtyBadgeText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
-  fromName: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.85)" },
-  namesRow: {
+  nameLine: {
     flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 14, paddingVertical: 6,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 14,
     maxWidth: "92%",
   },
-  nameStrong: {
-    fontSize: 15, fontFamily: "Inter_700Bold",
-    maxWidth: 130,
+  nameLabel: {
+    fontSize: 16, fontFamily: "Inter_600SemiBold",
+    color: "#FFF",
   },
-  namesArrow: {
-    fontSize: 14, fontFamily: "Inter_700Bold",
-    color: "rgba(255,255,255,0.85)",
+  nameStrong: {
+    fontSize: 18, fontFamily: "Inter_700Bold",
+    maxWidth: 220,
+  },
+  textShadow: {
+    textShadowColor: "rgba(0,0,0,0.95)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   skipBtn: {
     position: "absolute",
