@@ -435,8 +435,12 @@ export default function CafeLandingScreen() {
             : null;
           // Sub-km → exact metres; otherwise km with 2 decimals so we don't
           // round 1.24 km down to 1.2 km. The user wants precise numbers.
+          // < 30 m → "0 م" (you're effectively at the cafe — GPS jitter
+          // alone can produce 5–25 m noise indoors, so we clamp).
           const distStr = dist === null ? null
-            : dist < 1 ? `${Math.round(dist * 1000)} م` : `${dist.toFixed(2)} كم`;
+            : dist * 1000 < 30 ? `0 م`
+            : dist < 1 ? `${Math.round(dist * 1000)} م`
+            : `${dist.toFixed(2)} كم`;
           const openMaps = () => {
             const q = cafe.lat && cafe.lng
               ? `${cafe.lat},${cafe.lng}`

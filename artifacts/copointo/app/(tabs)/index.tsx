@@ -60,6 +60,10 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 function formatDist(km: number, kmLabel: string, mLabel: string): string {
+  // Anything within ~30 m is effectively "you're here" — show 0 m so the
+  // user doesn't see misleading 12 m / 28 m jitter from GPS noise when
+  // standing inside the cafe.
+  if (km * 1000 < 30) return `0 ${mLabel}`;
   // Sub-kilometre → exact metres (e.g. "742 م"). Above 1 km we show two
   // decimal places so distances like 1.24 km don't get rounded down to 1.2.
   if (km < 1) return `${Math.round(km * 1000)} ${mLabel}`;
@@ -89,9 +93,21 @@ async function fetchRoadKm(
 function mapCafe(c: ApiCafe, kmLabel: string, mLabel: string, userLat?: number, userLng?: number, roadKm?: number | null): Cafe {
   let distance = "";
   if (userLat != null && userLng != null && c.lat != null && c.lng != null) {
-    const km = roadKm != null && roadKm > 0
-      ? roadKm
-      : haversineKm(userLat, userLng, c.lat, c.lng);
+    const straightKm = haversineKm(userLat, userLng, c.lat, c.lng);
+    // Prefer the OSRM road distance ONLY when:
+    //   1) the straight-line distance is meaningful (≥ 250 m), AND
+    //   2) the road distance isn't wildly inflated vs. straight-line.
+    //      OSRM snaps to the nearest drivable road graph node, so when the
+    //      user is standing in/near the cafe (off-road, in a parking lot,
+    //      or on a side-street the OSRM graph doesn't know) it can return
+    //      ~1–2 km for a roundtrip via the nearest mapped road. In that
+    //      case the haversine is the truthful answer.
+    const useRoad =
+      roadKm != null &&
+      roadKm > 0 &&
+      straightKm >= 0.25 &&
+      roadKm <= straightKm * 3 + 0.3;
+    const km = useRoad ? roadKm! : straightKm;
     distance = formatDist(km, kmLabel, mLabel);
   }
   return {
@@ -168,7 +184,10 @@ export default function HomeScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") return;
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        // Use High accuracy so cafe-distance is precise; Balanced can snap
+        // to a cell-tower fix that's hundreds of metres off and makes a
+        // cafe you're standing in look 1–2 km away.
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       } catch { /* permission denied or unavailable */ }
     })();
