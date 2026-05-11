@@ -1168,9 +1168,13 @@ function OrdersTab({ id }: { id: string }) {
     await api.cafeOrderStatus(id, oid, "done");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "done" } : o));
   };
-  const setPayment = async (oid: string, method: "cash" | "visa") => {
+  const setPayment = async (oid: string, method: "cash" | "visa" | "free") => {
     await api.cafeOrderPayment(id, oid, method);
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, paymentMethod: method } : o));
+  };
+  const setFreePayment = async (oid: string) => {
+    if (!window.confirm("⚠️ تأكيد: هل تريد جعل هذا الطلب على حساب الكوفي (مجاناً)؟\nسيتم خصم كامل المبلغ من الفاتورة وإظهارها كـ 0.000 ر.ع، ولن تُحتسب في الإيرادات.")) return;
+    await setPayment(oid, "free");
   };
   const printInvoice = async (o: any) => {
     // Award points + mark order as done (idempotent on server) — fire and forget.
@@ -1260,9 +1264,13 @@ function OrdersTab({ id }: { id: string }) {
                 <span className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold ${
                   o.paymentMethod === "cash"
                     ? "bg-emerald-500/15 text-emerald-400"
-                    : "bg-blue-500/15 text-blue-400"
+                    : o.paymentMethod === "visa"
+                    ? "bg-blue-500/15 text-blue-400"
+                    : "bg-primary/20 text-primary border border-primary/40"
                 }`}>
-                  {o.paymentMethod === "cash" ? "💵 كاش" : "💳 فيزا"}
+                  {o.paymentMethod === "cash" ? "💵 كاش"
+                   : o.paymentMethod === "visa" ? "💳 فيزا"
+                   : "🎁 الحساب مجاناً"}
                 </span>
               )}
 
@@ -1302,6 +1310,12 @@ function OrdersTab({ id }: { id: string }) {
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-bold hover:bg-blue-500/30"
                   >
                     💳 فيزا
+                  </button>
+                  <button
+                    onClick={() => setFreePayment(o.id)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary/20 text-primary border border-primary/40 text-xs font-bold hover:bg-primary/30"
+                  >
+                    🎁 الحساب مجاناً
                   </button>
                 </>
               )}
@@ -2600,13 +2614,20 @@ function aggregateOrders(orderList: any[], from: Date, to: Date) {
   let cashCount = 0;
   let visaCount = 0;
   let unspecifiedCount = 0;
+  let freeTotal = 0;   // المبلغ الإجمالي المجاني (المتنازَل عنه)
+  let freeCount = 0;
   for (const o of inRange) {
     const amt = Number(o.total) || 0;
-    total += amt;
     const pm = String(o.paymentMethod ?? "").toLowerCase();
-    if (pm === "cash")      { cashTotal += amt; cashCount++; }
-    else if (pm === "visa") { visaTotal += amt; visaCount++; }
-    else                    { unspecifiedTotal += amt; unspecifiedCount++; }
+    if (pm === "free") {
+      // الحساب مجاناً → لا يُحتسب في الإيرادات لكن يُتتبَّع كقيمة متنازَل عنها.
+      freeTotal += amt; freeCount++;
+    } else {
+      total += amt;
+      if (pm === "cash")      { cashTotal += amt; cashCount++; }
+      else if (pm === "visa") { visaTotal += amt; visaCount++; }
+      else                    { unspecifiedTotal += amt; unspecifiedCount++; }
+    }
     for (const it of (o.items ?? [])) {
       const cat = classifyItem(String(it.name ?? ""), it.category);
       byCat[cat] ??= { qty: 0, amount: 0 };
@@ -2614,16 +2635,17 @@ function aggregateOrders(orderList: any[], from: Date, to: Date) {
       byCat[cat].amount += (Number(it.qty) || 0) * (Number(it.price) || 0);
     }
   }
-  return { inRange, byCat, total, cashTotal, visaTotal, unspecifiedTotal, cashCount, visaCount, unspecifiedCount };
+  return { inRange, byCat, total, cashTotal, visaTotal, unspecifiedTotal, cashCount, visaCount, unspecifiedCount, freeTotal, freeCount };
 }
 
-// Render the cash / visa / unspecified breakdown rows for an aggregated invoice.
-function paymentBreakdownRows(opts: { cashTotal: number; visaTotal: number; unspecifiedTotal: number; cashCount: number; visaCount: number; unspecifiedCount: number }) {
-  const { cashTotal, visaTotal, unspecifiedTotal, cashCount, visaCount, unspecifiedCount } = opts;
+// Render the cash / visa / unspecified / complimentary breakdown rows for an aggregated invoice.
+function paymentBreakdownRows(opts: { cashTotal: number; visaTotal: number; unspecifiedTotal: number; cashCount: number; visaCount: number; unspecifiedCount: number; freeTotal: number; freeCount: number }) {
+  const { cashTotal, visaTotal, unspecifiedTotal, cashCount, visaCount, unspecifiedCount, freeTotal, freeCount } = opts;
   return `
 <tr><td class="cell sec-title-cell">طريقة الدفع / Payment Method</td></tr>
 <tr><td class="cell row-cell"><span class="lbl">💵 كاش / Cash (${cashCount})</span><span class="val">${cashTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 <tr><td class="cell row-cell"><span class="lbl">💳 فيزا / Visa (${visaCount})</span><span class="val">${visaTotal.toFixed(3)} ر.ع / OMR</span></td></tr>
+${freeCount > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 الحساب مجاناً / On the House (${freeCount})</span><span class="val">− ${freeTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ${unspecifiedCount > 0 ? `<tr><td class="cell row-cell"><span class="lbl">— غير محدد / Unspecified (${unspecifiedCount})</span><span class="val">${unspecifiedTotal.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 `;
 }
@@ -2765,9 +2787,13 @@ async function printOrderInvoice(
   const freeAmt       = orderRedemptions.length > 0
     ? (freeAmtFromOrder > 0 ? freeAmtFromOrder : orderRedemptions.reduce((s, r) => s + Number(r.itemPrice || 0), 0))
     : legacyFreeAmt;
-  const finalTot      = typeof o.total === "number"
+  const isComplimentary = o.paymentMethod === "free";
+  const baseFinalTot   = typeof o.total === "number"
     ? Math.max(0, Number(o.total) - (orderRedemptions.length === 0 ? legacyFreeAmt : 0))
     : Math.max(0, subtotal - discountAmt - freeAmt);
+  // الحساب مجاناً → الكوفي تكفّل بكامل المبلغ المتبقي.
+  const compAmt   = isComplimentary ? baseFinalTot : 0;
+  const finalTot  = isComplimentary ? 0 : baseFinalTot;
 
   const redemptionRows = orderRedemptions.map(r =>
     `<div>• <b>${r.itemName}</b> — كود/Code <span style="font-family:monospace">${r.code}</span> — − ${Number(r.itemPrice || 0).toFixed(3)} ر.ع / OMR</div>`
@@ -2781,14 +2807,24 @@ async function printOrderInvoice(
 </td></tr>
 ` : "";
 
-  const summaryBlock = (orderRedemptions.length > 0 || discountAmt > 0) ? `
+  const compBlock = isComplimentary ? `
+<tr><td class="cell sec-title-cell">🎁 الحساب مجاناً / On the House</td></tr>
+<tr><td class="cell info-cell" style="text-align:center;font-weight:bold">
+  هذا الطلب على حساب الكوفي — لا يوجد مبلغ مستحق.<br>
+  This order is complimentary — no amount due.
+</td></tr>
+` : "";
+
+  const summaryBlock = (orderRedemptions.length > 0 || discountAmt > 0 || isComplimentary) ? `
 <tr><td class="cell row-cell"><span class="lbl">الإجمالي قبل الخصم / Subtotal</span><span class="val">${subtotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${discountAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم${discountCode ? ` (${discountCode}${discountPct ? ` ${discountPct}%` : ""})` : ""} / Discount</span><span class="val">− ${discountAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ${freeAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم الكوفي المجاني / Free coffee</span><span class="val">− ${freeAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
+${compAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 الحساب مجاناً / On the House</span><span class="val">− ${compAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ` : "";
 
   const payLabel = o.paymentMethod === "cash" ? "💵 كاش / Cash"
                  : o.paymentMethod === "visa" ? "💳 فيزا / Visa"
+                 : o.paymentMethod === "free" ? "🎁 الحساب مجاناً / On the House"
                  : "—";
 
   const body = `
@@ -2806,6 +2842,7 @@ ${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
 <tr><td class="cell items-cell"><table class="items"><thead><tr><th>الصنف<br>Item</th><th>كمية<br>Qty</th><th>السعر<br>Price</th></tr></thead><tbody>${rows}</tbody></table></td></tr>
 ${o.notes ? `<tr><td class="cell info-cell"><div><b>ملاحظات / Notes:</b></div><div style="white-space:pre-wrap">${String(o.notes).replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]!))}</div></td></tr>` : ""}
 ${freeBlock}
+${compBlock}
 ${summaryBlock}
 <tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${finalTot.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}

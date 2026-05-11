@@ -56,7 +56,7 @@ export const api = {
   // Used by the cafe-dashboard "اطلب مباشر" tab to create an in-cafe walk-in order.
   addCafeOrder:  (id: string, body: any)   => req<any>("POST",   `${C(id)}/orders`, body),
   cafeOrderStatus:(id:string,oid:string,status:string) => req<any>("PATCH", `${C(id)}/orders/${oid}/status`, { status }),
-  cafeOrderPayment:(id:string,oid:string,paymentMethod:"cash"|"visa") => req<any>("PATCH", `${C(id)}/orders/${oid}/payment`, { paymentMethod }),
+  cafeOrderPayment:(id:string,oid:string,paymentMethod:"cash"|"visa"|"free") => req<any>("PATCH", `${C(id)}/orders/${oid}/payment`, { paymentMethod }),
   cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
   cafeOrdersClear: (id: string, from?: string, to?: string) => {
     const qs = new URLSearchParams();

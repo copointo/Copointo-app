@@ -99,8 +99,10 @@ export interface Order {
   freeCoffeeRedemptions?: { code: string; level: number; itemName: string; itemPrice: number }[];
   /** Total OMR deducted from the order via free-coffee redemptions. */
   freeCoffeeDiscount?: number;
-  /** Payment method recorded by the cafe when the order is ready (cash | visa). */
-  paymentMethod?: "cash" | "visa";
+  /** Payment method recorded by the cafe when the order is ready (cash | visa | free).
+   *  "free" = الحساب مجاناً: cafe comped the order; total counted as 0 in revenue
+   *  aggregates and the printed invoice shows a full-amount discount. */
+  paymentMethod?: "cash" | "visa" | "free";
   createdAt: string;
 }
 export interface CafeView {

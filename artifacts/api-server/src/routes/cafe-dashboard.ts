@@ -458,10 +458,10 @@ router.patch("/orders/:orderId/payment", (req: any, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
   const raw = String(req.body?.paymentMethod ?? "").trim().toLowerCase();
-  if (raw !== "cash" && raw !== "visa") {
-    return res.status(400).json({ error: "paymentMethod must be 'cash' or 'visa'" });
+  if (raw !== "cash" && raw !== "visa" && raw !== "free") {
+    return res.status(400).json({ error: "paymentMethod must be 'cash', 'visa', or 'free'" });
   }
-  order.paymentMethod = raw;
+  order.paymentMethod = raw as "cash" | "visa" | "free";
   persistStore();
   return res.json({ order });
 });
