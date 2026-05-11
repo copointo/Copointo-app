@@ -4162,27 +4162,27 @@ export default function CafeDashboardPage() {
       {/* Tabs — square 3D-rotating buttons */}
       <div className="px-6 py-5 border-b border-border bg-card shrink-0">
         <div
-          className="flex flex-wrap items-center justify-center gap-3 sm:gap-4"
+          className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
           style={{ perspective: "900px" }}
         >
           {/* Manager analytics — special king button (now opens full page) */}
           <Link
             href={`/cafe/${id}/analytics`}
-            className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 focus:outline-none focus:ring-2 focus:ring-[#E8B86D]/60"
+            className="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0 focus:outline-none focus:ring-2 focus:ring-[#E8B86D]/60"
             style={{ perspective: "800px" }}
             title="إحصائيات المدير"
           >
             <div
-              className="relative w-full h-full rounded-2xl flex flex-col items-center justify-center gap-1
+              className="relative w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5
                 bg-gradient-to-br from-[#E8B86D] via-[#C99654] to-[#7A4F1E]
-                border-2 border-[#FFE0A8] shadow-lg shadow-[#E8B86D]/40 text-black
-                hover:shadow-xl hover:shadow-[#E8B86D]/60 group-hover:scale-[1.05] transition-all duration-200"
+                border-2 border-[#FFE0A8] shadow-md shadow-[#E8B86D]/40 text-black
+                hover:shadow-lg hover:shadow-[#E8B86D]/60 group-hover:scale-[1.05] transition-all duration-200"
               style={{ transformStyle: "preserve-3d" }}
             >
-              <div className="absolute inset-1 rounded-xl ring-1 ring-black/15 pointer-events-none" />
-              <Crown size={22} className="text-black drop-shadow" />
-              <Lock size={14} className="text-black/70" />
-              <span className="text-[10.5px] font-extrabold text-center px-1 leading-tight text-black">
+              <div className="absolute inset-0.5 rounded-lg ring-1 ring-black/15 pointer-events-none" />
+              <Crown size={16} className="text-black drop-shadow" />
+              <Lock size={10} className="text-black/70" />
+              <span className="text-[8px] font-extrabold text-center px-0.5 leading-tight text-black">
                 إحصائيات المدير
               </span>
               <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 border-2 border-card animate-pulse" />
@@ -4196,36 +4196,36 @@ export default function CafeDashboardPage() {
               <button
                 key={tid}
                 onClick={() => { setTab(tid); markTabSeen(tid); }}
-                className="group relative w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                className="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
                 style={{ perspective: "800px" }}
                 title={label}
               >
                 {notifCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 z-10 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-card shadow shadow-red-500/40 animate-pulse">
+                  <span className="absolute -top-1 -right-1 z-10 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-card shadow shadow-red-500/40 animate-pulse">
                     {notifCount > 9 ? "9+" : notifCount}
                   </span>
                 )}
                 <div
                   key={isSpinning ? `spin-${spinIdx}` : "idle"}
-                  className={`relative w-full h-full rounded-2xl flex flex-col items-center justify-center gap-1.5
+                  className={`relative w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5
                     border transition-all duration-200
                     ${active
-                      ? "bg-gradient-to-br from-[#E8B86D] via-[#D4A35A] to-[#B8884A] border-[#E8B86D] shadow-lg shadow-[#E8B86D]/30 text-black"
+                      ? "bg-gradient-to-br from-[#E8B86D] via-[#D4A35A] to-[#B8884A] border-[#E8B86D] shadow-md shadow-[#E8B86D]/30 text-black"
                       : "bg-gradient-to-br from-[#0A0606] via-[#050303] to-black border-[#E8B86D]/30 text-[#E8B86D] hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/15 group-hover:scale-[1.04]"}
                     ${isSpinning ? "animate-spinY" : ""}`}
                   style={{ transformStyle: "preserve-3d" }}
                 >
                   {/* Inner gold accent ring */}
-                  <div className={`absolute inset-1 rounded-xl pointer-events-none ${active ? "ring-1 ring-black/20" : "ring-1 ring-[#E8B86D]/15"}`} />
+                  <div className={`absolute inset-0.5 rounded-lg pointer-events-none ${active ? "ring-1 ring-black/20" : "ring-1 ring-[#E8B86D]/15"}`} />
 
-                  <Icon size={28} strokeWidth={1.75} className={active ? "text-black" : "text-[#E8B86D]"} />
-                  <span className={`text-[11px] font-bold leading-tight text-center px-1 ${active ? "text-black" : "text-[#F5E6CC]"}`}>
+                  <Icon size={20} strokeWidth={1.75} className={active ? "text-black" : "text-[#E8B86D]"} />
+                  <span className={`text-[9px] font-bold leading-tight text-center px-0.5 ${active ? "text-black" : "text-[#F5E6CC]"}`}>
                     {label}
                   </span>
 
                   {/* Active indicator dot */}
                   {active && (
-                    <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#E8B86D] shadow shadow-[#E8B86D]/60" />
+                    <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-[#E8B86D] shadow shadow-[#E8B86D]/60" />
                   )}
                 </div>
               </button>
