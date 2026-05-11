@@ -3964,34 +3964,28 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
     // Each QR block is sized to fit exactly inside one 80×100mm sticker.
     // Using `size=800x800` from the QR service guarantees a sharp image
     // at 70mm print size (≈265dpi).
-    const block = (title: string, url: string) => `
+    const block = (_title: string, url: string) => `
       <section class="block">
-        ${safeName ? `<p class="cafeName">${safeName}</p>` : ""}
-        <h2>${escHtml(title)}</h2>
         <div class="qr-wrap"><img src="https://api.qrserver.com/v1/create-qr-code/?size=800x800&amp;margin=0&amp;ecc=M&amp;data=${encodeURIComponent(url)}" alt="QR" /></div>
       </section>`;
     const blocks =
       which === "cafe"      ? block("صفحة الزبائن", cafePageUrl)
     : which === "dashboard" ? block("لوحة التحكم",   dashboardUrl)
     :                          block("صفحة الزبائن", cafePageUrl) + block("لوحة التحكم", dashboardUrl);
-    // Page height: single QR = 100mm, both = 200mm. Width fixed at 80mm.
-    const pageHeight = which === "both" ? 200 : 100;
+    // Page is sized to the QR itself: 70×70mm sticker, nothing else.
     const html = `<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/><title>باركود ${safeName}</title>
       <style>
-        @page { size: 80mm ${pageHeight}mm; margin: 0; }
+        @page { size: 70mm 70mm; margin: 0; }
         * { box-sizing: border-box; }
         html, body { margin:0; padding:0; }
         body { font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; color:#000; background:#fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .block {
-          width: 80mm; height: 100mm;
-          padding: 4mm 4mm 3mm;
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          width: 70mm; height: 70mm;
+          padding: 0;
+          display: flex; align-items: center; justify-content: center;
           page-break-after: always; break-after: page;
-          text-align: center;
         }
         .block:last-child { page-break-after: auto; break-after: auto; }
-        .cafeName { font-size: 10pt; font-weight: 700; margin: 0 0 1mm; color:#000; }
-        .block h2 { margin: 0 0 2mm; font-size: 9pt; font-weight: 600; color:#444; }
         .qr-wrap { width: 70mm; height: 70mm; display:flex; align-items:center; justify-content:center; }
         .qr-wrap img { width: 70mm; height: 70mm; image-rendering: pixelated; image-rendering: -moz-crisp-edges; image-rendering: crisp-edges; }
         .toolbar { padding: 12px; text-align:center; }
