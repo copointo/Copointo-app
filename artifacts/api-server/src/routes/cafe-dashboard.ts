@@ -466,6 +466,61 @@ router.patch("/orders/:orderId/payment", (req: any, res): any => {
   return res.json({ order });
 });
 
+// Apply (or replace) a discount on an existing order from the cafe dashboard.
+// Body shape: either { code: string } to apply a registered discount code (uses
+// the code's percent), or { amount: number } to manually deduct a fixed OMR
+// amount. Either way: discountAmount/discountCode/discountPercent are updated
+// on the order and `total` is recomputed = max(0, subtotal − discountAmount −
+// freeCoffeeDiscount). Refuses to apply once a payment method is locked in.
+router.patch("/orders/:orderId/discount", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const order = orders.find(o => o.id === req.params.orderId);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.paymentMethod) {
+    return res.status(400).json({ error: "لا يمكن تعديل الخصم بعد تثبيت طريقة الدفع" });
+  }
+
+  const subtotal = Number(order.subtotal ?? order.total ?? 0);
+  const freeCoffeeDisc = Number(order.freeCoffeeDiscount ?? 0);
+
+  const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+  const rawAmt = req.body?.amount;
+  const hasAmt = rawAmt !== undefined && rawAmt !== null && rawAmt !== "";
+
+  let discountCode: string | undefined;
+  let discountPercent: number | undefined;
+  let discountAmount = 0;
+
+  if (code) {
+    const dc = discountCodes.find(d =>
+      d.cafeId === cafeId && d.code === code && d.active &&
+      (!d.expiresAt || new Date(d.expiresAt).getTime() > Date.now())
+    );
+    if (!dc) return res.status(404).json({ error: "كود غير صالح أو منتهي" });
+    discountCode    = dc.code;
+    discountPercent = dc.percent;
+    discountAmount  = +(subtotal * dc.percent / 100).toFixed(3);
+  } else if (hasAmt) {
+    const amt = Number(rawAmt);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return res.status(400).json({ error: "أدخل مبلغ خصم صحيح أكبر من صفر" });
+    }
+    if (amt > subtotal - freeCoffeeDisc) {
+      return res.status(400).json({ error: "مبلغ الخصم أكبر من قيمة الطلب" });
+    }
+    discountAmount = +amt.toFixed(3);
+  } else {
+    return res.status(400).json({ error: "يجب إرسال كود أو مبلغ" });
+  }
+
+  order.discountCode    = discountCode;
+  order.discountPercent = discountPercent;
+  order.discountAmount  = discountAmount;
+  order.total           = +Math.max(0, subtotal - discountAmount - freeCoffeeDisc).toFixed(3);
+  persistStore();
+  return res.json({ order });
+});
+
 // Mark invoice printed → completes order. Drink progress was already awarded at
 // confirmation time (see PATCH /status); this still calls the helper so any
 // edge-case order that was printed without going through confirmation is awarded.

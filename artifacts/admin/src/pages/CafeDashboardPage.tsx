@@ -1176,6 +1176,33 @@ function OrdersTab({ id }: { id: string }) {
     if (!window.confirm("⚠️ تأكيد: هل تريد جعل هذا الطلب على حساب الكوفي (مجاناً)؟\nسيتم خصم كامل المبلغ من الفاتورة وإظهارها كـ 0.000 ر.ع، ولن تُحتسب في الإيرادات.")) return;
     await setPayment(oid, "free");
   };
+  const applyDiscountCode = async (oid: string) => {
+    const code = window.prompt("🏷️ أدخل كود التخفيض المسجَّل:");
+    if (!code) return;
+    try {
+      const { order } = await api.cafeOrderDiscount(id, oid, { code: code.trim() });
+      setOrders(prev => prev.map(o => o.id === oid ? { ...o, ...order } : o));
+      window.alert(`✅ تم تطبيق الكود ${order.discountCode} (${order.discountPercent}%)\nالخصم: −${Number(order.discountAmount).toFixed(3)} ر.ع\nالإجمالي الجديد: ${Number(order.total).toFixed(3)} ر.ع`);
+    } catch (e: any) {
+      window.alert(`❌ ${e?.message ?? "تعذّر تطبيق الكود"}`);
+    }
+  };
+  const applyDiscountAmount = async (oid: string) => {
+    const amtStr = window.prompt("💰 أدخل مبلغ الخصم بالريال العماني:");
+    if (!amtStr) return;
+    const amount = Number(amtStr);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      window.alert("❌ أدخل مبلغ صحيح أكبر من صفر");
+      return;
+    }
+    try {
+      const { order } = await api.cafeOrderDiscount(id, oid, { amount });
+      setOrders(prev => prev.map(o => o.id === oid ? { ...o, ...order } : o));
+      window.alert(`✅ تم تطبيق خصم: −${Number(order.discountAmount).toFixed(3)} ر.ع\nالإجمالي الجديد: ${Number(order.total).toFixed(3)} ر.ع`);
+    } catch (e: any) {
+      window.alert(`❌ ${e?.message ?? "تعذّر تطبيق الخصم"}`);
+    }
+  };
   const printInvoice = async (o: any) => {
     // Award points + mark order as done (idempotent on server) — fire and forget.
     api.cafeOrderPrint(id, o.id).then(() => {
@@ -1260,6 +1287,14 @@ function OrdersTab({ id }: { id: string }) {
                   <Gift size={13}/> كوفي مجاني: {o.freeCoffeeCode}
                 </span>
               )}
+              {Number(o.discountAmount) > 0 && (
+                <span className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/15 text-amber-400 text-xs font-semibold">
+                  {o.discountCode
+                    ? `🏷️ ${o.discountCode}${o.discountPercent ? ` ${o.discountPercent}%` : ""}`
+                    : `💰 خصم`}
+                  {" "}−{Number(o.discountAmount).toFixed(3)}
+                </span>
+              )}
               {o.paymentMethod && (
                 <span className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold ${
                   o.paymentMethod === "cash"
@@ -1316,6 +1351,18 @@ function OrdersTab({ id }: { id: string }) {
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary/20 text-primary border border-primary/40 text-xs font-bold hover:bg-primary/30"
                   >
                     🎁 الحساب مجاناً
+                  </button>
+                  <button
+                    onClick={() => applyDiscountCode(o.id)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 text-xs font-bold hover:bg-amber-500/30"
+                  >
+                    🏷️ كود تخفيض
+                  </button>
+                  <button
+                    onClick={() => applyDiscountAmount(o.id)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/40 text-xs font-bold hover:bg-orange-500/30"
+                  >
+                    💰 خصم بالسعر
                   </button>
                 </>
               )}
