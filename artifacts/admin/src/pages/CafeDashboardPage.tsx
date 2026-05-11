@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import {
   ArrowLeft, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
-  MessageCircle, Armchair, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown,
+  MessageCircle, Armchair, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown, ChevronUp,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
@@ -4376,6 +4376,9 @@ export default function CafeDashboardPage() {
   const [_, navigate] = useLocation();
   const [cafe,    setCafe]    = useState<any>(null);
   const [tab,     setTab]     = useState<Tab>("stats");
+  // Collapse the entire tabs panel so the active tab's content takes full screen.
+  // Toggle via the chevron strip at the bottom of the panel (or its remnant when collapsed).
+  const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const { counts: notifCounts, markSeen: markTabSeen } = useTabNotifications(id, tab);
 
   // Sequential 3D spin: each tab button rotates one after another every 5s
@@ -4421,8 +4424,13 @@ export default function CafeDashboardPage() {
         </div>
       </header>
 
-      {/* Tabs — square 3D-rotating buttons */}
-      <div className="px-6 py-5 border-b border-border bg-card shrink-0">
+      {/* Tabs — square 3D-rotating buttons. Collapsible via chevron at the bottom. */}
+      <div className="relative border-b border-border bg-card shrink-0">
+        <div
+          className={`overflow-hidden transition-[max-height,opacity,padding] duration-300 ease-in-out ${
+            tabsCollapsed ? "max-h-0 opacity-0 py-0" : "max-h-[600px] opacity-100 px-6 py-5"
+          }`}
+        >
         <div
           className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
           style={{ perspective: "900px" }}
@@ -4494,6 +4502,19 @@ export default function CafeDashboardPage() {
             );
           })}
         </div>
+        </div>
+
+        {/* Collapse / expand chevron — pinned to the bottom edge of the tabs strip.
+            Slides up to hide the panel, slides down to bring it back. */}
+        <button
+          type="button"
+          onClick={() => setTabsCollapsed(v => !v)}
+          title={tabsCollapsed ? "إظهار البانل" : "إخفاء البانل"}
+          aria-label={tabsCollapsed ? "إظهار البانل" : "إخفاء البانل"}
+          className="absolute left-1/2 -translate-x-1/2 -bottom-3 z-20 w-12 h-7 rounded-full bg-card border border-border shadow-md flex items-center justify-center text-[#E8B86D] hover:bg-[#E8B86D]/10 hover:border-[#E8B86D]/60 transition-colors"
+        >
+          {tabsCollapsed ? <ChevronDown size={16} strokeWidth={2.5} /> : <ChevronUp size={16} strokeWidth={2.5} />}
+        </button>
       </div>
 
       {/* Content */}
