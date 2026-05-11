@@ -358,62 +358,49 @@ export default function GameScreen() {
         </View>
       )}
 
-      {nextCoinMilestone && (
-        <View style={styles.nextCoinBanner}>
-          <Image source={COPOINTO_COIN} style={styles.nextCoinImg} />
-          <Text style={styles.nextCoinText}>
-            {levelsToNextCoin === 0
-              ? `🎉 مستوى ${nextCoinMilestone.level} — ربحت ${nextCoinMilestone.coins} عملة!`
-              : levelsToNextCoin === 1
-                ? `متبقي مستوى واحد لربح ${nextCoinMilestone.coins} عملة (مستوى ${nextCoinMilestone.level})`
-                : `متبقي ${levelsToNextCoin} مستويات لربح ${nextCoinMilestone.coins} عملة (مستوى ${nextCoinMilestone.level})`}
-          </Text>
-          <Text style={styles.nextCoinHint}>+{COIN_PER_MILESTONE}</Text>
-        </View>
-      )}
-
-      {/* ── Active café indicator ── */}
-      {activeCafe ? (
+      {/* ── Compact pills row: coins + cafe + daily cap (icon-only) ── */}
+      <View style={styles.compactPillsRow}>
+        {/* Coins pill: coin icon + balance + plus (no text label) */}
         <TouchableOpacity
-          style={styles.cafePill}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="coffee" size={14} color={PRIMARY} />
-          <Text style={styles.cafePillText} numberOfLines={1}>{activeCafe.cafeName}</Text>
-          <Feather name="chevron-down" size={14} color={PRIMARY} />
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          style={styles.coinsPill}
+          style={styles.compactCoinsPill}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/buy-coins"); }}
           activeOpacity={0.85}
         >
-          <Image source={COPOINTO_COIN} style={styles.coinsPillImg} />
-          <Text style={styles.coinsPillText}>{coinBalance.toLocaleString("en-US")}</Text>
-          <Text style={styles.coinsPillLabel}>عملة Copointo</Text>
+          <Image source={COPOINTO_COIN} style={styles.compactCoinsImg} />
+          <Text style={styles.compactCoinsText}>{coinBalance.toLocaleString("en-US")}</Text>
           <Feather name="plus-circle" size={14} color={PRIMARY} />
         </TouchableOpacity>
-      )}
 
-      {/* ── Daily level cap indicator ── */}
-      <View style={[
-        styles.dailyCapPill,
-        dailyCapReached && styles.dailyCapPillFull,
-      ]}>
-        <Feather
-          name={dailyCapReached ? "lock" : "zap"}
-          size={12}
-          color={dailyCapReached ? "#EF5350" : PRIMARY}
-        />
-        <Text style={[
-          styles.dailyCapText,
-          dailyCapReached && { color: "#EF5350" },
+        {/* Active cafe pill — shown only when there's an active cafe.
+            Compact, single line, truncates long names. */}
+        {activeCafe && (
+          <TouchableOpacity
+            style={styles.compactCafePill}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="coffee" size={12} color={PRIMARY} />
+            <Text style={styles.compactCafeText} numberOfLines={1}>{activeCafe.cafeName}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Daily cap pill: bolt icon + "used/cap" only — no Arabic label */}
+        <View style={[
+          styles.compactDailyPill,
+          dailyCapReached && styles.compactDailyPillFull,
         ]}>
-          {dailyCapReached
-            ? `وصلت لحد اليوم (${DAILY_LEVEL_CAP}/${DAILY_LEVEL_CAP}) — يتجدّد غدًا`
-            : `تقدم اليوم: ${levelsTodayUsed}/${DAILY_LEVEL_CAP} مستويات`}
-        </Text>
+          <Feather
+            name={dailyCapReached ? "lock" : "zap"}
+            size={12}
+            color={dailyCapReached ? "#EF5350" : PRIMARY}
+          />
+          <Text style={[
+            styles.compactDailyText,
+            dailyCapReached && { color: "#EF5350" },
+          ]}>
+            {levelsTodayUsed}/{DAILY_LEVEL_CAP}
+          </Text>
+        </View>
       </View>
 
       {/* ── Progress bar + Free indicator ── */}
@@ -1025,6 +1012,49 @@ const styles = StyleSheet.create({
   coinsPillImg: { width: 18, height: 18, resizeMode: "contain" },
   coinsPillText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
   coinsPillLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)" },
+  // Compact horizontal row that replaces the previous stacked pills above
+  // the level board. Three pills (coins / active-cafe / daily-cap) sit side
+  // by side and stay icon-first to free up vertical space for the levels.
+  compactPillsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  compactCoinsPill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.08)",
+  },
+  compactCoinsImg: { width: 16, height: 16, resizeMode: "contain" },
+  compactCoinsText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  compactCafePill: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.08)",
+    maxWidth: 160,
+  },
+  compactCafeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: PRIMARY, maxWidth: 130 },
+  compactDailyPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.06)",
+  },
+  compactDailyPillFull: {
+    borderColor: "rgba(239,83,80,0.55)",
+    backgroundColor: "rgba(239,83,80,0.10)",
+  },
+  compactDailyText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
   dailyCapPill: {
     flexDirection: "row", alignItems: "center", gap: 6,
     alignSelf: "center",
