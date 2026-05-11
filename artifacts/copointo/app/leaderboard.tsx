@@ -148,7 +148,12 @@ export default function LeaderboardScreen() {
     };
   };
 
-  const sortDesc = (a: Entry, b: Entry) => b.level - a.level;
+  // Sort by total coffee orders (Copointo Hub progress) — that's the real
+  // engagement metric the leaderboard should reflect, not the most recent
+  // joiner. Level is kept as a tiebreaker so two equal counts still order
+  // deterministically.
+  const sortDesc = (a: Entry, b: Entry) =>
+    (b.totalOrders - a.totalOrders) || (b.level - a.level);
 
   const entries = useMemo<Entry[]>(() => {
     if (activeTab === "oman") {
@@ -180,9 +185,12 @@ export default function LeaderboardScreen() {
     setPanelUserId(uid);
   };
 
-  // Oman-wide rank for any given user (1-based, by level desc).
+  // Oman-wide rank for any given user (1-based, by total coffee orders desc;
+  // level breaks ties). Mirrors the leaderboard list ordering above.
   const omanRankOf = useMemo(() => {
-    const sorted = [...registeredUsers].sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+    const sorted = [...registeredUsers].sort((a, b) =>
+      ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || ((b.level ?? 0) - (a.level ?? 0))
+    );
     const map = new Map<string, number>();
     sorted.forEach((u, i) => map.set(u.id, i + 1));
     return map;
@@ -316,13 +324,6 @@ export default function LeaderboardScreen() {
           const entryBg = entry.equippedBackground;
           const rowInner = (
             <>
-              <Text style={[
-                styles.entryRankNum,
-                { color: i === 0 ? "#FFD700" : i === 1 ? "#A8A8A8" : i === 2 ? "#CD7F32" : "#999" },
-              ]}>
-                {MEDAL[i] ?? `#${i + 1}`}
-              </Text>
-
               <AvatarWithFrame
                 size={44}
                 scale={1.55}
@@ -391,6 +392,30 @@ export default function LeaderboardScreen() {
               )}
             </>
           );
+          // Floating rank badge anchored to the TOP-LEFT corner of the row
+          // (away from the character on the right) so the medal never sits on
+          // top of the avatar/character. Top-3 get gold/silver/bronze color
+          // and the medal emoji; everyone else just gets a small "#N" chip.
+          const isTop3 = i < 3;
+          const medalColor = i === 0 ? "#FFD700" : i === 1 ? "#C0C0C0" : i === 2 ? "#CD7F32" : "#999";
+          const rankBadge = (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.rankCornerBadge,
+                isTop3 && {
+                  backgroundColor: i === 0 ? "rgba(255,215,0,0.18)"
+                    : i === 1 ? "rgba(192,192,192,0.18)"
+                    : "rgba(205,127,50,0.18)",
+                  borderColor: medalColor,
+                },
+              ]}
+            >
+              <Text style={[styles.rankCornerText, { color: medalColor }]}>
+                {isTop3 ? `${MEDAL[i]} ${i + 1}` : `#${i + 1}`}
+              </Text>
+            </View>
+          );
           // Wrap rows that have a background in UsernameBackground so the
           // animated card shows for every player (not just the current user).
           // Rows without a background fall back to the plain entryRow style.
@@ -415,6 +440,7 @@ export default function LeaderboardScreen() {
                       <Character def={entryCharacter} size={28} />
                     </View>
                   )}
+                  {rankBadge}
                 </UsernameBackground>
               </TouchableOpacity>
             );
@@ -430,6 +456,7 @@ export default function LeaderboardScreen() {
               ]}
             >
               {rowInner}
+              {rankBadge}
             </TouchableOpacity>
           );
         })}
@@ -949,6 +976,30 @@ const styles = StyleSheet.create({
     marginTop: -25,
     width: 50, height: 50,
     alignItems: "center", justifyContent: "center",
+  },
+  // Small floating chip pinned to the top-LEFT corner of every leaderboard
+  // row. Sits above the row content but never overlaps the avatar/character
+  // (which lives on the right side).
+  rankCornerBadge: {
+    position: "absolute",
+    top: -6,
+    left: -6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    minWidth: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+  },
+  rankCornerText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    textAlign: "center",
   },
 });
 
