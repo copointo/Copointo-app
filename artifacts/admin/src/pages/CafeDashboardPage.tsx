@@ -891,6 +891,17 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
   const [notes, setNotes]           = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr]               = useState("");
+  // Discount code (optional) — validated against the server's registered codes
+  // before submit so the cashier sees the % immediately and the totals update
+  // live. Mirrors the same validate endpoint used on the mobile cart.
+  const [discountInput, setDiscountInput] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<null | { code: string; percent: number }>(null);
+  const [validatingDiscount, setValidatingDiscount] = useState(false);
+  const [discountErr, setDiscountErr] = useState("");
+  // Free toggle ("على حساب الكوفي") — the order is created normally then
+  // immediately marked paymentMethod="free" so cash/visa totals stay at 0
+  // for accounting while the order itself still goes through the pipeline.
+  const [freeOrder, setFreeOrder] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -931,6 +942,39 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
   const reset = () => {
     setCart({}); setCustomerName(""); setCustomerPhone("");
     setMatchedUser(null); setLookupTried(false); setNotes(""); setErr("");
+    setDiscountInput(""); setAppliedDiscount(null); setDiscountErr("");
+    setFreeOrder(false);
+  };
+
+  // Computed totals: subtotal → after-code discount → free toggle override.
+  const discountAmt = appliedDiscount
+    ? +((subtotal * appliedDiscount.percent) / 100).toFixed(3)
+    : 0;
+  const afterDiscount = +(subtotal - discountAmt).toFixed(3);
+  const finalTotal    = freeOrder ? 0 : afterDiscount;
+
+  const applyDiscount = async () => {
+    setDiscountErr("");
+    const code = discountInput.trim();
+    if (!code) { setDiscountErr("أدخل الكود"); return; }
+    setValidatingDiscount(true);
+    try {
+      const res = await api.validateDiscountCode(id, code);
+      if (res.valid && typeof res.percent === "number") {
+        setAppliedDiscount({ code, percent: res.percent });
+      } else {
+        setDiscountErr(res.error || "كود غير صالح");
+        setAppliedDiscount(null);
+      }
+    } catch (e: any) {
+      setDiscountErr(e?.message ? String(e.message).slice(0, 120) : "تعذّر التحقق");
+      setAppliedDiscount(null);
+    } finally {
+      setValidatingDiscount(false);
+    }
+  };
+  const removeDiscount = () => {
+    setAppliedDiscount(null); setDiscountInput(""); setDiscountErr("");
   };
 
   // Debounced auto-lookup when the cashier finishes typing the phone.
@@ -970,7 +1014,7 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     }
     setSubmitting(true);
     try {
-      await api.addCafeOrder(id, {
+      const created = await api.addCafeOrder(id, {
         customerName: name,
         // Only attach phone when it matched a real game user — that's the trigger
         // for the server to credit loyalty points for this direct order.
@@ -987,7 +1031,22 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
         total: +subtotal.toFixed(3),
         drinkCount,
         notes: notes.trim() || undefined,
+        // Server will validate the code, compute discountAmount, and recompute
+        // total. We pass the code in the create payload so the order is born
+        // with the discount baked in (consistent with mobile cart flow).
+        discountCode: appliedDiscount?.code,
       });
+      // If the cashier marked it free, stamp paymentMethod="free" right after
+      // creation so the order shows up as paid (with 0 collected) and won't
+      // block on the cash/visa form.
+      if (freeOrder && created?.order?.id) {
+        try {
+          await api.cafeOrderPayment(id, created.order.id, { paymentMethod: "free" });
+        } catch (e: any) {
+          // Order was created — surface a non-blocking warning but still reset.
+          setErr("تم إنشاء الطلب لكن تعذّر تثبيته كمجاني: " + (e?.message ?? ""));
+        }
+      }
       reset();
       onCreated();
     } catch (e: any) {
@@ -1164,14 +1223,106 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
             )}
           </div>
 
+          {/* ── Discount code + free toggle ── */}
+          <div className="border-t border-border pt-3 mb-3 space-y-2">
+            {appliedDiscount ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-emerald-300">
+                    🏷️ كود {appliedDiscount.code} مفعّل
+                  </p>
+                  <p className="text-[10px] text-emerald-300/80 tabular-nums">
+                    خصم {appliedDiscount.percent}% = -{discountAmt.toFixed(3)} OMR
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeDiscount}
+                  className="text-[10px] text-emerald-200 hover:text-white px-2 py-1 rounded-md hover:bg-emerald-500/20"
+                  aria-label="إزالة الكود"
+                >
+                  ✕ إزالة
+                </button>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                  🏷️ كود تخفيض (اختياري)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={discountInput}
+                    onChange={(e) => { setDiscountInput(e.target.value.replace(/[^\d]/g, "")); setDiscountErr(""); }}
+                    placeholder="مثال: 1234"
+                    disabled={freeOrder}
+                    className="flex-1 bg-input border border-border rounded-xl px-3 py-2 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyDiscount}
+                    disabled={validatingDiscount || !discountInput.trim() || freeOrder}
+                    className="px-3 py-2 rounded-xl bg-primary/20 text-primary border border-primary/40 text-xs font-bold hover:bg-primary/30 disabled:opacity-50"
+                  >
+                    {validatingDiscount ? "…" : "تطبيق"}
+                  </button>
+                </div>
+                {discountErr && (
+                  <p className="mt-1 text-[10px] text-red-400">{discountErr}</p>
+                )}
+              </div>
+            )}
+
+            <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer select-none transition ${
+              freeOrder
+                ? "bg-amber-500/15 border-amber-500/50"
+                : "bg-input/40 border-border hover:border-amber-500/40"
+            }`}>
+              <input
+                type="checkbox"
+                checked={freeOrder}
+                onChange={(e) => setFreeOrder(e.target.checked)}
+                className="w-4 h-4 accent-amber-400"
+              />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-bold ${freeOrder ? "text-amber-300" : "text-foreground"}`}>
+                  🎁 على حساب الكوفي (مجاني)
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  لا يتم تحصيل أي مبلغ من الزبون.
+                </p>
+              </div>
+            </label>
+          </div>
+
           <div className="border-t border-border pt-3 mb-4 space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>عدد القطع</span>
               <span className="tabular-nums">{itemCount}</span>
             </div>
-            <div className="flex justify-between text-base font-bold">
-              <span className="text-foreground">الإجمالي</span>
-              <span className="text-primary tabular-nums">{subtotal.toFixed(3)} OMR</span>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>المجموع الفرعي</span>
+              <span className="tabular-nums">{subtotal.toFixed(3)} OMR</span>
+            </div>
+            {appliedDiscount && (
+              <div className="flex justify-between text-xs text-emerald-400">
+                <span>خصم ({appliedDiscount.percent}%)</span>
+                <span className="tabular-nums">-{discountAmt.toFixed(3)} OMR</span>
+              </div>
+            )}
+            {freeOrder && (
+              <div className="flex justify-between text-xs text-amber-400">
+                <span>على حساب الكوفي</span>
+                <span className="tabular-nums">-{afterDiscount.toFixed(3)} OMR</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-bold pt-1">
+              <span className="text-foreground">المستحق</span>
+              <span className={`tabular-nums ${freeOrder ? "text-amber-400" : "text-primary"}`}>
+                {finalTotal.toFixed(3)} OMR
+                {freeOrder && <span className="text-[10px] mr-1">(مجاني)</span>}
+              </span>
             </div>
           </div>
 

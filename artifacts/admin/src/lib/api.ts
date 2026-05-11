@@ -101,6 +101,10 @@ export const api = {
 
   // Discount codes
   discountCodes:       (id: string)            => req<any>("GET",    `${C(id)}/discount-codes`),
+  validateDiscountCode:(id: string, code: string) =>
+    req<{ valid: boolean; percent?: number; codeId?: string; error?: string }>(
+      "POST", `${C(id)}/discount-codes/validate`, { code }
+    ),
   addDiscountCode:     (id: string, body: { code: string; percent: number; expiresAt?: string | null }) =>
                                                   req<any>("POST",   `${C(id)}/discount-codes`, body),
   deleteDiscountCode:  (id: string, did: string) => req<any>("DELETE", `${C(id)}/discount-codes/${did}`),
