@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Image,
   KeyboardAvoidingView,
@@ -14,26 +14,24 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useApp } from "@/context/AppContext";
+import { useApp, sendOtp, verifyOtp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 
 const BORDER  = "rgba(232,184,109,0.35)";
 const PRIMARY = "#E8B86D";
 const DANGER  = "#E55353";
 
-// Game username: English letters, digits, underscore, dot, hyphen only.
-const USERNAME_EN_RE   = /^[A-Za-z0-9_.-]+$/;
-// Password: any printable ASCII (letters, digits, symbols, spaces) — i.e.
-// "English only", explicitly rejecting Arabic and other non-ASCII characters.
+const USERNAME_EN_RE     = /^[A-Za-z0-9_.-]+$/;
 const ASCII_PRINTABLE_RE = /^[\x20-\x7E]+$/;
 
-/**
- * Shared login / register modal. Originally lived inside profile.tsx — now
- * extracted so the global AuthGate can show the same UI for any unauthenticated
- * entry into the app (including QR-code deep links to /cafe/[id]).
- *
- * `dismissible=false` hides the close button so the gate cannot be bypassed.
- */
+type Step =
+  | "login"
+  | "register-form"      // collect name/phone/etc
+  | "register-otp"       // confirm SMS code, then create account
+  | "forgot-phone"       // enter phone for reset
+  | "forgot-otp"         // confirm SMS code (reset)
+  | "forgot-newpass";    // pick new password & sign in
+
 export function AuthModal({
   visible, onClose, dismissible = true,
 }: {
@@ -41,15 +39,17 @@ export function AuthModal({
   onClose: () => void;
   dismissible?: boolean;
 }) {
-  const { register, login } = useApp();
+  const { register, login, resetPasswordWithOtp } = useApp();
   const { t } = useT();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [step, setStep] = useState<Step>("login");
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
 
+  // Login
   const [logPhone, setLogPhone] = useState("");
   const [logPass,  setLogPass]  = useState("");
 
+  // Register
   const [regAvatar, setRegAvatar] = useState<string | null>(null);
   const [regGender, setRegGender] = useState<"male" | "female" | null>(null);
   const [name, setName] = useState("");
@@ -57,14 +57,45 @@ export function AuthModal({
   const [gameUser, setGameUser] = useState("");
   const [pass, setPass] = useState("");
 
+  // OTP (shared by register-otp + forgot-otp)
+  const [otpCode, setOtpCode] = useState("");
+  const [otpToken, setOtpToken] = useState("");        // set after verify
+  const [resendIn, setResendIn] = useState(0);          // seconds until resend allowed
+  const resendTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Forgot
+  const [resetPhone, setResetPhone] = useState("");
+  const [newPass, setNewPass]       = useState("");
+
+  const startResendTimer = (sec: number) => {
+    setResendIn(sec);
+    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+    resendTimerRef.current = setInterval(() => {
+      setResendIn(prev => {
+        if (prev <= 1) {
+          if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => () => {
+    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+  }, []);
+
   const reset = () => {
     setLogPhone(""); setLogPass("");
     setRegAvatar(null); setRegGender(null);
     setName(""); setPhone(""); setGameUser(""); setPass("");
+    setOtpCode(""); setOtpToken(""); setResendIn(0);
+    setResetPhone(""); setNewPass("");
     setErr(""); setBusy(false);
+    if (resendTimerRef.current) clearInterval(resendTimerRef.current);
   };
 
-  const close = () => { reset(); onClose(); };
+  const close = () => { reset(); setStep("login"); onClose(); };
 
   const pickRegAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -91,7 +122,8 @@ export function AuthModal({
     close();
   };
 
-  const submitRegister = async () => {
+  // Step 1 of register: validate the form, send the OTP, advance to OTP step.
+  const submitRegisterForm = async () => {
     setErr("");
     if (!name.trim() || !phone.trim() || !gameUser.trim() || !pass) {
       setErr(t("auth.errFillAll")); return;
@@ -103,21 +135,121 @@ export function AuthModal({
     if (pass.length < 6) { setErr(t("auth.errPasswordShort")); return; }
     if (!ASCII_PRINTABLE_RE.test(pass)) { setErr(t("auth.errPasswordEn")); return; }
     setBusy(true);
+    const sent = await sendOtp(phone.trim(), "register");
+    setBusy(false);
+    if (!sent.ok) {
+      setErr(sent.error);
+      if (sent.retryAfterSec) startResendTimer(sent.retryAfterSec);
+      return;
+    }
+    setOtpCode(""); setOtpToken("");
+    startResendTimer(45);
+    setStep("register-otp");
+  };
+
+  // Step 2 of register: verify the OTP and create the account.
+  const submitRegisterOtp = async () => {
+    setErr("");
+    if (!/^\d{6}$/.test(otpCode)) { setErr("الرجاء إدخال الرمز المكون من 6 أرقام"); return; }
+    setBusy(true);
+    const v = await verifyOtp(phone.trim(), otpCode, "register");
+    if (!v.ok) {
+      setBusy(false);
+      const left = typeof v.attemptsLeft === "number" ? ` (${v.attemptsLeft} محاولة متبقية)` : "";
+      setErr(v.error + left);
+      return;
+    }
     const r = await register({
       name: name.trim(),
       phone: phone.trim(),
       gameUsername: gameUser.trim(),
       password: pass,
-      gender: regGender,
+      gender: regGender!,
       avatar: regAvatar ?? undefined,
-    });
+    }, v.token);
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     close();
   };
 
+  // Forgot-password step 1: send OTP to the phone the user typed.
+  const submitForgotPhone = async () => {
+    setErr("");
+    if (!resetPhone.trim()) { setErr(t("auth.errFillAll")); return; }
+    setBusy(true);
+    const sent = await sendOtp(resetPhone.trim(), "reset");
+    setBusy(false);
+    if (!sent.ok) {
+      setErr(sent.error);
+      if (sent.retryAfterSec) startResendTimer(sent.retryAfterSec);
+      return;
+    }
+    setOtpCode(""); setOtpToken("");
+    startResendTimer(45);
+    setStep("forgot-otp");
+  };
+
+  // Forgot-password step 2: verify OTP, hold the token, advance to new-pass step.
+  const submitForgotOtp = async () => {
+    setErr("");
+    if (!/^\d{6}$/.test(otpCode)) { setErr("الرجاء إدخال الرمز المكون من 6 أرقام"); return; }
+    setBusy(true);
+    const v = await verifyOtp(resetPhone.trim(), otpCode, "reset");
+    setBusy(false);
+    if (!v.ok) {
+      const left = typeof v.attemptsLeft === "number" ? ` (${v.attemptsLeft} محاولة متبقية)` : "";
+      setErr(v.error + left);
+      return;
+    }
+    setOtpToken(v.token);
+    setStep("forgot-newpass");
+  };
+
+  // Forgot-password step 3: commit the new password locally & sign in.
+  const submitForgotNewPass = async () => {
+    setErr("");
+    if (newPass.length < 6) { setErr(t("auth.errPasswordShort")); return; }
+    if (!ASCII_PRINTABLE_RE.test(newPass)) { setErr(t("auth.errPasswordEn")); return; }
+    if (!otpToken) { setErr("انتهت صلاحية الجلسة — أعد المحاولة"); setStep("forgot-phone"); return; }
+    setBusy(true);
+    const r = await resetPasswordWithOtp(otpToken, newPass);
+    setBusy(false);
+    if (!r.ok) { setErr(r.error); return; }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    close();
+  };
+
+  const resendOtp = async () => {
+    if (resendIn > 0) return;
+    const target = step === "register-otp" ? phone.trim() : resetPhone.trim();
+    const purpose = step === "register-otp" ? "register" : "reset";
+    setErr("");
+    setBusy(true);
+    const sent = await sendOtp(target, purpose);
+    setBusy(false);
+    if (!sent.ok) {
+      setErr(sent.error);
+      if (sent.retryAfterSec) startResendTimer(sent.retryAfterSec);
+      return;
+    }
+    startResendTimer(45);
+  };
+
   const fallbackEmoji = regGender === "female" ? "👩" : regGender === "male" ? "🧑" : "📷";
+
+  // Header back button — appears for any step beyond the primary login/register tabs.
+  const showBack = step !== "login" && step !== "register-form";
+  const goBack = () => {
+    setErr("");
+    if (step === "register-otp") setStep("register-form");
+    else if (step === "forgot-phone") setStep("login");
+    else if (step === "forgot-otp") setStep("forgot-phone");
+    else if (step === "forgot-newpass") setStep("forgot-otp");
+  };
+
+  const isOtpStep = step === "register-otp" || step === "forgot-otp";
+  const otpTargetPhone = step === "register-otp" ? phone : resetPhone;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={dismissible ? close : () => {}}>
@@ -131,6 +263,11 @@ export function AuthModal({
               <Feather name="x" size={20} color="rgba(255,255,255,0.55)" />
             </TouchableOpacity>
           )}
+          {showBack && (
+            <TouchableOpacity onPress={goBack} style={styles.backBtn} activeOpacity={0.7}>
+              <Feather name="arrow-right" size={20} color="rgba(255,255,255,0.7)" />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.authBrand}>
             <View style={styles.authLogo}>
@@ -142,38 +279,50 @@ export function AuthModal({
             <Text style={styles.authBrandName}>{t("auth.brandName")}</Text>
           </View>
 
-          <View style={styles.authTabs}>
-            <TouchableOpacity
-              onPress={() => { setMode("login"); setErr(""); }}
-              style={[styles.authTab, mode === "login" && styles.authTabActive]}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.authTabText, mode === "login" && styles.authTabTextActive]}>
-                {t("auth.tabLogin")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { setMode("register"); setErr(""); }}
-              style={[styles.authTab, mode === "register" && styles.authTabActive]}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.authTabText, mode === "register" && styles.authTabTextActive]}>
-                {t("auth.tabRegister")}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {(step === "login" || step === "register-form") && (
+            <View style={styles.authTabs}>
+              <TouchableOpacity
+                onPress={() => { setStep("login"); setErr(""); }}
+                style={[styles.authTab, step === "login" && styles.authTabActive]}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.authTabText, step === "login" && styles.authTabTextActive]}>
+                  {t("auth.tabLogin")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { setStep("register-form"); setErr(""); }}
+                style={[styles.authTab, step === "register-form" && styles.authTabActive]}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.authTabText, step === "register-form" && styles.authTabTextActive]}>
+                  {t("auth.tabRegister")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <ScrollView
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ gap: 12, paddingBottom: 4 }}
             keyboardShouldPersistTaps="handled"
           >
-            {mode === "login" ? (
+            {step === "login" && (
               <>
                 <AuthField icon="user" placeholder={t("auth.fieldPhoneOrUser")} value={logPhone} onChange={setLogPhone} />
                 <AuthField icon="lock" placeholder={t("auth.fieldPassword")} value={logPass} onChange={setLogPass} secure />
+                <TouchableOpacity
+                  onPress={() => { setStep("forgot-phone"); setErr(""); setResetPhone(""); }}
+                  style={{ alignSelf: "flex-end", paddingVertical: 4 }}
+                >
+                  <Text style={{ color: PRIMARY, fontSize: 12, fontFamily: "Inter_600SemiBold" }}>
+                    نسيت كلمة المرور؟
+                  </Text>
+                </TouchableOpacity>
               </>
-            ) : (
+            )}
+
+            {step === "register-form" && (
               <>
                 <View style={{ alignItems: "center", marginBottom: 4 }}>
                   <TouchableOpacity onPress={pickRegAvatar} activeOpacity={0.85} style={styles.regAvatarWrap}>
@@ -221,31 +370,93 @@ export function AuthModal({
               </>
             )}
 
+            {isOtpStep && (
+              <>
+                <Text style={styles.otpHelpText}>
+                  أرسلنا رمزاً مكوناً من 6 أرقام إلى{"\n"}
+                  <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{otpTargetPhone}</Text>
+                </Text>
+                <AuthField
+                  icon="hash"
+                  placeholder="رمز التحقق (6 أرقام)"
+                  value={otpCode}
+                  onChange={(v) => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
+                  keyboardType="phone-pad"
+                />
+                <TouchableOpacity
+                  onPress={resendOtp}
+                  disabled={resendIn > 0 || busy}
+                  style={{ alignSelf: "center", paddingVertical: 6 }}
+                >
+                  <Text style={{
+                    color: resendIn > 0 ? "rgba(255,255,255,0.4)" : PRIMARY,
+                    fontSize: 13, fontFamily: "Inter_600SemiBold",
+                  }}>
+                    {resendIn > 0 ? `إعادة الإرسال خلال ${resendIn} ثانية` : "إعادة إرسال الرمز"}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {step === "forgot-phone" && (
+              <>
+                <Text style={styles.otpHelpText}>
+                  أدخل رقم هاتفك المسجّل وسنرسل لك رمز تحقق لإعادة تعيين كلمة المرور.
+                </Text>
+                <AuthField icon="phone" placeholder={t("auth.fieldPhone")} value={resetPhone} onChange={setResetPhone} keyboardType="phone-pad" />
+              </>
+            )}
+
+            {step === "forgot-newpass" && (
+              <>
+                <Text style={styles.otpHelpText}>اختر كلمة مرور جديدة لحسابك.</Text>
+                <AuthField icon="lock" placeholder={t("auth.fieldPasswordMin")} value={newPass} onChange={setNewPass} secure />
+              </>
+            )}
+
             {err ? <Text style={styles.errorText}>{err}</Text> : null}
 
             <TouchableOpacity
-              onPress={mode === "login" ? submitLogin : submitRegister}
+              onPress={
+                step === "login"           ? submitLogin
+              : step === "register-form"   ? submitRegisterForm
+              : step === "register-otp"    ? submitRegisterOtp
+              : step === "forgot-phone"    ? submitForgotPhone
+              : step === "forgot-otp"      ? submitForgotOtp
+              :                              submitForgotNewPass
+              }
               style={[styles.authPrimaryBtn, busy && { opacity: 0.6 }]}
               activeOpacity={0.9}
               disabled={busy}
             >
               <Text style={styles.authPrimaryText}>
-                {busy ? t("auth.busy") : mode === "login" ? t("auth.btnLogin") : t("auth.btnRegister")}
+                {busy ? t("auth.busy")
+                  : step === "login"         ? t("auth.btnLogin")
+                  : step === "register-form" ? "إرسال رمز التحقق"
+                  : step === "register-otp"  ? "تأكيد وإنشاء الحساب"
+                  : step === "forgot-phone"  ? "إرسال رمز التحقق"
+                  : step === "forgot-otp"    ? "تحقق من الرمز"
+                  :                            "حفظ كلمة المرور الجديدة"}
               </Text>
               {!busy && <Feather name="arrow-left" size={18} color="#FFF" />}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}
-              style={{ paddingVertical: 8, alignItems: "center" }}
-            >
-              <Text style={styles.authSwitchText}>
-                {mode === "login" ? t("auth.noAccount") : t("auth.haveAccount")}
-                <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>
-                  {mode === "login" ? t("auth.signupNow") : t("auth.loginNow")}
+            {(step === "login" || step === "register-form") && (
+              <TouchableOpacity
+                onPress={() => {
+                  setStep(step === "login" ? "register-form" : "login");
+                  setErr("");
+                }}
+                style={{ paddingVertical: 8, alignItems: "center" }}
+              >
+                <Text style={styles.authSwitchText}>
+                  {step === "login" ? t("auth.noAccount") : t("auth.haveAccount")}
+                  <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>
+                    {step === "login" ? t("auth.signupNow") : t("auth.loginNow")}
+                  </Text>
                 </Text>
-              </Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -297,6 +508,11 @@ const styles = StyleSheet.create({
     width: 32, height: 32, borderRadius: 16,
     alignItems: "center", justifyContent: "center",
   },
+  backBtn: {
+    position: "absolute", top: 12, right: 12, zIndex: 10,
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+  },
   inputWrap:  {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.07)",
@@ -314,6 +530,11 @@ const styles = StyleSheet.create({
     backgroundColor: `${DANGER}15`, padding: 10, borderRadius: 10,
   },
   fieldLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
+  otpHelpText: {
+    fontSize: 13, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.75)", textAlign: "center",
+    lineHeight: 20, marginVertical: 4,
+  },
 
   authCard: {
     width: "100%", backgroundColor: "#0F0606",

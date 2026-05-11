@@ -75,11 +75,70 @@ export async function fetchPublicUsers(): Promise<PublicServerUser[]> {
  */
 export type AuthResultEx = AuthResult & { banned?: boolean; banReason?: string | null };
 
+// ─── Phone-OTP helpers ────────────────────────────────────────────────────
+// New-user registration and password reset both require proving phone
+// ownership via SMS code sent through the api-server (Twilio under the
+// hood). These helpers wrap the three relevant endpoints.
+export async function sendOtp(
+  phone: string,
+  purpose: "register" | "reset",
+): Promise<{ ok: true; expiresInSec: number } | { ok: false; error: string; retryAfterSec?: number }> {
+  try {
+    const r = await fetch(`${API_BASE}/auth/otp/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, purpose }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data?.ok) return { ok: true, expiresInSec: Number(data.expiresInSec) || 300 };
+    return { ok: false, error: data?.error || "تعذر إرسال رمز التحقق", retryAfterSec: data?.retryAfterSec };
+  } catch {
+    return { ok: false, error: "تعذر الاتصال بالخادم" };
+  }
+}
+
+export async function verifyOtp(
+  phone: string,
+  code: string,
+  purpose: "register" | "reset",
+): Promise<{ ok: true; token: string } | { ok: false; error: string; attemptsLeft?: number }> {
+  try {
+    const r = await fetch(`${API_BASE}/auth/otp/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, code, purpose }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data?.ok && typeof data.token === "string") return { ok: true, token: data.token };
+    return { ok: false, error: data?.error || "رمز غير صحيح", attemptsLeft: data?.attemptsLeft };
+  } catch {
+    return { ok: false, error: "تعذر الاتصال بالخادم" };
+  }
+}
+
+export async function confirmPasswordReset(
+  otpToken: string,
+): Promise<{ ok: true; phone: string } | { ok: false; error: string }> {
+  try {
+    const r = await fetch(`${API_BASE}/auth/password/reset-confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ otpToken }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data?.ok && typeof data.phone === "string") return { ok: true, phone: data.phone };
+    return { ok: false, error: data?.error || "تعذر إعادة تعيين كلمة المرور" };
+  } catch {
+    return { ok: false, error: "تعذر الاتصال بالخادم" };
+  }
+}
+
 export async function syncUserToServer(args: {
   id: string;
   username: string;
   phone: string;
   joinedAt?: string;
+  otpToken?: string;
 }): Promise<AuthResultEx> {
   try {
     const r = await fetch(`${API_BASE}/users/register`, {
@@ -199,8 +258,16 @@ interface AppContextType {
    *  and a logout-only button. `null` while the user is in good standing. */
   bannedInfo: { reason: string } | null;
   setUser: (user: User | null) => void;
-  register: (data: Omit<User, "id" | "level" | "totalOrders" | "points">) => Promise<AuthResult>;
+  register: (
+    data: Omit<User, "id" | "level" | "totalOrders" | "points">,
+    otpToken: string,
+  ) => Promise<AuthResult>;
   login: (phone: string, password: string) => Promise<AuthResult>;
+  /** Reset the password for the account that owns `phone`, after the
+   *  caller has already verified phone ownership via OTP and obtained a
+   *  reset token. Updates the local AsyncStorage record (passwords are
+   *  device-local) and signs the user in. */
+  resetPasswordWithOtp: (otpToken: string, newPassword: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
   registeredUsers: User[];
   friends: string[];
@@ -550,7 +617,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (data: Omit<User, "id" | "level" | "totalOrders" | "points">): Promise<AuthResult> => {
+    async (
+      data: Omit<User, "id" | "level" | "totalOrders" | "points">,
+      otpToken: string,
+    ): Promise<AuthResult> => {
       try {
         const raw = await AsyncStorage.getItem("registeredUsers");
         const users: User[] = raw ? JSON.parse(raw) : [];
@@ -567,15 +637,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
         // Atomically reserve the gameUsername AND mirror the user into the
         // server's `users` collection (single endpoint so a failure can never
-        // leave an orphaned username claim or an orphaned user row). This is
-        // the only check that catches phone/username collisions across other
-        // devices, and it makes every signed-up player visible in the super-
-        // admin "المستخدمون" page even before they place their first order.
+        // leave an orphaned username claim or an orphaned user row). The
+        // server requires `otpToken` for new ids, proving the caller owns
+        // the phone number being registered.
         const synced = await syncUserToServer({
           id: newUser.id,
           username: newUser.gameUsername,
           phone: newUser.phone,
           joinedAt: new Date().toISOString(),
+          otpToken,
         });
         if (!synced.ok) return synced;
         const updated = [...users, newUser];
@@ -841,6 +911,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [user]);
 
+  const resetPasswordWithOtp = useCallback(
+    async (otpToken: string, newPassword: string): Promise<AuthResult> => {
+      try {
+        const conf = await confirmPasswordReset(otpToken);
+        if (!conf.ok) return { ok: false, error: conf.error };
+        const phone = conf.phone;
+        const raw = await AsyncStorage.getItem("registeredUsers");
+        const users: User[] = raw ? JSON.parse(raw) : [];
+        const norm = (p: string) => p.replace(/\s+/g, "").replace(/(?!^\+)\D/g, "");
+        const target = phone;
+        const idx = users.findIndex(u => u.phone === target || norm(u.phone) === norm(target));
+
+        // Pull the canonical server identity for this phone so we can
+        // restore an account that exists server-side but isn't yet on this
+        // device (matches the "server-only adoption" path in `login`).
+        let remote: PublicServerUser | undefined;
+        try {
+          const all = await fetchPublicUsers();
+          remote = all.find(r => r.phone === target || norm(r.phone) === norm(target));
+        } catch { /* offline ok — only blocks fresh-device adoption */ }
+
+        let updatedUser: User;
+        if (idx >= 0) {
+          updatedUser = { ...users[idx], password: newPassword };
+          users[idx] = updatedUser;
+        } else if (remote) {
+          updatedUser = {
+            id: remote.id,
+            name: remote.username,
+            phone: remote.phone,
+            gameUsername: remote.username,
+            password: newPassword,
+            level: remote.level ?? 0,
+            totalOrders: remote.totalOrders ?? 0,
+            points: 0,
+            equippedFrame:         remote.equippedFrame         ?? null,
+            equippedBadge:         remote.equippedBadge         ?? null,
+            equippedBackground:    remote.equippedBackground    ?? null,
+            equippedCharacter:     remote.equippedCharacter     ?? null,
+            equippedUsernameColor: remote.equippedUsernameColor ?? null,
+            equippedTextStyle:     remote.equippedTextStyle     ?? null,
+          };
+          users.push(updatedUser);
+        } else {
+          return { ok: false, error: "لا يوجد حساب مرتبط بهذا الرقم" };
+        }
+
+        await AsyncStorage.setItem("registeredUsers", JSON.stringify(users));
+        await AsyncStorage.setItem("currentUser", JSON.stringify(updatedUser));
+        setRegisteredUsers(users);
+        const [fRaw, inRaw, outRaw] = await Promise.all([
+          AsyncStorage.getItem(`friends:${updatedUser.id}`),
+          AsyncStorage.getItem(`friend_requests_in:${updatedUser.id}`),
+          AsyncStorage.getItem(`friend_requests_out:${updatedUser.id}`),
+        ]);
+        setFriends(fRaw ? JSON.parse(fRaw) : []);
+        setIncomingRequests(inRaw ? JSON.parse(inRaw) : []);
+        setOutgoingRequests(outRaw ? JSON.parse(outRaw) : []);
+        setUserState(updatedUser);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: "حدث خطأ أثناء إعادة تعيين كلمة المرور" };
+      }
+    },
+    [],
+  );
+
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem("currentUser");
     setUserState(null);
@@ -1000,6 +1137,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setUser,
         register,
         login,
+        resetPasswordWithOtp,
         logout,
         registeredUsers,
         friends,

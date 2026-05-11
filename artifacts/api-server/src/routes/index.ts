@@ -4,6 +4,7 @@ import path from "node:path";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
+import authOtpRouter, { consumeOtpToken } from "./auth-otp";
 
 const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
 const MIME_BY_EXT: Record<string, string> = {
@@ -27,6 +28,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use("/admin", adminRouter);
 router.use("/cafe/:cafeId", cafeDashRouter);
+router.use("/auth/otp", authOtpRouter);
 
 // Public cafes endpoint for mobile app
 router.get("/cafes", async (_req, res) => {
@@ -503,6 +505,33 @@ router.post("/users/register", (req, res): any => {
   const username  = normalizeUsername(req.body?.username);
   const phone     = String(req.body?.phone ?? "").trim();
   const joinedAt  = String(req.body?.joinedAt ?? "").trim() || new Date().toISOString();
+  const otpToken  = String(req.body?.otpToken ?? "").trim();
+  // Phone-OTP gate. Required for:
+  //   • genuinely-new accounts (proves the new phone really belongs to the
+  //     person signing up).
+  //   • any change to an existing account's phone or username (prevents an
+  //     attacker from POSTing another user's id and silently rebinding their
+  //     phone to an attacker-controlled number — which would otherwise
+  //     defeat the password-reset flow's phone-ownership check).
+  // Pure idempotent calls (same id, same phone, same username) skip the
+  // check so login-backfill keeps working without re-prompting for SMS.
+  const norm = (p: string) => p.replace(/\s+/g, "").replace(/(?!^\+)\D/g, "");
+  const existingUser = users.find(u => u.id === id);
+  const isMutatingExisting =
+    existingUser && (norm(existingUser.phone) !== norm(phone) || existingUser.username.toLowerCase() !== username.toLowerCase());
+  const requireOtp = !existingUser || isMutatingExisting;
+  if (requireOtp) {
+    if (!otpToken) {
+      return res.status(401).json({ ok: false, error: "رمز التحقق مطلوب" });
+    }
+    const v = consumeOtpToken(otpToken, "register");
+    if (!v) {
+      return res.status(401).json({ ok: false, error: "انتهت صلاحية رمز التحقق — أعد الإرسال" });
+    }
+    if (norm(v.phone) !== norm(phone)) {
+      return res.status(401).json({ ok: false, error: "رقم الهاتف لا يطابق الرمز الذي تم التحقق منه" });
+    }
+  }
   if (!id)       return res.status(400).json({ ok: false, error: "id required" });
   if (!username) return res.status(400).json({ ok: false, error: "يوزر اللعبة مطلوب" });
   if (!phone)    return res.status(400).json({ ok: false, error: "رقم الهاتف مطلوب" });
@@ -570,6 +599,19 @@ router.post("/users/register", (req, res): any => {
   users.push(u);
   persistStore();
   res.json({ ok: true, user: u });
+});
+
+// ─── Password reset (verify OTP token) ──────────────────────────────────
+// Mobile passwords live device-local in AsyncStorage; this endpoint just
+// validates the OTP token and returns the canonical phone so the client
+// can safely overwrite the local password for that account. Token is
+// single-use server-side, so a successful call cannot be replayed.
+router.post("/auth/password/reset-confirm", (req, res): any => {
+  const token = String(req.body?.otpToken ?? "").trim();
+  if (!token) return res.status(400).json({ ok: false, error: "رمز التحقق مطلوب" });
+  const v = consumeOtpToken(token, "reset");
+  if (!v) return res.status(401).json({ ok: false, error: "انتهت صلاحية رمز التحقق — أعد الإرسال" });
+  return res.json({ ok: true, phone: v.phone });
 });
 
 // ─── User status (ban poll) ──────────────────────────────────────────────
