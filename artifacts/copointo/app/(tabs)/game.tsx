@@ -118,7 +118,11 @@ export default function GameScreen() {
 
   const isBlocked = !!(status && (status.gameBanned || status.gameSuspended));
 
-  const level     = user?.level ?? 0;
+  // Per-cafe view: when a cafe is selected, the entire game screen reflects
+  // the user's progress AT THAT CAFE (level, rank, board, milestones, etc.).
+  // If no cafe has been selected yet (brand-new user), fall back to the
+  // global aggregate so the screen never goes blank.
+  const level     = activeCafe ? activeCafe.level : (user?.level ?? 0);
   const rank      = getRank(level);
   const levelRewards = useLevelRewards(level);
   const coinMilestones = useCoinMilestones(level);
