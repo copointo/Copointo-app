@@ -437,7 +437,7 @@ export default function LeaderboardScreen() {
                   <View style={styles.entryRowContent}>{rowInner}</View>
                   {entryCharacter && (
                     <View style={styles.charBadge} pointerEvents="none">
-                      <Character def={entryCharacter} size={28} />
+                      <Character def={entryCharacter} size={20} />
                     </View>
                   )}
                   {rankBadge}
@@ -971,10 +971,10 @@ const styles = StyleSheet.create({
   coffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   charBadge: {
     position: "absolute",
-    right: 6,
+    right: 8,
     top: "50%",
-    marginTop: -25,
-    width: 50, height: 50,
+    marginTop: -18,
+    width: 36, height: 36,
     alignItems: "center", justifyContent: "center",
   },
   // Small floating chip pinned to the top-LEFT corner of every leaderboard
