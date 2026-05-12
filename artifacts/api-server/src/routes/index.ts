@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import fs from "node:fs";
 import path from "node:path";
+import { reelFile } from "../lib/objectStorage";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
@@ -315,12 +316,48 @@ router.get("/reels", (req, res) => {
 
 // Stream a reel's video binary with proper Content-Type and Range support so
 // the browser/native player can seek and start playback immediately.
-router.get("/reels/:rid/video", (req, res): any => {
+router.get("/reels/:rid/video", async (req, res): Promise<any> => {
   const r = reels.find(x => x.id === req.params.rid);
   if (!r || !r.videoUrl) return res.status(404).end();
 
-  // Mode A: on-disk file ("file:<filename>") — preferred, used by all new
-  // uploads. Stream from disk with HTTP Range support.
+  // Mode A (current): GCS Object Storage ("gcs:<key>") — durable across
+  // deploys. Stream from GCS with HTTP Range support.
+  if (r.videoUrl.startsWith("gcs:")) {
+    try {
+      const key = r.videoUrl.slice(4);
+      const file = reelFile(key);
+      const [meta] = await file.getMetadata();
+      const total = Number(meta.size ?? 0);
+      const mime = (meta.contentType as string) || "video/mp4";
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      const range = req.headers.range;
+      if (range && total > 0) {
+        const parts = /bytes=(\d*)-(\d*)/.exec(String(range));
+        if (parts) {
+          const start = parts[1] ? parseInt(parts[1], 10) : 0;
+          const end   = parts[2] ? parseInt(parts[2], 10) : total - 1;
+          if (start >= total || end >= total) {
+            res.status(416).setHeader("Content-Range", `bytes */${total}`);
+            return res.end();
+          }
+          res.status(206);
+          res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+          res.setHeader("Content-Length", String(end - start + 1));
+          return file.createReadStream({ start, end }).pipe(res);
+        }
+      }
+      if (total) res.setHeader("Content-Length", String(total));
+      return file.createReadStream().pipe(res);
+    } catch (err: any) {
+      req.log?.error?.({ err, reelId: r.id }, "reel GCS stream failed");
+      return res.status(404).end();
+    }
+  }
+
+  // Mode B (legacy): on-disk file ("file:<filename>"). Used by reels uploaded
+  // before the GCS migration. Stream from disk with HTTP Range support.
   if (r.videoUrl.startsWith("file:")) {
     const filename = r.videoUrl.slice(5);
     // Defence-in-depth: prevent path traversal via crafted filenames.

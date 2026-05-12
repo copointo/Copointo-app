@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import fs from "node:fs";
 import path from "node:path";
+import { uploadReelFile, deleteReelFile } from "../lib/objectStorage";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
   expenses, invoiceTemplates, freeCoffees, inventoryItems,
   reels, reelLikes, reelComments, reelViews, giftVouchers,
@@ -1441,38 +1442,49 @@ router.get("/reels", (req: any, res) => {
   res.json({ reels: list });
 });
 
-router.post("/reels", reelUploadSafe, (req: any, res) => {
+router.post("/reels", reelUploadSafe, async (req: any, res) => {
   const cid  = req.params.cafeId;
   const cafe = cafes.find(c => c.id === cid);
-  if (!cafe) {
+  const cleanupLocal = () => {
     if (req.file) { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } }
+  };
+  if (!cafe) {
+    cleanupLocal();
     return res.status(404).json({ error: "Cafe not found" });
   }
   const body = req.body ?? {};
-  // Two upload modes:
-  //  1) multipart/form-data with a "video" file (preferred — used by the admin
-  //     dashboard so the video bytes never go through JSON parsing).
-  //  2) JSON body with `videoUrl: "data:video/...;base64,..."` (legacy).
-  let videoUrl = "";
-  if (req.file) {
-    videoUrl = `file:${req.file.filename}`;
-  } else {
-    videoUrl = String(body.videoUrl ?? "").trim();
-  }
   const description = String(body.description ?? "").trim();
   const orderLink   = String(body.orderLink   ?? "").trim() || `copointo://cafe/${cid}`;
-  // Auto-derive map location URL from cafe coordinates (fallback: address search).
   const fallbackLocation = (cafe.lat != null && cafe.lng != null)
     ? `https://www.google.com/maps/search/?api=1&query=${cafe.lat},${cafe.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cafe.address || cafe.name)}`;
   const locationUrl = String(body.locationUrl ?? "").trim() || fallbackLocation;
-  if (!videoUrl) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } }
-    return res.status(400).json({ error: "الرجاء رفع فيديو" });
-  }
   if (!description) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } }
+    cleanupLocal();
     return res.status(400).json({ error: "الوصف مطلوب" });
+  }
+  // Upload modes:
+  //  1) multipart/form-data with a "video" file → upload bytes to GCS Object
+  //     Storage (durable across deploys), store as `gcs:<key>` on the reel.
+  //  2) JSON body with `videoUrl: "data:video/...;base64,..."` (legacy).
+  let videoUrl = "";
+  if (req.file) {
+    try {
+      const ext = path.extname(req.file.filename || "") || ".mp4";
+      const key = await uploadReelFile(req.file.path, ext, req.file.mimetype || "video/mp4");
+      videoUrl = `gcs:${key}`;
+    } catch (err: any) {
+      req.log?.error?.({ err }, "reel GCS upload failed");
+      cleanupLocal();
+      return res.status(500).json({ error: "فشل رفع الفيديو إلى التخزين السحابي", detail: err?.message });
+    } finally {
+      cleanupLocal();
+    }
+  } else {
+    videoUrl = String(body.videoUrl ?? "").trim();
+  }
+  if (!videoUrl) {
+    return res.status(400).json({ error: "الرجاء رفع فيديو" });
   }
   const r: Reel = {
     id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
@@ -1493,11 +1505,13 @@ router.delete("/reels/:rid", (req: any, res) => {
   const idx = reels.findIndex(r => r.id === req.params.rid && r.cafeId === cid);
   if (idx === -1) return res.status(404).json({ error: "Reel not found" });
   const [removed] = reels.splice(idx, 1);
-  // Best-effort cleanup of the on-disk video file.
-  // Hard sanitize: take basename only and verify the resolved path stays
-  // strictly inside REELS_DIR. This prevents a crafted `file:../...` value
-  // (possible via the legacy JSON upload mode) from deleting unrelated files.
-  if (removed?.videoUrl?.startsWith("file:")) {
+  // Best-effort cleanup of the underlying video file.
+  if (removed?.videoUrl?.startsWith("gcs:")) {
+    // New uploads → GCS Object Storage.
+    void deleteReelFile(removed.videoUrl.slice(4));
+  } else if (removed?.videoUrl?.startsWith("file:")) {
+    // Legacy on-disk uploads. Hard sanitize: take basename only and verify the
+    // resolved path stays strictly inside REELS_DIR (prevents `file:../...`).
     const safe = path.basename(removed.videoUrl.slice(5));
     if (safe && safe !== "." && safe !== "..") {
       const filePath = path.resolve(REELS_DIR, safe);
