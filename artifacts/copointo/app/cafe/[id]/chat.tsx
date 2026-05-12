@@ -37,6 +37,9 @@ interface MenuItem {
   beansRequired?: boolean;
   sizes?: { label: string; extraPrice: number }[];
   sizesRequired?: boolean;
+  originalPrice?: number | null;
+  promoBuyQty?: number | null;
+  promoGetQty?: number | null;
 }
 interface PriceTier { hours: number; price: number }
 interface Table {
@@ -85,6 +88,8 @@ interface OrderDraft {
   items: {
     id: string; name: string; price: number; qty: number; category?: string;
     selectedBean?: string; selectedSize?: string; sizeExtraPrice?: number;
+    originalPrice?: number;
+    promoBuyQty?: number; promoGetQty?: number;
   }[];
   type?: "dine" | "car";
   customerName?: string;
@@ -99,6 +104,8 @@ interface OrderDraft {
     selectedBean?: string;
     selectedSize?: string;
     sizeExtraPrice?: number;
+    originalPrice?: number;
+    promoBuyQty?: number; promoGetQty?: number;
   };
 }
 interface BookDraft {
@@ -622,6 +629,12 @@ export default function CafeChatScreen() {
         id: item.id, name: item.name, price: item.price, category: item.category,
         beans: item.beans, beansRequired: item.beansRequired,
         sizes: item.sizes, sizesRequired: item.sizesRequired,
+        ...(item.originalPrice && item.originalPrice > item.price
+          ? { originalPrice: item.originalPrice }
+          : {}),
+        ...(item.promoBuyQty && item.promoGetQty
+          ? { promoBuyQty: item.promoBuyQty, promoGetQty: item.promoGetQty }
+          : {}),
         ...cur,
       },
     }));
@@ -758,6 +771,12 @@ export default function CafeChatScreen() {
           qty,
           ...(pending.selectedBean ? { selectedBean: pending.selectedBean } : {}),
           ...(pending.selectedSize ? { selectedSize: pending.selectedSize, sizeExtraPrice: pending.sizeExtraPrice ?? 0 } : {}),
+          ...(pending.originalPrice
+            ? { originalPrice: +(pending.originalPrice + (pending.sizeExtraPrice ?? 0)).toFixed(3) }
+            : {}),
+          ...(pending.promoBuyQty && pending.promoGetQty
+            ? { promoBuyQty: pending.promoBuyQty, promoGetQty: pending.promoGetQty }
+            : {}),
         });
         return arr;
       })();
@@ -888,12 +907,21 @@ export default function CafeChatScreen() {
   const submitOrder = async () => {
     setSubmitting(true);
     try {
-      const items = order.items.map(i => ({
-        name: i.name, qty: i.qty, price: i.price, category: i.category,
-        ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
-        ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
-        ...(typeof i.sizeExtraPrice === "number" ? { sizeExtraPrice: i.sizeExtraPrice } : {}),
-      }));
+      const items = order.items.map(i => {
+        const bonus = (i.promoBuyQty && i.promoGetQty)
+          ? Math.floor(i.qty / i.promoBuyQty) * i.promoGetQty
+          : 0;
+        return {
+          name: i.name, qty: i.qty, price: i.price, category: i.category,
+          ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
+          ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
+          ...(typeof i.sizeExtraPrice === "number" ? { sizeExtraPrice: i.sizeExtraPrice } : {}),
+          ...(i.originalPrice && i.originalPrice > i.price ? { originalPrice: i.originalPrice } : {}),
+          ...(i.promoBuyQty && i.promoGetQty
+            ? { promoBuyQty: i.promoBuyQty, promoGetQty: i.promoGetQty, bonusQty: bonus }
+            : {}),
+        };
+      });
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const body: any = {
         customerName: order.customerName,
@@ -1096,16 +1124,42 @@ export default function CafeChatScreen() {
   };
 
   // ── Compute summary helper ───────────────────────────────────
-  function currentOrderSummary(items: { name: string; qty: number; price: number; selectedBean?: string; selectedSize?: string }[]) {
+  function currentOrderSummary(items: {
+    name: string; qty: number; price: number;
+    selectedBean?: string; selectedSize?: string;
+    originalPrice?: number; promoBuyQty?: number; promoGetQty?: number;
+  }[]) {
     const lines: string[] = ["🛒 السلة الحالية:"];
     let total = 0;
+    let totalSavings = 0;
+    let totalBonus = 0;
     for (const i of items) {
       const bits: string[] = [];
       if (i.selectedBean) bits.push(`☕ ${i.selectedBean}`);
       if (i.selectedSize) bits.push(`📏 ${i.selectedSize}`);
       const variantSuffix = bits.length > 0 ? `  (${bits.join(" • ")})` : "";
-      lines.push(`• ${i.name}${variantSuffix} × ${i.qty} = ${fmtPrice(i.price * i.qty)}`);
-      total += i.price * i.qty;
+      const bonus = (i.promoBuyQty && i.promoGetQty)
+        ? Math.floor(i.qty / i.promoBuyQty) * i.promoGetQty
+        : 0;
+      const lineTotal = i.price * i.qty;
+      const oldLine = i.originalPrice && i.originalPrice > i.price
+        ? `(كان ${fmtPrice(i.originalPrice * i.qty)}) `
+        : "";
+      const bonusSuffix = bonus > 0
+        ? `\n   🎁 +${bonus} مجاني (الإجمالي ${i.qty + bonus} كوب بسعر ${i.qty})`
+        : "";
+      lines.push(`• ${i.name}${variantSuffix} × ${i.qty} = ${oldLine}${fmtPrice(lineTotal)}${bonusSuffix}`);
+      total += lineTotal;
+      if (i.originalPrice && i.originalPrice > i.price) {
+        totalSavings += (i.originalPrice - i.price) * i.qty;
+      }
+      totalBonus += bonus;
+    }
+    if (totalSavings > 0) {
+      lines.push(`💰 وفّرت من تخفيضات الكوفي: ${fmtPrice(totalSavings)}`);
+    }
+    if (totalBonus > 0) {
+      lines.push(`🎁 مشروبات مجانية إضافية: +${totalBonus}`);
     }
     lines.push(`الإجمالي: ${fmtPrice(total)}`);
     return lines.join("\n");

@@ -79,6 +79,10 @@ function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
   const variantBits: string[] = [];
   if (item.selectedBean) variantBits.push(`☕ ${item.selectedBean}`);
   if (item.selectedSize) variantBits.push(`📏 ${item.selectedSize}`);
+  const hasDiscount = item.originalPrice && item.originalPrice > item.price;
+  const bonusQty = (item.promoBuyQty && item.promoGetQty)
+    ? Math.floor(item.quantity / item.promoBuyQty) * item.promoGetQty
+    : 0;
   return (
     <View style={styles.cartItem}>
       <View style={styles.itemInfo}>
@@ -88,7 +92,26 @@ function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
             {variantBits.join("  •  ")}
           </Text>
         )}
-        <Text style={styles.itemPrice}>{item.price.toFixed(3)} OMR × {item.quantity}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {hasDiscount && (
+            <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textDecorationLine: "line-through", fontFamily: "Inter_500Medium" }}>
+              {item.originalPrice.toFixed(3)}
+            </Text>
+          )}
+          <Text style={styles.itemPrice}>{item.price.toFixed(3)} OMR × {item.quantity}</Text>
+          {hasDiscount && (
+            <View style={{ backgroundColor: "rgba(46,125,50,0.18)", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }}>
+              <Text style={{ fontSize: 9, color: SUCCESS, fontFamily: "Inter_700Bold" }}>
+                -{Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}%
+              </Text>
+            </View>
+          )}
+        </View>
+        {bonusQty > 0 && (
+          <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY, marginTop: 3 }}>
+            🎁 +{bonusQty} مجاني  •  الإجمالي {item.quantity + bonusQty} كوب
+          </Text>
+        )}
       </View>
       <View style={styles.qtyRow}>
         <TouchableOpacity style={styles.qtyBtn} onPress={onMinus}>
@@ -221,6 +244,25 @@ export default function CartScreen() {
   const discountAmount = +(cartTotal * discountPercent / 100).toFixed(3);
   const finalTotal     = Math.max(0, +(cartTotal - discountAmount - freeCoffeeDiscount).toFixed(3));
 
+  // Total savings from per-product discounts (originalPrice → price). This is
+  // already baked into `cartTotal` (since `price` is the discounted one), but
+  // we surface it as an "وفّرت" line so the customer sees the value of the
+  // cafe's in-product promos before any code/free-coffee is applied.
+  const productSavings = +cart.reduce((s, i) => {
+    if (i.originalPrice && i.originalPrice > i.price) {
+      return s + (i.originalPrice - i.price) * i.quantity;
+    }
+    return s;
+  }, 0).toFixed(3);
+
+  // Total bonus drinks the customer gets from "buy X get Y" promos.
+  const totalBonusQty = cart.reduce((s, i) => {
+    if (i.promoBuyQty && i.promoGetQty) {
+      return s + Math.floor(i.quantity / i.promoBuyQty) * i.promoGetQty;
+    }
+    return s;
+  }, 0);
+
   const applyCode = async () => {
     setDiscountErr("");
     const trimmed = discountCode.trim();
@@ -273,13 +315,22 @@ export default function CartScreen() {
         customerName,
         ...(customerNameEn ? { customerNameEn } : {}),
         customerPhone,
-        items: cart.map(i => ({
-          name: i.name, qty: i.quantity, price: i.price,
-          ...(i.category ? { category: i.category } : {}),
-          ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
-          ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
-          ...(typeof i.sizeExtraPrice === "number" ? { sizeExtraPrice: i.sizeExtraPrice } : {}),
-        })),
+        items: cart.map(i => {
+          const bonus = (i.promoBuyQty && i.promoGetQty)
+            ? Math.floor(i.quantity / i.promoBuyQty) * i.promoGetQty
+            : 0;
+          return {
+            name: i.name, qty: i.quantity, price: i.price,
+            ...(i.category ? { category: i.category } : {}),
+            ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
+            ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
+            ...(typeof i.sizeExtraPrice === "number" ? { sizeExtraPrice: i.sizeExtraPrice } : {}),
+            ...(i.originalPrice && i.originalPrice > i.price ? { originalPrice: i.originalPrice } : {}),
+            ...(i.promoBuyQty && i.promoGetQty
+              ? { promoBuyQty: i.promoBuyQty, promoGetQty: i.promoGetQty, bonusQty: bonus }
+              : {}),
+          };
+        }),
         total: cartTotal,
         type: isDine ? "dine" : "car",
         source: "direct",
@@ -589,18 +640,46 @@ export default function CartScreen() {
             {/* Order summary */}
             <View style={styles.summaryBox}>
               <Text style={styles.summaryBoxTitle}>📋  تفاصيل الطلب</Text>
-              {cart.map(i => (
-                <View key={i.id} style={styles.summaryRow}>
-                  <Text style={styles.summaryItem}>{i.name}</Text>
-                  <Text style={styles.summaryQty}>×{i.quantity}</Text>
-                  <Text style={styles.summaryPrice}>{(i.price * i.quantity).toFixed(3)} OMR</Text>
-                </View>
-              ))}
+              {cart.map(i => {
+                const bonus = (i.promoBuyQty && i.promoGetQty)
+                  ? Math.floor(i.quantity / i.promoBuyQty) * i.promoGetQty
+                  : 0;
+                const hasDisc = i.originalPrice && i.originalPrice > i.price;
+                return (
+                  <View key={i.id} style={[styles.summaryRow, { flexWrap: "wrap" }]}>
+                    <Text style={styles.summaryItem}>
+                      {i.name}
+                      {bonus > 0 ? `  🎁 +${bonus} مجاني` : ""}
+                    </Text>
+                    <Text style={styles.summaryQty}>×{i.quantity}{bonus > 0 ? ` (+${bonus})` : ""}</Text>
+                    <View style={{ alignItems: "flex-end" }}>
+                      {hasDisc && (
+                        <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", textDecorationLine: "line-through", fontFamily: "Inter_500Medium" }}>
+                          {(i.originalPrice! * i.quantity).toFixed(3)}
+                        </Text>
+                      )}
+                      <Text style={styles.summaryPrice}>{(i.price * i.quantity).toFixed(3)} OMR</Text>
+                    </View>
+                  </View>
+                );
+              })}
               <View style={styles.summaryDivider} />
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryItem}>المجموع الفرعي</Text>
                 <Text style={styles.summaryPrice}>{cartTotal.toFixed(3)} OMR</Text>
               </View>
+              {productSavings > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryItem, { color: SUCCESS }]}>وفّرت من تخفيضات الكوفي</Text>
+                  <Text style={[styles.summaryPrice, { color: SUCCESS }]}>− {productSavings.toFixed(3)} OMR</Text>
+                </View>
+              )}
+              {totalBonusQty > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryItem, { color: PRIMARY }]}>🎁 مشروبات مجانية (عرض اشترِ X احصل على Y)</Text>
+                  <Text style={[styles.summaryPrice, { color: PRIMARY }]}>+{totalBonusQty} مجاناً</Text>
+                </View>
+              )}
               {discountPercent > 0 && (
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryItem, { color: SUCCESS }]}>خصم ({discountPercent}%)</Text>

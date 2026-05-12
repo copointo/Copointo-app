@@ -151,6 +151,12 @@ export default function OrderScreen() {
       category: item.category,
       ...(bean ? { selectedBean: bean } : {}),
       ...(size ? { selectedSize: size.label, sizeExtraPrice: size.extraPrice } : {}),
+      ...(item.originalPrice && item.originalPrice > item.price
+        ? { originalPrice: +(item.originalPrice + (size?.extraPrice ?? 0)).toFixed(3) }
+        : {}),
+      ...(item.promoBuyQty && item.promoGetQty
+        ? { promoBuyQty: item.promoBuyQty, promoGetQty: item.promoGetQty }
+        : {}),
     });
   };
 

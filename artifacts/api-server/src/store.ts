@@ -78,6 +78,16 @@ export interface Order {
     selectedSize?: string;
     /** Snapshot of the size's extraPrice at the moment of order (already included in `price`). */
     sizeExtraPrice?: number;
+    /** Snapshot of menu item's originalPrice (the price BEFORE the cafe's
+     *  in-product discount). Used to render strikethrough in invoices and
+     *  total savings. */
+    originalPrice?: number;
+    /** Snapshot of menu item's "buy X get Y" promo, used to render the
+     *  freebie line on the invoice. bonusQty (below) is the derived number
+     *  of free units the customer received. */
+    promoBuyQty?: number;
+    promoGetQty?: number;
+    bonusQty?: number;
   }[];
   subtotal?: number;
   discountCode?: string;

@@ -3212,7 +3212,17 @@ async function printOrderInvoice(
     const variantNote = variantBits.length > 0
       ? `<div style="margin-top:3px;color:#7a5a2e;font-size:11px">${variantBits.join(" • ")}</div>`
       : "";
-    return `<tr><td>${it.name}${variantNote}${freeNote}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`;
+    const hasOrigPrice = Number(it.originalPrice) > 0 && Number(it.originalPrice) > Number(it.price);
+    const oldPriceCell = hasOrigPrice
+      ? `<div style="font-size:10px;color:#999;text-decoration:line-through">${(Number(it.originalPrice) * it.qty).toFixed(3)}</div>`
+      : "";
+    const promoNote = (Number(it.bonusQty) > 0)
+      ? `<div style="margin-top:3px;color:#b8860b;font-weight:bold;font-size:11px">🎁 +${it.bonusQty} مجاني (عرض اشترِ ${it.promoBuyQty} احصل على ${it.promoGetQty}) — الإجمالي ${Number(it.qty) + Number(it.bonusQty)} كوب</div>`
+      : "";
+    const qtyCell = (Number(it.bonusQty) > 0)
+      ? `×${it.qty} <span style="color:#b8860b">(+${it.bonusQty})</span>`
+      : `×${it.qty}`;
+    return `<tr><td>${it.name}${variantNote}${promoNote}${freeNote}</td><td style="text-align:center">${qtyCell}</td><td style="text-align:left">${oldPriceCell}${(it.price * it.qty).toFixed(3)}</td></tr>`;
   }).join("");
   const isDirect = o.source === "direct";
   const where = isDirect

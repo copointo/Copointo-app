@@ -254,6 +254,15 @@ export interface CartItem {
   selectedSize?: string;
   /** Snapshot of the size's extraPrice (already added into `price`). */
   sizeExtraPrice?: number;
+  /** Snapshot of menu item's originalPrice when this line was added — used to
+   *  show "before/after discount" strikethrough in cart, invoice and chat
+   *  summary. Only set when the menu item actually had a discount. */
+  originalPrice?: number;
+  /** Snapshot of menu item's "buy X get Y" promo, used to derive how many
+   *  bonus units the customer should receive based on `quantity`.
+   *  bonusQty = floor(quantity / promoBuyQty) * promoGetQty. */
+  promoBuyQty?: number;
+  promoGetQty?: number;
 }
 
 interface AppContextType {
