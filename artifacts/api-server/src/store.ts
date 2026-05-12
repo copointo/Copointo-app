@@ -680,6 +680,99 @@ export function purgeUserData(id: string): boolean {
   return true;
 }
 
+// Hard-delete a cafe and EVERYTHING that references it. Returns true on
+// success, false if no cafe matches the given id. Caller is responsible for
+// best-effort deletion of reel video files (it should snapshot the cafe's
+// reel videoUrls BEFORE calling this so it still has the keys to delete).
+//
+// After this returns the cafe is invisible everywhere — menus, tables,
+// orders, bookings, invoices, expenses, inventory, discount codes, reels
+// (+ likes/comments/views), cafe-views, ratings, gift vouchers, chat
+// info, invoice templates, and cafe-targeted reports are all gone. The
+// cafe's name/owner-phone are not subject to a uniqueness constraint
+// (none is enforced on POST /admin/cafes), so the same name+phone can
+// always register again with a brand-new id and zero residual data.
+//
+// Free-coffee rewards earned at the deleted cafe are kept in
+// `freeCoffees` (they belong to the customer, not the cafe) but their
+// `earnedAtCafeId` / `redeemedAtCafeId` fields are cleared so the
+// mobile redeem flow doesn't try to validate against a non-existent cafe.
+export function purgeCafeData(id: string): boolean {
+  const idx = cafes.findIndex(c => c.id === id);
+  if (idx === -1) return false;
+  cafes.splice(idx, 1);
+
+  // Snapshot reel ids first so we can cascade-clean their child rows.
+  const reelIds = new Set<string>();
+  for (let i = reels.length - 1; i >= 0; i--) {
+    if (reels[i]!.cafeId === id) {
+      reelIds.add(reels[i]!.id);
+      reels.splice(i, 1);
+    }
+  }
+  for (let i = reelLikes.length - 1; i >= 0; i--) {
+    if (reelIds.has(reelLikes[i]!.reelId)) reelLikes.splice(i, 1);
+  }
+  for (let i = reelComments.length - 1; i >= 0; i--) {
+    if (reelIds.has(reelComments[i]!.reelId)) reelComments.splice(i, 1);
+  }
+  for (let i = reelViews.length - 1; i >= 0; i--) {
+    if (reelIds.has(reelViews[i]!.reelId)) reelViews.splice(i, 1);
+  }
+
+  // Cafe-scoped collections — straight purge by cafeId.
+  const purgeBy = <T extends { cafeId?: string }>(arr: T[]) => {
+    for (let i = arr.length - 1; i >= 0; i--) {
+      if (arr[i]!.cafeId === id) arr.splice(i, 1);
+    }
+  };
+  purgeBy(menuItems);
+  purgeBy(tables);
+  purgeBy(orders);
+  purgeBy(bookings);
+  purgeBy(chatInfos);
+  purgeBy(invoices);
+  purgeBy(cafeViews);
+  purgeBy(discountCodes);
+  purgeBy(expenses);
+  purgeBy(inventoryItems);
+  purgeBy(cafeRatings);
+  purgeBy(giftVouchers);
+
+  // invoiceTemplates uses cafeId but the row id is `${cafeId}|${type}`,
+  // so a straight cafeId scan still works.
+  for (let i = invoiceTemplates.length - 1; i >= 0; i--) {
+    if (invoiceTemplates[i]!.cafeId === id) invoiceTemplates.splice(i, 1);
+  }
+
+  // Cafe-targeted reports (kind === "cafe") only — keep generic problem
+  // reports unchanged.
+  for (let i = reports.length - 1; i >= 0; i--) {
+    const r = reports[i]!;
+    if (r.kind === "cafe" && r.cafeId === id) reports.splice(i, 1);
+  }
+
+  // Customer-owned loyalty rewards: don't delete (they belong to the
+  // customer), but unlink them from the deleted cafe so the mobile
+  // redeem flow can't accidentally hit a stale id.
+  for (const fc of freeCoffees) {
+    if (fc.earnedAtCafeId === id) {
+      fc.earnedAtCafeId = null;
+      fc.earnedAtCafeName = null;
+    }
+    if (fc.redeemedAtCafeId === id) {
+      fc.redeemedAtCafeId = null;
+      // The redemption order itself was just purged from `orders`, so the
+      // pointer would dangle — clear it too so nothing in the system
+      // references a deleted cafe's order.
+      fc.redeemedOrderId = null;
+    }
+  }
+
+  persistStore();
+  return true;
+}
+
 export function persistStore() {
   if (saveTimer) return;
   saveTimer = setTimeout(() => {

@@ -1,10 +1,18 @@
 import { Router } from "express";
+import path from "node:path";
+import fs from "node:fs";
 import {
   cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports,
-  purgeUserData,
+  purgeUserData, purgeCafeData, reels,
   type Cafe, type Broadcast, type ChatMsg, type Report,
 } from "../store";
+import { deleteReelFile } from "../lib/objectStorage";
 import { geocodeAddress } from "../utils/geocode";
+
+// Same on-disk reels folder used by the cafe-dashboard upload route.
+// Kept here so the super-admin "delete cafe" path can clean up legacy
+// `file:` reel uploads without round-tripping through the cafe routes.
+const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
 
 // Special "sender id" used when the super-admin direct-messages a user.
 // The mobile app recognizes this id and renders the conversation as
@@ -133,10 +141,42 @@ router.patch("/cafes/:id", async (req, res): Promise<any> => {
 });
 
 // ── DELETE /api/admin/cafes/:id ────────────
+// Super-admin permanently deletes a cafe AND every record that references
+// it: menu, tables, orders, bookings, invoices, expenses, inventory,
+// discount codes, reels (+ likes/comments/views & their video files),
+// chat info, invoice templates, gift vouchers, ratings, cafe-views, and
+// cafe-targeted reports. After this the cafe leaves no trace and the same
+// owner phone or cafe name is free to register again as a fresh cafe with
+// a brand-new id and zero residual data.
 router.delete("/cafes/:id", (req, res) => {
-  const idx = cafes.findIndex(c => c.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Cafe not found" });
-  cafes.splice(idx, 1);
+  const id = req.params.id;
+  const cafe = cafes.find(c => c.id === id);
+  if (!cafe) return res.status(404).json({ error: "Cafe not found" });
+
+  // Snapshot reel video keys BEFORE the in-memory purge so we can still
+  // best-effort delete the underlying files (GCS objects + legacy on-disk
+  // uploads) after the rows are gone.
+  const reelVideoUrls: string[] = reels
+    .filter(r => r.cafeId === id)
+    .map(r => r.videoUrl);
+
+  const ok = purgeCafeData(id);
+  if (!ok) return res.status(404).json({ error: "Cafe not found" });
+
+  for (const url of reelVideoUrls) {
+    if (url?.startsWith("gcs:")) {
+      void deleteReelFile(url.slice(4));
+    } else if (url?.startsWith("file:")) {
+      const safe = path.basename(url.slice(5));
+      if (safe && safe !== "." && safe !== "..") {
+        const filePath = path.resolve(REELS_DIR, safe);
+        if (filePath.startsWith(path.resolve(REELS_DIR) + path.sep)) {
+          try { fs.unlinkSync(filePath); } catch { /* ignore */ }
+        }
+      }
+    }
+  }
+
   res.json({ success: true });
 });
 
