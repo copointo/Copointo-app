@@ -38,9 +38,20 @@ export function AuthModal({
   onClose: () => void;
   dismissible?: boolean;
 }) {
-  const { register, login, resetPasswordWithOtp } = useApp();
+  const { register, login, resetPasswordWithOtp, initialAuthStep, consumeInitialAuthStep } = useApp();
   const { t } = useT();
-  const [step, setStep] = useState<Step>("login");
+  const [step, setStep] = useState<Step>(initialAuthStep ?? "login");
+
+  // If the AppContext flagged a forced initial step (e.g. right after a
+  // permanent account-deletion the user should land on the "register" tab,
+  // not the default "login" tab), honour it once and then clear the flag so
+  // it doesn't override later auth-flow navigation.
+  useEffect(() => {
+    if (initialAuthStep) {
+      setStep(initialAuthStep);
+      consumeInitialAuthStep();
+    }
+  }, [initialAuthStep, consumeInitialAuthStep]);
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState("");
 

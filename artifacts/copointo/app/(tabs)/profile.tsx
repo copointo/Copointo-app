@@ -643,7 +643,11 @@ export default function ProfileScreen() {
                     return;
                   }
                   setDeleteOpen(false);
-                  Alert.alert(t("profile.deletedDoneTitle"), t("profile.deletedDoneMsg"));
+                  // No Alert here — the AuthGate will instantly re-render
+                  // because `user` is now null, and the AuthModal will
+                  // open straight on the "register-form" tab (flagged by
+                  // deleteAccount via initialAuthStep). Showing a blocking
+                  // Alert in between just delays that transition.
                 }}
                 activeOpacity={0.85}
               >

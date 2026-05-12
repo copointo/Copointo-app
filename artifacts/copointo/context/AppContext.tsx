@@ -292,6 +292,13 @@ interface AppContextType {
    *  phone number is freed so it can be used to register a brand-new
    *  account afterwards with different details. */
   deleteAccount: () => Promise<AuthResult>;
+  /** Initial step the AuthModal should open on (e.g. "register-form" right
+   *  after the user permanently deletes their account so they land on the
+   *  "create new account" tab instead of the default Login tab). The modal
+   *  reads it once on mount and then calls `consumeInitialAuthStep()` to
+   *  clear it so it doesn't override later auth flows. */
+  initialAuthStep: "login" | "register-form" | null;
+  consumeInitialAuthStep: () => void;
   registeredUsers: User[];
   friends: string[];
   addFriend: (userId: string) => void;
@@ -367,6 +374,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentUserIdRef = useRef<string | null>(null);
   useEffect(() => { currentUserIdRef.current = user?.id ?? null; }, [user?.id]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+  const [initialAuthStep, setInitialAuthStep] = useState<"login" | "register-form" | null>(null);
+  const consumeInitialAuthStep = useCallback(() => setInitialAuthStep(null), []);
   const [friends, setFriends] = useState<string[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<string[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<string[]>([]);
@@ -1086,7 +1095,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (cafeChatKeys.length) await AsyncStorage.multiRemove(cafeChatKeys);
     } catch {}
 
-    // Clear in-memory caches and sign out.
+    // Clear in-memory caches and sign out. Also flag the AuthModal to open
+    // on the "register-form" tab so the user is taken straight to the
+    // create-new-account screen (not the login tab) — they just deleted
+    // their account, the next intent is almost always to make a new one.
+    setInitialAuthStep("register-form");
     setUserState(null);
     setFriends([]);
     setIncomingRequests([]);
@@ -1248,6 +1261,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         resetPasswordWithOtp,
         logout,
         deleteAccount,
+        initialAuthStep,
+        consumeInitialAuthStep,
         registeredUsers,
         friends,
         addFriend,
