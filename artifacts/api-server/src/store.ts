@@ -590,6 +590,31 @@ async function flush() {
   }
 }
 
+// ─── Nuke EVERYTHING (super-admin reset) ────────────────────────────────
+// Empties every in-memory collection AND truncates the kv_store table so
+// the app starts from a clean slate. Used by the super-admin "reset all
+// data" endpoint when the platform owner wants to wipe users/cafes/orders/
+// leaderboard/etc and start fresh.
+//
+// Order matters: we clear the in-memory arrays FIRST so any concurrent
+// flush that races with the DB truncate writes back EMPTY arrays (not the
+// stale populated ones), and we also do the DB delete inside this same
+// function so callers can't forget it.
+export async function wipeAllData(): Promise<void> {
+  for (const key of COLLECTION_KEYS) {
+    const arr = COLLECTIONS[key]!;
+    arr.length = 0;
+    lastLoadedAt.set(key, Date.now());
+  }
+  try {
+    await db.delete(kvStoreTable);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn(`[store] wipeAllData DB delete failed: ${(e as Error).message}`);
+    throw e;
+  }
+}
+
 /** Debounced save — call from any mutating handler. Coalesces bursts. */
 // ─── Hard-purge a user and every owned/personal record ──────────────────
 // Shared between super-admin "delete user" and the mobile app's self-serve

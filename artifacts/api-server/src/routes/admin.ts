@@ -3,7 +3,7 @@ import path from "node:path";
 import fs from "node:fs";
 import {
   cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports,
-  purgeUserData, purgeCafeData, reels,
+  purgeUserData, purgeCafeData, reels, wipeAllData,
   type Cafe, type Broadcast, type ChatMsg, type Report,
 } from "../store";
 import { deleteReelFile } from "../lib/objectStorage";
@@ -178,6 +178,36 @@ router.delete("/cafes/:id", (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// ── POST /api/admin/wipe-everything ───────
+// DESTRUCTIVE super-admin reset: empties EVERY collection (users, cafes,
+// orders, bookings, leaderboard/usernameRegistry, friends, chats, reels,
+// invoices, reports, broadcasts, gift vouchers, free coffees — all of it)
+// in BOTH memory and the kv_store table, so the platform restarts clean.
+//
+// Guarded by a server-side bearer token that must equal `SESSION_SECRET`
+// (already set in env). The token NEVER appears in client code or logs;
+// the operator passes it manually as `Authorization: Bearer <token>`.
+//
+// There is no undo — this is meant for the platform owner only, e.g. a
+// fresh launch reset after testing.
+router.post("/wipe-everything", async (req, res): Promise<any> => {
+  const expected = process.env.SESSION_SECRET;
+  if (!expected) {
+    return res.status(500).json({ error: "SESSION_SECRET not configured" });
+  }
+  const auth = String(req.headers.authorization ?? "");
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!token || token !== expected) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    await wipeAllData();
+    return res.json({ success: true, wipedAt: new Date().toISOString() });
+  } catch (e) {
+    return res.status(500).json({ error: (e as Error).message });
+  }
 });
 
 // ── GET /api/admin/users ────────────────────
