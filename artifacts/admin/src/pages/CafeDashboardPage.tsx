@@ -10,7 +10,7 @@ import {
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
-  QrCode, Copy, Download, Share2,
+  QrCode, Copy, Download, Share2, Search,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -879,6 +879,11 @@ function FreeCoffeeModal({
 function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }) {
   const [items, setItems]           = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
+  // Quick-find search box: matches against the menu item name and (as a
+  // fallback) the description, case-insensitively. When the box is empty
+  // the full menu is shown. Categories with zero matches are hidden
+  // automatically because the grouping below filters by `visibleItems`.
+  const [search, setSearch]         = useState("");
   const [customerName, setCustomerName] = useState("");
   // Optional Copointo-Hub phone lookup. When the cashier types a phone, we
   // probe the server and (if matched) lock the player so loyalty points are
@@ -1063,12 +1068,52 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     return <Empty icon="📋" text="لا توجد منتجات في القائمة بعد. أضِف منتجات من تبويب «القائمة» أولاً." />;
   }
 
+  const q = search.trim().toLowerCase();
+  const visibleItems = q
+    ? items.filter(i => {
+        const name = String(i.name ?? "").toLowerCase();
+        const desc = String(i.description ?? "").toLowerCase();
+        return name.includes(q) || desc.includes(q);
+      })
+    : items;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
       {/* ── Right column: menu picker (2/3) ── */}
       <div className="lg:col-span-2 space-y-5">
+        {/* Quick search bar */}
+        <Card className="p-3">
+          <div className="relative">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="ابحث عن منتج بالاسم…"
+              className="w-full bg-background border border-border rounded-lg pr-9 pl-9 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/40"
+                aria-label="مسح البحث"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {q && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {visibleItems.length === 0
+                ? "لا توجد نتائج مطابقة"
+                : `${visibleItems.length} منتج مطابق`}
+            </p>
+          )}
+        </Card>
+
         {MENU_CATEGORIES.map(({ value: cat, label, Icon }) => {
-          const list = items.filter(i => i.category === cat);
+          const list = visibleItems.filter(i => i.category === cat);
           if (list.length === 0) return null;
           return (
             <Card key={cat} className="p-5">
