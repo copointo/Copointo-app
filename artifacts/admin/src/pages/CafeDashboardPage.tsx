@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import { Link } from "wouter";
+import copointoLogoUrl from "@/assets/copointo-logo.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -4823,6 +4824,18 @@ export default function CafeDashboardPage() {
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
       <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-border bg-card shrink-0">
+        {/* Copointo brand mark — appears on every cafe-dashboard URL so the
+            page is clearly identified as part of the Copointo platform
+            (not a standalone cafe site). Sits to the right of the cafe's
+            own logo+name in this RTL header. */}
+        <Link href="/" className="shrink-0" title="كوبوينتو / Copointo">
+          <img
+            src={copointoLogoUrl}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain"
+            alt="Copointo"
+          />
+        </Link>
+        <div className="hidden sm:block w-px h-7 bg-border shrink-0" />
         {cafe?.logo
           ? <img src={cafe.logo} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shrink-0" alt="" />
           : <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-muted flex items-center justify-center text-xl shrink-0">☕</div>}
@@ -5166,6 +5179,16 @@ export function ManagerAnalyticsPage() {
       {/* Top bar */}
       <header className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/10 to-card shrink-0 flex-wrap">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+          {/* Copointo brand mark — same treatment as the main cafe-dashboard
+              header so analytics pages are also clearly Copointo-branded. */}
+          <Link href="/" className="shrink-0" title="كوبوينتو / Copointo">
+            <img
+              src={copointoLogoUrl}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain"
+              alt="Copointo"
+            />
+          </Link>
+          <div className="hidden sm:block w-px h-5 bg-border" />
           <Link href={`/cafe/${cafeId}`}
             className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm shrink-0">
             <ArrowLeft size={18}/> <span className="hidden sm:inline">العودة للوحة الكوفي</span>
