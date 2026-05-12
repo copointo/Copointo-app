@@ -439,6 +439,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const uid = user.id;
     const cacheKey = `ban_cache:${uid}`;
     let cancelled = false;
+    // Counter for consecutive "exists:false" readings. We only kick a user
+    // out of their session after THREE consecutive confirmations spread over
+    // ~24 s, so a transient blip — e.g. an autoscale instance that hasn't
+    // yet pulled the latest `kv_store` row, or a redeploy mid-flush — can't
+    // accidentally log out a freshly-registered user. A single "exists:true"
+    // resets the counter.
+    let missCount = 0;
     // Prime from cache so a previously-banned user is gated INSTANTLY on
     // cold-start even before the first network poll resolves.
     AsyncStorage.getItem(cacheKey).then(raw => {
@@ -455,7 +462,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (cancelled || status === null) return; // network error → keep current state
       // Server hard-deleted this account (or DB was wiped) — kick the
       // device out of the zombie session and force a fresh registration.
+      // Require 3 consecutive confirmations to avoid spurious logout from
+      // autoscale-instance lag or transient DB read-after-write skew.
       if (!status.exists) {
+        missCount += 1;
+        if (missCount < 3) return;
         try { await AsyncStorage.removeItem("currentUser"); } catch {}
         try { await AsyncStorage.removeItem(cacheKey); } catch {}
         // Strip the dead user from the local `registeredUsers` cache too,
@@ -480,6 +491,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setInitialAuthStep("register-form");
         return;
       }
+      // Server confirmed user exists — reset the miss counter so a single
+      // good reading wipes out any prior transient misses.
+      missCount = 0;
       if (status.banned) {
         const reason = status.banReason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو";
         setBannedInfo({ reason });
@@ -510,38 +524,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (userData) {
         const parsed: User = JSON.parse(userData);
         setUserState(parsed);
-        // Zombie-session guard: if the server no longer has this user (e.g.
-        // the DB was wiped, or a super-admin hard-deleted them), the local
-        // session is stale — they appear "logged in" on this device but
-        // don't exist server-side, so they won't show in the super admin
-        // and any server-backed feature silently fails. Detect that case
-        // and force a clean logout so they land on the register screen and
-        // create a real account that actually reaches the server.
+        // Zombie-session detection now lives ENTIRELY in the periodic ban-
+        // poll useEffect (above), which requires 3 consecutive "exists:false"
+        // confirmations before kicking the user out. The previous one-shot
+        // check here was kicking freshly-registered users out on cold-start
+        // when an autoscale instance hadn't yet pulled their kv_store row.
+        // Best-effort: if user exists, refresh their server-side username/
+        // phone (game state etc) — fire-and-forget.
         fetchUserStatus(parsed.id).then(async status => {
-          if (!status) return; // network error → keep current state
-          if (!status.exists) {
-            try { await AsyncStorage.removeItem("currentUser"); } catch {}
-            // Also strip the dead user from the local `registeredUsers`
-            // cache so a fresh re-registration with the same phone /
-            // username doesn't collide with a stale cache entry.
-            try {
-              const rawList = await AsyncStorage.getItem("registeredUsers");
-              if (rawList) {
-                const list: User[] = JSON.parse(rawList);
-                const cleaned = list.filter(u => u.id !== parsed.id);
-                await AsyncStorage.setItem("registeredUsers", JSON.stringify(cleaned));
-                setRegisteredUsers(cleaned);
-              }
-            } catch {}
-            setUserState(null);
-            setFriends([]);
-            setIncomingRequests([]);
-            setOutgoingRequests([]);
-            setRejectionNotifications([]);
-            setActiveGameCafeIdState(null);
-            setInitialAuthStep("register-form");
-            return;
-          }
+          if (!status || !status.exists) return; // network error or zombie — leave to periodic guard
           // User exists server-side — make sure the row is fresh (username
           // / phone might have been updated locally). Fire-and-forget.
           syncUserToServer({

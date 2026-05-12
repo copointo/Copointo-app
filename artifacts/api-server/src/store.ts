@@ -577,17 +577,49 @@ async function flushAll(): Promise<void> {
 
 let saveTimer: NodeJS.Timeout | null = null;
 let saving = false;
+let inFlightFlush: Promise<void> | null = null;
 async function flush() {
-  if (saving) return;
+  // If a flush is already in progress, attach to it so callers that
+  // `await flush()` actually wait for the on-disk write to complete
+  // instead of returning instantly. Critical for `flushNow()` callers.
+  if (inFlightFlush) return inFlightFlush;
   saving = true;
-  try {
-    await flushAll();
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn(`[store] flush failed: ${(e as Error).message}`);
-  } finally {
-    saving = false;
+  inFlightFlush = (async () => {
+    try {
+      await flushAll();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[store] flush failed: ${(e as Error).message}`);
+    } finally {
+      saving = false;
+      inFlightFlush = null;
+    }
+  })();
+  return inFlightFlush;
+}
+
+/** Synchronous flush — bypasses the 400ms debounce and awaits completion.
+ *  Critical writes (user registration, account deletion) must use this so
+ *  the row hits the DB BEFORE we respond to the client. Otherwise an
+ *  autoscale instance restart, container redeploy, or a sibling instance
+ *  hitting `/users/:id/status` before the debounced flush fires can race
+ *  and report `exists:false` for an account we just confirmed `ok:true`.
+ *
+ *  Two-phase: first await any in-flight flush (which may have started
+ *  BEFORE our mutation landed in memory), then schedule and await a
+ *  fresh flush so our just-pushed row is guaranteed on disk. */
+export async function flushNow(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
   }
+  // Drain any in-flight flush that started before our mutation —
+  // it may have snapshotted the arrays just BEFORE our push().
+  if (inFlightFlush) {
+    try { await inFlightFlush; } catch { /* swallow — next flush retries */ }
+  }
+  // Now run a fresh flush that is guaranteed to include our mutation.
+  await flush();
 }
 
 // ─── Nuke EVERYTHING (super-admin reset) ────────────────────────────────

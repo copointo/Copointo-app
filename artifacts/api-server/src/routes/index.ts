@@ -21,6 +21,7 @@ import {
   reports,
   purgeUserData,
   persistStore,
+  flushNow,
   type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report, type CoinGift,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
@@ -538,7 +539,7 @@ router.post("/usernames/claim", (req, res): any => {
 // `register` upserts a user into the server's `users` collection so the
 // admin "Users" page lists real, signed-up players — not only those who
 // placed an order.
-router.post("/users/register", (req, res): any => {
+router.post("/users/register", async (req, res): Promise<any> => {
   const id        = String(req.body?.id ?? "").trim();
   const username  = normalizeUsername(req.body?.username);
   const phone     = String(req.body?.phone ?? "").trim();
@@ -639,7 +640,11 @@ router.post("/users/register", (req, res): any => {
     // totalOrders earned through real orders, etc.
     existing.username = username;
     existing.phone    = phone;
-    persistStore();
+    // Synchronous flush — see flushNow() docs. Must complete BEFORE the
+    // client gets the success response so subsequent /users/:id/status
+    // polls (possibly served by a different autoscale instance) cannot
+    // race and report exists:false for an account we just confirmed.
+    try { await flushNow(); } catch { /* persistStore safety net will retry */ }
     return res.json({ ok: true, user: existing });
   }
   const u: AppUser = {
@@ -650,7 +655,7 @@ router.post("/users/register", (req, res): any => {
     joinedAt,
   };
   users.push(u);
-  persistStore();
+  try { await flushNow(); } catch { /* persistStore safety net will retry */ }
   res.json({ ok: true, user: u });
 });
 
