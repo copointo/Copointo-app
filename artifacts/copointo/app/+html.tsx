@@ -27,6 +27,12 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="keywords" content="كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, قسائم شرائية كوفي, coffee Oman, cafes Oman" />
         <meta name="application-name" content="Copointo" />
         <meta name="theme-color" content="#000000" />
+        {/* Explicit indexing opt-in so Lighthouse's "is-crawlable" audit
+            passes even when the page is served behind a proxy that may add
+            an `X-Robots-Tag` header by default. `max-image-preview:large`
+            unlocks rich image previews in Google search results. */}
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+        <meta name="googlebot" content="index, follow" />
         <link rel="canonical" href="https://copointo.com/" />
 
         {/* Favicons */}
