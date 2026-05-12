@@ -447,6 +447,25 @@ export default function ProfileScreen() {
         {/* ── Edit fields ── */}
         <View style={styles.fieldsCard}>
           {/* Username */}
+          {/* Phone (read-only — set at registration, cannot be edited) */}
+          {!!user.phone && (
+            <>
+              <View style={styles.fieldRow}>
+                <View style={styles.fieldIcon}>
+                  <Feather name="phone" size={17} color={PRIMARY} />
+                </View>
+                <View style={styles.fieldText}>
+                  <Text style={styles.fieldLabel}>{t("profile.fieldPhone")}</Text>
+                  <Text style={[styles.fieldValue, { writingDirection: "ltr" }]} numberOfLines={1}>
+                    {user.phone}
+                  </Text>
+                </View>
+                <Feather name="lock" size={14} color="rgba(255,255,255,0.25)" />
+              </View>
+              <View style={styles.divider} />
+            </>
+          )}
+
           <TouchableOpacity
             style={styles.fieldRow}
             onPress={() => setModal("username")}
