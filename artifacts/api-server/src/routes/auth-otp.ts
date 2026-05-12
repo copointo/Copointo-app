@@ -35,9 +35,20 @@ const MAX_ATTEMPTS       = 5;
 const TOKEN_TTL_MS       = 10 * 60_000;  // 10 min to use the verified token
 
 function normalizePhone(raw: unknown): string {
-  const s = String(raw ?? "").trim().replace(/\s+/g, "");
+  let s = String(raw ?? "").trim().replace(/\s+/g, "");
   // Keep digits + leading "+". Strip everything else (parentheses, dashes …).
-  return s.replace(/(?!^\+)\D/g, "");
+  s = s.replace(/(?!^\+)\D/g, "");
+  if (!s) return "";
+  // International "00" prefix → "+".
+  if (s.startsWith("00")) s = "+" + s.slice(2);
+  // Already E.164.
+  if (s.startsWith("+")) return s;
+  // Bare "968XXXXXXXX" → add the "+".
+  if (s.startsWith("968") && s.length >= 11) return "+" + s;
+  // Default to Oman (+968) for short local numbers (8 digits typical OM mobile).
+  if (/^\d{7,9}$/.test(s)) return "+968" + s;
+  // Anything else (e.g. 11+ digits without "+") — assume already has CC.
+  return "+" + s;
 }
 
 function isPlausiblePhone(p: string): boolean {
