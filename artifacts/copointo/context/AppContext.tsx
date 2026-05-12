@@ -458,6 +458,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!status.exists) {
         try { await AsyncStorage.removeItem("currentUser"); } catch {}
         try { await AsyncStorage.removeItem(cacheKey); } catch {}
+        // Strip the dead user from the local `registeredUsers` cache too,
+        // so re-registering with the same phone/username won't be blocked
+        // by a stale local entry.
+        try {
+          const rawList = await AsyncStorage.getItem("registeredUsers");
+          if (rawList) {
+            const list: User[] = JSON.parse(rawList);
+            const cleaned = list.filter(u => u.id !== uid);
+            await AsyncStorage.setItem("registeredUsers", JSON.stringify(cleaned));
+            setRegisteredUsers(cleaned);
+          }
+        } catch {}
         setUserState(null);
         setFriends([]);
         setIncomingRequests([]);
@@ -509,6 +521,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (!status) return; // network error → keep current state
           if (!status.exists) {
             try { await AsyncStorage.removeItem("currentUser"); } catch {}
+            // Also strip the dead user from the local `registeredUsers`
+            // cache so a fresh re-registration with the same phone /
+            // username doesn't collide with a stale cache entry.
+            try {
+              const rawList = await AsyncStorage.getItem("registeredUsers");
+              if (rawList) {
+                const list: User[] = JSON.parse(rawList);
+                const cleaned = list.filter(u => u.id !== parsed.id);
+                await AsyncStorage.setItem("registeredUsers", JSON.stringify(cleaned));
+                setRegisteredUsers(cleaned);
+              }
+            } catch {}
             setUserState(null);
             setFriends([]);
             setIncomingRequests([]);
@@ -709,10 +733,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const raw = await AsyncStorage.getItem("registeredUsers");
         const users: User[] = raw ? JSON.parse(raw) : [];
-        if (users.some(u => u.phone === data.phone))
-          return { ok: false, error: "رقم الهاتف مسجّل مسبقاً" };
-        if (users.some(u => u.gameUsername.toLowerCase() === data.gameUsername.toLowerCase()))
-          return { ok: false, error: "يوزر اللعبة مستخدم مسبقاً" };
+        // NOTE: phone/username uniqueness is enforced authoritatively by the
+        // server (see /users/register). We deliberately do NOT pre-check the
+        // local `registeredUsers` cache here — that cache can hold stale
+        // entries from accounts the server has since hard-deleted (e.g. via
+        // a super-admin wipe), which would falsely block legitimate
+        // re-registrations with a "phone already registered" error even
+        // though the server is empty.
         const newUser: User = {
           ...data,
           id: `user_${Date.now()}`,
