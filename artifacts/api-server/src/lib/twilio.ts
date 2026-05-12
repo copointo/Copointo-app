@@ -47,6 +47,10 @@ export async function getTwilioClient() {
 }
 
 export async function getTwilioFromPhoneNumber(): Promise<string | undefined> {
+  // Allow overriding the connector's stored From number via env secret.
+  // Useful when the connector form value is stale or wrong.
+  const envOverride = process.env.TWILIO_FROM_NUMBER?.trim();
+  if (envOverride) return envOverride;
   const s = await fetchCredentials();
   return s.phone_number;
 }
