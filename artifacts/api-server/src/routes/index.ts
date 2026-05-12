@@ -19,6 +19,7 @@ import {
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
   reports,
+  purgeUserData,
   persistStore,
   type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report, type CoinGift,
 } from "../store";
@@ -683,6 +684,32 @@ router.get("/users/:id/status", (req, res): any => {
     banReason: u.banReason ?? null,
     bannedAt:  u.bannedAt  ?? null,
   });
+});
+
+// ─── User self-delete (mobile profile → "delete account permanently") ───
+// Hard-purges the user and every personal record (game progress, free
+// coffees, reel engagement, chats, friend graph, reports, ratings). Cafe
+// business records (orders, bookings) are kept but anonymized so revenue
+// history stays intact. The phone is freed so the same number can register
+// fresh as a brand-new account afterwards.
+//
+// Authorization: the caller must echo back the phone currently on file for
+// `:id`. The mobile app already has the phone in its local user state, but
+// requiring it here prevents an attacker who only knows a victim's id from
+// nuking their account.
+router.post("/users/:id/delete", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ ok: false, error: "المستخدم غير موجود" });
+  const norm = (s: unknown) => String(s ?? "").replace(/\D+/g, "");
+  const provided = norm(req.body?.phone);
+  if (!provided || provided !== norm(u.phone)) {
+    return res.status(403).json({ ok: false, error: "تعذّر التحقق من ملكية الحساب" });
+  }
+  const ok = purgeUserData(id);
+  if (!ok) return res.status(404).json({ ok: false, error: "المستخدم غير موجود" });
+  res.json({ ok: true });
 });
 
 // ─── User self-reset ─────────────────────────────────────────────────────

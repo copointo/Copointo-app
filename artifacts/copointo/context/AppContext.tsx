@@ -286,6 +286,12 @@ interface AppContextType {
    *  device-local) and signs the user in. */
   resetPasswordWithOtp: (otpToken: string, newPassword: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  /** Permanently delete the current account from the server (game stats,
+   *  free coffees, reel engagement, chats, friends, reports, ratings) and
+   *  wipe every local AsyncStorage key tied to it, then sign out. The
+   *  phone number is freed so it can be used to register a brand-new
+   *  account afterwards with different details. */
+  deleteAccount: () => Promise<AuthResult>;
   registeredUsers: User[];
   friends: string[];
   addFriend: (userId: string) => void;
@@ -1007,6 +1013,91 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveGameCafeIdState(null);
   }, []);
 
+  // Self-serve hard delete. We MUST hit the server first so that:
+  //  • their record + game progress is purged from the global roster (other
+  //    devices stop seeing them on the leaderboard within their next refresh)
+  //  • their phone is freed in usernameRegistry / users so they can register
+  //    fresh on the same number.
+  // Only after that do we wipe device-local state and log them out.
+  const deleteAccount = useCallback(async (): Promise<AuthResult> => {
+    if (!user) return { ok: false, error: "لم يتم تسجيل الدخول" };
+    try {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(user.id)}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: user.phone }),
+      });
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok || !data?.ok) {
+        return { ok: false, error: data?.error || "تعذّر حذف الحساب من الخادم" };
+      }
+    } catch {
+      return { ok: false, error: "تعذّر الاتصال بالخادم — تحقّق من الإنترنت" };
+    }
+
+    // Drop this user from the local registeredUsers cache so the
+    // leaderboard/friends UI on this device doesn't keep showing them.
+    try {
+      const raw = await AsyncStorage.getItem("registeredUsers");
+      const list: User[] = raw ? JSON.parse(raw) : [];
+      const next = list.filter(u => u.id !== user.id);
+      await AsyncStorage.setItem("registeredUsers", JSON.stringify(next));
+      setRegisteredUsers(next);
+    } catch {}
+
+    // Wipe per-user local data: friends list, friend requests, active café,
+    // chat hydration markers, savedOrderInfo, etc.
+    const perUserKeys = [
+      `friends:${user.id}`,
+      `friend_requests_in:${user.id}`,
+      `friend_requests_out:${user.id}`,
+      `activeGameCafeId:${user.id}`,
+    ];
+    try { await AsyncStorage.multiRemove(perUserKeys); } catch {}
+
+    // Wipe owned/equipped/inventory slots so the next account on this
+    // device starts truly fresh (mirrors `resetAccount` behaviour without
+    // re-hitting the server reset endpoint we just superseded).
+    const localKeys = [
+      "currentUser", "cart", "orderHistory", "likedVideos",
+      "copointo_frames_owned_v3", "copointo_badges_owned_v3",
+      "copointo_backgrounds_owned_v3", "copointo_username_colors_owned_v1",
+      "copointo_text_styles_owned_v1", "copointo_characters_owned_v1",
+      "copointo_frame_equipped_v3", "copointo_badge_equipped_v3",
+      "copointo_background_equipped_v3", "copointo_username_color_equipped_v1",
+      "copointo_text_style_equipped_v1", "copointo_character_equipped_v1",
+      "copointo_gift_inventory_v1", "copointo_coins_balance_v1",
+      "copointo_coins_grant_190k_v1", "copointo_level_rewards_acked_v1",
+      // PII-bearing local caches: pre-filled order info (name+phone+location),
+      // per-user chat threads / unread / groups (MessagesContext).
+      "copointo_saved_order_info_v1",
+      `copointo_chats_v2:${user.id}`,
+      `copointo_unread_v2:${user.id}`,
+      `copointo_groups_v2:${user.id}`,
+    ];
+    try { await AsyncStorage.multiRemove(localKeys); } catch {}
+
+    // Per-cafe chat-bot state lives in keys we don't know up-front
+    // (`copointo_chat_state_v1_<cafeId>`). Sweep them all so no order/booking
+    // draft containing the user's name+phone survives the delete.
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      const cafeChatKeys = allKeys.filter(k => k.startsWith("copointo_chat_state_v1_"));
+      if (cafeChatKeys.length) await AsyncStorage.multiRemove(cafeChatKeys);
+    } catch {}
+
+    // Clear in-memory caches and sign out.
+    setUserState(null);
+    setFriends([]);
+    setIncomingRequests([]);
+    setOutgoingRequests([]);
+    setRejectionNotifications([]);
+    incomingMap.current = new Map();
+    outgoingMap.current = new Map();
+    setActiveGameCafeIdState(null);
+    return { ok: true };
+  }, [user]);
+
   const addToCart = useCallback((item: Omit<CartItem, "quantity">) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.id === item.id);
@@ -1156,6 +1247,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         login,
         resetPasswordWithOtp,
         logout,
+        deleteAccount,
         registeredUsers,
         friends,
         addFriend,

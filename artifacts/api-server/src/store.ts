@@ -591,6 +591,95 @@ async function flush() {
 }
 
 /** Debounced save — call from any mutating handler. Coalesces bursts. */
+// ─── Hard-purge a user and every owned/personal record ──────────────────
+// Shared between super-admin "delete user" and the mobile app's self-serve
+// "delete my account" button. Returns true on success, false if no user
+// matches the given id. Anonymizes business records (orders, bookings,
+// cafeViews) so cafe revenue history is preserved without leaking PII;
+// frees the gameUsername so the same phone can re-register fresh.
+export function purgeUserData(id: string): boolean {
+  const idx = users.findIndex(u => u.id === id);
+  if (idx === -1) return false;
+  const phone = users[idx]!.phone;
+  const norm  = (s: string) => String(s ?? "").replace(/\D+/g, "");
+  const phoneN = norm(phone);
+
+  users.splice(idx, 1);
+
+  for (let i = usernameRegistry.length - 1; i >= 0; i--) {
+    if (usernameRegistry[i]!.userId === id) usernameRegistry.splice(i, 1);
+  }
+  for (let i = friendRequests.length - 1; i >= 0; i--) {
+    const fr = friendRequests[i]!;
+    if (fr.fromUserId === id || fr.toUserId === id) friendRequests.splice(i, 1);
+  }
+  for (let i = friendships.length - 1; i >= 0; i--) {
+    const f = friendships[i]!;
+    if (f.a === id || f.b === id) friendships.splice(i, 1);
+  }
+  for (let i = chatMessages.length - 1; i >= 0; i--) {
+    const m = chatMessages[i]!;
+    const inFriendScope = m.kind === "friend" && m.scope.split("|").includes(id);
+    if (m.senderId === id || inFriendScope) {
+      chatMessages.splice(i, 1);
+      continue;
+    }
+    if (Array.isArray(m.seenBy) && m.seenBy.includes(id)) {
+      m.seenBy = m.seenBy.filter(x => x !== id);
+    }
+  }
+  for (let i = reelLikes.length - 1; i >= 0; i--) {
+    if (reelLikes[i]!.userId === id || reelLikes[i]!.userId === phone) reelLikes.splice(i, 1);
+  }
+  for (let i = reelComments.length - 1; i >= 0; i--) {
+    if (reelComments[i]!.userId === id || reelComments[i]!.userId === phone) reelComments.splice(i, 1);
+  }
+  for (let i = reelViews.length - 1; i >= 0; i--) {
+    if (reelViews[i]!.userId === id || reelViews[i]!.userId === phone) reelViews.splice(i, 1);
+  }
+  for (let i = coinGifts.length - 1; i >= 0; i--) {
+    if (coinGifts[i]!.userId === id) coinGifts.splice(i, 1);
+  }
+  for (let i = cafeRatings.length - 1; i >= 0; i--) {
+    if (cafeRatings[i]!.userId === id) cafeRatings.splice(i, 1);
+  }
+  for (let i = freeCoffees.length - 1; i >= 0; i--) {
+    if (norm(freeCoffees[i]!.userPhone) === phoneN) freeCoffees.splice(i, 1);
+  }
+  for (let i = reports.length - 1; i >= 0; i--) {
+    const r = reports[i]!;
+    if (r.reporterUserId === id || norm(r.phone) === phoneN) reports.splice(i, 1);
+  }
+  // Drop gift vouchers where this user is sender OR recipient (PII: names + phones).
+  for (let i = giftVouchers.length - 1; i >= 0; i--) {
+    const g = giftVouchers[i]!;
+    if (norm(g.senderPhone) === phoneN || norm(g.recipientPhone) === phoneN) {
+      giftVouchers.splice(i, 1);
+    }
+  }
+  for (const v of cafeViews) {
+    if (v.userId === id || (v.userPhone && norm(v.userPhone) === phoneN)) {
+      v.userId = undefined;
+      v.userPhone = undefined;
+    }
+  }
+  for (const o of orders) {
+    if (o.userId === id || norm(o.customerPhone) === phoneN) {
+      o.userId = undefined;
+      o.customerName  = "مستخدم محذوف";
+      o.customerPhone = "";
+    }
+  }
+  for (const b of bookings) {
+    if (norm(b.customerPhone) === phoneN) {
+      b.customerName  = "مستخدم محذوف";
+      b.customerPhone = "";
+    }
+  }
+  persistStore();
+  return true;
+}
+
 export function persistStore() {
   if (saveTimer) return;
   saveTimer = setTimeout(() => {

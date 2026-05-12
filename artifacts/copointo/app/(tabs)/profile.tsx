@@ -226,13 +226,16 @@ function RanksModal({
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const r = useResponsive();
-  const { user, setUser, logout, friends, registeredUsers } = useApp();
+  const { user, setUser, logout, deleteAccount, friends, registeredUsers } = useApp();
   const router = useRouter();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const { t } = useT();
+  const { t, dir } = useT();
 
   const [authOpen,    setAuthOpen]    = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen]   = useState(false);
+  const [deleteText, setDeleteText]   = useState("");
+  const [deleting, setDeleting]       = useState(false);
   const { setCoins } = useCoins();
   const [modal, setModal] = useState<null | "username" | "password">(null);
   const [ranksOpen, setRanksOpen] = useState(false);
@@ -532,6 +535,16 @@ export default function ProfileScreen() {
           <Feather name="log-out" size={17} color={DANGER} />
           <Text style={styles.logoutText}>{t("profile.logout")}</Text>
         </TouchableOpacity>
+
+        {/* ── Delete account permanently ── */}
+        <TouchableOpacity
+          style={styles.deleteAcctBtn}
+          onPress={() => { setDeleteText(""); setDeleteOpen(true); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="trash-2" size={17} color={DANGER} />
+          <Text style={styles.deleteAcctText}>{t("profile.deleteAccount")}</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Username modal */}
@@ -571,6 +584,77 @@ export default function ProfileScreen() {
         onClose={() => setConfirmOpen(false)}
         onConfirm={async () => { setConfirmOpen(false); await logout(); }}
       />
+
+      {/* Delete-account confirmation */}
+      <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => !deleting && setDeleteOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <View style={styles.warnIcon}>
+                <Feather name="trash-2" size={26} color={DANGER} />
+              </View>
+              <Text style={styles.modalTitle}>{t("profile.deleteConfirmTitle")}</Text>
+              <Text style={[styles.confirmSub, { textAlign: dir === "rtl" ? "right" : "left" }]}>
+                {t("profile.deleteConfirmMsg")}
+              </Text>
+              <Text style={[styles.confirmSub, { color: DANGER, marginTop: 4 }]}>
+                {t("profile.deleteConfirmHint")}
+              </Text>
+              <TextInput
+                value={deleteText}
+                onChangeText={setDeleteText}
+                placeholder={t("profile.deleteConfirmKeyword")}
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                editable={!deleting}
+                autoCapitalize="characters"
+                style={{
+                  width: "100%",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                  borderWidth: 1, borderColor: `${DANGER}55`,
+                  borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14,
+                  color: "#FFF", fontFamily: "Inter_600SemiBold",
+                  textAlign: "center", marginTop: 8,
+                }}
+              />
+            </View>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => !deleting && setDeleteOpen(false)}
+                activeOpacity={0.85}
+                disabled={deleting}
+              >
+                <Text style={styles.cancelText}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.saveBtn,
+                  { backgroundColor: DANGER, opacity:
+                      deleting || deleteText.trim().toUpperCase() !== t("profile.deleteConfirmKeyword").toUpperCase() ? 0.5 : 1 },
+                ]}
+                disabled={deleting || deleteText.trim().toUpperCase() !== t("profile.deleteConfirmKeyword").toUpperCase()}
+                onPress={async () => {
+                  setDeleting(true);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                  const res = await deleteAccount();
+                  setDeleting(false);
+                  if (!res.ok) {
+                    Alert.alert(t("profile.deleteFailed"), res.error || "");
+                    return;
+                  }
+                  setDeleteOpen(false);
+                  Alert.alert(t("profile.deletedDoneTitle"), t("profile.deletedDoneMsg"));
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.saveText}>
+                  {deleting ? t("profile.deleting") : t("profile.deleteConfirmBtn")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Ranks journey */}
       <RanksModal
@@ -738,6 +822,15 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: 16, marginTop: 4,
   },
   logoutText: { fontSize: 15, fontFamily: "Inter_700Bold", color: DANGER },
+
+  // Delete account permanently (destructive — sits below logout)
+  deleteAcctBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: "transparent",
+    borderWidth: 1, borderColor: `${DANGER}80`, borderStyle: "dashed",
+    paddingVertical: 14, borderRadius: 16, marginTop: 10, marginBottom: 6,
+  },
+  deleteAcctText: { fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
 
   // Support
   supportBtn: {

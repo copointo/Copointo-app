@@ -1,8 +1,7 @@
 import { Router } from "express";
 import {
-  cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports, usernameRegistry,
-  orders, bookings, cafeViews, freeCoffees, friendRequests, friendships,
-  reelLikes, reelComments, reelViews, coinGifts, cafeRatings,
+  cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports,
+  purgeUserData,
   type Cafe, type Broadcast, type ChatMsg, type Report,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
@@ -154,102 +153,8 @@ router.get("/users", (_req, res) => {
 // "مستخدم محذوف" and customerPhone is cleared. This is different from
 // banning, which keeps everything but blocks login.
 router.delete("/users/:id", (req, res): any => {
-  const id  = req.params.id;
-  const idx = users.findIndex(u => u.id === id);
-  if (idx === -1) return res.status(404).json({ error: "User not found" });
-  const phone = users[idx]!.phone;
-  const norm  = (s: string) => String(s ?? "").replace(/\D+/g, "");
-  const phoneN = norm(phone);
-
-  // 1) Remove the user record itself.
-  users.splice(idx, 1);
-
-  // 2) Free the gameUsername so anyone else can claim it.
-  for (let i = usernameRegistry.length - 1; i >= 0; i--) {
-    if (usernameRegistry[i]!.userId === id) usernameRegistry.splice(i, 1);
-  }
-
-  // 3) Drop social graph: friend requests + friendships in either direction.
-  for (let i = friendRequests.length - 1; i >= 0; i--) {
-    const fr = friendRequests[i]!;
-    if (fr.fromUserId === id || fr.toUserId === id) friendRequests.splice(i, 1);
-  }
-  for (let i = friendships.length - 1; i >= 0; i--) {
-    const f = friendships[i]!;
-    if (f.a === id || f.b === id) friendships.splice(i, 1);
-  }
-
-  // 4) Drop chats: messages sent by them + any 1:1 conversation involving
-  //    them (scope contains their id). Group messages from other senders
-  //    in groups they belonged to are kept (the group lives on for others).
-  for (let i = chatMessages.length - 1; i >= 0; i--) {
-    const m = chatMessages[i]!;
-    const inFriendScope = m.kind === "friend" && m.scope.split("|").includes(id);
-    if (m.senderId === id || inFriendScope) {
-      chatMessages.splice(i, 1);
-      continue;
-    }
-    // Strip them from seenBy so deleted user doesn't linger as a tick owner.
-    if (Array.isArray(m.seenBy) && m.seenBy.includes(id)) {
-      m.seenBy = m.seenBy.filter(x => x !== id);
-    }
-  }
-
-  // 5) Drop reel engagement (likes / comments / views) by this user.
-  for (let i = reelLikes.length - 1; i >= 0; i--) {
-    if (reelLikes[i]!.userId === id || reelLikes[i]!.userId === phone) reelLikes.splice(i, 1);
-  }
-  for (let i = reelComments.length - 1; i >= 0; i--) {
-    if (reelComments[i]!.userId === id || reelComments[i]!.userId === phone) reelComments.splice(i, 1);
-  }
-  for (let i = reelViews.length - 1; i >= 0; i--) {
-    if (reelViews[i]!.userId === id || reelViews[i]!.userId === phone) reelViews.splice(i, 1);
-  }
-
-  // 6) Drop coin gifts pending for them and cafe ratings they submitted.
-  for (let i = coinGifts.length - 1; i >= 0; i--) {
-    if (coinGifts[i]!.userId === id) coinGifts.splice(i, 1);
-  }
-  for (let i = cafeRatings.length - 1; i >= 0; i--) {
-    if (cafeRatings[i]!.userId === id) cafeRatings.splice(i, 1);
-  }
-
-  // 7) Drop free-coffee rewards owned by this phone (loyalty resets).
-  for (let i = freeCoffees.length - 1; i >= 0; i--) {
-    if (norm(freeCoffees[i]!.userPhone) === phoneN) freeCoffees.splice(i, 1);
-  }
-
-  // 8) Drop user-submitted reports (problem/cafe complaints).
-  for (let i = reports.length - 1; i >= 0; i--) {
-    const r = reports[i]!;
-    if (r.reporterUserId === id || norm(r.phone) === phoneN) reports.splice(i, 1);
-  }
-
-  // 9) Anonymize cafe view tracking (keeps aggregate counts intact).
-  for (const v of cafeViews) {
-    if (v.userId === id || (v.userPhone && norm(v.userPhone) === phoneN)) {
-      v.userId = undefined;
-      v.userPhone = undefined;
-    }
-  }
-
-  // 10) Anonymize business records (orders + bookings) so revenue history
-  //     stays correct for the cafes but no PII remains for the deleted user.
-  for (const o of orders) {
-    if (o.userId === id || norm(o.customerPhone) === phoneN) {
-      o.userId = undefined;
-      o.customerName  = "مستخدم محذوف";
-      o.customerPhone = "";
-    }
-  }
-  for (const b of bookings) {
-    if (norm(b.customerPhone) === phoneN) {
-      b.customerName  = "مستخدم محذوف";
-      b.customerPhone = "";
-    }
-  }
-
-  persistStore();
+  const ok = purgeUserData(req.params.id);
+  if (!ok) return res.status(404).json({ error: "User not found" });
   res.json({ ok: true });
 });
 
