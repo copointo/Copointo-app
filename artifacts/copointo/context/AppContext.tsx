@@ -9,6 +9,20 @@ import React, {
 } from "react";
 import { API_BASE } from "@/constants/api";
 import { backfillEquipmentToServer } from "@/lib/equipmentSync";
+import { runAccountResetHandlers } from "@/lib/accountResetRegistry";
+// Side-effect imports: ensure each cosmetic/coin/inventory hook module is
+// loaded so its registerAccountResetHandler() call has run before
+// deleteAccount/runAccountResetHandlers fires. Without these, hooks that
+// haven't been mounted yet won't reset their module-level _cache, leaving
+// stale data visible to the next account that signs in on this device.
+import "@/hooks/useFrames";
+import "@/hooks/useBadges";
+import "@/hooks/useBackgrounds";
+import "@/hooks/useUsernameColors";
+import "@/hooks/useTextStyles";
+import "@/hooks/useCharacters";
+import "@/hooks/useCoins";
+import "@/hooks/useGiftInventory";
 
 /**
  * Reserve a `gameUsername` for a user on the API server. The server is the
@@ -1065,26 +1079,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try { await AsyncStorage.multiRemove(perUserKeys); } catch {}
 
     // Wipe owned/equipped/inventory slots so the next account on this
-    // device starts truly fresh (mirrors `resetAccount` behaviour without
-    // re-hitting the server reset endpoint we just superseded).
-    const localKeys = [
+    // device starts truly fresh. Two-pass approach:
+    //
+    //  (1) Persist EXPLICIT empty values for cosmetic/coins/inventory slots
+    //      (matches resetAccount.ts). This way the hook hydration on the
+    //      next mount treats the slot as "intentionally cleared" — coins
+    //      stay at 0, owned arrays stay empty, equipped slots stay null —
+    //      instead of accidentally re-seeding from a stale `_cache` or
+    //      from the previous user's cached data still in memory.
+    //
+    //  (2) multiRemove for everything else (per-user keys, grant flags,
+    //      last-seen markers, chat caches). Removing the grant key lets
+    //      the new account that signs in on this device receive the 200
+    //      coin welcome bonus on its next hydration, exactly like a
+    //      brand-new install.
+    const emptyArrayKeys = [
+      "copointo_frames_owned_v3",
+      "copointo_badges_owned_v3",
+      "copointo_backgrounds_owned_v3",
+      "copointo_username_colors_owned_v1",
+      "copointo_text_styles_owned_v1",
+      "copointo_characters_owned_v1",
+    ];
+    const emptyStringKeys = [
+      "copointo_frame_equipped_v3",
+      "copointo_badge_equipped_v3",
+      "copointo_background_equipped_v3",
+      "copointo_username_color_equipped_v1",
+      "copointo_text_style_equipped_v1",
+      "copointo_character_equipped_v1",
+    ];
+    const emptyWrites: [string, string][] = [
+      ...emptyArrayKeys.map(k => [k, "[]"] as [string, string]),
+      ...emptyStringKeys.map(k => [k, ""] as [string, string]),
+      ["copointo_gift_inventory_v1", "{}"],
+      ["copointo_coins_balance_v1", "0"],
+    ];
+    try { await AsyncStorage.multiSet(emptyWrites); } catch {}
+
+    const removeKeys = [
       "currentUser", "cart", "orderHistory", "likedVideos",
-      "copointo_frames_owned_v3", "copointo_badges_owned_v3",
-      "copointo_backgrounds_owned_v3", "copointo_username_colors_owned_v1",
-      "copointo_text_styles_owned_v1", "copointo_characters_owned_v1",
-      "copointo_frame_equipped_v3", "copointo_badge_equipped_v3",
-      "copointo_background_equipped_v3", "copointo_username_color_equipped_v1",
-      "copointo_text_style_equipped_v1", "copointo_character_equipped_v1",
-      "copointo_gift_inventory_v1", "copointo_coins_balance_v1",
-      "copointo_coins_grant_190k_v1", "copointo_level_rewards_acked_v1",
+      // Drop welcome-bonus + level-reward acks so the next account
+      // signing in on this device gets the full new-user experience.
+      "copointo_coins_grant_signup_200_v1",
+      "copointo_coins_grant_190k_v1", // legacy key, removed for safety
+      "copointo_coin_milestones_acked_v1",
+      "copointo_level_rewards_acked_v1",
+      // Last-seen markers for in-app notification badges; resetting them
+      // means the new account starts with a clean unread state.
+      "copointo_booking_last_seen_v1",
+      "copointo_broadcast_last_seen_v1",
+      "copointo_free_coffee_last_seen_v1",
+      "copointo_gift_feed_last_seen_v1",
       // PII-bearing local caches: pre-filled order info (name+phone+location),
-      // per-user chat threads / unread / groups (MessagesContext).
+      // per-user chat threads / unread / groups (MessagesContext),
+      // per-user rank-overtake popup state.
       "copointo_saved_order_info_v1",
       `copointo_chats_v2:${user.id}`,
       `copointo_unread_v2:${user.id}`,
       `copointo_groups_v2:${user.id}`,
+      `copointo_rank_ahead_v1:${user.id}`,
     ];
-    try { await AsyncStorage.multiRemove(localKeys); } catch {}
+    try { await AsyncStorage.multiRemove(removeKeys); } catch {}
+
+    // Critical: flush every cosmetic/coin/inventory hook's module-level
+    // `_cache` and broadcast empty defaults. Without this, the React tree
+    // keeps showing the deleted user's coins, owned items and equipped
+    // cosmetics until full app reload — which means the next account
+    // registered on this device immediately inherits the previous user's
+    // loadout (the visible bug the user reported).
+    try { runAccountResetHandlers(); } catch {}
 
     // Per-cafe chat-bot state lives in keys we don't know up-front
     // (`copointo_chat_state_v1_<cafeId>`). Sweep them all so no order/booking
