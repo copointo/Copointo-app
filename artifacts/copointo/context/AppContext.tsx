@@ -186,13 +186,17 @@ export async function syncUserToServer(args: {
  *  transient failure doesn't accidentally clear a previously-cached ban. */
 export async function fetchUserStatus(
   userId: string,
-): Promise<{ banned: boolean; banReason?: string | null } | null> {
+): Promise<{ exists: boolean; banned: boolean; banReason?: string | null } | null> {
   try {
     const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/status`);
     if (!r.ok) return null;
     const data = await r.json().catch(() => null);
     if (!data || data.ok !== true) return null;
-    return { banned: !!data.banned, banReason: data.banReason ?? null };
+    return {
+      exists: data.exists !== false,
+      banned: !!data.banned,
+      banReason: data.banReason ?? null,
+    };
   } catch {
     return null;
   }
@@ -449,6 +453,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const check = async () => {
       const status = await fetchUserStatus(uid);
       if (cancelled || status === null) return; // network error → keep current state
+      // Server hard-deleted this account (or DB was wiped) — kick the
+      // device out of the zombie session and force a fresh registration.
+      if (!status.exists) {
+        try { await AsyncStorage.removeItem("currentUser"); } catch {}
+        try { await AsyncStorage.removeItem(cacheKey); } catch {}
+        setUserState(null);
+        setFriends([]);
+        setIncomingRequests([]);
+        setOutgoingRequests([]);
+        setRejectionNotifications([]);
+        setActiveGameCafeIdState(null);
+        setBannedInfo(null);
+        setInitialAuthStep("register-form");
+        return;
+      }
       if (status.banned) {
         const reason = status.banReason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو";
         setBannedInfo({ reason });
@@ -479,13 +498,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (userData) {
         const parsed: User = JSON.parse(userData);
         setUserState(parsed);
-        // Backfill the server `users` collection for accounts that were
-        // created before server-side user-sync existed. Fire-and-forget so
-        // a slow network never blocks app startup.
-        syncUserToServer({
-          id: parsed.id,
-          username: parsed.gameUsername || parsed.name,
-          phone: parsed.phone,
+        // Zombie-session guard: if the server no longer has this user (e.g.
+        // the DB was wiped, or a super-admin hard-deleted them), the local
+        // session is stale — they appear "logged in" on this device but
+        // don't exist server-side, so they won't show in the super admin
+        // and any server-backed feature silently fails. Detect that case
+        // and force a clean logout so they land on the register screen and
+        // create a real account that actually reaches the server.
+        fetchUserStatus(parsed.id).then(async status => {
+          if (!status) return; // network error → keep current state
+          if (!status.exists) {
+            try { await AsyncStorage.removeItem("currentUser"); } catch {}
+            setUserState(null);
+            setFriends([]);
+            setIncomingRequests([]);
+            setOutgoingRequests([]);
+            setRejectionNotifications([]);
+            setActiveGameCafeIdState(null);
+            setInitialAuthStep("register-form");
+            return;
+          }
+          // User exists server-side — make sure the row is fresh (username
+          // / phone might have been updated locally). Fire-and-forget.
+          syncUserToServer({
+            id: parsed.id,
+            username: parsed.gameUsername || parsed.name,
+            phone: parsed.phone,
+          }).catch(() => {});
         }).catch(() => {});
         // One-shot push of every locally-equipped cosmetic so older accounts
         // show their loadout on other devices without re-equipping anything.
