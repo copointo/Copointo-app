@@ -265,12 +265,15 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
             continue;
           }
           let added = 0;
+          let addedWhileViewing = 0;
           for (const id of ids) {
             if (!seen.has(id)) {
+              seen.add(id);
               if (activeTab === k) {
-                seen.add(id);
+                // User is already inside this tab — don't bump the badge,
+                // but still count it so we can play the chime (orders only).
+                addedWhileViewing += 1;
               } else {
-                seen.add(id);
                 added += 1;
               }
             }
@@ -279,13 +282,26 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
             additions[k] = added;
             newCount += added;
             persist(k);
+          } else if (addedWhileViewing > 0) {
+            persist(k);
+          }
+          // For ORDERS specifically: even when the cashier is already on
+          // the "طلبات القهوة" tab, we still want the chime to fire so they
+          // notice the new order without having to stare at the screen.
+          // Bookings/reels keep the silent behaviour (no chime when viewing).
+          if (k === "orders" && addedWhileViewing > 0) {
+            additions["__ordersSoundOnly"] =
+              (additions["__ordersSoundOnly"] ?? 0) + addedWhileViewing;
           }
         }
+        // Sound-only path: cashier is on the orders tab and a new order
+        // arrived. Play the order chime without touching the badge counts.
+        const soundOnlyOrders = additions["__ordersSoundOnly"] ?? 0;
         if (newCount > 0) {
           // Fire the sound FIRST — synchronously, before any React state
           // update — so the cashier hears the chime the exact instant the
           // order is detected (no render-batching delay).
-          const newOrders = additions["orders"] ?? 0;
+          const newOrders = (additions["orders"] ?? 0) + soundOnlyOrders;
           if (newOrders > 0) {
             playOrderSound(newOrders);
           } else {
@@ -294,10 +310,13 @@ function useTabNotifications(cafeId: string, activeTab: Tab) {
           setCounts((prev) => {
             const out = { ...prev };
             for (const k of Object.keys(additions)) {
+              if (k.startsWith("__")) continue;
               out[k] = (out[k] ?? 0) + additions[k]!;
             }
             return out;
           });
+        } else if (soundOnlyOrders > 0) {
+          playOrderSound(soundOnlyOrders);
         }
       } catch { /* ignore */ }
     };
@@ -1428,6 +1447,15 @@ function OrdersTab({ id }: { id: string }) {
     [id],
   );
   useEffect(() => { load(); }, [load]);
+  // Auto-refresh every 5s so a brand-new order from the mobile app shows up
+  // in the list without the cashier needing to leave/re-enter the tab. The
+  // notification chime is handled by `useNewItems` (it now fires even when
+  // the orders tab is already active), so the audible "ding" and the new
+  // order row appear at roughly the same time.
+  useEffect(() => {
+    const t = setInterval(() => { load(); }, 5000);
+    return () => clearInterval(t);
+  }, [load]);
   // Reload when daily-invoice flow clears orders so the tab updates immediately.
   useEffect(() => {
     const onCleared = () => { load(); };
