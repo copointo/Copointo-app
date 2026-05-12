@@ -1539,6 +1539,15 @@ function OrdersTab({ id }: { id: string }) {
     }).catch(() => { /* swallow — print still happens */ });
     await printOrderInvoice(id, o);
   };
+  // Customer receipt: same content as the official invoice, but DOES NOT
+  // mark the order as printed/done, does NOT award loyalty points, and is
+  // tagged as "نسخة الزبون / Customer Copy" so it never gets confused with
+  // the cashier's official invoice in audits/reports. Available right after
+  // the cashier confirms the order so the customer can take a copy with
+  // their selected bean/size details.
+  const printCustomerReceipt = async (o: any) => {
+    await printOrderInvoice(id, o, undefined, { customerCopy: true });
+  };
 
   return (
     <div className="space-y-4">
@@ -1573,13 +1582,42 @@ function OrdersTab({ id }: { id: string }) {
               <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[o.status]}`}>{STATUS_AR[o.status]}</span>
             </div>
           </div>
-          <div className="space-y-1 mb-3">
-            {o.items?.map((item: any, i: number) => (
-              <div key={i} className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{item.name} ×{item.qty}</span>
-                <span className="text-foreground font-medium">{(item.price * item.qty).toFixed(3)} OMR</span>
-              </div>
-            ))}
+          <div className="space-y-1.5 mb-3">
+            {o.items?.map((item: any, i: number) => {
+              const variantBits: string[] = [];
+              if (item.selectedBean) variantBits.push(`☕ ${item.selectedBean}`);
+              if (item.selectedSize) variantBits.push(`📏 ${item.selectedSize}`);
+              const hasOldPrice = Number(item.originalPrice) > 0 && Number(item.originalPrice) > Number(item.price);
+              const bonusN = Number(item.bonusQty) || 0;
+              return (
+                <div key={i} className="flex justify-between items-start text-sm gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-muted-foreground">
+                      {item.name} <span className="text-foreground/80">×{item.qty}</span>
+                      {bonusN > 0 && <span className="text-primary"> (+{bonusN})</span>}
+                    </span>
+                    {variantBits.length > 0 && (
+                      <div className="text-[11px] text-primary/85 mt-0.5">
+                        {variantBits.join(" • ")}
+                      </div>
+                    )}
+                    {bonusN > 0 && (
+                      <div className="text-[11px] text-primary mt-0.5">
+                        🎁 +{bonusN} مجاني (عرض اشترِ {item.promoBuyQty} احصل على {item.promoGetQty})
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    {hasOldPrice && (
+                      <div className="text-[10px] text-muted-foreground/70 line-through">
+                        {(Number(item.originalPrice) * item.qty).toFixed(3)}
+                      </div>
+                    )}
+                    <span className="text-foreground font-medium">{(item.price * item.qty).toFixed(3)} OMR</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
           {o.notes && (
             <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
@@ -1763,6 +1801,21 @@ function OrdersTab({ id }: { id: string }) {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90"
                 >
                   🖨️ طباعة الفاتورة
+                </button>
+              )}
+
+              {/* Customer copy — visible from "preparing" onwards (i.e. right
+                  after the cashier confirms the order). Uses the same layout
+                  as the official invoice but is tagged "نسخة الزبون" and
+                  does NOT mark the order as printed/done or award points,
+                  so it never affects revenue or the daily/monthly invoices. */}
+              {o.status !== "pending" && (
+                <button
+                  onClick={() => printCustomerReceipt(o)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/40 text-xs font-bold hover:bg-amber-500/25"
+                  title="طباعة نسخة للزبون — لا تُحتسب من فواتير الكوفي"
+                >
+                  📄 نسخة الزبون
                 </button>
               )}
             </div>
@@ -3229,7 +3282,9 @@ async function printOrderInvoice(
   id: string,
   o: any,
   freeCoffee?: { code: string; itemName: string; itemPrice: number } | null,
+  opts?: { customerCopy?: boolean },
 ) {
+  const isCustomerCopy = !!opts?.customerCopy;
   let tpl: any = null;
   try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
 
@@ -3337,8 +3392,18 @@ ${compAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 الحسا
     <div>💳 فيزا / Visa: ${visaAmt2.toFixed(3)} ر.ع / OMR</div>
   </div>` : "";
 
+  const titlePrefix = isCustomerCopy ? "نسخة الزبون / Customer Copy — " : "";
+  const customerCopyBanner = isCustomerCopy ? `
+<tr><td class="cell info-cell" style="text-align:center;border:2px dashed #b8860b;background:#fff8e7">
+  <div style="font-weight:bold;font-size:13px;color:#8a5a00">📄 نسخة الزبون / Customer Copy</div>
+  <div style="font-size:10.5px;color:#7a5a2e;margin-top:1mm">
+    هذه نسخة للزبون فقط — غير محتسبة في فواتير الكوفي.<br>
+    Customer copy only — not counted in cafe invoices.
+  </div>
+</td></tr>` : "";
   const body = `
-${tplHeaderHtml(tpl, `فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
+${tplHeaderHtml(tpl, `${titlePrefix}فاتورة طلب / Order #${o.id?.slice(-6)}`, "")}
+${customerCopyBanner}
 <tr><td class="cell info-cell">
   <div><b>الزبون / Customer:</b> ${o.customerName}${o.customerNameEn ? ` <span style="direction:ltr;display:inline-block">(${o.customerNameEn})</span>` : ""}</div>
   ${isDirect
@@ -3358,7 +3423,7 @@ ${summaryBlock}
 <tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${finalTot.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
-  openPrintWindow(`فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
+  openPrintWindow(`${titlePrefix}فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
 }
 
 async function printDailyInvoice(id: string, dateStr: string): Promise<{ from: Date; to: Date; count: number }> {
