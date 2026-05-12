@@ -386,7 +386,7 @@ export function AuthModal({
                   <View style={{ flex: 1, opacity: regOtpSent ? 1 : 0.5 }}>
                     <AuthField
                       icon="hash"
-                      placeholder="رمز التحقق (6 أرقام)"
+                      placeholder="الرمز"
                       value={otpCode}
                       onChange={(v) => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
                       keyboardType="phone-pad"
@@ -401,13 +401,13 @@ export function AuthModal({
                       (busy || resendIn > 0) && { opacity: 0.55 },
                     ]}
                   >
-                    <Feather name="send" size={14} color="#FFF" />
-                    <Text style={styles.otpSendText}>
+                    <Feather name="send" size={13} color="#FFF" />
+                    <Text style={styles.otpSendText} numberOfLines={1}>
                       {resendIn > 0
                         ? `${resendIn}s`
                         : regOtpSent
-                          ? "إعادة الإرسال"
-                          : "إرسال الرمز"}
+                          ? "إعادة"
+                          : "إرسال"}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -552,7 +552,7 @@ function AuthField({
     <View style={styles.inputWrap}>
       <Feather name={icon} size={16} color="rgba(255,255,255,0.45)" />
       <TextInput
-        style={[styles.input, { paddingHorizontal: 10 }]}
+        style={[styles.input, { paddingHorizontal: 10, textAlign: "right", writingDirection: "rtl" }]}
         value={value}
         onChangeText={onChange}
         secureTextEntry={secure && !show}
@@ -561,6 +561,7 @@ function AuthField({
         selectionColor={PRIMARY}
         keyboardType={keyboardType ?? "default"}
         autoCapitalize="none"
+        numberOfLines={1}
       />
       {secure && (
         <TouchableOpacity onPress={() => setShow(s => !s)} style={styles.eyeBtn}>
@@ -590,7 +591,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.07)",
     borderRadius: 12, borderWidth: 1, borderColor: BORDER,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12, overflow: "hidden",
   },
   input: {
     flex: 1, fontSize: 15, fontFamily: "Inter_500Medium",
@@ -610,9 +611,9 @@ const styles = StyleSheet.create({
   },
   otpRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
   otpSendBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
     backgroundColor: PRIMARY, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
+    paddingHorizontal: 10, paddingVertical: 10, minWidth: 78,
     shadowColor: PRIMARY, shadowOpacity: 0.35,
     shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
   },
