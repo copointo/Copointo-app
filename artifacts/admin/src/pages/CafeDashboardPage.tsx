@@ -1843,14 +1843,18 @@ type MenuForm = {
   promoGetQty: string;
   stockQty: string;          // empty string = not tracked
   beans: string[];           // optional bean types (customer picks at order time)
+  beansRequired: boolean;    // when true, customer MUST pick a bean
   sizes: SizeRow[];          // optional sizes with extra price (added to base)
+  sizesRequired: boolean;    // when true, customer MUST pick a size
 };
 const emptyForm = (): MenuForm => ({
   name: "", price: "", category: DEFAULT_CATEGORY, description: "", image: "",
   promoMode: "none", originalPrice: "", promoBuyQty: "", promoGetQty: "",
   stockQty: "",
   beans: [],
+  beansRequired: false,
   sizes: [],
+  sizesRequired: false,
 });
 
 function menuStockStatus(item: { stockQty?: number | null; initialStockQty?: number | null }) {
@@ -1951,7 +1955,9 @@ function MenuTab({ id }: { id: string }) {
         // Send `null` (not undefined) when cleared so PATCH sees the removal
         // and `normalizeVariants` on the server clears the field.
         beans: beans.length > 0 ? beans : null,
+        beansRequired: beans.length > 0 ? !!form.beansRequired : false,
         sizes: sizes.length > 0 ? sizes : null,
+        sizesRequired: sizes.length > 0 ? !!form.sizesRequired : false,
       };
       if (editingId) {
         await api.updateMenuItem(id, editingId, body);
@@ -1985,9 +1991,11 @@ function MenuTab({ id }: { id: string }) {
       promoGetQty: item.promoGetQty ? String(item.promoGetQty) : "",
       stockQty: (item.stockQty != null) ? String(item.stockQty) : "",
       beans: Array.isArray(item.beans) ? [...item.beans] : [],
+      beansRequired: !!item.beansRequired,
       sizes: Array.isArray(item.sizes)
         ? item.sizes.map((s: any) => ({ label: String(s.label ?? ""), extraPrice: String(s.extraPrice ?? 0) }))
         : [],
+      sizesRequired: !!item.sizesRequired,
     });
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -2191,16 +2199,30 @@ function MenuTab({ id }: { id: string }) {
               </button>
             </div>
             {form.beans.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {form.beans.map((b, i) => (
-                  <span key={`${b}-${i}`} className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-full pl-3 pr-2 py-1.5">
-                    {b}
-                    <button type="button" onClick={() => removeBean(i)} className="w-5 h-5 rounded-full bg-primary/20 hover:bg-red-500/30 hover:text-red-300 flex items-center justify-center" aria-label="حذف">
-                      <X size={12} />
-                    </button>
+              <>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {form.beans.map((b, i) => (
+                    <span key={`${b}-${i}`} className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary text-xs font-bold rounded-full pl-3 pr-2 py-1.5">
+                      {b}
+                      <button type="button" onClick={() => removeBean(i)} className="w-5 h-5 rounded-full bg-primary/20 hover:bg-red-500/30 hover:text-red-300 flex items-center justify-center" aria-label="حذف">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <label className="mt-2 inline-flex items-center gap-2 cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={form.beansRequired}
+                    onChange={(e) => setForm(p => ({ ...p, beansRequired: e.target.checked }))}
+                    className="w-4 h-4 accent-primary"
+                  />
+                  <span className="text-muted-foreground">
+                    اختيار البن <b className="text-primary">إلزامي</b> عند الطلب
+                    <span className="text-[10px] font-normal"> (لو ما اخترت → اختياري)</span>
                   </span>
-                ))}
-              </div>
+                </label>
+              </>
             )}
           </div>
 
@@ -2253,6 +2275,20 @@ function MenuTab({ id }: { id: string }) {
             >
               <Plus size={13} /> إضافة حجم
             </button>
+            {form.sizes.length > 0 && (
+              <label className="mt-2 inline-flex items-center gap-2 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={form.sizesRequired}
+                  onChange={(e) => setForm(p => ({ ...p, sizesRequired: e.target.checked }))}
+                  className="w-4 h-4 accent-primary"
+                />
+                <span className="text-muted-foreground">
+                  اختيار الحجم <b className="text-primary">إلزامي</b> عند الطلب
+                  <span className="text-[10px] font-normal"> (لو ما اخترت → اختياري)</span>
+                </span>
+              </label>
+            )}
             {form.sizes.length > 0 && form.price && (
               <p className="mt-2 text-[11px] text-muted-foreground">
                 السعر الأساسي: <b className="text-primary">{(+form.price).toFixed(3)} OMR</b>
@@ -3170,7 +3206,13 @@ async function printOrderInvoice(
     const freeNote = freeN > 0
       ? `<div style="margin-top:3px;color:#b8860b;font-weight:bold">🎁 منها ${freeN} مجاني (كوفي مكافأة) / ${freeN} free</div>`
       : "";
-    return `<tr><td>${it.name}${freeNote}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`;
+    const variantBits: string[] = [];
+    if (it.selectedBean) variantBits.push(`☕ ${it.selectedBean}`);
+    if (it.selectedSize) variantBits.push(`📏 ${it.selectedSize}`);
+    const variantNote = variantBits.length > 0
+      ? `<div style="margin-top:3px;color:#7a5a2e;font-size:11px">${variantBits.join(" • ")}</div>`
+      : "";
+    return `<tr><td>${it.name}${variantNote}${freeNote}</td><td style="text-align:center">×${it.qty}</td><td style="text-align:left">${(it.price * it.qty).toFixed(3)}</td></tr>`;
   }).join("");
   const isDirect = o.source === "direct";
   const where = isDirect

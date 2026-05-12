@@ -33,6 +33,10 @@ interface MenuItem {
   category: string; description: string; available: boolean;
   image?: string | null;
   stockQty?: number | null;
+  beans?: string[];
+  beansRequired?: boolean;
+  sizes?: { label: string; extraPrice: number }[];
+  sizesRequired?: boolean;
 }
 interface PriceTier { hours: number; price: number }
 interface Table {
@@ -50,6 +54,8 @@ interface CafePublic {
 type Step =
   | "free"
   | "order_pick_item"
+  | "order_pick_bean"
+  | "order_pick_size"
   | "order_qty"
   | "order_more"
   | "order_type"
@@ -76,14 +82,24 @@ interface ChatMessage {
 }
 
 interface OrderDraft {
-  items: { id: string; name: string; price: number; qty: number; category?: string }[];
+  items: {
+    id: string; name: string; price: number; qty: number; category?: string;
+    selectedBean?: string; selectedSize?: string; sizeExtraPrice?: number;
+  }[];
   type?: "dine" | "car";
   customerName?: string;
   customerPhone?: string;
   tableNumber?: string;
   plateSymbol?: string;
   plateNumber?: string;
-  pendingItem?: { id: string; name: string; price: number; category?: string };
+  pendingItem?: {
+    id: string; name: string; price: number; category?: string;
+    beans?: string[]; beansRequired?: boolean;
+    sizes?: { label: string; extraPrice: number }[]; sizesRequired?: boolean;
+    selectedBean?: string;
+    selectedSize?: string;
+    sizeExtraPrice?: number;
+  };
 }
 interface BookDraft {
   tableId?: string;
@@ -540,13 +556,7 @@ export default function CafeChatScreen() {
         return x && (nm.includes(x) || x.includes(nm));
       });
       if (found) {
-        setOrder(o => ({ ...o, pendingItem: { id: found.id, name: found.name, price: found.price, category: found.category } }));
-        setStep("order_qty");
-        pushBot(`👌 اخترت ${found.name} (${fmtPrice(found.price)}).\nكم العدد؟`, [
-          { label: "1", value: "1" }, { label: "2", value: "2" },
-          { label: "3", value: "3" }, { label: "4", value: "4" }, { label: "5", value: "5" },
-          CANCEL_QUICK,
-        ]);
+        proceedAfterItemPick(found);
         return;
       }
     }
@@ -557,6 +567,73 @@ export default function CafeChatScreen() {
         CANCEL_QUICK,
       ],
     );
+  };
+
+  const askQty = (label: string, displayPrice: number) => {
+    setStep("order_qty");
+    pushBot(`👌 ${label} (${fmtPrice(displayPrice)}).\nكم العدد؟`, [
+      { label: "1", value: "1" }, { label: "2", value: "2" },
+      { label: "3", value: "3" }, { label: "4", value: "4" }, { label: "5", value: "5" },
+      CANCEL_QUICK,
+    ]);
+  };
+
+  const askPickBean = (item: MenuItem) => {
+    setStep("order_pick_bean");
+    const skipChip: QuickReply[] = item.beansRequired ? [] : [{ label: "بدون تحديد", value: "بدون" }];
+    pushBot(
+      `☕ اختر نوع البن لـ «${item.name}»${item.beansRequired ? " (إلزامي)" : " (اختياري)"}:`,
+      [
+        ...item.beans!.map(b => ({ label: b, value: b })),
+        ...skipChip,
+        CANCEL_QUICK,
+      ],
+    );
+  };
+
+  const askPickSize = (item: MenuItem) => {
+    setStep("order_pick_size");
+    const skipChip: QuickReply[] = item.sizesRequired ? [] : [{ label: "الحجم الأساسي", value: "أساسي" }];
+    pushBot(
+      `📏 اختر الحجم لـ «${item.name}»${item.sizesRequired ? " (إلزامي)" : " (اختياري)"}:`,
+      [
+        ...item.sizes!.map(s => ({
+          label: `${s.label}${s.extraPrice > 0 ? ` (+${fmtPrice(s.extraPrice)})` : ""}`,
+          value: s.label,
+        })),
+        ...skipChip,
+        CANCEL_QUICK,
+      ],
+    );
+  };
+
+  // Branch the order flow after an item has been picked: show bean picker,
+  // then size picker, then qty — only the steps that the menu item actually
+  // configured. `current` carries any selections already made so we can
+  // safely advance through the chain in a single call.
+  const proceedAfterItemPick = (
+    item: MenuItem,
+    current?: { selectedBean?: string; selectedSize?: string; sizeExtraPrice?: number },
+  ) => {
+    const cur = current ?? {};
+    setOrder(o => ({
+      ...o,
+      pendingItem: {
+        id: item.id, name: item.name, price: item.price, category: item.category,
+        beans: item.beans, beansRequired: item.beansRequired,
+        sizes: item.sizes, sizesRequired: item.sizesRequired,
+        ...cur,
+      },
+    }));
+    const needBean = Array.isArray(item.beans) && item.beans.length > 0 && cur.selectedBean === undefined;
+    if (needBean) { askPickBean(item); return; }
+    const needSize = Array.isArray(item.sizes) && item.sizes.length > 0 && cur.selectedSize === undefined;
+    if (needSize) { askPickSize(item); return; }
+    const finalPrice = +(item.price + (cur.sizeExtraPrice ?? 0)).toFixed(3);
+    const bits: string[] = [`اخترت ${item.name}`];
+    if (cur.selectedBean) bits.push(`☕ ${cur.selectedBean}`);
+    if (cur.selectedSize) bits.push(`📏 ${cur.selectedSize}`);
+    askQty(bits.join("  •  "), finalPrice);
   };
 
   const handleOrderPickItem = (raw: string) => {
@@ -572,13 +649,79 @@ export default function CafeChatScreen() {
       ]);
       return;
     }
-    setOrder(o => ({ ...o, pendingItem: { id: found.id, name: found.name, price: found.price, category: found.category } }));
-    setStep("order_qty");
-    pushBot(`👌 اخترت ${found.name} (${fmtPrice(found.price)}).\nكم العدد؟`, [
-      { label: "1", value: "1" }, { label: "2", value: "2" },
-      { label: "3", value: "3" }, { label: "4", value: "4" }, { label: "5", value: "5" },
-      CANCEL_QUICK,
-    ]);
+    proceedAfterItemPick(found);
+  };
+
+  const handleOrderPickBean = (raw: string) => {
+    const pending = order.pendingItem;
+    if (!pending) { setStep("order_pick_item"); return; }
+    const item = menu.find(m => m.id === pending.id);
+    if (!item) { setStep("order_pick_item"); return; }
+    const trimmed = raw.trim();
+    const isSkip = /بدون|skip|تخطي|تخطّي/i.test(trimmed);
+    if (isSkip) {
+      if (item.beansRequired) {
+        pushBot(`${RETRY_PREFIX}اختيار البن إلزامي لهذا المنتج. اختر نوعاً من الأزرار:`,
+          item.beans!.map(b => ({ label: b, value: b })).concat([CANCEL_QUICK]));
+        return;
+      }
+      proceedAfterItemPick(item, { selectedBean: "" });
+      return;
+    }
+    const n = normalize(trimmed);
+    const found = item.beans!.find(b => {
+      const x = normalize(b);
+      return x && (x === n || n.includes(x) || x.includes(n));
+    });
+    if (!found) {
+      pushBot(`${RETRY_PREFIX}اختر نوع البن من الأزرار أدناه فقط:`,
+        item.beans!.map(b => ({ label: b, value: b }))
+          .concat(item.beansRequired ? [] : [{ label: "بدون تحديد", value: "بدون" }])
+          .concat([CANCEL_QUICK]));
+      return;
+    }
+    proceedAfterItemPick(item, { selectedBean: found });
+  };
+
+  const handleOrderPickSize = (raw: string) => {
+    const pending = order.pendingItem;
+    if (!pending) { setStep("order_pick_item"); return; }
+    const item = menu.find(m => m.id === pending.id);
+    if (!item) { setStep("order_pick_item"); return; }
+    const trimmed = raw.trim();
+    const isSkip = /اساسي|أساسي|skip|تخطي|تخطّي|بدون/i.test(trimmed);
+    if (isSkip) {
+      if (item.sizesRequired) {
+        pushBot(`${RETRY_PREFIX}اختيار الحجم إلزامي لهذا المنتج. اختر حجماً من الأزرار:`,
+          item.sizes!.map(s => ({
+            label: `${s.label}${s.extraPrice > 0 ? ` (+${fmtPrice(s.extraPrice)})` : ""}`,
+            value: s.label,
+          })).concat([CANCEL_QUICK]));
+        return;
+      }
+      proceedAfterItemPick(item, { selectedBean: pending.selectedBean ?? "", selectedSize: "", sizeExtraPrice: 0 });
+      return;
+    }
+    const n = normalize(trimmed);
+    const found = item.sizes!.find(s => {
+      const x = normalize(s.label);
+      return x && (x === n || n.includes(x) || x.includes(n));
+    });
+    if (!found) {
+      pushBot(`${RETRY_PREFIX}اختر الحجم من الأزرار أدناه فقط:`,
+        item.sizes!.map(s => ({
+          label: `${s.label}${s.extraPrice > 0 ? ` (+${fmtPrice(s.extraPrice)})` : ""}`,
+          value: s.label,
+        }))
+        .concat(item.sizesRequired ? [] : [{ label: "الحجم الأساسي", value: "أساسي" }])
+        .concat([CANCEL_QUICK]));
+      return;
+    }
+    proceedAfterItemPick(item, {
+      selectedBean: pending.selectedBean ?? "",
+      selectedSize: found.label,
+      sizeExtraPrice: found.extraPrice,
+    });
   };
 
   const handleOrderQty = (raw: string) => {
@@ -598,9 +741,24 @@ export default function CafeChatScreen() {
       const nextItems = (() => {
         if (!pending) return order.items;
         const arr = [...order.items];
-        const idx = arr.findIndex(i => i.id === pending.id);
+        const finalPrice = +(pending.price + (pending.sizeExtraPrice ?? 0)).toFixed(3);
+        // Items with the same id but different bean/size are treated as
+        // separate cart lines so the kitchen sees each variant clearly.
+        const variantKey = `${pending.selectedBean ?? ""}::${pending.selectedSize ?? ""}`;
+        const compositeId = (pending.selectedBean || pending.selectedSize)
+          ? `${pending.id}::${variantKey}`
+          : pending.id;
+        const idx = arr.findIndex(i => i.id === compositeId);
         if (idx >= 0) arr[idx] = { ...arr[idx], qty: arr[idx].qty + qty };
-        else arr.push({ id: pending.id, name: pending.name, price: pending.price, category: pending.category, qty });
+        else arr.push({
+          id: compositeId,
+          name: pending.name,
+          price: finalPrice,
+          category: pending.category,
+          qty,
+          ...(pending.selectedBean ? { selectedBean: pending.selectedBean } : {}),
+          ...(pending.selectedSize ? { selectedSize: pending.selectedSize, sizeExtraPrice: pending.sizeExtraPrice ?? 0 } : {}),
+        });
         return arr;
       })();
       const summary = currentOrderSummary(nextItems);
@@ -730,7 +888,12 @@ export default function CafeChatScreen() {
   const submitOrder = async () => {
     setSubmitting(true);
     try {
-      const items = order.items.map(i => ({ name: i.name, qty: i.qty, price: i.price, category: i.category }));
+      const items = order.items.map(i => ({
+        name: i.name, qty: i.qty, price: i.price, category: i.category,
+        ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
+        ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
+        ...(typeof i.sizeExtraPrice === "number" ? { sizeExtraPrice: i.sizeExtraPrice } : {}),
+      }));
       const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
       const body: any = {
         customerName: order.customerName,
@@ -933,11 +1096,15 @@ export default function CafeChatScreen() {
   };
 
   // ── Compute summary helper ───────────────────────────────────
-  function currentOrderSummary(items: { name: string; qty: number; price: number }[]) {
+  function currentOrderSummary(items: { name: string; qty: number; price: number; selectedBean?: string; selectedSize?: string }[]) {
     const lines: string[] = ["🛒 السلة الحالية:"];
     let total = 0;
     for (const i of items) {
-      lines.push(`• ${i.name} × ${i.qty} = ${fmtPrice(i.price * i.qty)}`);
+      const bits: string[] = [];
+      if (i.selectedBean) bits.push(`☕ ${i.selectedBean}`);
+      if (i.selectedSize) bits.push(`📏 ${i.selectedSize}`);
+      const variantSuffix = bits.length > 0 ? `  (${bits.join(" • ")})` : "";
+      lines.push(`• ${i.name}${variantSuffix} × ${i.qty} = ${fmtPrice(i.price * i.qty)}`);
       total += i.price * i.qty;
     }
     lines.push(`الإجمالي: ${fmtPrice(total)}`);
@@ -967,6 +1134,8 @@ export default function CafeChatScreen() {
         return;
       }
       case "order_pick_item":  handleOrderPickItem(text); return;
+      case "order_pick_bean":  handleOrderPickBean(text); return;
+      case "order_pick_size":  handleOrderPickSize(text); return;
       case "order_qty":        handleOrderQty(text); return;
       case "order_more":       handleOrderMore(text); return;
       case "order_type":       handleOrderType(text); return;

@@ -824,6 +824,12 @@ function normalizeVariants(body: any) {
       .slice(0, 8);
     body.sizes = cleaned.length > 0 ? cleaned : undefined;
   }
+  if (Object.prototype.hasOwnProperty.call(body, "beansRequired")) {
+    body.beansRequired = body.beansRequired === true;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "sizesRequired")) {
+    body.sizesRequired = body.sizesRequired === true;
+  }
 }
 
 router.post("/menu", (req: any, res) => {

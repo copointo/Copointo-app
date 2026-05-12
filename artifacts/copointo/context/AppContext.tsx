@@ -238,6 +238,8 @@ export type AuthResult = { ok: true } | { ok: false; error: string };
 
 export interface CartItem {
   id: string;
+  /** Original menu-item id (without variant suffix). Used to look up stock, etc. */
+  menuItemId?: string;
   name: string;
   price: number;
   quantity: number;
@@ -246,6 +248,12 @@ export interface CartItem {
   image?: string;
   /** Menu category — used for free-coffee eligibility (drinks only, not طعام/حلى). */
   category?: string;
+  /** Customer-picked bean type (when the menu item defined `beans`). */
+  selectedBean?: string;
+  /** Customer-picked size label (when the menu item defined `sizes`). */
+  selectedSize?: string;
+  /** Snapshot of the size's extraPrice (already added into `price`). */
+  sizeExtraPrice?: number;
 }
 
 interface AppContextType {

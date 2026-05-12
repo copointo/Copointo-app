@@ -44,8 +44,12 @@ export interface MenuItem {
   initialStockQty?: number | null;
   /** Optional bean types the customer can pick from at order time. Empty/undefined = no bean picker. */
   beans?: string[];
+  /** When true, the customer MUST pick a bean type before adding to cart. Default false (optional). */
+  beansRequired?: boolean;
   /** Optional sizes the customer can pick from at order time. extraPrice is added to base price. */
   sizes?: { label: string; extraPrice: number }[];
+  /** When true, the customer MUST pick a size before adding to cart. Default false (optional). */
+  sizesRequired?: boolean;
 }
 export interface CafeTable {
   id: string; cafeId: string; number: number; capacity: number;

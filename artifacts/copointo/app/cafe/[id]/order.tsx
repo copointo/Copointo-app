@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -47,6 +48,10 @@ interface MenuItem {
   promoGetQty?: number | null;
   stockQty?: number | null;
   initialStockQty?: number | null;
+  beans?: string[];
+  beansRequired?: boolean;
+  sizes?: { label: string; extraPrice: number }[];
+  sizesRequired?: boolean;
 }
 
 const ALL_KEY = "الكل";
@@ -121,16 +126,54 @@ export default function OrderScreen() {
     </View>
   );
 
-  const handleAdd = (item: MenuItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  const [variantItem, setVariantItem] = useState<MenuItem | null>(null);
+  const [pickedBean, setPickedBean] = useState<string>("");
+  const [pickedSize, setPickedSize] = useState<{ label: string; extraPrice: number } | null>(null);
+
+  const hasBeans = (item: MenuItem) => Array.isArray(item.beans) && item.beans.length > 0;
+  const hasSizes = (item: MenuItem) => Array.isArray(item.sizes) && item.sizes.length > 0;
+
+  const addItemToCart = (
+    item: MenuItem,
+    bean: string,
+    size: { label: string; extraPrice: number } | null,
+  ) => {
+    const finalPrice = +(item.price + (size?.extraPrice ?? 0)).toFixed(3);
+    const variantKey = `${bean || ""}::${size?.label || ""}`;
+    const cartId = (bean || size) ? `${item.id}::${variantKey}` : item.id;
     addToCart({
-      id: item.id,
+      id: cartId,
+      menuItemId: item.id,
       name: item.name,
-      price: item.price,
+      price: finalPrice,
       cafeId: id,
       cafeName: displayName,
       category: item.category,
+      ...(bean ? { selectedBean: bean } : {}),
+      ...(size ? { selectedSize: size.label, sizeExtraPrice: size.extraPrice } : {}),
     });
+  };
+
+  const handleAdd = (item: MenuItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (hasBeans(item) || hasSizes(item)) {
+      setPickedBean("");
+      setPickedSize(hasSizes(item) ? (item.sizes![0] ?? null) : null);
+      setVariantItem(item);
+      return;
+    }
+    addItemToCart(item, "", null);
+  };
+
+  const confirmVariant = () => {
+    if (!variantItem) return;
+    if (variantItem.beansRequired && hasBeans(variantItem) && !pickedBean) return;
+    if (variantItem.sizesRequired && hasSizes(variantItem) && !pickedSize) return;
+    addItemToCart(variantItem, pickedBean, pickedSize);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setVariantItem(null);
+    setPickedBean("");
+    setPickedSize(null);
   };
 
   if (loading) {
@@ -199,8 +242,11 @@ export default function OrderScreen() {
           </View>
         )}
         {visibleItems.map((item) => {
-          const cartItem = cart.find((c) => c.id === item.id);
-          const qty = cartItem?.quantity ?? 0;
+          // Sum quantity across every variant of this menu item (composite ids).
+          const qty = cart.reduce(
+            (s, c) => s + ((c.menuItemId ?? c.id) === item.id ? c.quantity : 0),
+            0,
+          );
           const tracked   = item.stockQty != null;
           const remaining = tracked ? Math.max(0, (item.stockQty as number) - qty) : Infinity;
           const depleted  = tracked && (item.stockQty as number) <= 0;
@@ -270,12 +316,16 @@ export default function OrderScreen() {
                     </View>
                   ) : qty > 0 ? (
                     <View style={styles.qtyRow}>
-                      <TouchableOpacity
-                        style={styles.qtyBtn}
-                        onPress={() => { Haptics.selectionAsync(); updateQuantity(item.id, qty - 1); }}
-                      >
-                        <Feather name="minus" size={14} color="#FFF" />
-                      </TouchableOpacity>
+                      {(hasBeans(item) || hasSizes(item)) ? (
+                        <View style={[styles.qtyBtn, { opacity: 0 }]} />
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => { Haptics.selectionAsync(); updateQuantity(item.id, qty - 1); }}
+                        >
+                          <Feather name="minus" size={14} color="#FFF" />
+                        </TouchableOpacity>
+                      )}
                       <Text style={styles.qtyText}>{qty}</Text>
                       <TouchableOpacity
                         style={[styles.qtyBtn, { backgroundColor: PRIMARY, opacity: remaining <= 0 ? 0.4 : 1 }]}
@@ -302,6 +352,109 @@ export default function OrderScreen() {
           );
         })}
       </ScrollView>
+
+      {/* Variant picker (bean / size) */}
+      <Modal
+        visible={!!variantItem}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVariantItem(null)}
+      >
+        <View style={styles.variantBackdrop}>
+          <View style={styles.variantSheet}>
+            <Text style={styles.variantTitle}>{variantItem?.name}</Text>
+            <Text style={styles.variantSub}>اختر تفاصيل طلبك</Text>
+
+            {variantItem && hasBeans(variantItem) && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={styles.variantLabel}>
+                  ☕ نوع البن {variantItem.beansRequired ? <Text style={{ color: "#EF5350" }}>*</Text> : <Text style={styles.variantOpt}>(اختياري)</Text>}
+                </Text>
+                <View style={styles.chipWrap}>
+                  {!variantItem.beansRequired && (
+                    <TouchableOpacity
+                      style={[styles.chip, !pickedBean && styles.chipActive]}
+                      onPress={() => setPickedBean("")}
+                    >
+                      <Text style={[styles.chipText, !pickedBean && styles.chipTextActive]}>بدون تحديد</Text>
+                    </TouchableOpacity>
+                  )}
+                  {variantItem.beans!.map((b) => (
+                    <TouchableOpacity
+                      key={b}
+                      style={[styles.chip, pickedBean === b && styles.chipActive]}
+                      onPress={() => setPickedBean(b)}
+                    >
+                      <Text style={[styles.chipText, pickedBean === b && styles.chipTextActive]}>{b}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {variantItem && hasSizes(variantItem) && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={styles.variantLabel}>
+                  📏 الحجم {variantItem.sizesRequired ? <Text style={{ color: "#EF5350" }}>*</Text> : <Text style={styles.variantOpt}>(اختياري)</Text>}
+                </Text>
+                <View style={styles.chipWrap}>
+                  {!variantItem.sizesRequired && (
+                    <TouchableOpacity
+                      style={[styles.chip, !pickedSize && styles.chipActive]}
+                      onPress={() => setPickedSize(null)}
+                    >
+                      <Text style={[styles.chipText, !pickedSize && styles.chipTextActive]}>الحجم الأساسي</Text>
+                    </TouchableOpacity>
+                  )}
+                  {variantItem.sizes!.map((s) => (
+                    <TouchableOpacity
+                      key={s.label}
+                      style={[styles.chip, pickedSize?.label === s.label && styles.chipActive]}
+                      onPress={() => setPickedSize(s)}
+                    >
+                      <Text style={[styles.chipText, pickedSize?.label === s.label && styles.chipTextActive]}>
+                        {s.label}{s.extraPrice > 0 ? `  +${s.extraPrice.toFixed(3)}` : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {variantItem && (
+              <Text style={styles.variantTotal}>
+                الإجمالي: {((variantItem.price + (pickedSize?.extraPrice ?? 0))).toFixed(3)} OMR
+              </Text>
+            )}
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+              <TouchableOpacity
+                style={styles.variantCancel}
+                onPress={() => setVariantItem(null)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.variantCancelText}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.variantConfirm,
+                  ((variantItem?.beansRequired && hasBeans(variantItem) && !pickedBean) ||
+                   (variantItem?.sizesRequired && hasSizes(variantItem) && !pickedSize)) && { opacity: 0.5 },
+                ]}
+                onPress={confirmVariant}
+                disabled={
+                  !!variantItem &&
+                  ((!!variantItem.beansRequired && hasBeans(variantItem) && !pickedBean) ||
+                   (!!variantItem.sizesRequired && hasSizes(variantItem) && !pickedSize))
+                }
+                activeOpacity={0.85}
+              >
+                <Text style={styles.variantConfirmText}>إضافة للسلة</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Cart bar */}
       {cartCount > 0 && (
@@ -422,6 +575,102 @@ function CategoryTab({
 }
 
 const styles = StyleSheet.create({
+  variantBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    justifyContent: "flex-end",
+  },
+  variantSheet: {
+    backgroundColor: "#0A0606",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 28,
+  },
+  variantTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: PRIMARY,
+    textAlign: "center",
+  },
+  variantSub: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.55)",
+    textAlign: "center",
+    marginTop: 4,
+  },
+  variantLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    marginBottom: 8,
+  },
+  variantOpt: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.45)",
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: "rgba(232,184,109,0.05)",
+  },
+  chipActive: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  chipText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: CREAM,
+  },
+  chipTextActive: {
+    color: "#000",
+  },
+  variantTotal: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: PRIMARY,
+    textAlign: "center",
+    marginTop: 18,
+  },
+  variantCancel: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    alignItems: "center",
+  },
+  variantCancelText: {
+    color: CREAM,
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+  variantConfirm: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: PRIMARY,
+    alignItems: "center",
+  },
+  variantConfirmText: {
+    color: "#000",
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+  },
   container: { flex: 1, backgroundColor: BG },
 
   // Header

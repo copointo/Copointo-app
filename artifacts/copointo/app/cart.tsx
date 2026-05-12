@@ -76,10 +76,18 @@ const fStyles = StyleSheet.create({
 
 // ─── Cart Item Row ─────────────────────────────────────────────
 function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
+  const variantBits: string[] = [];
+  if (item.selectedBean) variantBits.push(`☕ ${item.selectedBean}`);
+  if (item.selectedSize) variantBits.push(`📏 ${item.selectedSize}`);
   return (
     <View style={styles.cartItem}>
       <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
+        {variantBits.length > 0 && (
+          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: PRIMARY, marginTop: 2 }}>
+            {variantBits.join("  •  ")}
+          </Text>
+        )}
         <Text style={styles.itemPrice}>{item.price.toFixed(3)} OMR × {item.quantity}</Text>
       </View>
       <View style={styles.qtyRow}>
@@ -268,6 +276,9 @@ export default function CartScreen() {
         items: cart.map(i => ({
           name: i.name, qty: i.quantity, price: i.price,
           ...(i.category ? { category: i.category } : {}),
+          ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
+          ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
+          ...(typeof i.sizeExtraPrice === "number" ? { sizeExtraPrice: i.sizeExtraPrice } : {}),
         })),
         total: cartTotal,
         type: isDine ? "dine" : "car",
