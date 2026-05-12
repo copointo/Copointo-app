@@ -17,6 +17,14 @@ let cachedAt = 0;
 const SETTINGS_TTL_MS = 60_000;
 
 async function fetchCredentials(): Promise<ConnectionItem["settings"]> {
+  // Allow full override via env secrets — used when the connector form is hard to fix.
+  const envSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const envKey = process.env.TWILIO_API_KEY?.trim();
+  const envSecret = process.env.TWILIO_API_KEY_SECRET?.trim();
+  const envPhone = process.env.TWILIO_FROM_NUMBER?.trim();
+  if (envSid && envKey && envSecret) {
+    return { account_sid: envSid, api_key: envKey, api_key_secret: envSecret, phone_number: envPhone };
+  }
   if (cachedSettings && Date.now() - cachedAt < SETTINGS_TTL_MS) return cachedSettings;
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
