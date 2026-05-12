@@ -3304,23 +3304,23 @@ async function printOrderInvoice(
   const rows = (o.items ?? []).map((it: any) => {
     const freeN = freeCountByName.get(it.name) ?? 0;
     const freeNote = freeN > 0
-      ? `<div style="margin-top:3px;color:#b8860b;font-weight:bold">🎁 منها ${freeN} مجاني (كوفي مكافأة) / ${freeN} free</div>`
+      ? `<div style="margin-top:3px;color:#000;font-weight:bold">🎁 منها ${freeN} مجاني (كوفي مكافأة) / ${freeN} free</div>`
       : "";
     const variantBits: string[] = [];
     if (it.selectedBean) variantBits.push(`☕ ${it.selectedBean}`);
     if (it.selectedSize) variantBits.push(`📏 ${it.selectedSize}`);
     const variantNote = variantBits.length > 0
-      ? `<div style="margin-top:3px;color:#7a5a2e;font-size:11px">${variantBits.join(" • ")}</div>`
+      ? `<div style="margin-top:3px;color:#000;font-weight:bold">${variantBits.join(" • ")}</div>`
       : "";
     const hasOrigPrice = Number(it.originalPrice) > 0 && Number(it.originalPrice) > Number(it.price);
     const oldPriceCell = hasOrigPrice
-      ? `<div style="font-size:10px;color:#999;text-decoration:line-through">${(Number(it.originalPrice) * it.qty).toFixed(3)}</div>`
+      ? `<div style="color:#000;font-weight:bold;text-decoration:line-through">${(Number(it.originalPrice) * it.qty).toFixed(3)}</div>`
       : "";
     const promoNote = (Number(it.bonusQty) > 0)
-      ? `<div style="margin-top:3px;color:#b8860b;font-weight:bold;font-size:11px">🎁 +${it.bonusQty} مجاني (عرض اشترِ ${it.promoBuyQty} احصل على ${it.promoGetQty}) — الإجمالي ${Number(it.qty) + Number(it.bonusQty)} كوب</div>`
+      ? `<div style="margin-top:3px;color:#000;font-weight:bold">🎁 +${it.bonusQty} مجاني (عرض اشترِ ${it.promoBuyQty} احصل على ${it.promoGetQty}) — الإجمالي ${Number(it.qty) + Number(it.bonusQty)} كوب</div>`
       : "";
     const qtyCell = (Number(it.bonusQty) > 0)
-      ? `×${it.qty} <span style="color:#b8860b">(+${it.bonusQty})</span>`
+      ? `×${it.qty} <span style="color:#000;font-weight:bold">(+${it.bonusQty})</span>`
       : `×${it.qty}`;
     return `<tr><td>${it.name}${variantNote}${promoNote}${freeNote}</td><td style="text-align:center">${qtyCell}</td><td style="text-align:left">${oldPriceCell}${(it.price * it.qty).toFixed(3)}</td></tr>`;
   }).join("");
