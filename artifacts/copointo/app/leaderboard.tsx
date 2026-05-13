@@ -414,6 +414,14 @@ export default function LeaderboardScreen() {
               <Text style={[styles.rankCornerText, { color: medalColor }]}>
                 {isTop3 ? `${MEDAL[i]} ${i + 1}` : `#${i + 1}`}
               </Text>
+              {entry.avatar ? (
+                <Image source={{ uri: entry.avatar }} style={styles.rankCornerAvatar} />
+              ) : (
+                <Image
+                  source={getDefaultAvatarSource(entry.gender as "male" | "female" | undefined)}
+                  style={styles.rankCornerAvatar}
+                />
+              )}
               {entryCharacter && (
                 <View style={styles.rankCornerChar}>
                   <Character def={entryCharacter} size={18} />
@@ -1020,6 +1028,14 @@ const styles = StyleSheet.create({
     height: 18,
     alignItems: "center",
     justifyContent: "center",
+  },
+  rankCornerAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.35)",
+    resizeMode: "cover",
   },
 });
 
