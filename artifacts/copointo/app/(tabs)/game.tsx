@@ -318,9 +318,9 @@ export default function GameScreen() {
         activeOpacity={0.85}
       >
         <Feather name="bell" size={20} color={PRIMARY} />
-        {(incomingRequests.length + unreadBroadcasts + unreadFreeCoffees) > 0 && (
+        {(incomingRequests.length + incomingInvites.length + unreadBroadcasts + unreadFreeCoffees) > 0 && (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>{incomingRequests.length + unreadBroadcasts + unreadFreeCoffees}</Text>
+            <Text style={styles.badgeText}>{incomingRequests.length + incomingInvites.length + unreadBroadcasts + unreadFreeCoffees}</Text>
           </View>
         )}
       </TouchableOpacity>

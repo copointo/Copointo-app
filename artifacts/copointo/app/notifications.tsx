@@ -16,6 +16,7 @@ import {
 const COPOINTO_LOGO = require("../assets/images/copointo-logo.png");
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
+import { useCommunities } from "@/context/CommunityContext";
 import { useT } from "@/context/LanguageContext";
 import { getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
@@ -79,6 +80,10 @@ export default function NotificationsScreen() {
     rejectionNotifications, ackRejection,
     acceptFriendRequest, declineFriendRequest, refreshFriendData,
   } = useApp();
+  const {
+    incomingInvites, acceptInvite, declineInvite,
+    myActiveCommunity, refresh: refreshCommunities,
+  } = useCommunities();
   const { t } = useT();
   const fmtRelative = buildFmtRelative(t);
 
@@ -168,14 +173,34 @@ export default function NotificationsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshFriendData();
+      refreshCommunities();
       loadBroadcasts();
       loadFreeCoffees();
       loadBookings();
       if (!user?.phone) return;
       const handle = setInterval(loadBookings, 8000);
       return () => clearInterval(handle);
-    }, [refreshFriendData, loadBroadcasts, loadFreeCoffees, loadBookings, user?.phone])
+    }, [refreshFriendData, refreshCommunities, loadBroadcasts, loadFreeCoffees, loadBookings, user?.phone])
   );
+
+  // Track community-invite decisions for the brief "accepted/declined" chip.
+  const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
+  const [inviteErr,    setInviteErr]    = useState("");
+
+  const handleAcceptInvite = async (cid: string) => {
+    setInviteErr("");
+    setInviteBusyId(cid);
+    const r = await acceptInvite(cid);
+    setInviteBusyId(null);
+    if (!r.ok) { setInviteErr(r.error); return; }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.push(`/community-info?id=${cid}`);
+  };
+
+  const handleDeclineInvite = async (cid: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await declineInvite(cid);
+  };
 
   // Build display rows from the incoming-request IDs, hydrated from
   // registeredUsers. If a sender id no longer matches a known user (e.g. they
@@ -231,7 +256,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
-        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && bookings.length === 0 && rejectionNotifications.length === 0 && (
+        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && bookings.length === 0 && rejectionNotifications.length === 0 && incomingInvites.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🔔</Text>
             <Text style={styles.emptyTitle}>{t("notif.empty")}</Text>
@@ -240,6 +265,57 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         )}
+
+        {/* Community invitations — accept joins the clan immediately */}
+        {!!inviteErr && <Text style={styles.inviteErr}>{inviteErr}</Text>}
+        {incomingInvites.map(inv => {
+          const blocked = !!myActiveCommunity;
+          return (
+            <View key={`ci-${inv.communityId}`} style={styles.inviteCard}>
+              <View style={styles.inviteHeader}>
+                {inv.communityAvatar ? (
+                  <Image source={{ uri: inv.communityAvatar }} style={styles.inviteAvatarImg} />
+                ) : (
+                  <View style={styles.inviteAvatarPh}>
+                    <Text style={{ fontSize: 22 }}>🏛️</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inviteTitle}>دعوة لمجتمع {inv.communityName}</Text>
+                  <Text style={styles.inviteFrom}>
+                    دعاك <Text style={styles.inviteFromName}>{inv.fromUserName}</Text>
+                  </Text>
+                  <Text style={styles.inviteHint}>{fmtRelative(new Date(inv.invitedAt).toISOString())}</Text>
+                </View>
+              </View>
+              {blocked && (
+                <Text style={styles.inviteBlocked}>
+                  أنت بالفعل في مجتمع ({myActiveCommunity?.name}). غادر مجتمعك الحالي أولاً لقبول الدعوة.
+                </Text>
+              )}
+              <View style={styles.friendActions}>
+                <TouchableOpacity
+                  style={[styles.acceptBtn, (inviteBusyId === inv.communityId || blocked) && { opacity: 0.5 }]}
+                  onPress={() => handleAcceptInvite(inv.communityId)}
+                  disabled={inviteBusyId === inv.communityId || blocked}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="check" size={15} color="#000" />
+                  <Text style={styles.acceptBtnText}>{t("common.accept")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.rejectBtn}
+                  onPress={() => handleDeclineInvite(inv.communityId)}
+                  disabled={inviteBusyId === inv.communityId}
+                  activeOpacity={0.85}
+                >
+                  <Feather name="x" size={15} color="#E8B86D" />
+                  <Text style={styles.rejectBtnText}>{t("common.reject")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
 
         {/* Table booking status — pending / confirmed / cancelled */}
         {bookings.map(b => {
@@ -546,6 +622,48 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 13, fontFamily: "Inter_600SemiBold",
   },
+  // Community invitation card
+  inviteCard: {
+    backgroundColor: "#0A0606",
+    borderRadius: 18, padding: 16,
+    borderWidth: 1, borderColor: ACCENT,
+    gap: 12,
+  },
+  inviteHeader: { flexDirection: "row", gap: 12, alignItems: "center" },
+  inviteAvatarImg: {
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 1.5, borderColor: ACCENT,
+  },
+  inviteAvatarPh: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1.5, borderColor: ACCENT,
+    alignItems: "center", justifyContent: "center",
+  },
+  inviteTitle: {
+    fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF",
+  },
+  inviteFrom: {
+    fontSize: 12, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.55)", marginTop: 2,
+  },
+  inviteFromName: { color: ACCENT, fontFamily: "Inter_700Bold" },
+  inviteHint: {
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.45)", marginTop: 4,
+  },
+  inviteBlocked: {
+    fontSize: 12, fontFamily: "Inter_500Medium",
+    color: "#FFD3D3", lineHeight: 18,
+    backgroundColor: "rgba(255,107,107,0.10)",
+    borderWidth: 1, borderColor: "rgba(255,107,107,0.35)",
+    borderRadius: 10, padding: 10,
+  },
+  inviteErr: {
+    color: "#E55353", textAlign: "center",
+    fontSize: 13, fontFamily: "Inter_500Medium",
+  },
+
   // Broadcast (system message from Copointo)
   broadcastCard: {
     backgroundColor: "#0A0606",
