@@ -107,10 +107,19 @@ router.post("/send", async (req: Request, res: Response): Promise<any> => {
     });
   }
 
+  // Record cooldown FIRST — even if Twilio fails — so that a misconfigured
+  // provider or failing destination can't be exploited as a free request
+  // oracle (caller hammering /send to e.g. enumerate phones or rack up cost).
+  // The 45s throttle applies to every attempt, success or failure.
+  const now = Date.now();
+  pending.set(key, {
+    purpose,
+    expiresAt: now + OTP_TTL_MS,
+    lastSentAt: now,
+  });
+
   // Hand off to Twilio Verify — it generates the code, picks the optimal
-  // sender for the destination, and tracks expiry on its end. If the call
-  // fails we surface the error so the user can retry; we leave the cooldown
-  // entry in place to prevent abuse of failed sends as a free oracle.
+  // sender for the destination, and tracks expiry on its end.
   try {
     const client = await getTwilioClient();
     const serviceSid = getVerifyServiceSid();
@@ -132,13 +141,6 @@ router.post("/send", async (req: Request, res: Response): Promise<any> => {
       error: "تعذر إرسال الرمز عبر SMS، حاول مجدداً بعد قليل",
     });
   }
-
-  const now = Date.now();
-  pending.set(key, {
-    purpose,
-    expiresAt: now + OTP_TTL_MS,
-    lastSentAt: now,
-  });
 
   return res.json({ ok: true, expiresInSec: Math.floor(OTP_TTL_MS / 1000) });
 });
@@ -166,6 +168,14 @@ router.post("/verify", async (req: Request, res: Response): Promise<any> => {
   // counting and lockouts on its end (after ~5 wrong tries the verification
   // is auto-cancelled). We surface failures with a generic message — Twilio
   // does not return remaining-attempts info on the verificationChecks endpoint.
+  //
+  // We distinguish two failure shapes from Twilio so the user gets a useful
+  // message instead of always being told "wrong code":
+  //   - HTTP 404 from Twilio = verification not found / already
+  //     consumed / expired / cancelled → treat as wrong-or-stale code (401).
+  //   - Anything else (network, 5xx, auth, misconfig) → operational
+  //     failure (502) so the client suggests retrying instead of having
+  //     the user re-enter the same code endlessly.
   let approved = false;
   try {
     const client = await getTwilioClient();
@@ -180,13 +190,22 @@ router.post("/verify", async (req: Request, res: Response): Promise<any> => {
       "twilio verify check",
     );
   } catch (err: any) {
-    // Twilio returns 404 if the verification was already approved/cancelled
-    // or never existed. Surface as wrong-code so the user can try again.
-    req.log?.warn?.(
+    const httpStatus = Number(err?.status);
+    if (httpStatus === 404) {
+      req.log?.warn?.(
+        { err: err?.message ?? String(err), code: err?.code },
+        "twilio verify check: verification not found (likely expired/consumed)",
+      );
+      return res.status(401).json({ ok: false, error: "الرمز غير صحيح أو انتهت صلاحيته" });
+    }
+    req.log?.error?.(
       { err: err?.message ?? String(err), code: err?.code, status: err?.status },
-      "twilio verify check failed",
+      "twilio verify check failed (operational)",
     );
-    return res.status(401).json({ ok: false, error: "الرمز غير صحيح" });
+    return res.status(502).json({
+      ok: false,
+      error: "تعذر التحقق من الرمز حالياً، حاول مجدداً بعد قليل",
+    });
   }
 
   if (!approved) {
