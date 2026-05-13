@@ -480,7 +480,7 @@ export function AuthModal({
                       style={[styles.genderBtn, regGender === "male" && styles.genderBtnActiveMale]}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.genderEmoji}>🧑</Text>
+                      <Image source={require("../assets/images/avatar-male.png")} style={styles.genderAvatar} />
                       <Text style={[styles.genderText, regGender === "male" && { color: "#FFF" }]}>{t("auth.genderMale")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -488,7 +488,7 @@ export function AuthModal({
                       style={[styles.genderBtn, regGender === "female" && styles.genderBtnActiveFemale]}
                       activeOpacity={0.85}
                     >
-                      <Text style={styles.genderEmoji}>👩</Text>
+                      <Image source={require("../assets/images/avatar-female.png")} style={styles.genderAvatar} />
                       <Text style={[styles.genderText, regGender === "female" && { color: "#FFF" }]}>{t("auth.genderFemale")}</Text>
                     </TouchableOpacity>
                   </View>
@@ -755,6 +755,6 @@ const styles = StyleSheet.create({
   },
   genderBtnActiveMale:   { backgroundColor: "#4FC3F7", borderColor: "#4FC3F7" },
   genderBtnActiveFemale: { backgroundColor: "#F06292", borderColor: "#F06292" },
-  genderEmoji: { fontSize: 20 },
+  genderAvatar: { width: 28, height: 28, borderRadius: 14, resizeMode: "cover" },
   genderText:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
 });
