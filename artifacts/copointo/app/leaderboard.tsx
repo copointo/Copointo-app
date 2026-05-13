@@ -414,6 +414,11 @@ export default function LeaderboardScreen() {
               <Text style={[styles.rankCornerText, { color: medalColor }]}>
                 {isTop3 ? `${MEDAL[i]} ${i + 1}` : `#${i + 1}`}
               </Text>
+              {entryCharacter && (
+                <View style={styles.rankCornerChar}>
+                  <Character def={entryCharacter} size={18} />
+                </View>
+              )}
             </View>
           );
           // Wrap rows that have a background in UsernameBackground so the
@@ -435,11 +440,6 @@ export default function LeaderboardScreen() {
                   style={{ alignSelf: "stretch" }}
                 >
                   <View style={styles.entryRowContent}>{rowInner}</View>
-                  {entryCharacter && (
-                    <View style={styles.charBadge} pointerEvents="none">
-                      <Character def={entryCharacter} size={20} />
-                    </View>
-                  )}
                   {rankBadge}
                 </UsernameBackground>
               </TouchableOpacity>
@@ -1003,8 +1003,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
     minWidth: 32,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
     zIndex: 5,
   },
   rankCornerText: {
@@ -1012,6 +1014,12 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: "#FFF",
     textAlign: "center",
+  },
+  rankCornerChar: {
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
