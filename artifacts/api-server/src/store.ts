@@ -10,6 +10,13 @@ export interface Cafe {
 export interface AppUser {
   id: string; username: string; phone: string; level: number;
   totalOrders: number; banned: boolean; joinedAt: string;
+  /** Display name + avatar + gender mirrored from mobile so OTHER devices can
+   *  show this player's actual profile picture / name / gender on the
+   *  leaderboard, friends list, chats, etc. (Local profile is authoritative
+   *  on its origin device; this is the cross-device fallback.) */
+  name?: string;
+  avatar?: string;
+  gender?: "male" | "female";
   /** Reason shown to the user when their whole account is banned by super-admin. */
   banReason?: string | null;
   /** ISO timestamp of when the account ban was applied. */

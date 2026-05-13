@@ -752,6 +752,10 @@ router.get("/users/public", (_req, res) => {
         level: u.level ?? 0,
         totalOrders: u.totalOrders ?? 0,
         joinedAt: u.joinedAt,
+        // Mirrored profile bits so other devices show the real avatar/name/gender.
+        name:   u.name   ?? null,
+        avatar: u.avatar ?? null,
+        gender: u.gender ?? null,
         equippedFrame:         u.equippedFrame         ?? null,
         equippedBadge:         u.equippedBadge         ?? null,
         equippedBackground:    u.equippedBackground    ?? null,
@@ -760,6 +764,33 @@ router.get("/users/public", (_req, res) => {
         equippedTextStyle:     u.equippedTextStyle     ?? null,
       })),
   });
+});
+
+// ─── Profile mirror (name / avatar / gender) ─────────────────────────────
+// Mobile pushes profile updates here so OTHER devices' leaderboards show
+// the real picture / name / gender. No OTP required — these fields are
+// public display data, not credentials. Empty/missing values clear the
+// mirrored field (e.g. user removed their photo).
+router.post("/users/profile", (req, res): any => {
+  const id = String(req.body?.id ?? "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ ok: false, error: "user not found" });
+  if ("name" in (req.body ?? {})) {
+    const v = String(req.body.name ?? "").trim();
+    if (v) u.name = v; else delete u.name;
+  }
+  if ("avatar" in (req.body ?? {})) {
+    const v = String(req.body.avatar ?? "").trim();
+    if (v) u.avatar = v; else delete u.avatar;
+  }
+  if ("gender" in (req.body ?? {})) {
+    const v = String(req.body.gender ?? "").trim();
+    if (v === "male" || v === "female") u.gender = v;
+    else delete u.gender;
+  }
+  persistStore();
+  res.json({ ok: true });
 });
 
 // ─── Game progress sync (level + totalOrders) ────────────────────────────

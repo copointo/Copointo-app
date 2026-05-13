@@ -64,12 +64,41 @@ export interface PublicServerUser {
   level: number;
   totalOrders: number;
   joinedAt?: string;
+  /** Mirrored profile bits (display name, picture, gender) so cross-device
+   *  leaderboards / friends lists / chats render the real avatar instead
+   *  of the default silhouette. */
+  name?: string | null;
+  avatar?: string | null;
+  gender?: "male" | "female" | null;
   equippedFrame?: string | null;
   equippedBadge?: string | null;
   equippedBackground?: string | null;
   equippedCharacter?: string | null;
   equippedUsernameColor?: string | null;
   equippedTextStyle?: string | null;
+}
+
+/** Push the signed-in user's profile bits (name / avatar / gender) to the
+ *  server so OTHER devices' leaderboards show the real picture instead of
+ *  the default silhouette. Fire-and-forget; failure is harmless. */
+export async function syncProfileToServer(args: {
+  id: string;
+  name?: string;
+  avatar?: string;
+  gender?: "male" | "female";
+}): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/users/profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: args.id,
+        name:   args.name   ?? "",
+        avatar: args.avatar ?? "",
+        gender: args.gender ?? "",
+      }),
+    });
+  } catch { /* network errors are non-fatal */ }
 }
 export async function fetchPublicUsers(): Promise<PublicServerUser[]> {
   try {
@@ -603,6 +632,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...local,
             level: Math.max(local.level ?? 0, r.level ?? 0),
             totalOrders: Math.max(local.totalOrders ?? 0, r.totalOrders ?? 0),
+            // Profile bits: prefer the server's mirrored value when present
+            // (so other devices' avatar/name/gender updates flow in), but
+            // keep the local value as a fallback when the server hasn't
+            // received a mirror yet (e.g. older account).
+            name:   r.name   ?? local.name,
+            avatar: r.avatar ?? local.avatar,
+            gender: (r.gender ?? local.gender) as User["gender"],
             equippedFrame:         "equippedFrame"         in r ? r.equippedFrame         ?? null : local.equippedFrame         ?? null,
             equippedBadge:         "equippedBadge"         in r ? r.equippedBadge         ?? null : local.equippedBadge         ?? null,
             equippedBackground:    "equippedBackground"    in r ? r.equippedBackground    ?? null : local.equippedBackground    ?? null,
@@ -615,7 +651,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Brand-new player from another device — synthesize a read-only profile.
           const placeholder: User = {
             id: r.id,
-            name: r.username,
+            name: r.name ?? r.username,
             phone: r.phone,
             gameUsername: r.username,
             // Password never leaves its origin device. The empty value is
@@ -624,6 +660,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             level: r.level ?? 0,
             totalOrders: r.totalOrders ?? 0,
             points: 0,
+            avatar: r.avatar ?? undefined,
+            gender: (r.gender ?? undefined) as User["gender"],
             equippedFrame:         r.equippedFrame         ?? null,
             equippedBadge:         r.equippedBadge         ?? null,
             equippedBackground:    r.equippedBackground    ?? null,
@@ -711,6 +749,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem("registeredUsers", JSON.stringify(next));
         return next;
       });
+      // Mirror profile bits to the server so OTHER devices' leaderboards
+      // show the real avatar / name / gender instead of a default silhouette.
+      // Fire-and-forget — server failure never blocks local UI.
+      syncProfileToServer({
+        id: u.id,
+        name: u.name,
+        avatar: u.avatar,
+        gender: u.gender,
+      });
     } else {
       AsyncStorage.removeItem("currentUser");
     }
@@ -774,13 +821,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (byId.has(r.id)) continue;
               byId.set(r.id, {
                 id: r.id,
-                name: r.username,
+                name: r.name ?? r.username,
                 phone: r.phone,
                 gameUsername: r.username,
                 password: "",
                 level: r.level ?? 0,
                 totalOrders: r.totalOrders ?? 0,
                 points: 0,
+                avatar: r.avatar ?? undefined,
+                gender: (r.gender ?? undefined) as User["gender"],
                 equippedFrame:         r.equippedFrame         ?? null,
                 equippedBadge:         r.equippedBadge         ?? null,
                 equippedBackground:    r.equippedBackground    ?? null,
