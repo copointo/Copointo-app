@@ -131,10 +131,17 @@ export function AuthModal({
     if (status !== "granted") { setErr(t("auth.errPhotoPerm")); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.7,
+      allowsEditing: true, aspect: [1, 1], quality: 0.6, base64: true,
     });
     if (!result.canceled && result.assets[0]) {
-      setRegAvatar(result.assets[0].uri);
+      // Store as base64 data URI so the avatar is portable across devices
+      // (file:// paths are device-local and won't load on other devices).
+      const asset = result.assets[0];
+      const mime = asset.mimeType || "image/jpeg";
+      const dataUri = asset.base64
+        ? `data:${mime};base64,${asset.base64}`
+        : asset.uri;
+      setRegAvatar(dataUri);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };

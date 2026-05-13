@@ -327,10 +327,19 @@ export default function ProfileScreen() {
     if (status !== "granted") { Alert.alert(t("profile.photoPermNeeded")); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.8,
+      allowsEditing: true, aspect: [1, 1], quality: 0.6, base64: true,
     });
     if (!result.canceled && result.assets[0] && user) {
-      setUser({ ...user, avatar: result.assets[0].uri });
+      // Always store as a base64 data URI so the avatar is portable across
+      // devices. `file://` paths are device-local and won't load on other
+      // devices fetching the leaderboard, which is why other users' photos
+      // were previously showing as the default silhouette.
+      const asset = result.assets[0];
+      const mime = asset.mimeType || "image/jpeg";
+      const dataUri = asset.base64
+        ? `data:${mime};base64,${asset.base64}`
+        : asset.uri;
+      setUser({ ...user, avatar: dataUri });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
