@@ -287,10 +287,13 @@ export default function LeaderboardScreen() {
                   <AvatarWithFrame size={44} scale={1.55} frameId={leaderFrameId}>
                     {r.community.avatar ? (
                       <Image source={{ uri: r.community.avatar }} style={styles.avatarImg} />
+                    ) : leader?.avatar ? (
+                      <Image source={{ uri: leader.avatar }} style={styles.avatarImg} />
                     ) : (
-                      <View style={[styles.avatar, isMine && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
-                        <Text style={{ fontSize: 20 }}>🏘️</Text>
-                      </View>
+                      <Image
+                        source={getDefaultAvatarSource(leader?.gender as "male" | "female" | undefined)}
+                        style={styles.avatarImg}
+                      />
                     )}
                   </AvatarWithFrame>
 
