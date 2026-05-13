@@ -390,7 +390,9 @@ export default function LeaderboardScreen() {
               <View style={styles.entryInfo}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <UsernameText
-                    text={entry.isMe ? `${entry.name}${t("lb.youSuffix")}` : entry.name}
+                    text={entry.username
+                      ? `@${entry.username}${entry.isMe ? t("lb.youSuffix") : ""}`
+                      : `${entry.name}${entry.isMe ? t("lb.youSuffix") : ""}`}
                     style={[styles.entryName, entry.isMe && { color: "#E8B86D" }]}
                     override={entryUsernameColor}
                     fallbackColor={entry.isMe ? "#E8B86D" : "#FFFFFF"}
@@ -398,6 +400,11 @@ export default function LeaderboardScreen() {
                   />
                   <UserBadge badgeId={entry.equippedBadge} size={28} />
                 </View>
+                {entry.username && entry.name && (
+                  <Text style={styles.entryRealName} numberOfLines={1}>
+                    {entry.name}
+                  </Text>
+                )}
                 <Text style={styles.entryLevel}>
                   {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
                 </Text>
@@ -987,6 +994,11 @@ const styles = StyleSheet.create({
   entryName: {
     fontSize: 14, fontFamily: "Inter_600SemiBold",
     color: "#FFF", marginBottom: 3,
+  },
+  entryRealName: {
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.55)",
+    marginBottom: 3,
   },
   entryLevel: {
     fontSize: 12, fontFamily: "Inter_400Regular",
