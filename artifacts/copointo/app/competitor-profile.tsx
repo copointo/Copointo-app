@@ -155,16 +155,6 @@ export default function CompetitorProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         {/* Profile card */}
         <View style={styles.profileCard}>
-          {/* Equipped character above the avatar (if any) */}
-          {target.equippedCharacter && (() => {
-            const charDef = getCharacter(target.equippedCharacter);
-            return charDef ? (
-              <View style={{ marginBottom: -8 }}>
-                <Character def={charDef} size={44} />
-              </View>
-            ) : null;
-          })()}
-
           {/* Avatar wrapped in the user's equipped frame */}
           <AvatarWithFrame size={96} scale={1.55} frameId={target.equippedFrame ?? null}>
             {target.avatar ? (
@@ -181,8 +171,12 @@ export default function CompetitorProfileScreen() {
           <View style={styles.nameRow}>
             <Text style={styles.displayName}>{target.name}</Text>
             {target.equippedBadge && (
-              <UserBadge badgeId={target.equippedBadge} size={20} />
+              <UserBadge badgeId={target.equippedBadge} size={36} />
             )}
+            {target.equippedCharacter && (() => {
+              const charDef = getCharacter(target.equippedCharacter);
+              return charDef ? <Character def={charDef} size={36} /> : null;
+            })()}
           </View>
           <View style={styles.usernameRow}>
             <Text style={styles.usernameAt}>@</Text>
