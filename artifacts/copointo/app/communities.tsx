@@ -16,6 +16,10 @@ import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { COMMUNITY_ROLE_LABEL_AR, COMMUNITY_ROLE_LABEL_EN, getCommunityRole } from "@/data/mockData";
+import UserBadge from "@/components/UserBadge";
+import AvatarWithFrame from "@/components/AvatarWithFrame";
+import Character from "@/components/Character";
+import { getCharacter } from "@/data/characters";
 
 const BG     = "#000000";
 const CARD   = "#0A0606";
@@ -31,7 +35,7 @@ export default function CommunitiesScreen() {
   const { t, isAr } = useT();
   const ROLE_LABEL = isAr ? COMMUNITY_ROLE_LABEL_AR : COMMUNITY_ROLE_LABEL_EN;
 
-  const { user } = useApp();
+  const { user, registeredUsers } = useApp();
   const {
     myCommunities,
     myActiveCommunity,
@@ -181,6 +185,8 @@ export default function CommunitiesScreen() {
           ) : (
             rankingList.map((r, i) => {
               const isMine = !!user && r.community.members.includes(user.id);
+              const leader = registeredUsers.find(u => u.id === r.community.createdBy);
+              const leaderCharDef = leader?.equippedCharacter ? getCharacter(leader.equippedCharacter) : null;
               return (
                 <TouchableOpacity
                   key={r.community.id}
@@ -198,19 +204,30 @@ export default function CommunitiesScreen() {
                       {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
                     </Text>
                   </View>
-                  {r.community.avatar ? (
-                    <Image source={{ uri: r.community.avatar }} style={styles.avatarImgSm} />
-                  ) : (
-                    <View style={styles.avatarPhSm}>
-                      <Text style={{ fontSize: 18 }}>🏛️</Text>
-                    </View>
-                  )}
+                  <AvatarWithFrame size={42} scale={1.4} frameId={leader?.equippedFrame ?? null}>
+                    {r.community.avatar ? (
+                      <Image source={{ uri: r.community.avatar }} style={styles.avatarImgSm} />
+                    ) : (
+                      <View style={styles.avatarPhSm}>
+                        <Text style={{ fontSize: 18 }}>🏛️</Text>
+                      </View>
+                    )}
+                  </AvatarWithFrame>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.commName} numberOfLines={1}>
-                      {r.community.name}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={styles.commName} numberOfLines={1}>
+                        {r.community.name}
+                      </Text>
+                      {leader?.equippedBadge && (
+                        <UserBadge badgeId={leader.equippedBadge} size={22} />
+                      )}
+                      {leaderCharDef && (
+                        <Character def={leaderCharDef} size={22} />
+                      )}
+                    </View>
                     <Text style={styles.metaText}>
                       {t("comm.rankMembers", { n: r.community.members.length })}
+                      {leader ? `  •  👑 ${leader.name}` : ""}
                     </Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
