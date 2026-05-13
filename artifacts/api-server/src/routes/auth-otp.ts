@@ -112,9 +112,16 @@ router.post("/send", async (req: Request, res: Response): Promise<any> => {
     if (!from) throw new Error("Twilio sender number missing");
     const body = `كوبوينتو Copointo — رمز التحقق: ${code}\nصلاحية 5 دقائق. لا تشاركه مع أحد.`;
     const to = phone.startsWith("+") ? phone : `+${phone}`;
-    await client.messages.create({ to, from, body });
+    const msg = await client.messages.create({ to, from, body });
+    req.log?.info?.(
+      { sid: msg.sid, to, from, status: msg.status, errorCode: msg.errorCode ?? null },
+      "twilio send queued",
+    );
   } catch (err: any) {
-    req.log?.error?.({ err: err?.message ?? String(err) }, "twilio send failed");
+    req.log?.error?.(
+      { err: err?.message ?? String(err), code: err?.code, status: err?.status, moreInfo: err?.moreInfo },
+      "twilio send failed",
+    );
     return res.status(502).json({
       ok: false,
       error: "تعذر إرسال الرمز عبر SMS، حاول مجدداً بعد قليل",
