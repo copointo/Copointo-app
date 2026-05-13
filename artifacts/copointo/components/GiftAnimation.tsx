@@ -4,6 +4,7 @@ import {
   Animated,
   Dimensions,
   Easing,
+  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -48,8 +49,10 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
 
   // Total quantity (uncapped, used for the caption "×N" badge)
   const qty = Math.max(1, count);
-  // Visible particle count (capped for perf)
-  const visibleCount = Math.min(qty, MAX_PARTICLES);
+  // Visible particle count (capped for perf). Cinematic image gifts with
+  // singleParticle=true always render exactly ONE big falling particle so
+  // the GIF reads clearly instead of a swarm of duplicates.
+  const visibleCount = gift?.singleParticle ? 1 : Math.min(qty, MAX_PARTICLES);
 
   // Pre-compute per-particle random params once per (gift, count) cycle so
   // the animation looks consistent and doesn't reshuffle on re-render.
@@ -62,7 +65,9 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
       duration: FALL_DUR_MIN + Math.random() * (FALL_DUR_MAX - FALL_DUR_MIN),
       driftX: (Math.random() - 0.5) * 80,
       rotateDir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
-      size: gift.tier === 3
+      size: gift.singleParticle
+        ? Math.min(SCREEN_W, SCREEN_H) * 0.7
+        : gift.tier === 3
         ? 56 + Math.random() * 26
         : gift.tier === 2
         ? 44 + Math.random() * 18
@@ -101,12 +106,14 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
             <FallingGift
               key={p.key}
               emoji={gift.emoji}
-              x={p.x}
+              image={gift.image}
+              x={gift.singleParticle ? SCREEN_W / 2 : p.x}
               size={p.size}
               delay={p.delay}
               duration={p.duration}
-              driftX={p.driftX}
+              driftX={gift.singleParticle ? 0 : p.driftX}
               rotateDir={p.rotateDir}
+              spin={!gift.singleParticle}
             />
           ))}
         </View>
@@ -167,15 +174,19 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
 
 interface FallingProps {
   emoji: string;
+  image?: number;
   x: number;
   size: number;
   delay: number;
   duration: number;
   driftX: number;
   rotateDir: 1 | -1;
+  /** When false, the particle falls straight down without rotating
+   *  (used for image-based cinematic gifts so the GIF stays upright). */
+  spin?: boolean;
 }
 
-function FallingGift({ emoji, x, size, delay, duration, driftX, rotateDir }: FallingProps) {
+function FallingGift({ emoji, image, x, size, delay, duration, driftX, rotateDir, spin = true }: FallingProps) {
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.timing(t, {
@@ -202,6 +213,26 @@ function FallingGift({ emoji, x, size, delay, duration, driftX, rotateDir }: Fal
     inputRange: [0, 0.06, 0.94, 1],
     outputRange: [0, 1, 1, 0],
   });
+  const transform = spin
+    ? [{ translateY }, { translateX }, { rotate }]
+    : [{ translateY }, { translateX }];
+  if (image) {
+    return (
+      <Animated.Image
+        source={image}
+        resizeMode="contain"
+        style={{
+          position: "absolute",
+          left: x - size / 2,
+          top: 0,
+          width: size,
+          height: size,
+          opacity,
+          transform,
+        }}
+      />
+    );
+  }
   return (
     <Animated.Text
       style={{
@@ -211,7 +242,7 @@ function FallingGift({ emoji, x, size, delay, duration, driftX, rotateDir }: Fal
         fontSize: size,
         lineHeight: size * 1.15,
         opacity,
-        transform: [{ translateY }, { translateX }, { rotate }],
+        transform,
       }}
     >
       {emoji}

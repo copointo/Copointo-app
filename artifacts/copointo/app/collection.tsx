@@ -592,7 +592,11 @@ export default function CollectionScreen() {
                     }}
                   >
                     <View style={styles.tileImgWrap}>
-                      <Text style={{ fontSize: 56, lineHeight: 64, textAlign: "center" }}>{g.emoji}</Text>
+                      {g.image ? (
+                        <Image source={g.image} style={{ width: 64, height: 64 }} resizeMode="contain" />
+                      ) : (
+                        <Text style={{ fontSize: 56, lineHeight: 64, textAlign: "center" }}>{g.emoji}</Text>
+                      )}
                     </View>
                     <Text style={styles.tileName}>{g.name}</Text>
                     <View style={[styles.equippedChip, { backgroundColor: g.color }]}>

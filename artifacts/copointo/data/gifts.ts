@@ -5,6 +5,9 @@ export interface GiftDef {
   name: string;
   /** Main emoji shown in catalog and as the body of the animation. */
   emoji: string;
+  /** Optional image (e.g. animated GIF) to render instead of the emoji.
+   *  Use `require("../assets/...")` so Metro bundles it. */
+  image?: number;
   /** Cost in coins to send this gift. */
   price: number;
   /** Tier 1 = simple, 2 = fancy animated, 3 = cinematic 3+ seconds. */
@@ -13,6 +16,9 @@ export interface GiftDef {
   color: string;
   /** Optional secondary emojis used as orbiting particles (tier 2 & 3). */
   particles?: readonly string[];
+  /** When true, the falling animation renders ONE big particle no matter
+   *  the qty (used for cinematic image gifts so the GIF appears once). */
+  singleParticle?: boolean;
 }
 
 export const GIFTS: GiftDef[] = [
@@ -23,6 +29,16 @@ export const GIFTS: GiftDef[] = [
   { id: "gift-12", name: "وردة استوائية", emoji: "🌺", price: 20, tier: 1, color: "#F97316" },
   { id: "gift-15", name: "تاج",           emoji: "👑", price: 20, tier: 1, color: "#FFD700" },
   { id: "gift-19", name: "مطر القلوب",    emoji: "💖", price: 20, tier: 1, color: "#EC4899" },
+  {
+    id: "gift-special-200",
+    name: "هدية مميزة",
+    emoji: "🎁",
+    image: require("../assets/images/gifts/special-200.gif"),
+    price: 200,
+    tier: 3,
+    color: "#E8B86D",
+    singleParticle: true,
+  },
 ];
 
 export function getGift(id: string | null | undefined): GiftDef | null {

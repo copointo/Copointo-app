@@ -747,7 +747,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                       <Text style={styles.giftOwnedBadgeText}>×{owned}</Text>
                     </View>
                   )}
-                  <Text style={{ fontSize: 36, lineHeight: 42 }}>{g.emoji}</Text>
+                  {g.image ? (
+                    <Image source={g.image} style={{ width: 42, height: 42 }} resizeMode="contain" />
+                  ) : (
+                    <Text style={{ fontSize: 36, lineHeight: 42 }}>{g.emoji}</Text>
+                  )}
                   <Text style={styles.bgName} numberOfLines={1}>{g.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Image source={COPOINTO_COIN} style={{ width: 12, height: 12 }} />
@@ -792,7 +796,11 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                     borderRadius: 18,
                     borderWidth: 1, borderColor: `${buyGift.color}55`,
                   }}>
-                    <Text style={{ fontSize: 88, lineHeight: 100 }}>{buyGift.emoji}</Text>
+                    {buyGift.image ? (
+                      <Image source={buyGift.image} style={{ width: 110, height: 110 }} resizeMode="contain" />
+                    ) : (
+                      <Text style={{ fontSize: 88, lineHeight: 100 }}>{buyGift.emoji}</Text>
+                    )}
                     <TouchableOpacity
                       onPress={() => { Haptics.selectionAsync(); setAnimGift(buyGift); }}
                       style={{

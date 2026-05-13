@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Image, StyleSheet, Text, View } from "react-native";
 import { useGiftFeed, type GiftFeedEvent } from "@/hooks/useGiftFeed";
 import { getGift } from "@/data/gifts";
 
@@ -71,7 +71,11 @@ export default function GiftFeedTicker() {
     const color = gd?.color ?? "#E8B86D";
     return (
       <View key={`${keyPrefix}_${ev.key}`} style={styles.item}>
-        <Text style={styles.gift}>{gd?.emoji ?? "🎁"}</Text>
+        {gd?.image ? (
+          <Image source={gd.image} style={{ width: 22, height: 22, marginEnd: 4 }} resizeMode="contain" />
+        ) : (
+          <Text style={styles.gift}>{gd?.emoji ?? "🎁"}</Text>
+        )}
         <Text style={styles.text} numberOfLines={1}>
           <Text style={styles.bold}>{ev.senderName}</Text>
           <Text> أهدى </Text>

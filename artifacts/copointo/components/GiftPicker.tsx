@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import {
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -110,7 +111,11 @@ export default function GiftPicker({ visible, toName, onClose, onSend }: Props) 
                       !has && { opacity: 0.35 },
                     ]}
                   >
-                    <Text style={styles.cardEmoji}>{g.emoji}</Text>
+                    {g.image ? (
+                      <Image source={g.image} style={{ width: 44, height: 44 }} resizeMode="contain" />
+                    ) : (
+                      <Text style={styles.cardEmoji}>{g.emoji}</Text>
+                    )}
                     <Text style={styles.cardName} numberOfLines={1}>{g.name}</Text>
                     <View style={[styles.countChip, has ? null : { backgroundColor: "rgba(255,255,255,0.06)" }]}>
                       <Text style={[styles.countText, !has && { color: "rgba(255,255,255,0.55)" }]}>
