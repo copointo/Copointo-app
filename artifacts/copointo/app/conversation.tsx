@@ -93,24 +93,10 @@ export default function ConversationScreen() {
   const [animQty, setAnimQty]       = useState<number>(1);
   const [animFromName, setAnimFromName] = useState<string | undefined>(undefined);
 
-  // Auto-play animation for unseen incoming gifts when this screen mounts /
-  // a new gift message arrives. Tracks which gift message ids we've already
-  // played so we never replay on re-render.
+  // The gift animation no longer auto-plays when entering a conversation.
+  // The gift bubble in the chat itself is enough; if the user wants to see
+  // the full effect again they can tap the bubble explicitly.
   const playedGiftIdsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const unseenGift = convMsgs.find(
-      m => !m.fromMe && m.giftId && !playedGiftIdsRef.current.has(m.id),
-    );
-    if (unseenGift && unseenGift.giftId) {
-      const gd = getGift(unseenGift.giftId);
-      if (gd) {
-        playedGiftIdsRef.current.add(unseenGift.id);
-        setAnimGift(gd);
-        setAnimQty(unseenGift.giftQty ?? 1);
-        setAnimFromName(unseenGift.senderName ?? (typeof name === "string" ? name : undefined));
-      }
-    }
-  }, [convMsgs, name]);
 
   const sendGift = async (gift: GiftDef, qty: number) => {
     if (!id) return;
