@@ -348,7 +348,7 @@ export default function LeaderboardScreen() {
                     fallbackColor={entry.isMe ? "#E8B86D" : "#FFFFFF"}
                     numberOfLines={1}
                   />
-                  <UserBadge badgeId={entry.equippedBadge} size={18} />
+                  <UserBadge badgeId={entry.equippedBadge} size={28} />
                 </View>
                 <Text style={styles.entryLevel}>
                   {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
