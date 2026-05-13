@@ -186,10 +186,16 @@ router.get("/free-coffees", (req, res) => {
 // Mobile fetches system broadcasts (announcements from Copointo super-admin).
 // Optional ?since=<ISO> filters to only newer broadcasts.
 router.get("/broadcasts", (req, res) => {
-  const since = String(req.query.since ?? "").trim();
-  const items = since
-    ? broadcasts.filter(b => b.createdAt > since)
-    : broadcasts;
+  const since  = String(req.query.since  ?? "").trim();
+  const userId = String(req.query.userId ?? "").trim();
+  const items = broadcasts.filter(b => {
+    if (since && !(b.createdAt > since)) return false;
+    // Targeted broadcast: only deliver to listed recipients.
+    if (Array.isArray(b.toUserIds) && b.toUserIds.length > 0) {
+      return userId ? b.toUserIds.includes(userId) : false;
+    }
+    return true;
+  });
   res.json({ broadcasts: items });
 });
 

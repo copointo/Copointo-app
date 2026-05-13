@@ -39,6 +39,10 @@ export const api = {
                                         req<any>("PATCH",  `${A}/reports/${id}`, { status }),
   deleteReport:      (id: string)    => req<any>("DELETE", `${A}/reports/${id}`),
 
+  // Communities (super-admin)
+  getCommunities:   ()                              => req<any>("GET",  `${A}/communities`),
+  banCommunity:     (id: string, reason: string)    => req<any>("POST", `${A}/communities/${id}/ban`, { reason }),
+
   // Broadcast notifications to all game users
   getBroadcasts:    ()                  => req<any>("GET",    `${A}/broadcasts`),
   sendBroadcast:    (message: string)   => req<any>("POST",   `${A}/broadcasts`, { message }),

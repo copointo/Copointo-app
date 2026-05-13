@@ -102,7 +102,8 @@ export default function NotificationsScreen() {
 
   const loadBroadcasts = useCallback(async () => {
     try {
-      const r = await apiFetch<{ broadcasts: Broadcast[] }>("/broadcasts");
+      const uid = user?.id ? `?userId=${encodeURIComponent(user.id)}` : "";
+      const r = await apiFetch<{ broadcasts: Broadcast[] }>(`/broadcasts${uid}`);
       setBroadcasts(r.broadcasts ?? []);
       // Mark as seen so the bell badge clears.
       const newest = r.broadcasts?.[0]?.createdAt;

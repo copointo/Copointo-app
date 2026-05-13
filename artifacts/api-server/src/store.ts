@@ -281,6 +281,10 @@ export interface Broadcast {
   id: string;
   message: string;
   createdAt: string;
+  /** Optional list of recipient user IDs. When present, only these users will
+   *  see this broadcast (used for community-ban notifications targeted at
+   *  former members). When absent/empty → broadcast is global to all users. */
+  toUserIds?: string[];
 }
 export const broadcasts: Broadcast[] = [];
 

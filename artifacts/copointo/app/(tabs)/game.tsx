@@ -203,7 +203,8 @@ export default function GameScreen() {
 
   const refreshBadges = useCallback(async () => {
     try {
-      const r = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>("/broadcasts");
+      const uid = user?.id ? `?userId=${encodeURIComponent(user.id)}` : "";
+      const r = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>(`/broadcasts${uid}`);
       const lastSeen = (await AsyncStorage.getItem("copointo_broadcast_last_seen_v1")) ?? "";
       setUnreadBroadcasts((r.broadcasts ?? []).filter(b => b.createdAt > lastSeen).length);
     } catch { /* ignore */ }

@@ -7,8 +7,9 @@ import CafesPage         from "@/pages/CafesPage";
 import UsersPage         from "@/pages/UsersPage";
 import CopointoHubPage   from "@/pages/CopointoHubPage";
 import ReportsPage       from "@/pages/ReportsPage";
+import CommunitiesPage   from "@/pages/CommunitiesPage";
 import CafeDashboardPage, { ManagerAnalyticsPage } from "@/pages/CafeDashboardPage";
-import { LayoutDashboard, Coffee, Users, Gamepad2, AlertCircle, ArrowRight } from "lucide-react";
+import { LayoutDashboard, Coffee, Users, Gamepad2, AlertCircle, ArrowRight, Users2 } from "lucide-react";
 import logoUrl from "@/assets/copointo-logo.png";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,14 @@ function HomePage() {
       Icon:    AlertCircle,
       label:   "البلاغات",
       sub:     "بلاغات المستخدمين والكوفي",
+      grad:    "from-[#0A0606] via-[#050303] to-black",
+      border:  "border-[#E8B86D]/40",
+    },
+    {
+      href:    "/communities",
+      Icon:    Users2,
+      label:   "المجتمعات",
+      sub:     "أعضاء وتصنيف وحظر المجتمعات",
       grad:    "from-[#0A0606] via-[#050303] to-black",
       border:  "border-[#E8B86D]/40",
     },
@@ -133,6 +142,9 @@ function CopointoHubWrapped() {
 function ReportsWrapped() {
   return <PageLayout title="البلاغات"><ReportsPage /></PageLayout>;
 }
+function CommunitiesWrapped() {
+  return <PageLayout title="المجتمعات"><CommunitiesPage /></PageLayout>;
+}
 
 // ── Router ────────────────────────────────────────────────────
 function AdminApp() {
@@ -144,6 +156,7 @@ function AdminApp() {
       <Route path="/users"      component={UsersWrapped}    />
       <Route path="/copointo-hub" component={CopointoHubWrapped} />
       <Route path="/reports"      component={ReportsWrapped}    />
+      <Route path="/communities"  component={CommunitiesWrapped}/>
       <Route path="/cafe/:id/analytics"  component={ManagerAnalyticsPage}/>
       <Route path="/cafe/:id"            component={CafeDashboardPage}/>
     </Switch>

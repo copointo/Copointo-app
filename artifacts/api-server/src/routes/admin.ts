@@ -4,6 +4,7 @@ import fs from "node:fs";
 import {
   cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports,
   purgeUserData, purgeCafeData, reels, wipeAllData,
+  communities, communityInvites,
   type Cafe, type Broadcast, type ChatMsg, type Report,
 } from "../store";
 import { deleteReelFile } from "../lib/objectStorage";
@@ -416,6 +417,115 @@ router.get("/public", (_req, res) => {
     rating: c.rating, tags: c.tags, address: c.address,
   }));
   res.json({ cafes: publicCafes });
+});
+
+// ─── Communities (super-admin) ─────────────────────────────────────────
+// Same rank tiers as the mobile app (data/mockData.ts → RANKS).
+const ADMIN_RANKS = [
+  { min: 0,   max: 100,  name: "مبتدئ كوفي",   icon: "☕" },
+  { min: 101, max: 200,  name: "هاوي كوفي",    icon: "🫖" },
+  { min: 201, max: 300,  name: "محترف كوفي",   icon: "⭐" },
+  { min: 301, max: 400,  name: "كبير كوفي",    icon: "🏅" },
+  { min: 401, max: 500,  name: "عالمي كوفي",   icon: "🌍" },
+  { min: 501, max: 600,  name: "مجنون كوفي",   icon: "🔥" },
+  { min: 601, max: 700,  name: "مخضرم كوفي",   icon: "💎" },
+  { min: 701, max: 800,  name: "عمدة الكوفي",  icon: "👑" },
+  { min: 801, max: 900,  name: "ملك الكوفي",   icon: "🏆" },
+  { min: 901, max: 1000, name: "نخبة الكوفي",  icon: "⚡" },
+];
+function adminRankFor(level: number) {
+  return ADMIN_RANKS.find(r => level >= r.min && level <= r.max) || ADMIN_RANKS[0]!;
+}
+const ROLE_LABELS_AR: Record<string, string> = {
+  leader: "قائد", vice: "قائد مساعد", senior: "عضو كبير", member: "عضو",
+};
+
+// GET /api/admin/communities — list every community + enriched member rows.
+router.get("/communities", (_req, res) => {
+  const list = communities.map(c => {
+    const memberRows = c.members.map(uid => {
+      const u = users.find(x => x.id === uid);
+      const role = (c.roles && c.roles[uid]) || (uid === c.createdBy ? "leader" : "member");
+      const level = u?.level ?? 0;
+      const rank = adminRankFor(level);
+      return {
+        id: uid,
+        name: u?.name || u?.username || "—",
+        username: u?.username || "",
+        phone: u?.phone || "",
+        avatar: u?.avatar || null,
+        gender: u?.gender || null,
+        level,
+        totalOrders: u?.totalOrders ?? 0,
+        rankName: rank.name,
+        rankIcon: rank.icon,
+        roleKey: role,
+        roleLabel: ROLE_LABELS_AR[role] || role,
+        banned: !!u?.banned,
+      };
+    });
+    // Sort: leader → vice → senior → member, then by level desc.
+    const order: Record<string, number> = { leader: 0, vice: 1, senior: 2, member: 3 };
+    memberRows.sort((a, b) => {
+      const r = (order[a.roleKey] ?? 9) - (order[b.roleKey] ?? 9);
+      if (r !== 0) return r;
+      return b.level - a.level;
+    });
+    const totalLevel = memberRows.reduce((s, m) => s + (m.level || 0), 0);
+    const totalOrders = memberRows.reduce((s, m) => s + (m.totalOrders || 0), 0);
+    return {
+      id: c.id,
+      name: c.name,
+      avatar: c.avatar || null,
+      createdBy: c.createdBy,
+      createdAt: c.createdAt,
+      memberCount: memberRows.length,
+      totalLevel,
+      totalOrders,
+      members: memberRows,
+    };
+  });
+  // Most-points first.
+  list.sort((a, b) => b.totalLevel - a.totalLevel || b.memberCount - a.memberCount);
+  res.json({ communities: list });
+});
+
+// POST /api/admin/communities/:id/ban  body: { reason }
+// Hard-ban a community: delete it + all its invites, then push a TARGETED
+// broadcast (toUserIds = former members) so each member sees the reason in
+// their notifications screen on next poll. Cafe-side data is untouched.
+router.post("/communities/:id/ban", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  const reason = String(req.body?.reason ?? "").trim();
+  if (!id) return res.status(400).json({ error: "id مطلوب" });
+  if (!reason) return res.status(400).json({ error: "السبب مطلوب" });
+  if (reason.length > 500) return res.status(400).json({ error: "السبب طويل جداً (الحد الأقصى 500 حرف)" });
+
+  const idx = communities.findIndex(c => c.id === id);
+  if (idx === -1) return res.status(404).json({ error: "المجتمع غير موجود" });
+  const community = communities[idx]!;
+  const memberIds = [...community.members];
+  const name = community.name;
+
+  // Remove the community + every related invite.
+  communities.splice(idx, 1);
+  for (let i = communityInvites.length - 1; i >= 0; i--) {
+    if (communityInvites[i]!.communityId === id) communityInvites.splice(i, 1);
+  }
+
+  // Targeted broadcast — only the former members will see it.
+  if (memberIds.length > 0) {
+    const b: Broadcast = {
+      id: `bc_cb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      message: `تم حظر مجتمع "${name}" من قِبل إدارة كوبوينتو.\nالسبب: ${reason}`,
+      createdAt: new Date().toISOString(),
+      toUserIds: memberIds,
+    };
+    broadcasts.unshift(b);
+  }
+
+  persistStore();
+  res.json({ ok: true, removedMembers: memberIds.length });
 });
 
 export default router;
