@@ -128,13 +128,13 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
             <View style={styles.namesBlock}>
               <View style={styles.nameLine}>
                 <Text style={[styles.nameLabel, styles.textShadow]}>من: </Text>
-                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
+                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]}>
                   {fromName}
                 </Text>
               </View>
               <View style={styles.nameLine}>
                 <Text style={[styles.nameLabel, styles.textShadow]}>إلى: </Text>
-                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
+                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]}>
                   {toName}
                 </Text>
               </View>
@@ -142,7 +142,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           ) : fromName ? (
             <View style={styles.nameLine}>
               <Text style={[styles.nameLabel, styles.textShadow]}>من: </Text>
-              <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
+              <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]}>
                 {fromName}
               </Text>
             </View>
