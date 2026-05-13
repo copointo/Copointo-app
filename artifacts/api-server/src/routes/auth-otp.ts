@@ -1,19 +1,24 @@
 // Phone-OTP routes for new-user registration and password reset.
-// Sends a 6-digit code via Twilio SMS, verifies with rate limiting,
-// then issues a short-lived "verification token" the client must
-// present when finishing register / reset-password.
+//
+// Uses **Twilio Verify** (managed sender pool with pre-approved
+// carrier routing for the GCC) instead of Programmable Messaging.
+// Twilio Verify generates the code, picks the best sender for each
+// destination country, and validates the code on its end — we only
+// proxy the request and mint a short-lived verification token on
+// success that the client attaches to its register / reset-password
+// call.
+//
+// Required env: TWILIO_VERIFY_SERVICE_SID (set via Replit Secret).
 import { Router, type IRouter, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { getTwilioClient, getTwilioFromPhoneNumber } from "../lib/twilio";
+import { getTwilioClient } from "../lib/twilio";
 
 const router: IRouter = Router();
 
 type Purpose = "register" | "reset";
 
-interface PendingOtp {
-  code: string;
+interface PendingMeta {
   expiresAt: number;
-  attempts: number;
   lastSentAt: number;
   purpose: Purpose;
 }
@@ -26,12 +31,15 @@ interface VerifiedToken {
 
 // In-memory stores. Survive only the process lifetime — that's intentional
 // for OTP / short-lived verification tokens.
-const pending = new Map<string, PendingOtp>();      // key: `${purpose}:${phone}`
-const verified = new Map<string, VerifiedToken>();  // key: opaque token
+//   - `pending` is now used only to enforce our 45s resend cooldown locally
+//     (Twilio also has cooldowns but ours gives a deterministic UX message).
+//   - `verified` holds the single-use tokens we mint after Twilio confirms
+//     the code, consumed by /users/register and /auth/reset-password.
+const pending = new Map<string, PendingMeta>();   // key: `${purpose}:${phone}`
+const verified = new Map<string, VerifiedToken>(); // key: opaque token
 
-const OTP_TTL_MS         = 5 * 60_000;   // 5 min
+const OTP_TTL_MS         = 10 * 60_000;  // 10 min (Twilio Verify default)
 const RESEND_COOLDOWN_MS = 45_000;       // 45s between sends
-const MAX_ATTEMPTS       = 5;
 const TOKEN_TTL_MS       = 10 * 60_000;  // 10 min to use the verified token
 
 function normalizePhone(raw: unknown): string {
@@ -56,11 +64,6 @@ function isPlausiblePhone(p: string): boolean {
   return /^\+?\d{8,15}$/.test(p);
 }
 
-function genCode(): string {
-  // Cryptographic RNG so codes can't be guessed via Math.random seeding.
-  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
-}
-
 function purposeOf(raw: unknown): Purpose | null {
   return raw === "register" || raw === "reset" ? raw : null;
 }
@@ -69,6 +72,17 @@ function purgeExpired() {
   const now = Date.now();
   for (const [k, v] of pending) if (v.expiresAt < now) pending.delete(k);
   for (const [k, v] of verified) if (v.expiresAt < now) verified.delete(k);
+}
+
+function getVerifyServiceSid(): string {
+  const sid = process.env.TWILIO_VERIFY_SERVICE_SID?.trim();
+  if (!sid) {
+    throw new Error(
+      "TWILIO_VERIFY_SERVICE_SID not configured — create a Verify service " +
+      "in Twilio Console (Verify → Services) and add the SID as a Replit Secret.",
+    );
+  }
+  return sid;
 }
 
 // ─── Send OTP ─────────────────────────────────────────────────────────────
@@ -93,34 +107,25 @@ router.post("/send", async (req: Request, res: Response): Promise<any> => {
     });
   }
 
-  const code = genCode();
-  const now = Date.now();
-  pending.set(key, {
-    code,
-    purpose,
-    expiresAt: now + OTP_TTL_MS,
-    attempts: 0,
-    lastSentAt: now,
-  });
-
-  // Send SMS via Twilio. If Twilio fails we surface that to the caller —
-  // the user can retry, and the pending entry stays so resend cooldown
-  // applies (prevents abuse of failed sends as a free oracle).
+  // Hand off to Twilio Verify — it generates the code, picks the optimal
+  // sender for the destination, and tracks expiry on its end. If the call
+  // fails we surface the error so the user can retry; we leave the cooldown
+  // entry in place to prevent abuse of failed sends as a free oracle.
   try {
     const client = await getTwilioClient();
-    const from = await getTwilioFromPhoneNumber();
-    if (!from) throw new Error("Twilio sender number missing");
-    const body = `كوبوينتو Copointo — رمز التحقق: ${code}\nصلاحية 5 دقائق. لا تشاركه مع أحد.`;
+    const serviceSid = getVerifyServiceSid();
     const to = phone.startsWith("+") ? phone : `+${phone}`;
-    const msg = await client.messages.create({ to, from, body });
+    const verification = await client.verify.v2
+      .services(serviceSid)
+      .verifications.create({ to, channel: "sms" });
     req.log?.info?.(
-      { sid: msg.sid, to, from, status: msg.status, errorCode: msg.errorCode ?? null },
-      "twilio send queued",
+      { sid: verification.sid, to, status: verification.status, channel: verification.channel },
+      "twilio verify started",
     );
   } catch (err: any) {
     req.log?.error?.(
       { err: err?.message ?? String(err), code: err?.code, status: err?.status, moreInfo: err?.moreInfo },
-      "twilio send failed",
+      "twilio verify failed",
     );
     return res.status(502).json({
       ok: false,
@@ -128,16 +133,23 @@ router.post("/send", async (req: Request, res: Response): Promise<any> => {
     });
   }
 
+  const now = Date.now();
+  pending.set(key, {
+    purpose,
+    expiresAt: now + OTP_TTL_MS,
+    lastSentAt: now,
+  });
+
   return res.json({ ok: true, expiresInSec: Math.floor(OTP_TTL_MS / 1000) });
 });
 
 // ─── Verify OTP ───────────────────────────────────────────────────────────
-router.post("/verify", (req: Request, res: Response): any => {
+router.post("/verify", async (req: Request, res: Response): Promise<any> => {
   purgeExpired();
   const phone = normalizePhone(req.body?.phone);
   const purpose = purposeOf(req.body?.purpose);
   const code = String(req.body?.code ?? "").trim();
-  if (!phone || !purpose || !/^\d{6}$/.test(code)) {
+  if (!phone || !purpose || !/^\d{4,10}$/.test(code)) {
     return res.status(400).json({ ok: false, error: "بيانات غير صالحة" });
   }
   const key = `${purpose}:${phone}`;
@@ -149,21 +161,40 @@ router.post("/verify", (req: Request, res: Response): any => {
     pending.delete(key);
     return res.status(410).json({ ok: false, error: "انتهت صلاحية الرمز — أعد الإرسال" });
   }
-  entry.attempts += 1;
-  if (entry.attempts > MAX_ATTEMPTS) {
-    pending.delete(key);
-    return res.status(429).json({ ok: false, error: "تجاوزت محاولات التحقق — أعد الإرسال" });
-  }
-  if (entry.code !== code) {
-    return res.status(401).json({
-      ok: false,
-      error: "الرمز غير صحيح",
-      attemptsLeft: Math.max(0, MAX_ATTEMPTS - entry.attempts),
-    });
+
+  // Ask Twilio Verify whether the code is correct. Twilio handles attempt
+  // counting and lockouts on its end (after ~5 wrong tries the verification
+  // is auto-cancelled). We surface failures with a generic message — Twilio
+  // does not return remaining-attempts info on the verificationChecks endpoint.
+  let approved = false;
+  try {
+    const client = await getTwilioClient();
+    const serviceSid = getVerifyServiceSid();
+    const to = phone.startsWith("+") ? phone : `+${phone}`;
+    const check = await client.verify.v2
+      .services(serviceSid)
+      .verificationChecks.create({ to, code });
+    approved = check.status === "approved";
+    req.log?.info?.(
+      { sid: check.sid, to, status: check.status, valid: check.valid },
+      "twilio verify check",
+    );
+  } catch (err: any) {
+    // Twilio returns 404 if the verification was already approved/cancelled
+    // or never existed. Surface as wrong-code so the user can try again.
+    req.log?.warn?.(
+      { err: err?.message ?? String(err), code: err?.code, status: err?.status },
+      "twilio verify check failed",
+    );
+    return res.status(401).json({ ok: false, error: "الرمز غير صحيح" });
   }
 
-  // Success — burn the code and mint a verification token the client
-  // attaches to its register / reset-password call.
+  if (!approved) {
+    return res.status(401).json({ ok: false, error: "الرمز غير صحيح" });
+  }
+
+  // Success — drop the cooldown entry and mint a verification token the
+  // client attaches to its register / reset-password call.
   pending.delete(key);
   const token = crypto.randomBytes(24).toString("hex");
   verified.set(token, { phone, purpose, expiresAt: Date.now() + TOKEN_TTL_MS });
