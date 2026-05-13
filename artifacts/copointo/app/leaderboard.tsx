@@ -274,6 +274,7 @@ export default function LeaderboardScreen() {
               const leaderBadgeId      = leader?.equippedBadge      ?? null;
               const leaderBgId         = leader?.equippedBackground ?? null;
               const leaderCharacterDef = getCharacter(leader?.equippedCharacter ?? null);
+              const leaderUsernameColor = getUsernameColor(leader?.equippedUsernameColor ?? null);
               const innerRow = (
                 <>
                   <Text style={[
@@ -295,9 +296,13 @@ export default function LeaderboardScreen() {
 
                   <View style={styles.entryInfo}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={[styles.entryName, isMine && { color: "#E8B86D" }]} numberOfLines={1}>
-                        {r.community.name}{isMine ? t("lb.yourCommunity") : ""}
-                      </Text>
+                      <UsernameText
+                        text={`${r.community.name}${isMine ? t("lb.yourCommunity") : ""}`}
+                        style={[styles.entryName, isMine && { color: "#E8B86D" }]}
+                        override={leaderUsernameColor}
+                        fallbackColor={isMine ? "#E8B86D" : "#FFFFFF"}
+                        numberOfLines={1}
+                      />
                       <UserBadge badgeId={leaderBadgeId} size={26} />
                       {leaderCharacterDef && <Character def={leaderCharacterDef} size={22} />}
                     </View>
