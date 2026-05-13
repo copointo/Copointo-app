@@ -414,6 +414,25 @@ export default function ProfileScreen() {
           <Feather name="chevron-left" size={18} color={PRIMARY} style={{ opacity: 0.7 }} />
         </TouchableOpacity>
 
+        {(user?.gender === "male" || user?.gender === "female") && (
+          <View style={{
+            flexDirection: "row", alignItems: "center", gap: 6,
+            alignSelf: "center", marginTop: 10, marginBottom: 4,
+            paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999,
+            backgroundColor: user.gender === "female" ? "rgba(240,98,146,0.15)" : "rgba(79,195,247,0.15)",
+            borderWidth: 1,
+            borderColor: user.gender === "female" ? "#F0629255" : "#4FC3F755",
+          }}>
+            <Text style={{ fontSize: 14 }}>{user.gender === "female" ? "👩" : "🧑"}</Text>
+            <Text style={{
+              fontSize: 12, fontFamily: "Inter_600SemiBold",
+              color: user.gender === "female" ? "#F06292" : "#4FC3F7",
+            }}>
+              {user.gender === "female" ? "بنت" : "ولد"}
+            </Text>
+          </View>
+        )}
+
         {/* ── Stats grid ── */}
         <View style={styles.statsGrid}>
           {/* Row 1 */}

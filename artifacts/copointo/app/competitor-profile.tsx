@@ -188,6 +188,24 @@ export default function CompetitorProfileScreen() {
               withBg
             />
           </View>
+          {(target.gender === "male" || target.gender === "female") && (
+            <View style={{
+              flexDirection: "row", alignItems: "center", gap: 6,
+              alignSelf: "center", marginTop: 8,
+              paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999,
+              backgroundColor: target.gender === "female" ? "rgba(240,98,146,0.15)" : "rgba(79,195,247,0.15)",
+              borderWidth: 1,
+              borderColor: target.gender === "female" ? "#F0629255" : "#4FC3F755",
+            }}>
+              <Text style={{ fontSize: 14 }}>{target.gender === "female" ? "👩" : "🧑"}</Text>
+              <Text style={{
+                fontSize: 12, fontFamily: "Inter_600SemiBold",
+                color: target.gender === "female" ? "#F06292" : "#4FC3F7",
+              }}>
+                {target.gender === "female" ? "بنت" : "ولد"}
+              </Text>
+            </View>
+          )}
 
           {/* Stats — two rows: rank/level/coffees on top, gifts on bottom */}
           <View style={styles.statsRow}>
