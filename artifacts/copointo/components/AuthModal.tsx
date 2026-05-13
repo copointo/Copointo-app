@@ -16,18 +16,7 @@ import {
 } from "react-native";
 import { useApp, sendOtp, verifyOtp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
-
-// All phone numbers are treated as Omani (+968) by default. Strips any
-// non-digit characters and any leading 0 (e.g. "076611997" → "76611997"),
-// then prepends "+968".
-const buildOmanPhone = (raw: string) => {
-  const digits = raw.replace(/\D+/g, "").replace(/^0+/, "");
-  if (!digits) return "";
-  // If the user already typed the country code (e.g. "96876611997"),
-  // don't double-prefix it.
-  if (digits.startsWith("968")) return `+${digits}`;
-  return `+968${digits}`;
-};
+import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "./CountryCodePicker";
 
 const BORDER  = "rgba(232,184,109,0.35)";
 const PRIMARY = "#E8B86D";
@@ -76,6 +65,7 @@ export function AuthModal({
   const [regGender, setRegGender] = useState<"male" | "female" | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [regCountry, setRegCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [gameUser, setGameUser] = useState("");
   const [pass, setPass] = useState("");
 
@@ -94,7 +84,16 @@ export function AuthModal({
 
   // Forgot
   const [resetPhone, setResetPhone] = useState("");
+  const [resetCountry, setResetCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [newPass, setNewPass]       = useState("");
+
+  // Build the full E.164-style phone (e.g. +96891234567) from the picker +
+  // the typed digits. Strips non-digits and any leading 0 (common in local
+  // formats like 091234567 → 91234567).
+  const buildFullPhone = (cc: Country, raw: string) => {
+    const digits = raw.replace(/\D+/g, "").replace(/^0+/, "");
+    return `${cc.dial}${digits}`;
+  };
 
   const startResendTimer = (sec: number) => {
     setResendIn(sec);
@@ -157,7 +156,7 @@ export function AuthModal({
   const sendRegisterOtp = async () => {
     setErr("");
     if (!phone.trim()) { setErr("الرجاء إدخال رقم الهاتف أولاً"); return; }
-    const p = buildOmanPhone(phone);
+    const p = buildFullPhone(regCountry, phone);
     if (p.replace(/\D+/g, "").length < 7) { setErr("رقم الهاتف غير صحيح"); return; }
     setBusy(true);
     const sent = await sendOtp(p, "register");
@@ -187,7 +186,7 @@ export function AuthModal({
     if (pass.length < 6) { setErr(t("auth.errPasswordShort")); return; }
     if (!ASCII_PRINTABLE_RE.test(pass)) { setErr(t("auth.errPasswordEn")); return; }
     if (!regOtpSent) { setErr("اضغط (إرسال الرمز) أولاً، ثم أدخل الرمز المُرسل إلى هاتفك"); return; }
-    const fullPhone = buildOmanPhone(phone);
+    const fullPhone = buildFullPhone(regCountry, phone);
     if (regOtpPhone !== fullPhone) {
       setErr("تم تغيير رقم الهاتف بعد إرسال الرمز — أعد إرسال الرمز");
       return;
@@ -219,7 +218,7 @@ export function AuthModal({
   const submitForgotPhone = async () => {
     setErr("");
     if (!resetPhone.trim()) { setErr(t("auth.errFillAll")); return; }
-    const p = buildOmanPhone(resetPhone);
+    const p = buildFullPhone(resetCountry, resetPhone);
     if (p.replace(/\D+/g, "").length < 7) { setErr("رقم الهاتف غير صحيح"); return; }
     setBusy(true);
     const sent = await sendOtp(p, "reset");
@@ -239,7 +238,7 @@ export function AuthModal({
     setErr("");
     if (!/^\d{6}$/.test(otpCode)) { setErr("الرجاء إدخال الرمز المكون من 6 أرقام"); return; }
     setBusy(true);
-    const v = await verifyOtp(buildOmanPhone(resetPhone), otpCode, "reset");
+    const v = await verifyOtp(buildFullPhone(resetCountry, resetPhone), otpCode, "reset");
     setBusy(false);
     if (!v.ok) {
       const left = typeof v.attemptsLeft === "number" ? ` (${v.attemptsLeft} محاولة متبقية)` : "";
@@ -267,8 +266,8 @@ export function AuthModal({
   const resendOtp = async () => {
     if (resendIn > 0) return;
     const target = step === "register-form"
-      ? buildOmanPhone(phone)
-      : buildOmanPhone(resetPhone);
+      ? buildFullPhone(regCountry, phone)
+      : buildFullPhone(resetCountry, resetPhone);
     const purpose = step === "register-form" ? "register" : "reset";
     setErr("");
     setBusy(true);
@@ -294,7 +293,7 @@ export function AuthModal({
   };
 
   const isOtpStep = step === "forgot-otp";
-  const otpTargetPhone = buildOmanPhone(resetPhone);
+  const otpTargetPhone = buildFullPhone(resetCountry, resetPhone);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={dismissible ? close : () => {}}>
@@ -386,24 +385,46 @@ export function AuthModal({
                 </View>
 
                 <AuthField icon="user" placeholder={t("auth.fieldName")} value={name} onChange={setName} />
-                <AuthField
-                  icon="phone"
-                  placeholder={t("auth.fieldPhone")}
-                  value={phone}
-                  onChange={(v) => {
-                    const cleaned = v.replace(/\D+/g, "");
-                    setPhone(cleaned);
-                    const newFull = buildOmanPhone(cleaned);
-                    if (regOtpSent && newFull !== regOtpPhone) {
-                      setRegOtpSent(false);
-                      setOtpCode("");
-                      setOtpToken("");
-                      setResendIn(0);
-                      if (resendTimerRef.current) clearInterval(resendTimerRef.current);
-                    }
-                  }}
-                  keyboardType="phone-pad"
-                />
+                <View style={styles.phoneRow}>
+                  <CountryCodePicker
+                    value={regCountry}
+                    onChange={(c) => {
+                      setRegCountry(c);
+                      // Changing the country code invalidates any previously
+                      // sent OTP — same reasoning as editing the digits.
+                      if (regOtpSent) {
+                        const newFull = `${c.dial}${phone.replace(/\D+/g, "").replace(/^0+/, "")}`;
+                        if (newFull !== regOtpPhone) {
+                          setRegOtpSent(false);
+                          setOtpCode("");
+                          setOtpToken("");
+                          setResendIn(0);
+                          if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+                        }
+                      }
+                    }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <AuthField
+                      icon="phone"
+                      placeholder={t("auth.fieldPhone")}
+                      value={phone}
+                      onChange={(v) => {
+                        const cleaned = v.replace(/\D+/g, "");
+                        setPhone(cleaned);
+                        const newFull = `${regCountry.dial}${cleaned.replace(/^0+/, "")}`;
+                        if (regOtpSent && newFull !== regOtpPhone) {
+                          setRegOtpSent(false);
+                          setOtpCode("");
+                          setOtpToken("");
+                          setResendIn(0);
+                          if (resendTimerRef.current) clearInterval(resendTimerRef.current);
+                        }
+                      }}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </View>
 
                 {/* Inline OTP row — code input + send/resend button. The
                     code field stays disabled until the first send so it's
@@ -504,13 +525,18 @@ export function AuthModal({
                 <Text style={styles.otpHelpText}>
                   أدخل رقم هاتفك المسجّل وسنرسل لك رمز تحقق لإعادة تعيين كلمة المرور.
                 </Text>
-                <AuthField
-                  icon="phone"
-                  placeholder={t("auth.fieldPhone")}
-                  value={resetPhone}
-                  onChange={(v) => setResetPhone(v.replace(/\D+/g, ""))}
-                  keyboardType="phone-pad"
-                />
+                <View style={styles.phoneRow}>
+                  <CountryCodePicker value={resetCountry} onChange={setResetCountry} />
+                  <View style={{ flex: 1 }}>
+                    <AuthField
+                      icon="phone"
+                      placeholder={t("auth.fieldPhone")}
+                      value={resetPhone}
+                      onChange={(v) => setResetPhone(v.replace(/\D+/g, ""))}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </View>
               </>
             )}
 
@@ -642,6 +668,7 @@ const styles = StyleSheet.create({
     lineHeight: 20, marginVertical: 4,
   },
   otpRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  phoneRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
   otpSendBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
     backgroundColor: PRIMARY, borderRadius: 12,
