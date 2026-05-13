@@ -265,6 +265,73 @@ export default function LeaderboardScreen() {
           ) : (
             rankingList.map((r, i) => {
               const isMine = !!user && r.community.members.includes(user.id);
+              // Pull the leader's equipped cosmetics so the community row in
+              // the ranking is themed by their loadout (frame, badge,
+              // background, character) — visible to all viewers.
+              const leaderId = r.community.createdBy;
+              const leader = leaderId ? registeredUsers.find(u => u.id === leaderId) : undefined;
+              const leaderFrameId      = leader?.equippedFrame      ?? null;
+              const leaderBadgeId      = leader?.equippedBadge      ?? null;
+              const leaderBgId         = leader?.equippedBackground ?? null;
+              const leaderCharacterDef = getCharacter(leader?.equippedCharacter ?? null);
+              const innerRow = (
+                <>
+                  <Text style={[
+                    styles.entryRankNum,
+                    { color: i === 0 ? "#FFD700" : i === 1 ? "#A8A8A8" : i === 2 ? "#CD7F32" : "#999" },
+                  ]}>
+                    {MEDAL[i] ?? `#${i + 1}`}
+                  </Text>
+
+                  <AvatarWithFrame size={44} scale={1.55} frameId={leaderFrameId}>
+                    {r.community.avatar ? (
+                      <Image source={{ uri: r.community.avatar }} style={styles.avatarImg} />
+                    ) : (
+                      <View style={[styles.avatar, isMine && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
+                        <Text style={{ fontSize: 20 }}>🏘️</Text>
+                      </View>
+                    )}
+                  </AvatarWithFrame>
+
+                  <View style={styles.entryInfo}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={[styles.entryName, isMine && { color: "#E8B86D" }]} numberOfLines={1}>
+                        {r.community.name}{isMine ? t("lb.yourCommunity") : ""}
+                      </Text>
+                      <UserBadge badgeId={leaderBadgeId} size={26} />
+                      {leaderCharacterDef && <Character def={leaderCharacterDef} size={22} />}
+                    </View>
+                    <Text style={styles.entryLevel}>
+                      {t("lb.communityMembers", { n: String(r.community.members.length) })}
+                    </Text>
+                    <View style={styles.coffeeChip}>
+                      <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(r.score) })}</Text>
+                    </View>
+                  </View>
+
+                  <Feather name="chevron-left" size={18} color="rgba(255,255,255,0.45)" />
+                </>
+              );
+              if (leaderBgId) {
+                return (
+                  <TouchableOpacity
+                    key={r.community.id}
+                    activeOpacity={0.85}
+                    onPress={() => openCommunity(r.community.id)}
+                    style={{ borderRadius: 18 }}
+                  >
+                    <UsernameBackground
+                      backgroundId={leaderBgId}
+                      borderRadius={18}
+                      paddingHorizontal={14}
+                      paddingVertical={14}
+                      style={{ alignSelf: "stretch" }}
+                    >
+                      <View style={styles.entryRowContent}>{innerRow}</View>
+                    </UsernameBackground>
+                  </TouchableOpacity>
+                );
+              }
               return (
                 <TouchableOpacity
                   key={r.community.id}
@@ -276,34 +343,7 @@ export default function LeaderboardScreen() {
                     i === 0 && styles.entryRowFirst,
                   ]}
                 >
-                  <Text style={[
-                    styles.entryRankNum,
-                    { color: i === 0 ? "#FFD700" : i === 1 ? "#A8A8A8" : i === 2 ? "#CD7F32" : "#999" },
-                  ]}>
-                    {MEDAL[i] ?? `#${i + 1}`}
-                  </Text>
-
-                  {r.community.avatar ? (
-                    <Image source={{ uri: r.community.avatar }} style={styles.avatarImg} />
-                  ) : (
-                    <View style={[styles.avatar, isMine && { backgroundColor: "rgba(232,184,109,0.30)" }]}>
-                      <Text style={{ fontSize: 20 }}>🏘️</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.entryInfo}>
-                    <Text style={[styles.entryName, isMine && { color: "#E8B86D" }]} numberOfLines={1}>
-                      {r.community.name}{isMine ? t("lb.yourCommunity") : ""}
-                    </Text>
-                    <Text style={styles.entryLevel}>
-                      {t("lb.communityMembers", { n: String(r.community.members.length) })}
-                    </Text>
-                    <View style={styles.coffeeChip}>
-                      <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(r.score) })}</Text>
-                    </View>
-                  </View>
-
-                  <Feather name="chevron-left" size={18} color="rgba(255,255,255,0.45)" />
+                  {innerRow}
                 </TouchableOpacity>
               );
             })
