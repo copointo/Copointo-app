@@ -600,6 +600,18 @@ function UserDetailPanel(p: PanelProps) {
                 )}
                 <Text style={panelStyles.name}>{u.name}{isMe ? t("lb.youSuffix") : ""}</Text>
                 <Text style={panelStyles.username}>@{u.gameUsername}</Text>
+                <TouchableOpacity
+                  style={panelStyles.fullProfileBtn}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    p.onClose();
+                    router.push({ pathname: "/competitor-profile", params: { id: u.gameUsername } });
+                  }}
+                >
+                  <Feather name="user" size={14} color="#000" />
+                  <Text style={panelStyles.fullProfileBtnText}>عرض الملف الشخصي الكامل</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Stats: rank · level · total coffees */}
@@ -1025,6 +1037,13 @@ const panelStyles = StyleSheet.create({
     alignItems: "center", justifyContent: "center", zIndex: 5,
   },
   headerRow: { alignItems: "center", gap: 4, marginTop: 4, marginBottom: 14 },
+  fullProfileBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: "#E8B86D",
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 12, marginTop: 8,
+  },
+  fullProfileBtnText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#000" },
   avatarImg: {
     width: 84, height: 84, borderRadius: 42,
     borderWidth: 2.5, borderColor: "rgba(232,184,109,0.35)",

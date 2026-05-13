@@ -21,12 +21,26 @@ import { useApp, claimGameUsername } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { useReceivedGifts } from "@/hooks/useReceivedGifts";
+import { useSentGifts } from "@/hooks/useSentGifts";
 import { useCoins } from "@/hooks/useCoins";
 import { RANKS, getRank } from "@/data/mockData";
 import { AuthModal } from "@/components/AuthModal";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
+import Character from "@/components/Character";
 import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
+import { useCharacters } from "@/hooks/useCharacters";
+import { useFrames } from "@/hooks/useFrames";
+import { useBadges } from "@/hooks/useBadges";
+import { useUsernameColors } from "@/hooks/useUsernameColors";
+import { useTextStyles } from "@/hooks/useTextStyles";
+import { useBackgrounds } from "@/hooks/useBackgrounds";
+import { getCharacter } from "@/data/characters";
+import { getFrame } from "@/data/frames";
+import { getBadge } from "@/data/badges";
+import { getUsernameColor } from "@/data/usernameColors";
+import { getTextStyle } from "@/data/textStyles";
+import { getBackground } from "@/data/backgrounds";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -280,6 +294,13 @@ export default function ProfileScreen() {
   const pct   = rank ? ((level - rank.min) / Math.max(rank.max - rank.min, 1)) * 100 : 0;
   const freeCoffees = Math.floor((user.totalOrders ?? 0) / 7);
   const giftsReceived = useReceivedGifts(user.id);
+  const giftsSent     = useSentGifts(user.id);
+  const { equipped: eqCharacterId } = useCharacters();
+  const { equipped: eqFrameId }     = useFrames();
+  const { equipped: eqBadgeId }     = useBadges();
+  const { equipped: eqUcId }        = useUsernameColors();
+  const { equipped: eqTsId }        = useTextStyles();
+  const { equipped: eqBgId }        = useBackgrounds();
 
   // Friends count + ranks (show "—" for brand-new users with no activity)
   const friendsCount = friends.length;
@@ -421,9 +442,9 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>{t("profile.statGiftsReceived")}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
-              <Text style={styles.statIcon}>👫</Text>
-              <Text style={styles.statValue}>{friendsRankStr}</Text>
-              <Text style={styles.statLabel}>{t("profile.statFriendsRank")}</Text>
+              <Text style={styles.statIcon}>💝</Text>
+              <Text style={[styles.statValue, { color: "#A78BFA" }]}>{giftsSent}</Text>
+              <Text style={styles.statLabel}>{t("profile.statGiftsSent")}</Text>
             </View>
             <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
               <Text style={styles.statIcon}>🇴🇲</Text>
@@ -431,6 +452,50 @@ export default function ProfileScreen() {
               <Text style={styles.statLabel}>{t("profile.statOmanRank")}</Text>
             </View>
           </View>
+          {/* Row 3 */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
+              <Text style={styles.statIcon}>👫</Text>
+              <Text style={styles.statValue}>{friendsRankStr}</Text>
+              <Text style={styles.statLabel}>{t("profile.statFriendsRank")}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Equipped cosmetics showcase ── */}
+        <Text style={styles.cosmeticsTitle}>{t("profile.equippedTitle")}</Text>
+        <View style={styles.cosmeticsGrid}>
+          {(() => {
+            const ch = getCharacter(eqCharacterId);
+            const fr = getFrame(eqFrameId);
+            const bd = getBadge(eqBadgeId);
+            const uc = getUsernameColor(eqUcId);
+            const ts = getTextStyle(eqTsId);
+            const bg = getBackground(eqBgId);
+            const ucColor = uc?.color ?? uc?.gradient?.[0] ?? uc?.mix?.[0] ?? "rgba(255,255,255,0.40)";
+            const items = [
+              { label: t("profile.eqCharacter"),      node: ch ? <Character def={ch} size={28} /> : null, name: ch?.name },
+              { label: t("profile.eqFrame"),          node: fr ? <View style={{ width: 36, height: 36 }}><AvatarWithFrame size={36} scale={1} frameId={fr.id}><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.08)" }} /></AvatarWithFrame></View> : null, name: fr?.name },
+              { label: t("profile.eqBadge"),          node: bd ? <UserBadge badgeId={bd.id} size={26} /> : null, name: bd?.name },
+              { label: t("profile.eqUsernameColor"),  node: uc ? <Text style={{ color: ucColor, fontFamily: "Inter_700Bold", fontSize: 16 }}>أبجد</Text> : null, name: uc?.name },
+              { label: t("profile.eqTextStyle"),      node: ts ? <Text style={{ color: "#FFF", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Aa</Text> : null, name: ts?.name },
+              { label: t("profile.eqBackground"),     node: bg ? <View style={{ width: 28, height: 18, borderRadius: 4, backgroundColor: (bg as any).color ?? (Array.isArray((bg as any).gradient) ? (bg as any).gradient[0] : "#333"), borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }} /> : null, name: bg?.name },
+            ].filter(it => it.node);
+            if (items.length === 0) {
+              return (
+                <View style={styles.cosmeticEmpty}>
+                  <Text style={styles.cosmeticEmptyText}>{t("profile.equippedEmpty")}</Text>
+                </View>
+              );
+            }
+            return items.map((it, i) => (
+              <View key={i} style={styles.cosmeticCard}>
+                <Text style={styles.cosmeticLabel}>{it.label}</Text>
+                <View style={styles.cosmeticPreview}>{it.node}</View>
+                <Text style={styles.cosmeticName} numberOfLines={1}>{it.name ?? "—"}</Text>
+              </View>
+            ));
+          })()}
         </View>
 
         {/* ── Progress bar ── */}
@@ -768,7 +833,31 @@ const styles = StyleSheet.create({
 
   // ── Stats (glowing cards) ──
   statsGrid: { gap: 12 },
-  statsRow:  { flexDirection: "row", gap: 12 },
+  statsRow:  { flexDirection: "row", gap: 12, marginTop: 8 },
+  cosmeticsTitle: {
+    fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF",
+    textAlign: "right", marginTop: 8, marginBottom: 4,
+  },
+  cosmeticsGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 10,
+  },
+  cosmeticCard: {
+    width: "31%",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.18)",
+    alignItems: "center", gap: 6,
+  },
+  cosmeticLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "Inter_500Medium" },
+  cosmeticPreview: { height: 44, alignItems: "center", justifyContent: "center" },
+  cosmeticName: { fontSize: 11, color: "#FFF", fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  cosmeticEmpty: {
+    flex: 1, padding: 18,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  cosmeticEmptyText: { fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "Inter_400Regular" },
   statBox:   { alignItems: "center", gap: 8, paddingVertical: 18, paddingHorizontal: 8 },
   statBoxCard: {
     flex: 1, backgroundColor: CARD, borderRadius: 22,

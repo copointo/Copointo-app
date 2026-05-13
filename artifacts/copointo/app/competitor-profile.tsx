@@ -24,6 +24,11 @@ import Character from "@/components/Character";
 import { GiftDef } from "@/data/gifts";
 import { useGiftInventory } from "@/hooks/useGiftInventory";
 import { useReceivedGifts } from "@/hooks/useReceivedGifts";
+import { useSentGifts } from "@/hooks/useSentGifts";
+import { getFrame } from "@/data/frames";
+import { getBadge } from "@/data/badges";
+import { getTextStyle } from "@/data/textStyles";
+import { getBackground } from "@/data/backgrounds";
 import { getCharacter } from "@/data/characters";
 import { getUsernameColor } from "@/data/usernameColors";
 import { useState } from "react";
@@ -62,6 +67,7 @@ export default function CompetitorProfileScreen() {
   const hasIncoming = !!(target && incomingRequests.includes(target.id));
   const isMe        = !!(target && currentUser?.id === target.id);
   const giftsReceived = useReceivedGifts(target?.id ?? null);
+  const giftsSent     = useSentGifts(target?.id ?? null);
   const rank        = target ? getRank(target.level) : null;
 
   // ─── Gifts ────────────────────────────────────────────────────────
@@ -189,7 +195,7 @@ export default function CompetitorProfileScreen() {
             />
           </View>
 
-          {/* Stats row */}
+          {/* Stats — two rows: rank/level/coffees on top, gifts on bottom */}
           <View style={styles.statsRow}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{omanRank ? `#${omanRank}` : "—"}</Text>
@@ -205,10 +211,16 @@ export default function CompetitorProfileScreen() {
               <Text style={[styles.statValue, { color: "#4FC3F7" }]}>{target.totalOrders ?? 0}</Text>
               <Text style={styles.statLabel}>إجمالي القهوة</Text>
             </View>
-            <View style={styles.statDivider} />
+          </View>
+          <View style={[styles.statsRow, { marginTop: 8 }]}>
             <View style={styles.statBox}>
               <Text style={[styles.statValue, { color: "#FF6B9D" }]}>{giftsReceived}</Text>
-              <Text style={styles.statLabel}>🎁 هدايا</Text>
+              <Text style={styles.statLabel}>🎁 هدايا مستلمة</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: "#A78BFA" }]}>{giftsSent}</Text>
+              <Text style={styles.statLabel}>🎁 هدايا مرسلة</Text>
             </View>
           </View>
 
@@ -275,6 +287,42 @@ export default function CompetitorProfileScreen() {
               )}
             </>
           )}
+        </View>
+
+        {/* ── Equipped cosmetics showcase ── */}
+        <Text style={styles.sectionTitle}>✨ الأغراض المستعملة</Text>
+        <View style={styles.cosmeticsGrid}>
+          {(() => {
+            const ch = getCharacter(target.equippedCharacter ?? null);
+            const fr = getFrame(target.equippedFrame ?? null);
+            const bd = getBadge(target.equippedBadge ?? null);
+            const uc = getUsernameColor(target.equippedUsernameColor ?? null);
+            const ts = getTextStyle(target.equippedTextStyle ?? null);
+            const bg = getBackground(target.equippedBackground ?? null);
+            const ucColor = uc?.color ?? uc?.gradient?.[0] ?? uc?.mix?.[0] ?? "rgba(255,255,255,0.40)";
+            const items = [
+              { label: "الشخصية", node: ch ? <Character def={ch} size={28} /> : null, name: ch?.name },
+              { label: "الإطار",   node: fr ? <View style={{ width: 36, height: 36 }}><AvatarWithFrame size={36} scale={1} frameId={fr.id}><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.08)" }} /></AvatarWithFrame></View> : null, name: fr?.name },
+              { label: "الشارة",   node: bd ? <UserBadge badgeId={bd.id} size={26} /> : null, name: bd?.name },
+              { label: "لون الاسم", node: uc ? <Text style={{ color: ucColor, fontFamily: "Inter_700Bold", fontSize: 16 }}>أبجد</Text> : null, name: uc?.name },
+              { label: "نمط النص",  node: ts ? <Text style={{ color: "#FFF", fontFamily: "Inter_600SemiBold", fontSize: 12 }}>Aa</Text> : null, name: ts?.name },
+              { label: "الخلفية",   node: bg ? <View style={{ width: 28, height: 18, borderRadius: 4, backgroundColor: (bg as any).color ?? (Array.isArray((bg as any).gradient) ? (bg as any).gradient[0] : "#333"), borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }} /> : null, name: bg?.name },
+            ].filter(it => it.node);
+            if (items.length === 0) {
+              return (
+                <View style={styles.cosmeticEmpty}>
+                  <Text style={styles.placeholderText}>لا يوجد أغراض مفعّلة حالياً</Text>
+                </View>
+              );
+            }
+            return items.map((it, i) => (
+              <View key={i} style={styles.cosmeticCard}>
+                <Text style={styles.cosmeticLabel}>{it.label}</Text>
+                <View style={styles.cosmeticPreview}>{it.node}</View>
+                <Text style={styles.cosmeticName} numberOfLines={1}>{it.name ?? "—"}</Text>
+              </View>
+            ));
+          })()}
         </View>
 
         {/* Activity placeholder */}
@@ -382,4 +430,26 @@ const styles = StyleSheet.create({
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 40, gap: 12 },
   emptyIcon: { fontSize: 48 },
   emptyText: { fontSize: 15, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.35)" },
+  cosmeticsGrid: {
+    flexDirection: "row", flexWrap: "wrap", gap: 10,
+    marginHorizontal: 16, marginBottom: 18,
+  },
+  cosmeticCard: {
+    width: "31%",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.18)",
+    alignItems: "center", gap: 6,
+  },
+  cosmeticLabel: { fontSize: 11, color: "rgba(255,255,255,0.55)", fontFamily: "Inter_500Medium" },
+  cosmeticPreview: {
+    height: 44, alignItems: "center", justifyContent: "center",
+  },
+  cosmeticName: { fontSize: 11, color: "#FFF", fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  cosmeticEmpty: {
+    flex: 1, padding: 18, marginHorizontal: 0,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
 });
