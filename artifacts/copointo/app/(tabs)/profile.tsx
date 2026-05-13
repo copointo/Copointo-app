@@ -330,15 +330,26 @@ export default function ProfileScreen() {
       allowsEditing: true, aspect: [1, 1], quality: 0.6, base64: true,
     });
     if (!result.canceled && result.assets[0] && user) {
-      // Always store as a base64 data URI so the avatar is portable across
-      // devices. `file://` paths are device-local and won't load on other
-      // devices fetching the leaderboard, which is why other users' photos
-      // were previously showing as the default silhouette.
       const asset = result.assets[0];
       const mime = asset.mimeType || "image/jpeg";
-      const dataUri = asset.base64
-        ? `data:${mime};base64,${asset.base64}`
-        : asset.uri;
+      let dataUri: string | null = null;
+      if (asset.base64) {
+        dataUri = `data:${mime};base64,${asset.base64}`;
+      } else if (asset.uri) {
+        try {
+          const resp = await fetch(asset.uri);
+          const blob = await resp.blob();
+          dataUri = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(String(reader.result));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          dataUri = asset.uri;
+        }
+      }
+      if (!dataUri) { Alert.alert("تعذّر قراءة الصورة، حاول صورة أخرى."); return; }
       setUser({ ...user, avatar: dataUri });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
