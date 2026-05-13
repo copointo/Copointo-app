@@ -19,6 +19,8 @@ import {
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
   reports,
+  communities, communityInvites,
+  type Community, type CommunityInvite, type CommunityRole,
   purgeUserData,
   persistStore,
   flushNow,
@@ -1173,6 +1175,131 @@ router.post("/reports", (req, res): any => {
   reports.push(r);
   persistStore();
   res.json({ ok: true, report: r });
+});
+
+// ─── Communities (game clans) ────────────────────────────────────────────
+// Single global pool. Clients PUT the full updated community state; the
+// server is just shared storage. Polling keeps every device in sync within
+// a few seconds. Invites are recipient-scoped so each user only fetches
+// the invites that target them.
+
+/**
+ * GET /communities[?userId=X]
+ *   → { communities: Community[], invites: CommunityInvite[] }
+ * `communities` is the FULL global list (used by the leaderboard ranking).
+ * `invites` is filtered to the requesting user when `userId` is given.
+ */
+router.get("/communities", (req, res): any => {
+  const userId = String(req.query.userId ?? "").trim();
+  const allComs = communities.slice();
+  const invs = userId
+    ? communityInvites.filter(i => i.toUserId === userId)
+    : [];
+  res.json({ communities: allComs, invites: invs });
+});
+
+/** PUT /communities/:id — upsert (replace) a community's state. */
+router.put("/communities/:id", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  const name = String(req.body?.name ?? "").trim();
+  const createdBy = String(req.body?.createdBy ?? "").trim();
+  const members = Array.isArray(req.body?.members)
+    ? req.body.members.map((x: unknown) => String(x)).filter(Boolean)
+    : [];
+  if (!id || !name || !createdBy || members.length === 0) {
+    return res.status(400).json({ error: "id/name/createdBy/members required" });
+  }
+  const avatar = req.body?.avatar ? String(req.body.avatar) : undefined;
+  const rolesIn = (req.body?.roles && typeof req.body.roles === "object") ? req.body.roles : {};
+  const roles: Record<string, CommunityRole> = {};
+  for (const k of Object.keys(rolesIn)) {
+    const v = rolesIn[k];
+    if (v === "leader" || v === "vice" || v === "senior" || v === "member") {
+      roles[k] = v;
+    }
+  }
+  const createdAtNum = Number(req.body?.createdAt);
+  const c: Community = {
+    id, name,
+    ...(avatar ? { avatar } : {}),
+    members, createdBy,
+    createdAt: Number.isFinite(createdAtNum) ? createdAtNum : Date.now(),
+    roles,
+  };
+  const idx = communities.findIndex(x => x.id === id);
+  if (idx === -1) communities.push(c);
+  else communities[idx] = c;
+  persistStore();
+  res.json({ ok: true, community: c });
+});
+
+/** DELETE /communities/:id — dissolve and clear all related invites. */
+router.delete("/communities/:id", (req, res): any => {
+  const id = String(req.params.id ?? "").trim();
+  if (!id) return res.status(400).json({ error: "id required" });
+  for (let i = communities.length - 1; i >= 0; i--) {
+    if (communities[i]!.id === id) communities.splice(i, 1);
+  }
+  for (let i = communityInvites.length - 1; i >= 0; i--) {
+    if (communityInvites[i]!.communityId === id) communityInvites.splice(i, 1);
+  }
+  persistStore();
+  res.json({ ok: true });
+});
+
+/**
+ * POST /community-invites — send invites to N users for one community.
+ * Body: { communityId, communityName, communityAvatar?, fromUserId,
+ *         fromUserName, toUserIds: string[] }
+ * Idempotent per (communityId, toUserId).
+ */
+router.post("/community-invites", (req, res): any => {
+  const communityId = String(req.body?.communityId ?? "").trim();
+  const communityName = String(req.body?.communityName ?? "").trim();
+  const fromUserId = String(req.body?.fromUserId ?? "").trim();
+  const fromUserName = String(req.body?.fromUserName ?? "").trim();
+  const communityAvatar = req.body?.communityAvatar ? String(req.body.communityAvatar) : undefined;
+  const toUserIds: string[] = Array.isArray(req.body?.toUserIds)
+    ? req.body.toUserIds.map((x: unknown) => String(x)).filter(Boolean)
+    : [];
+  if (!communityId || !communityName || !fromUserId || toUserIds.length === 0) {
+    return res.status(400).json({ error: "communityId/communityName/fromUserId/toUserIds required" });
+  }
+  const now = Date.now();
+  let added = 0;
+  for (const toUserId of toUserIds) {
+    if (communityInvites.some(i => i.communityId === communityId && i.toUserId === toUserId)) continue;
+    const inv: CommunityInvite = {
+      communityId,
+      toUserId,
+      communityName,
+      ...(communityAvatar ? { communityAvatar } : {}),
+      fromUserId,
+      fromUserName,
+      invitedAt: now,
+    };
+    communityInvites.push(inv);
+    added++;
+  }
+  if (added > 0) persistStore();
+  res.json({ ok: true, added });
+});
+
+/** DELETE /community-invites/:communityId?userId=X — remove one invite. */
+router.delete("/community-invites/:communityId", (req, res): any => {
+  const communityId = String(req.params.communityId ?? "").trim();
+  const userId = String(req.query.userId ?? req.body?.userId ?? "").trim();
+  if (!communityId || !userId) return res.status(400).json({ error: "communityId/userId required" });
+  let removed = 0;
+  for (let i = communityInvites.length - 1; i >= 0; i--) {
+    const inv = communityInvites[i]!;
+    if (inv.communityId === communityId && inv.toUserId === userId) {
+      communityInvites.splice(i, 1);
+      removed++;
+    }
+  }
+  if (removed > 0) persistStore();
+  res.json({ ok: true, removed });
 });
 
 export default router;

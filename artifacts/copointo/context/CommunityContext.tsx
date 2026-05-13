@@ -6,6 +6,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -17,9 +18,14 @@ import {
   getCommunityRole,
 } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
+import { API_BASE } from "@/constants/api";
 
-const communitiesKey = (uid: string) => `copointo_communities_v1:${uid}`;
-const invitesKey     = (uid: string) => `copointo_community_invites_v1:${uid}`;
+// AsyncStorage keys are kept as a per-user OFFLINE CACHE only. The server
+// is the source of truth so cross-device invites and a global ranking
+// actually work. The cache lets the UI paint immediately on cold start.
+const cacheCommunitiesKey = (uid: string) => `copointo_communities_v2:${uid}`;
+const cacheInvitesKey     = (uid: string) => `copointo_community_invites_v2:${uid}`;
+const cacheAllKey         = "copointo_all_communities_v2";
 
 export type CommunityCreateResult =
   | { ok: true; community: Community }
@@ -30,24 +36,23 @@ export type CommunityActionResult =
   | { ok: false; error: string };
 
 interface CommunityContextValue {
-  /** Communities the current user is a confirmed member of (mirrored from creator). */
+  /** Communities the current user is a confirmed member of. */
   myCommunities: Community[];
-  /** The single community the user belongs to (or null). A user can only be in ONE. */
+  /** The single community the user belongs to (or null). One per user. */
   myActiveCommunity: Community | null;
   /** Pending invitations for the current user. */
   incomingInvites: CommunityInvite[];
 
-  /** Read-only lookup. */
+  /** Read-only lookup against the GLOBAL list (so any user can resolve any community by id). */
   getCommunity: (id: string) => Community | undefined;
 
   /** Sum of totalOrders across all members. */
   getCommunityScore: (id: string) => number;
 
-  /** All communities visible to the current user (their own + ones they were ever
-   *  invited to / are part of), sorted by score desc. Used for the ranking screen. */
+  /** Every community in the system, sorted by score desc. Used for the
+   *  leaderboard "communities" tab — visible to ALL users. */
   rankingList: Array<{ community: Community; score: number }>;
 
-  /** Mutators */
   createCommunity: (
     name: string,
     inviteUserIds: string[],
@@ -69,47 +74,17 @@ interface CommunityContextValue {
     patch: Partial<Pick<Community, "name" | "avatar">>,
   ) => Promise<CommunityActionResult>;
 
-  /** Promote / demote a member. Permission rules enforced server-side here. */
   setMemberRole: (
     communityId: string,
     userId: string,
     nextRole: CommunityRole,
   ) => Promise<CommunityActionResult>;
 
-  /** Re-read storage to pick up cross-user changes. */
+  /** Pull the latest server snapshot now. */
   refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<CommunityContextValue | undefined>(undefined);
-
-/** Helpers for cross-user storage writes. */
-async function readCommunities(uid: string): Promise<Community[]> {
-  try {
-    const raw = await AsyncStorage.getItem(communitiesKey(uid));
-    return raw ? (JSON.parse(raw) as Community[]) : [];
-  } catch { return []; }
-}
-async function writeCommunities(uid: string, list: Community[]): Promise<void> {
-  try { await AsyncStorage.setItem(communitiesKey(uid), JSON.stringify(list)); } catch {}
-}
-async function readInvites(uid: string): Promise<CommunityInvite[]> {
-  try {
-    const raw = await AsyncStorage.getItem(invitesKey(uid));
-    return raw ? (JSON.parse(raw) as CommunityInvite[]) : [];
-  } catch { return []; }
-}
-async function writeInvites(uid: string, list: CommunityInvite[]): Promise<void> {
-  try { await AsyncStorage.setItem(invitesKey(uid), JSON.stringify(list)); } catch {}
-}
-
-/** Upsert a community into a user's mirrored list (replace if same id). */
-function upsertCommunity(list: Community[], c: Community): Community[] {
-  const i = list.findIndex(x => x.id === c.id);
-  if (i === -1) return [...list, c];
-  const next = [...list];
-  next[i] = c;
-  return next;
-}
 
 /** Strip a userId from a roles map (return new map). */
 function withoutUserRole(
@@ -121,77 +96,153 @@ function withoutUserRole(
   return next;
 }
 
-/** Find the unique vice (or undefined). */
 function findVice(c: Community): string | undefined {
   return c.members.find(m => getCommunityRole(c, m) === "vice");
+}
+
+/** Server I/O helpers — all swallow errors and return null on failure so
+ *  the UI keeps showing the cached snapshot. */
+async function serverSync(userId: string | undefined): Promise<{ communities: Community[]; invites: CommunityInvite[] } | null> {
+  try {
+    const qs = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+    const res = await fetch(`${API_BASE}/communities${qs}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      communities: Array.isArray(data?.communities) ? data.communities : [],
+      invites:     Array.isArray(data?.invites)     ? data.invites     : [],
+    };
+  } catch { return null; }
+}
+
+async function serverPutCommunity(c: Community): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/communities/${encodeURIComponent(c.id)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(c),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+async function serverDeleteCommunity(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/communities/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return res.ok;
+  } catch { return false; }
+}
+
+async function serverPostInvites(payload: {
+  communityId: string;
+  communityName: string;
+  communityAvatar?: string;
+  fromUserId: string;
+  fromUserName: string;
+  toUserIds: string[];
+}): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/community-invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+async function serverDeleteInvite(communityId: string, userId: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/community-invites/${encodeURIComponent(communityId)}?userId=${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    );
+    return res.ok;
+  } catch { return false; }
 }
 
 export function CommunityProvider({ children }: { children: ReactNode }) {
   const { user, registeredUsers } = useApp();
 
-  const [myCommunities, setMyCommunities]   = useState<Community[]>([]);
+  const [allCommunities,  setAllCommunities]  = useState<Community[]>([]);
   const [incomingInvites, setIncomingInvites] = useState<CommunityInvite[]>([]);
-  const [ready, setReady] = useState(false);
+  const [ready,           setReady]           = useState(false);
 
-  // Reset on user change & load this user's data.
-  // Cancellation guard prevents installing a stale read into a newly-active user's state.
+  // Hydrate from cache first (instant paint) then trigger a server sync.
   useEffect(() => {
     setReady(false);
-    if (!user) {
-      setMyCommunities([]);
-      setIncomingInvites([]);
-      return;
-    }
     let cancelled = false;
-    const uid = user.id;
     (async () => {
-      const [comms, invs] = await Promise.all([
-        readCommunities(uid),
-        readInvites(uid),
-      ]);
-      if (cancelled) return;
-      setMyCommunities(comms);
-      setIncomingInvites(invs);
+      try {
+        const allRaw = await AsyncStorage.getItem(cacheAllKey);
+        const cachedAll: Community[] = allRaw ? JSON.parse(allRaw) : [];
+        let cachedInv: CommunityInvite[] = [];
+        if (user) {
+          const invRaw = await AsyncStorage.getItem(cacheInvitesKey(user.id));
+          cachedInv = invRaw ? JSON.parse(invRaw) : [];
+        }
+        if (cancelled) return;
+        setAllCommunities(cachedAll);
+        setIncomingInvites(cachedInv);
+      } catch { /* ignore cache errors */ }
       setReady(true);
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  // Persist on change (only after initial load to avoid wiping)
+  // Persist cache whenever state changes (after initial hydrate).
   useEffect(() => {
-    if (!user || !ready) return;
-    writeCommunities(user.id, myCommunities);
-  }, [user?.id, ready, myCommunities]);
+    if (!ready) return;
+    AsyncStorage.setItem(cacheAllKey, JSON.stringify(allCommunities)).catch(() => {});
+    if (user) {
+      const myList = allCommunities.filter(c => c.members.includes(user.id));
+      AsyncStorage.setItem(cacheCommunitiesKey(user.id), JSON.stringify(myList)).catch(() => {});
+    }
+  }, [ready, allCommunities, user?.id]);
 
   useEffect(() => {
-    if (!user || !ready) return;
-    writeInvites(user.id, incomingInvites);
-  }, [user?.id, ready, incomingInvites]);
+    if (!ready || !user) return;
+    AsyncStorage.setItem(cacheInvitesKey(user.id), JSON.stringify(incomingInvites)).catch(() => {});
+  }, [ready, incomingInvites, user?.id]);
 
-  /** Persist a patched community to every member's mirror (and to local state if I'm a member). */
-  const propagate = useCallback(async (community: Community) => {
-    // Local mirror
-    if (user && community.members.includes(user.id)) {
-      setMyCommunities(prev => upsertCommunity(prev, community));
-    }
-    // Other members' mirrors via direct AsyncStorage write
-    const targets = community.members.filter(m => m !== user?.id);
-    for (const uid of targets) {
-      const existing = await readCommunities(uid);
-      const next = upsertCommunity(existing, community);
-      await writeCommunities(uid, next);
-    }
-  }, [user?.id]);
+  // Server poll — pulls global communities + my invites every 4s.
+  const userIdRef = useRef<string | undefined>(user?.id);
+  useEffect(() => { userIdRef.current = user?.id; }, [user?.id]);
 
-  /** Remove a community from a single user's mirror. */
-  const removeFromUser = useCallback(async (uid: string, communityId: string) => {
-    if (uid === user?.id) {
-      setMyCommunities(prev => prev.filter(c => c.id !== communityId));
-    } else {
-      const existing = await readCommunities(uid);
-      await writeCommunities(uid, existing.filter(c => c.id !== communityId));
-    }
-  }, [user?.id]);
+  const sync = useCallback(async () => {
+    const data = await serverSync(userIdRef.current);
+    if (!data) return;
+    setAllCommunities(data.communities);
+    setIncomingInvites(data.invites);
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    sync();
+    const t = setInterval(() => { sync(); }, 4000);
+    return () => clearInterval(t);
+  }, [ready, sync, user?.id]);
+
+  /** Local optimistic upsert on the global list. */
+  const upsertLocal = useCallback((c: Community) => {
+    setAllCommunities(prev => {
+      const i = prev.findIndex(x => x.id === c.id);
+      if (i === -1) return [...prev, c];
+      const next = prev.slice();
+      next[i] = c;
+      return next;
+    });
+  }, []);
+
+  const removeLocal = useCallback((id: string) => {
+    setAllCommunities(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  // Derived: communities the active user is a member of.
+  const myCommunities = useMemo(
+    () => (user ? allCommunities.filter(c => c.members.includes(user.id)) : []),
+    [allCommunities, user?.id],
+  );
 
   /** ────────── createCommunity ────────── */
   const createCommunity = useCallback(
@@ -202,7 +253,6 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       }
       const trimmed = name.trim();
       if (!trimmed) return { ok: false, error: "اسم المجتمع مطلوب" };
-      // Final size after everyone accepts. Creator counts as a member.
       const projected = inviteUserIds.length + 1;
       if (projected < COMMUNITY_MIN_MEMBERS) {
         return { ok: false, error: `يجب اختيار ${COMMUNITY_MIN_MEMBERS - 1} عضو على الأقل` };
@@ -215,118 +265,96 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         name: trimmed,
         avatar,
-        members: [user.id], // creator joins immediately; invitees join on accept
+        members: [user.id],
         createdBy: user.id,
         createdAt: Date.now(),
         roles: { [user.id]: "leader" },
       };
 
-      // Save locally
-      setMyCommunities(prev => upsertCommunity(prev, community));
+      // Optimistic + push to server
+      upsertLocal(community);
+      const ok = await serverPutCommunity(community);
+      if (!ok) {
+        // Rollback if the server didn't accept the new community.
+        removeLocal(community.id);
+        return { ok: false, error: "تعذر إنشاء المجتمع. حاول مجدداً." };
+      }
 
-      // Send invites to the chosen users
-      const invite: Omit<CommunityInvite, "communityId"> = {
-        communityName: community.name,
-        communityAvatar: community.avatar,
-        fromUserId: user.id,
-        fromUserName: user.name,
-        invitedAt: Date.now(),
-      };
-      for (const uid of inviteUserIds) {
-        const existing = await readInvites(uid);
-        // Skip duplicate invite for same community
-        if (existing.some(i => i.communityId === community.id)) continue;
-        await writeInvites(uid, [
-          ...existing,
-          { ...invite, communityId: community.id },
-        ]);
+      // Send invites via server (recipients pick them up on next poll).
+      const targets = Array.from(new Set(inviteUserIds.filter(uid => uid && uid !== user.id)));
+      if (targets.length > 0) {
+        await serverPostInvites({
+          communityId:     community.id,
+          communityName:   community.name,
+          communityAvatar: community.avatar,
+          fromUserId:      user.id,
+          fromUserName:    user.name,
+          toUserIds:       targets,
+        });
       }
 
       return { ok: true, community };
     },
-    [user?.id, user?.name, myCommunities],
+    [user?.id, user?.name, myCommunities, upsertLocal, removeLocal],
   );
 
-  /** ────────── inviteToCommunity (add later) — leader/vice can invite ────────── */
+  /** ────────── inviteToCommunity ────────── */
   const inviteToCommunity = useCallback(
     async (communityId: string, userIds: string[]): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
-      const community = myCommunities.find(c => c.id === communityId);
+      const community = allCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
       const myRole = getCommunityRole(community, user.id);
       if (myRole !== "leader" && myRole !== "vice") {
         return { ok: false, error: "القائد أو القائد المساعد فقط يمكنه إرسال الدعوات" };
       }
-
-      // Dedupe input + drop existing members FIRST, then check the cap.
       const targets = Array.from(new Set(userIds))
-        .filter(uid => !community.members.includes(uid));
-
+        .filter(uid => uid && uid !== user.id && !community.members.includes(uid));
       const projected = community.members.length + targets.length;
       if (projected > COMMUNITY_MAX_MEMBERS) {
         return { ok: false, error: `الحد الأقصى ${COMMUNITY_MAX_MEMBERS} عضواً` };
       }
-      const invite: Omit<CommunityInvite, "communityId"> = {
-        communityName: community.name,
+      if (targets.length === 0) return { ok: true };
+      const ok = await serverPostInvites({
+        communityId:     community.id,
+        communityName:   community.name,
         communityAvatar: community.avatar,
-        fromUserId: user.id,
-        fromUserName: user.name,
-        invitedAt: Date.now(),
-      };
-      for (const uid of targets) {
-        const existing = await readInvites(uid);
-        // Skip if there's already a pending invite for this community
-        if (existing.some(i => i.communityId === community.id)) continue;
-        await writeInvites(uid, [
-          ...existing,
-          { ...invite, communityId: community.id },
-        ]);
-      }
+        fromUserId:      user.id,
+        fromUserName:    user.name,
+        toUserIds:       targets,
+      });
+      if (!ok) return { ok: false, error: "تعذر إرسال الدعوات. حاول مجدداً." };
       return { ok: true };
     },
-    [user?.id, user?.name, myCommunities],
+    [user?.id, user?.name, allCommunities],
   );
 
   /** ────────── acceptInvite ────────── */
   const acceptInvite = useCallback(
     async (communityId: string): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
-      // One-community-per-user rule
       if (myCommunities.length > 0) {
         return { ok: false, error: "أنت بالفعل في مجتمع. غادر المجتمع الحالي أولاً لقبول دعوة جديدة." };
       }
       const invite = incomingInvites.find(i => i.communityId === communityId);
       if (!invite) return { ok: false, error: "الدعوة غير موجودة" };
 
-      // Find the freshest community by checking the inviter first, then any
-      // other registered user's mirror. This survives the inviter leaving
-      // and creator promotion to another member.
-      const candidates = [
-        invite.fromUserId,
-        ...registeredUsers.map(u => u.id).filter(uid => uid !== invite.fromUserId),
-      ];
-      let community: Community | undefined;
-      for (const uid of candidates) {
-        const list = await readCommunities(uid);
-        const found = list.find(c => c.id === communityId);
-        if (found) {
-          // Pick the version with the most members (latest known state)
-          if (!community || found.members.length > community.members.length) {
-            community = found;
-          }
-        }
-      }
-
+      // Pull the latest server snapshot to grab the freshest community state.
+      const snap = await serverSync(user.id);
+      const liveAll = snap?.communities ?? allCommunities;
+      const community = liveAll.find(c => c.id === communityId);
       if (!community) {
+        await serverDeleteInvite(communityId, user.id);
         setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
         return { ok: false, error: "المجتمع لم يعد موجوداً" };
       }
       if (community.members.length >= COMMUNITY_MAX_MEMBERS) {
+        await serverDeleteInvite(communityId, user.id);
         setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
         return { ok: false, error: "المجتمع ممتلئ" };
       }
       if (community.members.includes(user.id)) {
-        // Already a member somehow — just clear the invite
+        await serverDeleteInvite(communityId, user.id);
         setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
         return { ok: true };
       }
@@ -336,44 +364,44 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         members: [...community.members, user.id],
         roles: { ...(community.roles || {}), [user.id]: "member" },
       };
-      // Mirror to all members (including me, via local state)
-      await propagate(updated);
-      // Remove the invite locally
+      const ok = await serverPutCommunity(updated);
+      if (!ok) return { ok: false, error: "تعذر قبول الدعوة. حاول مجدداً." };
+      upsertLocal(updated);
+      await serverDeleteInvite(communityId, user.id);
       setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
       return { ok: true };
     },
-    [user?.id, incomingInvites, propagate, registeredUsers, myCommunities],
+    [user?.id, incomingInvites, myCommunities, allCommunities, upsertLocal],
   );
 
   /** ────────── declineInvite ────────── */
   const declineInvite = useCallback(async (communityId: string) => {
+    if (!user) return;
     setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
-  }, []);
+    await serverDeleteInvite(communityId, user.id);
+  }, [user?.id]);
 
   /** ────────── leaveCommunity ────────── */
   const leaveCommunity = useCallback(
     async (communityId: string) => {
       if (!user) return;
-      const community = myCommunities.find(c => c.id === communityId);
-      if (!community) return;
+      const community = allCommunities.find(c => c.id === communityId);
+      if (!community || !community.members.includes(user.id)) return;
       const remaining = community.members.filter(m => m !== user.id);
 
       if (remaining.length < COMMUNITY_MIN_MEMBERS) {
-        // Below the minimum (≤1 member) → dissolve the community across every mirror
-        for (const uid of remaining) {
-          await removeFromUser(uid, communityId);
-        }
-        await removeFromUser(user.id, communityId);
+        // Dissolve completely.
+        removeLocal(communityId);
+        await serverDeleteCommunity(communityId);
         return;
       }
 
-      // If the leader leaves, promote vice (if any) → leader, otherwise oldest remaining member.
       const leaverIsLeader = getCommunityRole(community, user.id) === "leader";
-      let nextRoles = withoutUserRole(community.roles, user.id);
+      const nextRoles = withoutUserRole(community.roles, user.id);
       let newCreator = community.createdBy;
       if (leaverIsLeader) {
         const vice = findVice(community);
-        const promoted = vice && remaining.includes(vice) ? vice : remaining[0];
+        const promoted = (vice && remaining.includes(vice)) ? vice : remaining[0]!;
         nextRoles[promoted] = "leader";
         newCreator = promoted;
       }
@@ -383,22 +411,17 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         createdBy: newCreator,
         roles: nextRoles,
       };
-      // Update mirrors for remaining members
-      for (const uid of remaining) {
-        const existing = await readCommunities(uid);
-        await writeCommunities(uid, upsertCommunity(existing, updated));
-      }
-      // Drop from my own list
-      await removeFromUser(user.id, communityId);
+      upsertLocal(updated);
+      await serverPutCommunity(updated);
     },
-    [user?.id, myCommunities, removeFromUser],
+    [user?.id, allCommunities, upsertLocal, removeLocal],
   );
 
   /** ────────── removeMember (leader only) ────────── */
   const removeMember = useCallback(
     async (communityId: string, userId: string): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
-      const community = myCommunities.find(c => c.id === communityId);
+      const community = allCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
       if (getCommunityRole(community, user.id) !== "leader") {
         return { ok: false, error: "القائد فقط يمكنه إزالة الأعضاء" };
@@ -409,32 +432,21 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       const remaining = community.members.filter(m => m !== userId);
 
       if (remaining.length < COMMUNITY_MIN_MEMBERS) {
-        // Removing this member would put us below the minimum → dissolve everywhere
-        for (const uid of remaining) {
-          await removeFromUser(uid, communityId);
-        }
-        await removeFromUser(userId, communityId);
-        await removeFromUser(user.id, communityId);
+        removeLocal(communityId);
+        await serverDeleteCommunity(communityId);
         return { ok: true };
       }
-
       const updated: Community = {
         ...community,
         members: remaining,
         roles: withoutUserRole(community.roles, userId),
       };
-      // Update remaining mirrors
-      for (const uid of remaining) {
-        const existing = await readCommunities(uid);
-        await writeCommunities(uid, upsertCommunity(existing, updated));
-      }
-      // Remove community from the kicked user's mirror
-      await removeFromUser(userId, communityId);
-      // Update local state
-      setMyCommunities(prev => upsertCommunity(prev, updated));
+      upsertLocal(updated);
+      const ok = await serverPutCommunity(updated);
+      if (!ok) return { ok: false, error: "تعذر إزالة العضو. حاول مجدداً." };
       return { ok: true };
     },
-    [user?.id, myCommunities, removeFromUser],
+    [user?.id, allCommunities, upsertLocal, removeLocal],
   );
 
   /** ────────── setMemberRole ────────── */
@@ -445,7 +457,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       nextRole: CommunityRole,
     ): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
-      const community = myCommunities.find(c => c.id === communityId);
+      const community = allCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
       if (!community.members.includes(userId)) {
         return { ok: false, error: "العضو غير موجود" };
@@ -461,15 +473,11 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       if (nextRole === "leader") {
         return { ok: false, error: "لا يمكن تعيين قائد آخر" };
       }
-
-      // Permission matrix
       if (myRole === "leader") {
-        // Leader can set member ↔ senior ↔ vice (cap one vice).
         if (targetRole === "leader") {
           return { ok: false, error: "لا يمكن تخفيض القائد" };
         }
       } else if (myRole === "vice") {
-        // Vice can ONLY promote member → senior.
         if (!(targetRole === "member" && nextRole === "senior")) {
           return { ok: false, error: "القائد المساعد يستطيع فقط ترقية الأعضاء إلى أعضاء كبار" };
         }
@@ -477,10 +485,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: "لا تملك صلاحية تغيير الرتب" };
       }
 
-      // Build new roles map
       const newRoles: Record<string, CommunityRole> = { ...(community.roles || {}) };
-
-      // If promoting to vice, demote any existing vice → senior (only one vice).
       if (nextRole === "vice") {
         for (const m of community.members) {
           if (m !== userId && getCommunityRole(community, m) === "vice") {
@@ -491,10 +496,12 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       newRoles[userId] = nextRole;
 
       const updated: Community = { ...community, roles: newRoles };
-      await propagate(updated);
+      upsertLocal(updated);
+      const ok = await serverPutCommunity(updated);
+      if (!ok) return { ok: false, error: "تعذر تحديث الرتبة. حاول مجدداً." };
       return { ok: true };
     },
-    [user?.id, myCommunities, propagate],
+    [user?.id, allCommunities, upsertLocal],
   );
 
   /** ────────── updateCommunity (leader only) ────────── */
@@ -504,7 +511,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       patch: Partial<Pick<Community, "name" | "avatar">>,
     ): Promise<CommunityActionResult> => {
       if (!user) return { ok: false, error: "غير مسجل دخول" };
-      const community = myCommunities.find(c => c.id === communityId);
+      const community = allCommunities.find(c => c.id === communityId);
       if (!community) return { ok: false, error: "المجتمع غير موجود" };
       if (getCommunityRole(community, user.id) !== "leader") {
         return { ok: false, error: "القائد فقط يمكنه التعديل" };
@@ -514,32 +521,25 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         ...(patch.name !== undefined ? { name: patch.name.trim() || community.name } : {}),
         ...(patch.avatar !== undefined ? { avatar: patch.avatar } : {}),
       };
-      await propagate(updated);
+      upsertLocal(updated);
+      const ok = await serverPutCommunity(updated);
+      if (!ok) return { ok: false, error: "تعذر حفظ التعديلات. حاول مجدداً." };
       return { ok: true };
     },
-    [user?.id, myCommunities, propagate],
+    [user?.id, allCommunities, upsertLocal],
   );
 
-  /** ────────── refresh ────────── */
-  const refresh = useCallback(async () => {
-    if (!user) return;
-    const [comms, invs] = await Promise.all([
-      readCommunities(user.id),
-      readInvites(user.id),
-    ]);
-    setMyCommunities(comms);
-    setIncomingInvites(invs);
-  }, [user?.id]);
+  const refresh = useCallback(async () => { await sync(); }, [sync]);
 
   /** ────────── derived: scores + ranking ────────── */
   const getCommunity = useCallback(
-    (id: string) => myCommunities.find(c => c.id === id),
-    [myCommunities],
+    (id: string) => allCommunities.find(c => c.id === id),
+    [allCommunities],
   );
 
   const getCommunityScore = useCallback(
     (id: string) => {
-      const c = myCommunities.find(x => x.id === id);
+      const c = allCommunities.find(x => x.id === id);
       if (!c) return 0;
       let sum = 0;
       for (const m of c.members) {
@@ -548,11 +548,12 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       }
       return sum;
     },
-    [myCommunities, registeredUsers],
+    [allCommunities, registeredUsers],
   );
 
+  // Global ranking — every community in the system, visible to ALL users.
   const rankingList = useMemo(() => {
-    return myCommunities
+    return allCommunities
       .map(community => {
         let score = 0;
         for (const m of community.members) {
@@ -562,7 +563,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         return { community, score };
       })
       .sort((a, b) => b.score - a.score);
-  }, [myCommunities, registeredUsers]);
+  }, [allCommunities, registeredUsers]);
 
   const myActiveCommunity = myCommunities[0] ?? null;
 

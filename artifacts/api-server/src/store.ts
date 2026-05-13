@@ -465,6 +465,35 @@ export interface GiftVoucher {
 }
 export const giftVouchers: GiftVoucher[] = [];
 
+// ─── Communities (game clans) ────────────────────────────────────────────
+// One global pool of communities visible to ALL users (for the leaderboard
+// "communities" tab). Members + roles + invites are mirrored here so that a
+// user on Device A can invite a user on Device B and the invite shows up.
+export type CommunityRole = "leader" | "vice" | "senior" | "member";
+
+export interface Community {
+  id: string;
+  name: string;
+  avatar?: string;
+  members: string[];
+  createdBy: string;
+  createdAt: number;
+  roles?: Record<string, CommunityRole>;
+}
+export const communities: Community[] = [];
+
+export interface CommunityInvite {
+  communityId: string;
+  /** Recipient user id — every record is the invite for one user. */
+  toUserId: string;
+  communityName: string;
+  communityAvatar?: string;
+  fromUserId: string;
+  fromUserName: string;
+  invitedAt: number;
+}
+export const communityInvites: CommunityInvite[] = [];
+
 // ─── PostgreSQL persistence (autoscale-safe) ─────────────────────────────
 // Previous versions snapshotted the whole store to a local JSON file. That
 // broke on autoscale deployments because each instance had its own disk and
@@ -482,6 +511,7 @@ const COLLECTIONS: Record<string, any[]> = {
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
   reports, coinGifts, giftVouchers,
+  communities, communityInvites,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 
