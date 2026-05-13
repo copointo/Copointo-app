@@ -389,8 +389,8 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       if (!community || !community.members.includes(user.id)) return;
       const remaining = community.members.filter(m => m !== user.id);
 
-      if (remaining.length < COMMUNITY_MIN_MEMBERS) {
-        // Dissolve completely.
+      if (remaining.length === 0) {
+        // Last member out — community has no one left, dissolve it.
         removeLocal(communityId);
         await serverDeleteCommunity(communityId);
         return;
