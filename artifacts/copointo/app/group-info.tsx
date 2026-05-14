@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { assetToDataUri } from "../utils/imageToDataUri";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -83,11 +84,13 @@ export default function GroupInfoScreen() {
       if (status !== "granted") return;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, aspect: [1, 1], quality: 0.7,
+        allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
       });
       if (!result.canceled && result.assets[0]) {
+        const dataUri = await assetToDataUri(result.assets[0]);
+        if (!dataUri) return;
         setBusy(true);
-        await updateGroup(group.id, { avatar: result.assets[0].uri });
+        await updateGroup(group.id, { avatar: dataUri });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setBusy(false);
       }

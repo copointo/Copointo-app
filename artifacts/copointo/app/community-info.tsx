@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { assetToDataUri } from "../utils/imageToDataUri";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -135,11 +136,13 @@ export default function CommunityInfoScreen() {
       if (status !== "granted") return;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, aspect: [1, 1], quality: 0.7,
+        allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
       });
       if (!result.canceled && result.assets[0]) {
+        const dataUri = await assetToDataUri(result.assets[0]);
+        if (!dataUri) return;
         setBusy(true);
-        await updateCommunity(community.id, { avatar: result.assets[0].uri });
+        await updateCommunity(community.id, { avatar: dataUri });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setBusy(false);
       }

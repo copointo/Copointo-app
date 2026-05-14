@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { assetToDataUri } from "../utils/imageToDataUri";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
@@ -72,10 +73,12 @@ export default function CreateCommunityScreen() {
       if (status !== "granted") { setErr("نحتاج إذن الوصول للصور"); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true, aspect: [1, 1], quality: 0.7,
+        allowsEditing: true, aspect: [1, 1], quality: 0.7, base64: true,
       });
       if (!result.canceled && result.assets[0]) {
-        setAvatar(result.assets[0].uri);
+        const dataUri = await assetToDataUri(result.assets[0]);
+        if (!dataUri) { setErr("تعذّر قراءة الصورة، حاول صورة أخرى"); return; }
+        setAvatar(dataUri);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (_) { setErr("تعذّر اختيار الصورة"); }
