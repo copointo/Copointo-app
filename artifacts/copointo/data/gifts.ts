@@ -29,16 +29,6 @@ export const GIFTS: GiftDef[] = [
   { id: "gift-12", name: "وردة استوائية", emoji: "🌺", price: 20, tier: 1, color: "#F97316" },
   { id: "gift-15", name: "تاج",           emoji: "👑", price: 20, tier: 1, color: "#FFD700" },
   { id: "gift-19", name: "مطر القلوب",    emoji: "💖", price: 20, tier: 1, color: "#EC4899" },
-  {
-    id: "gift-special-200",
-    name: "هدية مميزة",
-    emoji: "🎁",
-    image: require("../assets/images/gifts/special-200.gif"),
-    price: 200,
-    tier: 3,
-    color: "#E8B86D",
-    singleParticle: true,
-  },
 ];
 
 export function getGift(id: string | null | undefined): GiftDef | null {
