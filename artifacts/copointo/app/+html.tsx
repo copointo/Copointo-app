@@ -33,6 +33,7 @@ export default function Root({ children }: PropsWithChildren) {
             unlocks rich image previews in Google search results. */}
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
         <meta name="googlebot" content="index, follow" />
+        <meta name="google-site-verification" content="lkgy3K0fmwn37oHmksvjkzPe_IqCJuXjz0SCwS6Hbkc" />
         <link rel="canonical" href="https://copointo.com/" />
 
         {/* Favicons */}
