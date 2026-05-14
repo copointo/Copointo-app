@@ -75,10 +75,16 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
     }));
   }, [gift?.id, visibleCount]);
 
-  // Total scene duration: last particle's start + its fall + a small hold
-  const totalDur = visibleCount > 0
-    ? (visibleCount - 1) * STAGGER_MS + FALL_DUR_MAX + HOLD_AFTER_MS
-    : 1500;
+  // Total scene duration depends on the animation kind. Premium cinematic
+  // gifts (burst/spiral/zoom) run noticeably longer so the effect lands.
+  const animKind = gift?.animationKind ?? "fall";
+  const totalDur =
+    animKind === "burst"  ? 6000 :
+    animKind === "spiral" ? 6500 :
+    animKind === "zoom"   ? 6000 :
+    visibleCount > 0
+      ? (visibleCount - 1) * STAGGER_MS + FALL_DUR_MAX + HOLD_AFTER_MS
+      : 1500;
 
   useEffect(() => {
     if (!visible || !gift) return;
@@ -100,9 +106,12 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
         {/* No backdrop dim — gift overlay is fully transparent so the
             screen underneath stays visible. */}
 
-        {/* Falling gift particles */}
+        {/* Particle layer — branches by gift.animationKind. */}
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {particles.map(p => (
+          {animKind === "burst"  && <BurstScene  gift={gift} duration={totalDur} />}
+          {animKind === "spiral" && <SpiralScene gift={gift} duration={totalDur} />}
+          {animKind === "zoom"   && <ZoomScene   gift={gift} duration={totalDur} />}
+          {animKind === "fall" && particles.map(p => (
             <FallingGift
               key={p.key}
               emoji={gift.emoji}
@@ -246,6 +255,396 @@ function FallingGift({ emoji, image, x, size, delay, duration, driftX, rotateDir
       }}
     >
       {emoji}
+    </Animated.Text>
+  );
+}
+
+/* ─────────────────────────── Premium scenes ──────────────────────────── */
+
+const CENTER_X = SCREEN_W / 2;
+const CENTER_Y = SCREEN_H / 2;
+
+/**
+ * BurstScene — fireworks-style. Multiple waves where particles explode
+ * radially from a center point, fly outward with gravity-ish easing,
+ * then fade. Each wave uses a different center for a layered effect.
+ */
+function BurstScene({ gift, duration }: { gift: GiftDef; duration: number }) {
+  const palette = gift.particles && gift.particles.length > 0
+    ? gift.particles
+    : [gift.emoji];
+  const WAVES = 3;
+  const PER_WAVE = 18;
+  const waveGap = (duration - 1500) / WAVES;
+  const waves = useMemo(() => {
+    return Array.from({ length: WAVES }).map((_, w) => {
+      const cx = CENTER_X + (Math.random() - 0.5) * SCREEN_W * 0.4;
+      const cy = CENTER_Y + (Math.random() - 0.5) * SCREEN_H * 0.25;
+      const startMs = w * waveGap;
+      return Array.from({ length: PER_WAVE }).map((_, i) => {
+        const angle = (i / PER_WAVE) * Math.PI * 2 + Math.random() * 0.2;
+        const dist = 180 + Math.random() * 180;
+        return {
+          key: `${gift.id}_w${w}_p${i}`,
+          cx, cy,
+          startMs,
+          dx: Math.cos(angle) * dist,
+          dy: Math.sin(angle) * dist,
+          emoji: palette[(w + i) % palette.length],
+          size: 28 + Math.random() * 24,
+          rotateDir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
+        };
+      });
+    }).flat();
+  }, [gift.id, duration]);
+  return (
+    <>
+      {waves.map(({ key, ...rest }) => (
+        <BurstParticle key={key} {...rest} />
+      ))}
+      <CenterHalo color={gift.color} duration={duration} pulses={WAVES} />
+    </>
+  );
+}
+
+function BurstParticle({
+  cx, cy, startMs, dx, dy, emoji, size, rotateDir,
+}: {
+  cx: number; cy: number; startMs: number; dx: number; dy: number;
+  emoji: string; size: number; rotateDir: 1 | -1;
+}) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: 1400,
+      delay: startMs,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+  const tx = t.interpolate({ inputRange: [0, 1], outputRange: [0, dx] });
+  const ty = t.interpolate({ inputRange: [0, 1], outputRange: [0, dy + 80] });
+  const scale = t.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1.1, 0.85] });
+  const opacity = t.interpolate({ inputRange: [0, 0.1, 0.75, 1], outputRange: [0, 1, 1, 0] });
+  const rotate = t.interpolate({
+    inputRange: [0, 1],
+    outputRange: rotateDir > 0 ? ["0deg", "360deg"] : ["0deg", "-360deg"],
+  });
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        left: cx - size / 2,
+        top: cy - size / 2,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        opacity,
+        transform: [{ translateX: tx }, { translateY: ty }, { scale }, { rotate }],
+      }}
+    >
+      {emoji}
+    </Animated.Text>
+  );
+}
+
+/**
+ * SpiralScene — particles orbit the center, spiraling outward while growing
+ * and rotating. Final reveal: a big center emoji pulses in.
+ */
+function SpiralScene({ gift, duration }: { gift: GiftDef; duration: number }) {
+  const palette = gift.particles && gift.particles.length > 0
+    ? gift.particles
+    : [gift.emoji];
+  const COUNT = 22;
+  const items = useMemo(() => {
+    return Array.from({ length: COUNT }).map((_, i) => ({
+      key: `${gift.id}_s${i}`,
+      delay: i * 90,
+      emoji: palette[i % palette.length],
+      size: 26 + Math.random() * 16,
+      startAngle: (i / COUNT) * Math.PI * 2,
+      direction: (i % 2 === 0 ? 1 : -1) as 1 | -1,
+    }));
+  }, [gift.id]);
+  return (
+    <>
+      {items.map(({ key, ...rest }) => (
+        <SpiralParticle key={key} {...rest} totalDur={duration} />
+      ))}
+      <CenterHero gift={gift} duration={duration} delay={duration - 1800} />
+    </>
+  );
+}
+
+function SpiralParticle({
+  delay, emoji, size, startAngle, direction, totalDur,
+}: {
+  delay: number; emoji: string; size: number;
+  startAngle: number; direction: 1 | -1; totalDur: number;
+}) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: totalDur - delay - 600,
+      delay,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+  const angle = t.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, direction * Math.PI * 4],
+  });
+  const radius = t.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [40, 180, 30],
+  });
+  const opacity = t.interpolate({
+    inputRange: [0, 0.08, 0.85, 1],
+    outputRange: [0, 1, 1, 0],
+  });
+  const scale = t.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.4, 1.2, 0.6],
+  });
+  const tx = Animated.add(
+    new Animated.Value(0),
+    Animated.multiply(radius, angle.interpolate({
+      inputRange: [-Math.PI * 4, Math.PI * 4],
+      outputRange: [Math.cos(startAngle - Math.PI * 4), Math.cos(startAngle + Math.PI * 4)],
+    })),
+  );
+  // RN's Animated can't compose cos/sin directly, so approximate via a
+  // listener-driven approach: use a single timing interpolation to drive
+  // both x and y via interpolate ranges sampled around the orbit.
+  const SAMPLES = 33;
+  const range = Array.from({ length: SAMPLES }, (_, k) => k / (SAMPLES - 1));
+  const xs = range.map(p => {
+    const a = startAngle + direction * Math.PI * 4 * p;
+    const r = p < 0.5 ? 40 + (180 - 40) * (p / 0.5) : 180 + (30 - 180) * ((p - 0.5) / 0.5);
+    return Math.cos(a) * r;
+  });
+  const ys = range.map(p => {
+    const a = startAngle + direction * Math.PI * 4 * p;
+    const r = p < 0.5 ? 40 + (180 - 40) * (p / 0.5) : 180 + (30 - 180) * ((p - 0.5) / 0.5);
+    return Math.sin(a) * r;
+  });
+  const txs = t.interpolate({ inputRange: range, outputRange: xs });
+  const tys = t.interpolate({ inputRange: range, outputRange: ys });
+  const rotate = t.interpolate({
+    inputRange: [0, 1],
+    outputRange: direction > 0 ? ["0deg", "720deg"] : ["0deg", "-720deg"],
+  });
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        left: CENTER_X - size / 2,
+        top: CENTER_Y - size / 2,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        opacity,
+        transform: [
+          { translateX: txs },
+          { translateY: tys },
+          { scale },
+          { rotate },
+        ],
+      }}
+    >
+      {emoji}
+    </Animated.Text>
+  );
+  // tx unused — referenced to satisfy TS unused-var heuristics if any.
+  void tx;
+}
+
+/**
+ * ZoomScene — single huge gift emoji zooms in with a spinning entrance,
+ * pulses in place, then fades. Surrounded by orbiting sparkle particles
+ * and concentric expanding halos for grandeur.
+ */
+function ZoomScene({ gift, duration }: { gift: GiftDef; duration: number }) {
+  const palette = gift.particles && gift.particles.length > 0
+    ? gift.particles
+    : [gift.emoji];
+  const ORBITS = 12;
+  const items = useMemo(() => {
+    return Array.from({ length: ORBITS }).map((_, i) => ({
+      key: `${gift.id}_o${i}`,
+      delay: 600 + i * 120,
+      emoji: palette[(i + 1) % palette.length],
+      size: 22 + Math.random() * 18,
+      startAngle: (i / ORBITS) * Math.PI * 2,
+      direction: (i % 2 === 0 ? 1 : -1) as 1 | -1,
+    }));
+  }, [gift.id]);
+  return (
+    <>
+      <CenterHalo color={gift.color} duration={duration} pulses={4} />
+      <ZoomHero gift={gift} duration={duration} />
+      {items.map(({ key, ...rest }) => (
+        <OrbitSparkle key={key} {...rest} totalDur={duration} />
+      ))}
+    </>
+  );
+}
+
+function ZoomHero({ gift, duration }: { gift: GiftDef; duration: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(t, { toValue: 1, duration: 900, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
+      Animated.delay(duration - 900 - 700),
+      Animated.timing(t, { toValue: 0, duration: 700, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, []);
+  const size = Math.min(SCREEN_W, SCREEN_H) * 0.45;
+  const scale = t.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
+  const rotate = t.interpolate({ inputRange: [0, 1], outputRange: ["-180deg", "0deg"] });
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        left: CENTER_X - size / 2,
+        top: CENTER_Y - size / 2,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        opacity: t,
+        transform: [{ scale }, { rotate }],
+        textShadowColor: gift.color,
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 24,
+      }}
+    >
+      {gift.emoji}
+    </Animated.Text>
+  );
+}
+
+function OrbitSparkle({
+  delay, emoji, size, startAngle, direction, totalDur,
+}: {
+  delay: number; emoji: string; size: number;
+  startAngle: number; direction: 1 | -1; totalDur: number;
+}) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: totalDur - delay - 500,
+      delay,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+  const SAMPLES = 25;
+  const range = Array.from({ length: SAMPLES }, (_, k) => k / (SAMPLES - 1));
+  const radius = 150;
+  const xs = range.map(p => {
+    const a = startAngle + direction * Math.PI * 3 * p;
+    return Math.cos(a) * radius;
+  });
+  const ys = range.map(p => {
+    const a = startAngle + direction * Math.PI * 3 * p;
+    return Math.sin(a) * radius;
+  });
+  const tx = t.interpolate({ inputRange: range, outputRange: xs });
+  const ty = t.interpolate({ inputRange: range, outputRange: ys });
+  const opacity = t.interpolate({
+    inputRange: [0, 0.1, 0.85, 1],
+    outputRange: [0, 1, 1, 0],
+  });
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        left: CENTER_X - size / 2,
+        top: CENTER_Y - size / 2,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        opacity,
+        transform: [{ translateX: tx }, { translateY: ty }],
+      }}
+    >
+      {emoji}
+    </Animated.Text>
+  );
+}
+
+/** Concentric expanding rings used as a backdrop for burst/zoom scenes. */
+function CenterHalo({ color, duration, pulses }: { color: string; duration: number; pulses: number }) {
+  return (
+    <>
+      {Array.from({ length: pulses }).map((_, i) => (
+        <Halo key={i} color={color} delay={(duration / pulses) * i} />
+      ))}
+    </>
+  );
+}
+
+function Halo({ color, delay }: { color: string; delay: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, {
+      toValue: 1,
+      duration: 1500,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+  const MAX = Math.min(SCREEN_W, SCREEN_H) * 0.85;
+  const scale = t.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
+  const opacity = t.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.55, 0] });
+  return (
+    <Animated.View
+      style={{
+        position: "absolute",
+        left: CENTER_X - MAX / 2,
+        top: CENTER_Y - MAX / 2,
+        width: MAX,
+        height: MAX,
+        borderRadius: MAX / 2,
+        borderWidth: 3,
+        borderColor: color,
+        opacity,
+        transform: [{ scale }],
+      }}
+    />
+  );
+}
+
+/** Final hero reveal at the center used by the spiral scene. */
+function CenterHero({ gift, duration, delay }: { gift: GiftDef; duration: number; delay: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(t, { toValue: 1, duration: 600, easing: Easing.out(Easing.back(1.6)), delay, useNativeDriver: true }),
+      Animated.delay(duration - delay - 600 - 500),
+      Animated.timing(t, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  }, []);
+  const size = Math.min(SCREEN_W, SCREEN_H) * 0.32;
+  const scale = t.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        left: CENTER_X - size / 2,
+        top: CENTER_Y - size / 2,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        opacity: t,
+        transform: [{ scale }],
+        textShadowColor: gift.color,
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 18,
+      }}
+    >
+      {gift.emoji}
     </Animated.Text>
   );
 }
