@@ -165,14 +165,15 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           ) : null}
         </Animated.View>
 
-        {/* Skip-all button (top-left) — only shown for the global feed rain */}
+        {/* Skip-all button (bottom-center, large & prominent) — only shown
+            for the global feed rain so the user can dismiss the queue. */}
         {onSkipAll && (
           <TouchableOpacity
             onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
             activeOpacity={0.85}
             style={styles.skipBtn}
           >
-            <Feather name="x" size={14} color="#FFF" />
+            <Feather name="x" size={22} color="#FFF" />
             <Text style={styles.skipText}>تخطي الهدايا</Text>
           </TouchableOpacity>
         )}
@@ -687,21 +688,27 @@ const styles = StyleSheet.create({
   },
   skipBtn: {
     position: "absolute",
-    top: 50,
-    left: 16,
+    bottom: 60,
+    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.65)",
-    borderWidth: 1,
-    borderColor: "rgba(232,184,109,0.5)",
+    gap: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+    borderRadius: 32,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    borderWidth: 2,
+    borderColor: "#E8B86D",
+    shadowColor: "#E8B86D",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 14,
+    elevation: 8,
   },
   skipText: {
-    fontSize: 12,
+    fontSize: 18,
     fontFamily: "Inter_700Bold",
     color: "#FFF",
+    letterSpacing: 0.3,
   },
 });
