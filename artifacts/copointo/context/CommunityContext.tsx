@@ -209,10 +209,49 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
   const userIdRef = useRef<string | undefined>(user?.id);
   useEffect(() => { userIdRef.current = user?.id; }, [user?.id]);
 
+  // Tracks community IDs that have an in-flight PUT to the server.
+  // Refcount map handles overlapping PUTs on the same community safely.
+  // While a community is pending, the periodic sync preserves the local
+  // version for that community instead of overwriting it with stale server
+  // data. Prevents the "avatar appears then disappears" race where the
+  // 4s poll returns the pre-update snapshot before the upload completes.
+  const pendingPutsRef = useRef<Map<string, number>>(new Map());
+  const beginPending = (id: string) => {
+    pendingPutsRef.current.set(id, (pendingPutsRef.current.get(id) ?? 0) + 1);
+  };
+  const endPending = (id: string) => {
+    const n = (pendingPutsRef.current.get(id) ?? 0) - 1;
+    if (n <= 0) pendingPutsRef.current.delete(id);
+    else pendingPutsRef.current.set(id, n);
+  };
+
   const sync = useCallback(async () => {
     const data = await serverSync(userIdRef.current);
     if (!data) return;
-    setAllCommunities(data.communities);
+    if (pendingPutsRef.current.size === 0) {
+      setAllCommunities(data.communities);
+    } else {
+      setAllCommunities(prev => {
+        const pending = pendingPutsRef.current;
+        const serverIds = new Set(data.communities.map(c => c.id));
+        // Start from server snapshot, but preserve local copy for pending IDs.
+        const merged = data.communities.map(serverC => {
+          if (pending.has(serverC.id)) {
+            const localC = prev.find(c => c.id === serverC.id);
+            return localC ?? serverC;
+          }
+          return serverC;
+        });
+        // Re-add any local-only pending communities (e.g. optimistic creates
+        // that the server snapshot does not yet include).
+        for (const localC of prev) {
+          if (pending.has(localC.id) && !serverIds.has(localC.id)) {
+            merged.push(localC);
+          }
+        }
+        return merged;
+      });
+    }
     setIncomingInvites(data.invites);
   }, []);
 
@@ -273,7 +312,13 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
 
       // Optimistic + push to server
       upsertLocal(community);
-      const ok = await serverPutCommunity(community);
+      beginPending(community.id);
+      let ok = false;
+      try {
+        ok = await serverPutCommunity(community);
+      } finally {
+        endPending(community.id);
+      }
       if (!ok) {
         // Rollback if the server didn't accept the new community.
         removeLocal(community.id);
@@ -412,7 +457,12 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         roles: nextRoles,
       };
       upsertLocal(updated);
-      await serverPutCommunity(updated);
+      beginPending(communityId);
+      try {
+        await serverPutCommunity(updated);
+      } finally {
+        endPending(communityId);
+      }
     },
     [user?.id, allCommunities, upsertLocal, removeLocal],
   );
@@ -442,9 +492,14 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         roles: withoutUserRole(community.roles, userId),
       };
       upsertLocal(updated);
-      const ok = await serverPutCommunity(updated);
-      if (!ok) return { ok: false, error: "تعذر إزالة العضو. حاول مجدداً." };
-      return { ok: true };
+      beginPending(communityId);
+      try {
+        const ok = await serverPutCommunity(updated);
+        if (!ok) return { ok: false, error: "تعذر إزالة العضو. حاول مجدداً." };
+        return { ok: true };
+      } finally {
+        endPending(communityId);
+      }
     },
     [user?.id, allCommunities, upsertLocal, removeLocal],
   );
@@ -497,9 +552,14 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
 
       const updated: Community = { ...community, roles: newRoles };
       upsertLocal(updated);
-      const ok = await serverPutCommunity(updated);
-      if (!ok) return { ok: false, error: "تعذر تحديث الرتبة. حاول مجدداً." };
-      return { ok: true };
+      beginPending(communityId);
+      try {
+        const ok = await serverPutCommunity(updated);
+        if (!ok) return { ok: false, error: "تعذر تحديث الرتبة. حاول مجدداً." };
+        return { ok: true };
+      } finally {
+        endPending(communityId);
+      }
     },
     [user?.id, allCommunities, upsertLocal],
   );
@@ -522,9 +582,14 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         ...(patch.avatar !== undefined ? { avatar: patch.avatar } : {}),
       };
       upsertLocal(updated);
-      const ok = await serverPutCommunity(updated);
-      if (!ok) return { ok: false, error: "تعذر حفظ التعديلات. حاول مجدداً." };
-      return { ok: true };
+      beginPending(communityId);
+      try {
+        const ok = await serverPutCommunity(updated);
+        if (!ok) return { ok: false, error: "تعذر حفظ التعديلات. حاول مجدداً." };
+        return { ok: true };
+      } finally {
+        endPending(communityId);
+      }
     },
     [user?.id, allCommunities, upsertLocal],
   );
