@@ -1,10 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 import React, {
   createContext, useContext, useEffect, useMemo, useRef, useState, useCallback,
 } from "react";
 import { ChatMessage, Community, Group, Message } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 import { API_BASE } from "@/constants/api";
+import { playReceiveMessageSound } from "@/lib/notification-sound";
 
 /** Format an ISO timestamp as the same Arabic "h:mm ص/م" used elsewhere. */
 function formatTime(iso: string): string {
@@ -268,6 +270,30 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       out.push(msg);
     }
 
+    // Sort by latest activity (newest message first) so any conversation
+    // that just received/sent a message bubbles to the top, WhatsApp-style.
+    // The Copointo system row stays pinned at the very top regardless.
+    // Precompute the last-ts per conv once so the comparator is O(1).
+    const lastTsCache = new Map<string, number>();
+    for (const m of out) {
+      const list = chats[m.id];
+      let ts = 0;
+      if (list && list.length > 0) {
+        for (let i = list.length - 1; i >= 0; i--) {
+          const id = list[i]?.id ?? "";
+          const ms = parseInt(id.split("_")[0] ?? "", 10);
+          if (Number.isFinite(ms) && ms > 0) { ts = ms; break; }
+        }
+        if (ts === 0) ts = list.length;
+      }
+      lastTsCache.set(m.id, ts);
+    }
+    out.sort((a, b) => {
+      if (a.id === COPOINTO_ADMIN_CONV) return -1;
+      if (b.id === COPOINTO_ADMIN_CONV) return 1;
+      return (lastTsCache.get(b.id) ?? 0) - (lastTsCache.get(a.id) ?? 0);
+    });
+
     return out;
   }, [user, friends, registeredUsers, chats, unreadMap, groups, hiddenConvs]);
 
@@ -375,8 +401,14 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     lastSyncRef.current = "";
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+    // Track whether we've completed at least one sync — used to suppress
+    // the receive sound/haptic on initial hydration so historical incoming
+    // messages don't blast a chime when the user first opens the app or
+    // switches accounts.
+    let hasSynced = false;
 
     const sync = async () => {
+      const isFirstSync = !hasSynced;
       try {
         const groupIds = groupsRef.current.map(g => g.id).join(",");
         const params = new URLSearchParams({ userId: user.id });
@@ -500,6 +532,16 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
             for (const [k, v] of Object.entries(unreadInc)) next[k] = (next[k] ?? 0) + v;
             return next;
           });
+          // Notify on incoming: short receive chime (web) + light haptic
+          // (native) so the user feels a new message arrive even when not
+          // looking at the conversation. Skipped on the very first sync so
+          // historical messages don't blast a chime on app launch / account
+          // switch, and skipped when the message lands in the currently-open
+          // chat (handled by autoSeenScopes above).
+          if (!isFirstSync) {
+            try { playReceiveMessageSound(); } catch { /* ignore */ }
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          }
         }
         for (const convId of autoSeenScopes) {
           let body: Record<string, string> | null = null;
@@ -517,6 +559,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch { /* network blip — try again next tick */ }
+      finally { hasSynced = true; }
     };
 
     sync();
