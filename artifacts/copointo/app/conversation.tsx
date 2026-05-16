@@ -78,7 +78,7 @@ export default function ConversationScreen() {
   // entirely for that conv id and show a small note instead.
   const isCopointoAdminConv = id === "friend_copointo-admin";
 
-  const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv, deleteMessage } = useMessages();
+  const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv, deleteMessage, tombstoneMessage } = useMessages();
   const { getCommunity } = useCommunities();
   const { equipped: equippedTextStyleId } = useTextStyles();
   const equippedTextStyleDef = getTextStyle(equippedTextStyleId);
@@ -184,28 +184,33 @@ export default function ConversationScreen() {
 
   const isCafe = type === "cafe";
 
-  // Long-press on a bubble → show delete options. Read-only Copointo
-  // broadcasts have no delete UI. Already-deleted bubbles are not
-  // re-deletable. "حذف للجميع" only appears for messages I sent.
+  // Long-press on a bubble → confirm delete. The bubble is replaced by a
+  // "🚫 تم حذف الرسالة" placeholder in the same spot. For my own messages
+  // we propagate the deletion to everyone via the server; for someone
+  // else's message we tombstone it locally only. Read-only Copointo
+  // broadcasts have no delete UI. Already-deleted bubbles are skipped.
   const onBubbleLongPress = (item: ChatMessage) => {
     if (isCopointoAdminConv || !id) return;
     if (item.deletedForAll) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const buttons: any[] = [
-      { text: "إلغاء", style: "cancel" },
-      {
-        text: "حذف عندي",
-        onPress: () => { deleteMessage(id, item.id, "forMe"); },
-      },
-    ];
-    if (item.fromMe) {
-      buttons.push({
-        text: "حذف للجميع",
-        style: "destructive",
-        onPress: () => { deleteMessage(id, item.id, "forEveryone"); },
-      });
-    }
-    Alert.alert("حذف الرسالة", "اختر طريقة الحذف:", buttons);
+    Alert.alert(
+      "حذف الرسالة؟",
+      "سيتم استبدال الرسالة بـ \"تم حذف رسالة\" في نفس المكان.",
+      [
+        { text: "إلغاء", style: "cancel" },
+        {
+          text: "حذف",
+          style: "destructive",
+          onPress: () => {
+            if (item.fromMe) {
+              deleteMessage(id, item.id, "forEveryone");
+            } else {
+              tombstoneMessage(id, item.id);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {

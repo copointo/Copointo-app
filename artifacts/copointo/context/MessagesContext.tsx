@@ -37,6 +37,7 @@ const STORAGE_KEY_GROUPS   = "copointo_groups_v2";
 const STORAGE_KEY_CLEARED  = "copointo_chat_cleared_v1";
 const STORAGE_KEY_HIDDEN   = "copointo_hidden_convs_v1";
 const STORAGE_KEY_DELMSGS  = "copointo_deleted_msgs_v1";
+const STORAGE_KEY_TOMBMSGS = "copointo_tombstoned_msgs_v1";
 
 // Reserved sender id used by the super-admin direct-message endpoint
 // (`POST /api/admin/users/:id/message`). Conversations whose convId is
@@ -52,6 +53,7 @@ const groupsKey  = (uid: string) => `${STORAGE_KEY_GROUPS}:${uid}`;
 const clearedKey = (uid: string) => `${STORAGE_KEY_CLEARED}:${uid}`;
 const hiddenKey  = (uid: string) => `${STORAGE_KEY_HIDDEN}:${uid}`;
 const delMsgsKey = (uid: string) => `${STORAGE_KEY_DELMSGS}:${uid}`;
+const tombMsgsKey = (uid: string) => `${STORAGE_KEY_TOMBMSGS}:${uid}`;
 
 interface MessagesCtx {
   convList:    Message[];
@@ -85,6 +87,10 @@ interface MessagesCtx {
    *  the server to mark the row as deleted so every device renders a
    *  "🚫 تم حذف الرسالة" placeholder on the next poll. */
   deleteMessage: (convId: string, msgId: string, mode: "forMe" | "forEveryone") => Promise<void>;
+  /** Locally mark someone else's message as deleted ("forMe" with a
+   *  visible placeholder). The other side is unaffected. Survives
+   *  app restarts and server replays. */
+  tombstoneMessage: (convId: string, msgId: string) => Promise<void>;
 }
 
 /** Deterministic chat-group id for a community-bound group. */
@@ -113,6 +119,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   // explicitly hid locally. Persisted so they stay deleted across app
   // restarts even when the poll cursor resets and the server replays them.
   const [deletedMsgIds, setDeletedMsgIds] = useState<Set<string>>(new Set());
+  // Per-user tombstones for "delete message (placeholder)" — message ids
+  // the user explicitly tombstoned. Renders "🚫 تم حذف الرسالة" in place
+  // instead of removing the row. Persisted across restarts.
+  const [tombstonedMsgIds, setTombstonedMsgIds] = useState<Set<string>>(new Set());
   const [ready, setReady]         = useState(false);
 
   // Per-user load: re-load whenever the active user changes.
@@ -128,19 +138,21 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       setClearedAt({});
       setHiddenConvs(new Set());
       setDeletedMsgIds(new Set());
+      setTombstonedMsgIds(new Set());
       setReady(true);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const [chatsRaw, unreadRaw, groupsRaw, clearedRaw, hiddenRaw, delMsgsRaw] = await Promise.all([
+        const [chatsRaw, unreadRaw, groupsRaw, clearedRaw, hiddenRaw, delMsgsRaw, tombMsgsRaw] = await Promise.all([
           AsyncStorage.getItem(chatsKey(user.id)),
           AsyncStorage.getItem(unreadKey(user.id)),
           AsyncStorage.getItem(groupsKey(user.id)),
           AsyncStorage.getItem(clearedKey(user.id)),
           AsyncStorage.getItem(hiddenKey(user.id)),
           AsyncStorage.getItem(delMsgsKey(user.id)),
+          AsyncStorage.getItem(tombMsgsKey(user.id)),
         ]);
         if (cancelled) return;
         setChats(chatsRaw ? JSON.parse(chatsRaw) : {});
@@ -149,6 +161,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         setClearedAt(clearedRaw ? JSON.parse(clearedRaw) : {});
         setHiddenConvs(new Set(hiddenRaw ? JSON.parse(hiddenRaw) : []));
         setDeletedMsgIds(new Set(delMsgsRaw ? JSON.parse(delMsgsRaw) : []));
+        setTombstonedMsgIds(new Set(tombMsgsRaw ? JSON.parse(tombMsgsRaw) : []));
       } catch (_) {
         if (cancelled) return;
         setChats({});
@@ -157,6 +170,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         setClearedAt({});
         setHiddenConvs(new Set());
         setDeletedMsgIds(new Set());
+        setTombstonedMsgIds(new Set());
       }
       if (!cancelled) setReady(true);
     })();
@@ -192,6 +206,11 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     if (!ready || !user) return;
     AsyncStorage.setItem(delMsgsKey(user.id), JSON.stringify(Array.from(deletedMsgIds))).catch(() => {});
   }, [deletedMsgIds, ready, user?.id]);
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    AsyncStorage.setItem(tombMsgsKey(user.id), JSON.stringify(Array.from(tombstonedMsgIds))).catch(() => {});
+  }, [tombstonedMsgIds, ready, user?.id]);
 
   /**
    * Build the conversation list:
@@ -383,10 +402,12 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const activeConvRef      = useRef<string | null>(null);
   const clearedAtRef       = useRef<Record<string, string>>({});
   const deletedMsgIdsRef   = useRef<Set<string>>(new Set());
+  const tombstonedMsgIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => { groupsRef.current          = groups;          }, [groups]);
   useEffect(() => { registeredUsersRef.current = registeredUsers; }, [registeredUsers]);
   useEffect(() => { clearedAtRef.current       = clearedAt;       }, [clearedAt]);
   useEffect(() => { deletedMsgIdsRef.current   = deletedMsgIds;   }, [deletedMsgIds]);
+  useEffect(() => { tombstonedMsgIdsRef.current = tombstonedMsgIds; }, [tombstonedMsgIds]);
 
   // Public setter for the conversation screen to register itself as "open".
   const setActiveConv = useCallback((convId: string | null) => {
@@ -427,6 +448,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         const byConv: Record<string, ServerMsg[]> = {};
         const clearedSnap = clearedAtRef.current;
         const tombSnap    = deletedMsgIdsRef.current;
+        const placeSnap   = tombstonedMsgIdsRef.current;
         for (const m of data.messages) {
           // Per-user "delete for me" tombstone — never re-render this id.
           if (tombSnap.has(m.id)) continue;
@@ -466,6 +488,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                 ? sm.seenBy.some(uid => uid !== user.id)
                 : true;
               const old = idMap.get(sm.id);
+              const isTombstoned = placeSnap.has(sm.id);
               if (old) {
                 // Existing — flip ✓✓ when it just flipped, and replace
                 // text with the deleted placeholder when the sender used
@@ -474,19 +497,19 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                 if (seen && !old.seen) {
                   nextOld = { ...(nextOld ?? old), seen: true };
                 }
-                if (sm.deletedForAll && !old.deletedForAll) {
+                if ((sm.deletedForAll || isTombstoned) && !old.deletedForAll) {
                   nextOld = { ...(nextOld ?? old), text: "🚫 تم حذف الرسالة", deletedForAll: true };
                 }
                 if (nextOld) updatesById.set(sm.id, nextOld);
               } else {
                 const cm: ChatMessage = {
                   id:     sm.id,
-                  text:   sm.deletedForAll ? "🚫 تم حذف الرسالة" : sm.text,
+                  text:   (sm.deletedForAll || isTombstoned) ? "🚫 تم حذف الرسالة" : sm.text,
                   fromMe: isMine,
                   time:   formatTime(sm.createdAt),
                   seen,
                 };
-                if (sm.deletedForAll) cm.deletedForAll = true;
+                if (sm.deletedForAll || isTombstoned) cm.deletedForAll = true;
                 if (sm.giftId && !sm.deletedForAll) { cm.giftId = sm.giftId; cm.giftQty = sm.giftQty ?? 1; }
                 if (!isMine) {
                   cm.senderId = sm.senderId;
@@ -855,6 +878,31 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   // Delete a single message. forMe = local only. forEveryone = sender-only,
   // tells the server to mark deletedForAll so every recipient renders the
   // placeholder on their next poll.
+  // Mark someone else's message as deleted locally with a visible
+   // placeholder. The other side is unaffected.
+  const tombstoneMessage = useCallback(
+    async (convId: string, msgId: string) => {
+      setTombstonedMsgIds(prev => {
+        if (prev.has(msgId)) return prev;
+        const next = new Set(prev);
+        next.add(msgId);
+        return next;
+      });
+      setChats(prev => {
+        const arr = prev[convId];
+        if (!arr) return prev;
+        let changed = false;
+        const next = arr.map(m => {
+          if (m.id !== msgId || m.deletedForAll) return m;
+          changed = true;
+          return { ...m, text: "🚫 تم حذف الرسالة", deletedForAll: true };
+        });
+        return changed ? { ...prev, [convId]: next } : prev;
+      });
+    },
+    [],
+  );
+
   const deleteMessage = useCallback(
     async (convId: string, msgId: string, mode: "forMe" | "forEveryone") => {
       if (mode === "forMe") {
@@ -904,7 +952,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       getGroup, createGroup, updateGroup,
       addGroupMember, removeGroupMember, leaveGroup,
       syncCommunityGroup, dissolveCommunityGroup,
-      deleteConversation, deleteMessage,
+      deleteConversation, deleteMessage, tombstoneMessage,
     }}>
       {children}
     </Ctx.Provider>
