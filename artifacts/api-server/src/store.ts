@@ -414,6 +414,13 @@ export interface ChatMsg {
   senderName?: string;
   /** Recipient's display username at send time. Same rationale as above. */
   recipientName?: string;
+  /** When true the message was deleted for everyone by the sender; clients
+   *  render a placeholder ("🚫 تم حذف الرسالة") instead of `text`. */
+  deletedForAll?: boolean;
+  /** ISO timestamp set when `deletedForAll` flips. The /messages incremental
+   *  poll filter ORs this against `createdAt` so deletion events propagate
+   *  to recipients on their normal `since=...` poll, not just on cold sync. */
+  deletedAt?: string;
 }
 export const chatMessages: ChatMsg[] = [];
 

@@ -67,6 +67,9 @@ export interface ChatMessage {
    *  global gift-feed ticker shows real usernames even when the recipient
    *  isn't yet mirrored into the server's users[] roster. */
   recipientName?: string;
+  /** When true, this message was deleted "for everyone" by the sender.
+   *  Clients render a placeholder ("🚫 تم حذف الرسالة") instead of `text`. */
+  deletedForAll?: boolean;
 }
 
 /** A user-created chat group. Stored per-user and mirrored to members. */

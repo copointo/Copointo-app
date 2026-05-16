@@ -1152,7 +1152,11 @@ router.get("/messages", (req, res): any => {
   });
 
   const filtered = since
-    ? visible.filter(m => m.createdAt > since || (m.senderId === userId && m.seenBy.length > 1))
+    ? visible.filter(m =>
+        m.createdAt > since
+        || (m.senderId === userId && m.seenBy.length > 1)
+        || (m.deletedAt !== undefined && m.deletedAt > since)
+      )
     : visible;
 
   filtered.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -1164,6 +1168,28 @@ router.get("/messages", (req, res): any => {
  * recipient calls this when they open the chat — the sender will see ✓✓
  * after their next poll picks up the updated `seenBy` list.
  */
+/**
+ * Delete a message "for everyone". Only the original sender may do this.
+ * The row is kept (so deletion propagates via the existing poll loop) but
+ * its `text` is cleared and `deletedForAll` is set to true. Clients render
+ * a localized placeholder bubble instead of the original text.
+ */
+router.post("/messages/delete", (req, res): any => {
+  const id       = String(req.body?.id ?? "").trim();
+  const senderId = String(req.body?.senderId ?? "").trim();
+  if (!id || !senderId) return res.status(400).json({ error: "id/senderId required" });
+  const msg = chatMessages.find(m => m.id === id);
+  if (!msg) return res.status(404).json({ error: "not found" });
+  if (msg.senderId !== senderId) return res.status(403).json({ error: "only sender can delete" });
+  if (!msg.deletedForAll) {
+    msg.deletedForAll = true;
+    msg.text = "";
+    msg.deletedAt = new Date().toISOString();
+    persistStore();
+  }
+  res.json({ ok: true, message: msg });
+});
+
 router.post("/messages/seen", (req, res): any => {
   const userId = String(req.body?.userId ?? "").trim();
   const kind   = req.body?.kind === "group" ? "group" : "friend";

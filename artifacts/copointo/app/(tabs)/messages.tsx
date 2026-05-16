@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   Platform,
@@ -22,14 +23,34 @@ import { useResponsive } from "@/hooks/useResponsive";
 function ConversationItem({ msg }: { msg: Message }) {
   const colors  = useColors();
   const router  = useRouter();
-  const { markRead } = useMessages();
+  const { markRead, deleteConversation } = useMessages();
   const isCafe  = msg.type === "cafe";
   const isGroup = msg.type === "group";
+  // The Copointo broadcast inbox is read-only & system-managed — don't
+  // let the user delete it, the next broadcast would just bring it back.
+  const isCopointoAdminConv = msg.id === "friend_copointo-admin";
 
   const openChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     markRead(msg.id);
     router.push(`/conversation?id=${msg.id}&name=${encodeURIComponent(msg.senderName)}&type=${msg.type}`);
+  };
+
+  const onLongPress = () => {
+    if (isCopointoAdminConv) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      "حذف المحادثة؟",
+      "ستُحذف هذه المحادثة من جهازك فقط، الطرف الآخر لن يتأثر.",
+      [
+        { text: "إلغاء", style: "cancel" },
+        {
+          text: "حذف",
+          style: "destructive",
+          onPress: () => { deleteConversation(msg.id); },
+        },
+      ],
+    );
   };
 
   // Render avatar: image URI, emoji, or placeholder
@@ -43,6 +64,8 @@ function ConversationItem({ msg }: { msg: Message }) {
       style={[styles.convItem, { borderBottomColor: colors.border }]}
       activeOpacity={0.85}
       onPress={openChat}
+      onLongPress={onLongPress}
+      delayLongPress={350}
     >
       {isImageAvatar ? (
         <Image

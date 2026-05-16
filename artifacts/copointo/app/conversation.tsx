@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -77,7 +78,7 @@ export default function ConversationScreen() {
   // entirely for that conv id and show a small note instead.
   const isCopointoAdminConv = id === "friend_copointo-admin";
 
-  const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv } = useMessages();
+  const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv, deleteMessage } = useMessages();
   const { getCommunity } = useCommunities();
   const { equipped: equippedTextStyleId } = useTextStyles();
   const equippedTextStyleDef = getTextStyle(equippedTextStyleId);
@@ -183,6 +184,30 @@ export default function ConversationScreen() {
 
   const isCafe = type === "cafe";
 
+  // Long-press on a bubble → show delete options. Read-only Copointo
+  // broadcasts have no delete UI. Already-deleted bubbles are not
+  // re-deletable. "حذف للجميع" only appears for messages I sent.
+  const onBubbleLongPress = (item: ChatMessage) => {
+    if (isCopointoAdminConv || !id) return;
+    if (item.deletedForAll) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const buttons: any[] = [
+      { text: "إلغاء", style: "cancel" },
+      {
+        text: "حذف عندي",
+        onPress: () => { deleteMessage(id, item.id, "forMe"); },
+      },
+    ];
+    if (item.fromMe) {
+      buttons.push({
+        text: "حذف للجميع",
+        style: "destructive",
+        onPress: () => { deleteMessage(id, item.id, "forEveryone"); },
+      });
+    }
+    Alert.alert("حذف الرسالة", "اختر طريقة الحذف:", buttons);
+  };
+
   const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {
     const prevMsg  = convMsgs[index - 1];
     const showTime = !prevMsg || prevMsg.time !== item.time;
@@ -196,7 +221,9 @@ export default function ConversationScreen() {
       (item.senderAvatar.startsWith("http") || item.senderAvatar.startsWith("data:") || item.senderAvatar.startsWith("file:"))
         ? item.senderAvatar : null;
 
-    const giftDef = item.giftId ? getGift(item.giftId) : null;
+    // Deleted-for-everyone bubbles always render as the placeholder, never
+    // as a gift card — even if the original message carried a giftId.
+    const giftDef = !item.deletedForAll && item.giftId ? getGift(item.giftId) : null;
 
     return (
       <View>
@@ -221,6 +248,8 @@ export default function ConversationScreen() {
           {giftDef ? (
             <TouchableOpacity
               activeOpacity={0.85}
+              onLongPress={() => onBubbleLongPress(item)}
+              delayLongPress={350}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setAnimGift(giftDef);
@@ -256,27 +285,44 @@ export default function ConversationScreen() {
               <Text style={[styles.metaTime, { marginTop: 4 }]}>{item.time}</Text>
             </TouchableOpacity>
           ) : item.fromMe ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onLongPress={() => onBubbleLongPress(item)}
+              delayLongPress={350}
+            >
             <MessageBubble
               style={[styles.bubble, styles.meBubble, { borderWidth: 1 }]}
-              textStyleDef={equippedTextStyleDef}
+              textStyleDef={item.deletedForAll ? undefined : equippedTextStyleDef}
               fallbackBg={ME_BG}
               fallbackBorder={PRIMARY}
             >
               {showSenderName && (
                 <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
               )}
-              <Text style={[styles.bubbleText, { color: equippedTextStyleDef?.textColor ?? "#000" }]}>
+              <Text style={[
+                styles.bubbleText,
+                { color: item.deletedForAll ? "rgba(0,0,0,0.55)" : (equippedTextStyleDef?.textColor ?? "#000") },
+                item.deletedForAll && { fontStyle: "italic" },
+              ]}>
                 {item.text}
               </Text>
               {item.fromMe && (
                 <View style={styles.metaRow}>
-                  <Text style={[styles.metaTimeMe, equippedTextStyleDef?.bg && { color: "rgba(255,255,255,0.65)" }]}>{item.time}</Text>
-                  <Ticks seen={item.seen} onThemed={!!equippedTextStyleDef?.bg} />
+                  <Text style={[styles.metaTimeMe, equippedTextStyleDef?.bg && !item.deletedForAll && { color: "rgba(255,255,255,0.65)" }]}>{item.time}</Text>
+                  {!item.deletedForAll && (
+                    <Ticks seen={item.seen} onThemed={!!equippedTextStyleDef?.bg} />
+                  )}
                 </View>
               )}
             </MessageBubble>
+            </TouchableOpacity>
           ) : (
-          <View style={[styles.bubble, styles.themBubble]}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onLongPress={() => onBubbleLongPress(item)}
+            delayLongPress={350}
+            style={[styles.bubble, styles.themBubble]}
+          >
             {showSenderName && (() => {
               const role = boundCommunity && item.senderId
                 ? getCommunityRole(boundCommunity, item.senderId)
@@ -298,13 +344,17 @@ export default function ConversationScreen() {
                 </View>
               );
             })()}
-            <Text style={[styles.bubbleText, styles.bubbleTextThem]}>
+            <Text style={[
+              styles.bubbleText,
+              styles.bubbleTextThem,
+              item.deletedForAll && { color: "rgba(255,255,255,0.55)", fontStyle: "italic" },
+            ]}>
               {item.text}
             </Text>
             <Text style={[styles.metaTime, { alignSelf: "flex-start", marginTop: 3 }]}>
               {item.time}
             </Text>
-          </View>
+          </TouchableOpacity>
           )}
         </View>
       </View>
