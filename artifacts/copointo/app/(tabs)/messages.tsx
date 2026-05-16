@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Message } from "@/data/mockData";
 import { useMessages } from "@/context/MessagesContext";
@@ -29,6 +30,7 @@ function ConversationItem({ msg }: { msg: Message }) {
   // The Copointo broadcast inbox is read-only & system-managed — don't
   // let the user delete it, the next broadcast would just bring it back.
   const isCopointoAdminConv = msg.id === "friend_copointo-admin";
+  const swipeRef = useRef<Swipeable | null>(null);
 
   const openChat = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -36,14 +38,13 @@ function ConversationItem({ msg }: { msg: Message }) {
     router.push(`/conversation?id=${msg.id}&name=${encodeURIComponent(msg.senderName)}&type=${msg.type}`);
   };
 
-  const onLongPress = () => {
-    if (isCopointoAdminConv) return;
+  const confirmDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       "حذف المحادثة؟",
       "ستُحذف هذه المحادثة من جهازك فقط، الطرف الآخر لن يتأثر.",
       [
-        { text: "إلغاء", style: "cancel" },
+        { text: "إلغاء", style: "cancel", onPress: () => swipeRef.current?.close() },
         {
           text: "حذف",
           style: "destructive",
@@ -53,15 +54,36 @@ function ConversationItem({ msg }: { msg: Message }) {
     );
   };
 
+  const onLongPress = () => {
+    if (isCopointoAdminConv) return;
+    confirmDelete();
+  };
+
+  // Right-side action revealed when the user swipes the row to the LEFT.
+  // System-managed Copointo row has no swipe action.
+  const renderRightActions = () => {
+    if (isCopointoAdminConv) return null;
+    return (
+      <TouchableOpacity
+        onPress={confirmDelete}
+        activeOpacity={0.85}
+        style={styles.swipeDeleteAction}
+      >
+        <Feather name="trash-2" size={22} color="#FFF" />
+        <Text style={styles.swipeDeleteText}>حذف</Text>
+      </TouchableOpacity>
+    );
+  };
+
   // Render avatar: image URI, emoji, or placeholder
   const isImageAvatar =
     !!msg.senderAvatar &&
     (msg.senderAvatar.startsWith("http") || msg.senderAvatar.startsWith("data:") || msg.senderAvatar.startsWith("file:"));
   const placeholderEmoji = isCafe ? "☕" : isGroup ? "👥" : "👤";
 
-  return (
+  const row = (
     <TouchableOpacity
-      style={[styles.convItem, { borderBottomColor: colors.border }]}
+      style={[styles.convItem, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
       activeOpacity={0.85}
       onPress={openChat}
       onLongPress={onLongPress}
@@ -117,6 +139,18 @@ function ConversationItem({ msg }: { msg: Message }) {
         </View>
       </View>
     </TouchableOpacity>
+  );
+
+  if (isCopointoAdminConv) return row;
+  return (
+    <Swipeable
+      ref={swipeRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
+    >
+      {row}
+    </Swipeable>
   );
 }
 
@@ -247,6 +281,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     gap: 12,
     alignItems: "center",
+  },
+  swipeDeleteAction: {
+    backgroundColor: "#C0392B",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 88,
+    flexDirection: "column",
+    gap: 4,
+  },
+  swipeDeleteText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
   },
   avatar: {
     width: 52,
