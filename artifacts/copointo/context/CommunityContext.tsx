@@ -18,6 +18,7 @@ import {
   getCommunityRole,
 } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
+import { useMessages } from "@/context/MessagesContext";
 import { API_BASE } from "@/constants/api";
 
 // AsyncStorage keys are kept as a per-user OFFLINE CACHE only. The server
@@ -163,6 +164,7 @@ async function serverDeleteInvite(communityId: string, userId: string): Promise<
 
 export function CommunityProvider({ children }: { children: ReactNode }) {
   const { user, registeredUsers } = useApp();
+  const { syncCommunityGroup, dissolveCommunityGroup } = useMessages();
 
   const [allCommunities,  setAllCommunities]  = useState<Community[]>([]);
   const [incomingInvites, setIncomingInvites] = useState<CommunityInvite[]>([]);
@@ -283,6 +285,43 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     [allCommunities, user?.id],
   );
 
+  // ── Reconcile bound chat groups against the latest community snapshot.
+  // The 4s server poll updates `allCommunities`, but it does not call the
+  // local mutators. Without this effect, cross-device membership/name/avatar
+  // changes would never reach the bound group on this device.
+  const lastBoundSigRef = useRef<Map<string, string>>(new Map());
+  const lastMyIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!ready || !user) return;
+    const prevIds = lastMyIdsRef.current;
+    const sigs = lastBoundSigRef.current;
+    const currentIds = new Set<string>();
+    const allIds = new Set(allCommunities.map(c => c.id));
+
+    for (const c of myCommunities) {
+      currentIds.add(c.id);
+      const sig = `${c.name}|${c.avatar ?? ""}|${[...c.members].sort().join(",")}|${Object.entries(c.roles ?? {}).sort().map(([k, v]) => `${k}:${v}`).join(",")}`;
+      if (sigs.get(c.id) !== sig) {
+        sigs.set(c.id, sig);
+        syncCommunityGroup(c).catch(() => {});
+      }
+    }
+    // Communities I am no longer a member of (left / kicked / dissolved).
+    for (const oldId of prevIds) {
+      if (!currentIds.has(oldId)) {
+        sigs.delete(oldId);
+        if (!allIds.has(oldId)) {
+          // Fully gone server-side → dissolve for everyone we can reach.
+          dissolveCommunityGroup(oldId, [user.id]).catch(() => {});
+        } else {
+          // Still exists but I'm no longer in it → drop it from my storage only.
+          dissolveCommunityGroup(oldId, [user.id]).catch(() => {});
+        }
+      }
+    }
+    lastMyIdsRef.current = currentIds;
+  }, [ready, user?.id, myCommunities, allCommunities, syncCommunityGroup, dissolveCommunityGroup]);
+
   /** ────────── createCommunity ────────── */
   const createCommunity = useCallback(
     async (name: string, inviteUserIds: string[], avatar?: string): Promise<CommunityCreateResult> => {
@@ -338,9 +377,13 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         });
       }
 
+      // Spin up the community-bound chat group and mirror it to invited
+      // members (they'll see it the moment they accept and refresh).
+      await syncCommunityGroup(community).catch(() => {});
+
       return { ok: true, community };
     },
-    [user?.id, user?.name, myCommunities, upsertLocal, removeLocal],
+    [user?.id, user?.name, myCommunities, upsertLocal, removeLocal, syncCommunityGroup],
   );
 
   /** ────────── inviteToCommunity ────────── */
@@ -414,9 +457,11 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       upsertLocal(updated);
       await serverDeleteInvite(communityId, user.id);
       setIncomingInvites(prev => prev.filter(i => i.communityId !== communityId));
+      // Add me to the community-bound chat group and mirror to all members.
+      await syncCommunityGroup(updated).catch(() => {});
       return { ok: true };
     },
-    [user?.id, incomingInvites, myCommunities, allCommunities, upsertLocal],
+    [user?.id, incomingInvites, myCommunities, allCommunities, upsertLocal, syncCommunityGroup],
   );
 
   /** ────────── declineInvite ────────── */
@@ -438,6 +483,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         // Last member out — community has no one left, dissolve it.
         removeLocal(communityId);
         await serverDeleteCommunity(communityId);
+        await dissolveCommunityGroup(communityId, community.members).catch(() => {});
         return;
       }
 
@@ -458,13 +504,19 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       };
       upsertLocal(updated);
       beginPending(communityId);
+      let serverOk = false;
       try {
-        await serverPutCommunity(updated);
+        serverOk = await serverPutCommunity(updated);
       } finally {
         endPending(communityId);
       }
+      // Only mirror the bound-group change once the server has confirmed
+      // the membership update — otherwise we'd desync from server truth.
+      if (serverOk) {
+        await syncCommunityGroup(updated, [user.id]).catch(() => {});
+      }
     },
-    [user?.id, allCommunities, upsertLocal, removeLocal],
+    [user?.id, allCommunities, upsertLocal, removeLocal, syncCommunityGroup, dissolveCommunityGroup],
   );
 
   /** ────────── removeMember (leader only) ────────── */
@@ -484,6 +536,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       if (remaining.length < COMMUNITY_MIN_MEMBERS) {
         removeLocal(communityId);
         await serverDeleteCommunity(communityId);
+        await dissolveCommunityGroup(communityId, community.members).catch(() => {});
         return { ok: true };
       }
       const updated: Community = {
@@ -496,12 +549,13 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       try {
         const ok = await serverPutCommunity(updated);
         if (!ok) return { ok: false, error: "تعذر إزالة العضو. حاول مجدداً." };
+        await syncCommunityGroup(updated, [userId]).catch(() => {});
         return { ok: true };
       } finally {
         endPending(communityId);
       }
     },
-    [user?.id, allCommunities, upsertLocal, removeLocal],
+    [user?.id, allCommunities, upsertLocal, removeLocal, syncCommunityGroup, dissolveCommunityGroup],
   );
 
   /** ────────── setMemberRole ────────── */
@@ -586,12 +640,15 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       try {
         const ok = await serverPutCommunity(updated);
         if (!ok) return { ok: false, error: "تعذر حفظ التعديلات. حاول مجدداً." };
+        // Mirror the new name/avatar to the bound chat group so the
+        // Messages list and conversation header stay in sync.
+        await syncCommunityGroup(updated).catch(() => {});
         return { ok: true };
       } finally {
         endPending(communityId);
       }
     },
-    [user?.id, allCommunities, upsertLocal],
+    [user?.id, allCommunities, upsertLocal, syncCommunityGroup],
   );
 
   const refresh = useCallback(async () => { await sync(); }, [sync]);

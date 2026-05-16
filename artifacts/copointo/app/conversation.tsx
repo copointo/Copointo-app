@@ -14,10 +14,11 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChatMessage } from "@/data/mockData";
+import { ChatMessage, CommunityRole, getCommunityRole } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useMessages } from "@/context/MessagesContext";
+import { useCommunities } from "@/context/CommunityContext";
 import { playReceiveMessageSound, playSendMessageSound } from "@/lib/notification-sound";
 import MessageBubble from "@/components/MessageBubble";
 import { useTextStyles } from "@/hooks/useTextStyles";
@@ -34,6 +35,13 @@ const THEM_BG = "#0A0606";
 const PRIMARY = "#E8B86D";
 const BORDER  = "rgba(232,184,109,0.30)";
 const BORDER_SOFT = "rgba(232,184,109,0.18)";
+
+const ROLE_BADGE: Record<CommunityRole, { label: string; color: string; emoji: string }> = {
+  leader: { label: "قائد", color: "#FFD700", emoji: "👑" },
+  vice:   { label: "نائب القائد", color: "#C0C0C0", emoji: "⭐" },
+  senior: { label: "عضو مميز", color: "#CD7F32", emoji: "🌟" },
+  member: { label: "عضو", color: "rgba(255,255,255,0.55)", emoji: "" },
+};
 
 function buildNow(amLabel: string, pmLabel: string): string {
   const d = new Date();
@@ -70,6 +78,7 @@ export default function ConversationScreen() {
   const isCopointoAdminConv = id === "friend_copointo-admin";
 
   const { chats, markRead, appendMsg, markSeen, getGroup, setActiveConv } = useMessages();
+  const { getCommunity } = useCommunities();
   const { equipped: equippedTextStyleId } = useTextStyles();
   const equippedTextStyleDef = getTextStyle(equippedTextStyleId);
   const { registeredUsers } = useApp();
@@ -80,6 +89,9 @@ export default function ConversationScreen() {
   // For group conversations, the underlying group id is the convId without the `group_` prefix
   const groupId = isGroup && id?.startsWith("group_") ? id.slice("group_".length) : undefined;
   const group = groupId ? getGroup(groupId) : undefined;
+  // If this group is community-bound, look up the community so we can render
+  // each sender's role badge under their name.
+  const boundCommunity = group?.communityId ? getCommunity(group.communityId) : undefined;
   const isImageAvatar = !!group?.avatar &&
     (group.avatar.startsWith("http") || group.avatar.startsWith("data:") || group.avatar.startsWith("file:"));
 
@@ -265,9 +277,27 @@ export default function ConversationScreen() {
             </MessageBubble>
           ) : (
           <View style={[styles.bubble, styles.themBubble]}>
-            {showSenderName && (
-              <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
-            )}
+            {showSenderName && (() => {
+              const role = boundCommunity && item.senderId
+                ? getCommunityRole(boundCommunity, item.senderId)
+                : null;
+              const badge = role ? ROLE_BADGE[role] : null;
+              return (
+                <View style={styles.senderRow}>
+                  <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
+                  {badge && (badge.emoji || badge.label) && (
+                    <View style={[styles.roleBadge, { borderColor: badge.color, backgroundColor: badge.color + "1F" }]}>
+                      {!!badge.emoji && (
+                        <Text style={styles.roleBadgeEmoji}>{badge.emoji}</Text>
+                      )}
+                      <Text style={[styles.roleBadgeText, { color: badge.color }]} numberOfLines={1}>
+                        {badge.label}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
             <Text style={[styles.bubbleText, styles.bubbleTextThem]}>
               {item.text}
             </Text>
@@ -454,6 +484,24 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     textAlign: "right",
   },
+  senderRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 3,
+    flexWrap: "wrap",
+  },
+  roleBadge: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  roleBadgeEmoji: { fontSize: 10 },
+  roleBadgeText:  { fontSize: 9, fontFamily: "Inter_700Bold" },
 
   bubble:      { maxWidth: "100%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
   meBubble:    { backgroundColor: ME_BG, borderWidth: 1, borderColor: PRIMARY, borderBottomRightRadius: 4 },

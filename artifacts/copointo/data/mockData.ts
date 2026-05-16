@@ -79,6 +79,10 @@ export interface Group {
   members: string[];
   createdBy: string;
   createdAt: number;
+  /** When set, this group is auto-managed by a community. Members are
+   *  added/removed in lock-step with the community's membership and the
+   *  conversation displays each sender's role (leader/vice/senior/member). */
+  communityId?: string;
 }
 
 /** Member roles inside a community. */

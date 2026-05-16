@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext, useContext, useEffect, useMemo, useRef, useState, useCallback,
 } from "react";
-import { ChatMessage, Group, Message } from "@/data/mockData";
+import { ChatMessage, Community, Group, Message } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 import { API_BASE } from "@/constants/api";
 
@@ -62,7 +62,15 @@ interface MessagesCtx {
   addGroupMember:  (groupId: string, memberId: string) => Promise<void>;
   removeGroupMember: (groupId: string, memberId: string) => Promise<void>;
   leaveGroup:      (groupId: string) => Promise<void>;
+  /** Community-bound group helpers — keep a chat group in lock-step with a community. */
+  syncCommunityGroup: (community: Community, removedMemberIds?: string[]) => Promise<void>;
+  dissolveCommunityGroup: (communityId: string, formerMemberIds: string[]) => Promise<void>;
 }
+
+/** Deterministic chat-group id for a community-bound group. */
+export const COMMUNITY_GROUP_PREFIX = "g_community_";
+export const communityGroupId = (communityId: string) =>
+  `${COMMUNITY_GROUP_PREFIX}${communityId}`;
 
 const Ctx = createContext<MessagesCtx | null>(null);
 
@@ -611,12 +619,68 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     [user?.id, groups],
   );
 
+  /** Idempotently create / update the chat group bound to `community` and
+   *  mirror it to every current member's storage so the group shows up in
+   *  their Messages tab on next refresh. Pass `removedMemberIds` to also
+   *  drop the group from people who just left/were kicked. */
+  const syncCommunityGroup = useCallback(
+    async (community: Community, removedMemberIds: string[] = []) => {
+      if (!user) return;
+      const gid = communityGroupId(community.id);
+      const groupData: Group = {
+        id: gid,
+        name: community.name,
+        members: [...community.members],
+        createdBy: community.createdBy,
+        createdAt: community.createdAt,
+        communityId: community.id,
+        ...(community.avatar ? { avatar: community.avatar } : {}),
+      };
+
+      if (community.members.includes(user.id)) {
+        setGroups(prev => {
+          const idx = prev.findIndex(g => g.id === gid);
+          if (idx === -1) return [...prev, groupData];
+          const next = [...prev];
+          next[idx] = { ...next[idx], ...groupData };
+          return next;
+        });
+      } else {
+        setGroups(prev => prev.filter(g => g.id !== gid));
+      }
+
+      const tasks: Promise<void>[] = [];
+      for (const mid of community.members) {
+        if (mid === user.id) continue;
+        tasks.push(writeGroupToUser(mid, groupData));
+      }
+      for (const mid of removedMemberIds) {
+        tasks.push(removeGroupFromUser(mid, gid));
+      }
+      await Promise.all(tasks);
+    },
+    [user?.id],
+  );
+
+  /** Wipe the community-bound group entirely (used when the community is
+   *  dissolved). Removes the group from every former member's storage and
+   *  from the current user's in-memory list. */
+  const dissolveCommunityGroup = useCallback(
+    async (communityIdArg: string, formerMemberIds: string[]) => {
+      const gid = communityGroupId(communityIdArg);
+      setGroups(prev => prev.filter(g => g.id !== gid));
+      await Promise.all(formerMemberIds.map(mid => removeGroupFromUser(mid, gid)));
+    },
+    [],
+  );
+
   return (
     <Ctx.Provider value={{
       convList, chats, groups,
       markRead, appendMsg, markSeen, refreshChats, setActiveConv,
       getGroup, createGroup, updateGroup,
       addGroupMember, removeGroupMember, leaveGroup,
+      syncCommunityGroup, dissolveCommunityGroup,
     }}>
       {children}
     </Ctx.Provider>
