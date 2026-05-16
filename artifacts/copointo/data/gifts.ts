@@ -75,7 +75,7 @@ export const GIFTS: GiftDef[] = [
   {
     id: "gift-cinema-video",
     name: "لا مبالي",
-    emoji: "😎",
+    emoji: "🎁",
     image: require("../assets/images/gift-indifferent.gif"),
     price: 500,
     tier: 3,

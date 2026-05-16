@@ -835,7 +835,11 @@ function UserDetailPanel(p: PanelProps) {
                       <View style={panelStyles.giftGrid}>
                         {entries.map(({ g, n }) => (
                           <View key={g.id} style={[panelStyles.giftCard, { borderColor: g.color + "55" }]}>
-                            <Text style={panelStyles.giftEmoji}>{g.emoji}</Text>
+                            {g.image ? (
+                              <Image source={g.image} style={{ width: 32, height: 32, marginBottom: 4 }} resizeMode="contain" />
+                            ) : (
+                              <Text style={panelStyles.giftEmoji}>{g.emoji}</Text>
+                            )}
                             <Text style={panelStyles.giftName} numberOfLines={1}>{g.name}</Text>
                             <View style={[panelStyles.giftCountPill, { backgroundColor: g.color + "22", borderColor: g.color + "66" }]}>
                               <Text style={[panelStyles.giftCountText, { color: g.color }]}>×{n}</Text>

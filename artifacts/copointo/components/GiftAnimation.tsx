@@ -505,14 +505,25 @@ function ZoomScene({ gift, duration }: { gift: GiftDef; duration: number }) {
 
 function ZoomHero({ gift, duration }: { gift: GiftDef; duration: number }) {
   const t = useRef(new Animated.Value(0)).current;
+  // Image-only gifts (e.g. "لا مبالي" GIF) use a calm fade-in / fade-out
+  // with no scale or rotate so the artwork stays still and clearly visible.
+  const imageOnly = !!(gift.image && gift.singleParticle);
   useEffect(() => {
-    Animated.sequence([
-      Animated.timing(t, { toValue: 1, duration: 900, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
-      Animated.delay(duration - 900 - 700),
-      Animated.timing(t, { toValue: 0, duration: 700, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-    ]).start();
+    if (imageOnly) {
+      Animated.sequence([
+        Animated.timing(t, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.delay(Math.max(0, duration - 700 - 700)),
+        Animated.timing(t, { toValue: 0, duration: 700, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.sequence([
+        Animated.timing(t, { toValue: 1, duration: 900, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }),
+        Animated.delay(duration - 900 - 700),
+        Animated.timing(t, { toValue: 0, duration: 700, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    }
   }, []);
-  const size = Math.min(SCREEN_W, SCREEN_H) * (gift.image ? 0.7 : 0.45);
+  const size = Math.min(SCREEN_W, SCREEN_H) * (imageOnly ? 0.95 : gift.image ? 0.7 : 0.45);
   const scale = t.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
   const rotate = t.interpolate({ inputRange: [0, 1], outputRange: ["-180deg", "0deg"] });
   if (gift.image) {
@@ -527,7 +538,7 @@ function ZoomHero({ gift, duration }: { gift: GiftDef; duration: number }) {
           width: size,
           height: size,
           opacity: t,
-          transform: [{ scale }, { rotate }],
+          ...(imageOnly ? {} : { transform: [{ scale }, { rotate }] }),
         }}
       />
     );
