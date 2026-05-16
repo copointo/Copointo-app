@@ -430,13 +430,16 @@ export default function ConversationScreen() {
         </View>
       ) : (
         <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
-          <TouchableOpacity
-            style={styles.giftBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickerOpen(true); }}
-            activeOpacity={0.85}
-          >
-            <Feather name="gift" size={20} color={PRIMARY} />
-          </TouchableOpacity>
+          {/* Gifts are 1:1 only — hidden in group chats. */}
+          {!isGroup && (
+            <TouchableOpacity
+              style={styles.giftBtn}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setPickerOpen(true); }}
+              activeOpacity={0.85}
+            >
+              <Feather name="gift" size={20} color={PRIMARY} />
+            </TouchableOpacity>
+          )}
           <TextInput
             style={styles.inputField}
             value={text}
