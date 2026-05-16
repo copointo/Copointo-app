@@ -27,6 +27,11 @@ import { API_BASE } from "@/constants/api";
 const cacheCommunitiesKey = (uid: string) => `copointo_communities_v2:${uid}`;
 const cacheInvitesKey     = (uid: string) => `copointo_community_invites_v2:${uid}`;
 const cacheAllKey         = "copointo_all_communities_v2";
+// Local-only list of community IDs the user has voluntarily left.
+// Used to surface a "rejoin" shortcut on the communities screen so the
+// user doesn't have to wait for a fresh invite. Cleared per-id when the
+// user actually rejoins (or the community no longer exists).
+const cacheLeftKey        = (uid: string) => `copointo_left_communities_v1:${uid}`;
 
 export type CommunityCreateResult =
   | { ok: true; community: Community }
@@ -69,6 +74,10 @@ interface CommunityContextValue {
   declineInvite: (communityId: string) => Promise<void>;
 
   leaveCommunity:  (communityId: string) => Promise<void>;
+  /** Communities the user has voluntarily left (and that still exist + the user is not currently a member of). */
+  leftCommunities: Community[];
+  /** Re-add the user to a community they previously left. Subject to capacity & one-community rule. */
+  rejoinCommunity: (communityId: string) => Promise<CommunityActionResult>;
   removeMember:    (communityId: string, userId: string) => Promise<CommunityActionResult>;
   updateCommunity: (
     communityId: string,
@@ -168,6 +177,7 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
 
   const [allCommunities,  setAllCommunities]  = useState<Community[]>([]);
   const [incomingInvites, setIncomingInvites] = useState<CommunityInvite[]>([]);
+  const [leftIds,         setLeftIds]         = useState<string[]>([]);
   const [ready,           setReady]           = useState(false);
 
   // Hydrate from cache first (instant paint) then trigger a server sync.
@@ -179,18 +189,28 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         const allRaw = await AsyncStorage.getItem(cacheAllKey);
         const cachedAll: Community[] = allRaw ? JSON.parse(allRaw) : [];
         let cachedInv: CommunityInvite[] = [];
+        let cachedLeft: string[] = [];
         if (user) {
-          const invRaw = await AsyncStorage.getItem(cacheInvitesKey(user.id));
-          cachedInv = invRaw ? JSON.parse(invRaw) : [];
+          const invRaw  = await AsyncStorage.getItem(cacheInvitesKey(user.id));
+          cachedInv     = invRaw ? JSON.parse(invRaw) : [];
+          const leftRaw = await AsyncStorage.getItem(cacheLeftKey(user.id));
+          cachedLeft    = leftRaw ? JSON.parse(leftRaw) : [];
         }
         if (cancelled) return;
         setAllCommunities(cachedAll);
         setIncomingInvites(cachedInv);
+        setLeftIds(cachedLeft);
       } catch { /* ignore cache errors */ }
       setReady(true);
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
+
+  // Persist the left-list per user.
+  useEffect(() => {
+    if (!ready || !user) return;
+    AsyncStorage.setItem(cacheLeftKey(user.id), JSON.stringify(leftIds)).catch(() => {});
+  }, [ready, leftIds, user?.id]);
 
   // Persist cache whenever state changes (after initial hydrate).
   useEffect(() => {
@@ -481,11 +501,14 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
 
       if (remaining.length === 0) {
         // Last member out — community has no one left, dissolve it.
+        // Don't add to leftIds since the community no longer exists to rejoin.
         removeLocal(communityId);
         await serverDeleteCommunity(communityId);
         await dissolveCommunityGroup(communityId, community.members).catch(() => {});
         return;
       }
+      // Remember this community so the user can re-enter quickly later.
+      setLeftIds(prev => (prev.includes(communityId) ? prev : [...prev, communityId]));
 
       const leaverIsLeader = getCommunityRole(community, user.id) === "leader";
       const nextRoles = withoutUserRole(community.roles, user.id);
@@ -517,6 +540,46 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
       }
     },
     [user?.id, allCommunities, upsertLocal, removeLocal, syncCommunityGroup, dissolveCommunityGroup],
+  );
+
+  /** ────────── rejoinCommunity ──────────
+   *  Re-add the current user (as a regular member) to a community they
+   *  previously left. Mirrors the "accept invite" path but without an invite. */
+  const rejoinCommunity = useCallback(
+    async (communityId: string): Promise<CommunityActionResult> => {
+      if (!user) return { ok: false, error: "غير مسجل دخول" };
+      if (myCommunities.length > 0) {
+        return { ok: false, error: "أنت بالفعل في مجتمع. غادر المجتمع الحالي أولاً." };
+      }
+      // Pull freshest snapshot to avoid acting on stale capacity / membership.
+      const snap = await serverSync(user.id);
+      const liveAll = snap?.communities ?? allCommunities;
+      const community = liveAll.find(c => c.id === communityId);
+      if (!community) {
+        // Community no longer exists — drop it from the rejoin list.
+        setLeftIds(prev => prev.filter(x => x !== communityId));
+        return { ok: false, error: "المجتمع لم يعد موجوداً" };
+      }
+      if (community.members.length >= COMMUNITY_MAX_MEMBERS) {
+        return { ok: false, error: "المجتمع ممتلئ" };
+      }
+      if (community.members.includes(user.id)) {
+        setLeftIds(prev => prev.filter(x => x !== communityId));
+        return { ok: true };
+      }
+      const updated: Community = {
+        ...community,
+        members: [...community.members, user.id],
+        roles: { ...(community.roles || {}), [user.id]: "member" },
+      };
+      const ok = await serverPutCommunity(updated);
+      if (!ok) return { ok: false, error: "تعذر الانضمام. حاول مجدداً." };
+      upsertLocal(updated);
+      setLeftIds(prev => prev.filter(x => x !== communityId));
+      await syncCommunityGroup(updated).catch(() => {});
+      return { ok: true };
+    },
+    [user?.id, myCommunities.length, allCommunities, upsertLocal, syncCommunityGroup],
   );
 
   /** ────────── removeMember (leader only) ────────── */
@@ -689,6 +752,27 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
 
   const myActiveCommunity = myCommunities[0] ?? null;
 
+  // Resolve left-ids → live Community objects, filtering out any that no
+  // longer exist (dissolved) or that the user is somehow already in again.
+  const leftCommunities = useMemo<Community[]>(() => {
+    if (!user) return [];
+    const myIds = new Set(myCommunities.map(c => c.id));
+    return leftIds
+      .map(id => allCommunities.find(c => c.id === id))
+      .filter((c): c is Community => !!c && !myIds.has(c.id));
+  }, [user?.id, leftIds, allCommunities, myCommunities]);
+
+  // Garbage-collect leftIds whenever the underlying list of communities
+  // changes — drop ids whose community has been dissolved.
+  useEffect(() => {
+    if (!ready) return;
+    setLeftIds(prev => {
+      const exists = new Set(allCommunities.map(c => c.id));
+      const next = prev.filter(id => exists.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [ready, allCommunities]);
+
   const value: CommunityContextValue = {
     myCommunities,
     myActiveCommunity,
@@ -701,6 +785,8 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     acceptInvite,
     declineInvite,
     leaveCommunity,
+    leftCommunities,
+    rejoinCommunity,
     removeMember,
     updateCommunity,
     setMemberRole,

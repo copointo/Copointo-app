@@ -3,6 +3,8 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Image,
   Platform,
   ScrollView,
@@ -42,11 +44,31 @@ export default function CommunitiesScreen() {
     rankingList,
     incomingInvites,
     getCommunityScore,
+    leftCommunities,
+    rejoinCommunity,
     refresh,
   } = useCommunities();
   const alreadyInOne = !!myActiveCommunity;
 
   const [tab, setTab] = useState<Tab>("mine");
+  const [rejoiningId, setRejoiningId] = useState<string | null>(null);
+
+  const onRejoin = async (id: string, name: string) => {
+    if (alreadyInOne) {
+      Alert.alert("غير ممكن", "أنت بالفعل في مجتمع. غادره أولاً.");
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setRejoiningId(id);
+    const res = await rejoinCommunity(id);
+    setRejoiningId(null);
+    if (res.ok) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("تم", `عُدت إلى ${name}`);
+    } else {
+      Alert.alert("تعذر الانضمام", res.error);
+    }
+  };
 
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
@@ -107,7 +129,8 @@ export default function CommunitiesScreen() {
         showsVerticalScrollIndicator={false}
       >
         {tab === "mine" ? (
-          myCommunities.length === 0 ? (
+          <>
+          {myCommunities.length === 0 ? (
             <View style={styles.emptyWrap}>
               <Text style={{ fontSize: 56 }}>🏛️</Text>
               <Text style={styles.emptyTitle}>{t("comm.emptyTitle")}</Text>
@@ -172,7 +195,53 @@ export default function CommunitiesScreen() {
                   </TouchableOpacity>
                 );
               })
-          )
+          )}
+
+          {/* Recently-left communities → quick rejoin */}
+          {leftCommunities.length > 0 && (
+            <View style={styles.rejoinSection}>
+              <Text style={styles.rejoinTitle}>مجتمعات غادرتها</Text>
+              <Text style={styles.rejoinSub}>
+                يمكنك العودة إليها بضغطة واحدة (إن لم يكن المجتمع ممتلئاً وأنت غير منضم لمجتمع آخر).
+              </Text>
+              {leftCommunities.map(c => {
+                const busy = rejoiningId === c.id;
+                return (
+                  <View key={c.id} style={styles.rejoinRow}>
+                    {c.avatar ? (
+                      <Image source={{ uri: c.avatar }} style={styles.avatarImg} />
+                    ) : (
+                      <View style={styles.avatarPh}>
+                        <Text style={{ fontSize: 24 }}>🏛️</Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.commName} numberOfLines={1}>{c.name}</Text>
+                      <Text style={styles.metaText}>
+                        {t("comm.rankMembers", { n: c.members.length })}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.rejoinBtn, (alreadyInOne || busy) && { opacity: 0.5 }]}
+                      onPress={() => onRejoin(c.id, c.name)}
+                      activeOpacity={0.85}
+                      disabled={alreadyInOne || busy}
+                    >
+                      {busy ? (
+                        <ActivityIndicator size="small" color="#000" />
+                      ) : (
+                        <>
+                          <Feather name="log-in" size={14} color="#000" />
+                          <Text style={styles.rejoinBtnText}>دخول</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+          </>
         ) : (
           rankingList.length === 0 ? (
             <View style={styles.emptyWrap}>
@@ -390,6 +459,35 @@ const styles = StyleSheet.create({
   scoreText: {
     fontSize: 15, fontFamily: "Inter_700Bold", color: ACCENT,
   },
+
+  rejoinSection: {
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: BORDER,
+  },
+  rejoinTitle: {
+    fontSize: 14, fontFamily: "Inter_700Bold",
+    color: "#FFF", textAlign: "right",
+  },
+  rejoinSub: {
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.50)",
+    textAlign: "right", marginTop: 4, marginBottom: 10,
+  },
+  rejoinRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: CARD,
+    borderRadius: 14, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.06)",
+  },
+  rejoinBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: ACCENT,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, minWidth: 72, justifyContent: "center",
+  },
+  rejoinBtnText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#000" },
 
   fab: {
     position: "absolute", left: 20, right: 20,
