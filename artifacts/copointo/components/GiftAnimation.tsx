@@ -476,6 +476,11 @@ function ZoomScene({ gift, duration }: { gift: GiftDef; duration: number }) {
   const palette = gift.particles && gift.particles.length > 0
     ? gift.particles
     : [gift.emoji];
+  // Image-only gifts (e.g. "لا مبالي" GIF) render the asset by itself
+  // — no halo, no orbiting emoji sparkles, no extra decoration.
+  if (gift.image && gift.singleParticle) {
+    return <ZoomHero gift={gift} duration={duration} />;
+  }
   const ORBITS = 12;
   const items = useMemo(() => {
     return Array.from({ length: ORBITS }).map((_, i) => ({
