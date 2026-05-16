@@ -77,7 +77,7 @@ export const GIFTS: GiftDef[] = [
     name: "لا مبالي",
     emoji: "😎",
     image: require("../assets/images/gift-indifferent.gif"),
-    price: 750,
+    price: 500,
     tier: 3,
     color: "#E8B86D",
     animationKind: "zoom",
