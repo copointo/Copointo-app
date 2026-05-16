@@ -1,7 +1,7 @@
 export type GiftTier = 1 | 2 | 3;
 
 /** Animation style for the full-screen gift overlay. */
-export type GiftAnimKind = "fall" | "burst" | "spiral" | "zoom";
+export type GiftAnimKind = "fall" | "burst" | "spiral" | "zoom" | "video";
 
 export interface GiftDef {
   id: string;
@@ -11,6 +11,9 @@ export interface GiftDef {
   /** Optional image (e.g. animated GIF) to render instead of the emoji.
    *  Use `require("../assets/...")` so Metro bundles it. */
   image?: number;
+  /** Optional MP4 video asset (require'd) used by the "video" animationKind
+   *  to play a full-screen cinematic clip. */
+  video?: number;
   /** Cost in coins to send this gift. */
   price: number;
   /** Tier 1 = simple, 2 = fancy animated, 3 = cinematic 3+ seconds. */
@@ -65,6 +68,17 @@ export const GIFTS: GiftDef[] = [
     tier: 3,
     color: "#7C3AED",
     animationKind: "zoom",
+  },
+  {
+    id: "gift-cinema-video",
+    name: "العرض السينمائي",
+    emoji: "🎬",
+    video: require("../assets/videos/gift-cinema.mp4"),
+    price: 750,
+    tier: 3,
+    color: "#E8B86D",
+    animationKind: "video",
+    singleParticle: true,
   },
 ];
 

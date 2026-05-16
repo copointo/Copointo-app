@@ -1,4 +1,5 @@
 import { Feather } from "@expo/vector-icons";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
@@ -82,6 +83,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
     animKind === "burst"  ? 6000 :
     animKind === "spiral" ? 6500 :
     animKind === "zoom"   ? 6000 :
+    animKind === "video"  ? 7000 :
     visibleCount > 0
       ? (visibleCount - 1) * STAGGER_MS + FALL_DUR_MAX + HOLD_AFTER_MS
       : 1500;
@@ -111,6 +113,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           {animKind === "burst"  && <BurstScene  gift={gift} duration={totalDur} />}
           {animKind === "spiral" && <SpiralScene gift={gift} duration={totalDur} />}
           {animKind === "zoom"   && <ZoomScene   gift={gift} duration={totalDur} />}
+          {animKind === "video"  && <VideoScene  gift={gift} duration={totalDur} />}
           {animKind === "fall" && particles.map(p => (
             <FallingGift
               key={p.key}
@@ -647,6 +650,61 @@ function CenterHero({ gift, duration, delay }: { gift: GiftDef; duration: number
     >
       {gift.emoji}
     </Animated.Text>
+  );
+}
+
+/**
+ * VideoScene — plays a full-screen MP4 cinematic clip for premium video gifts.
+ * Auto-plays with sound on mount, fits the screen with "contain" so the whole
+ * frame is visible, and runs for the gift's totalDur (looping if the clip
+ * is shorter than the scene). A soft halo behind the video adds glow.
+ *
+ * Safety: if a gift declared animationKind="video" but forgot to provide
+ * `video`, we fall back to a ZoomScene so the overlay still works.
+ */
+function VideoScene({ gift, duration }: { gift: GiftDef; duration: number }) {
+  if (!gift.video) {
+    return <ZoomScene gift={gift} duration={duration} />;
+  }
+  const player = useVideoPlayer(gift.video, (p) => {
+    p.loop = true;
+    p.muted = false;
+    p.volume = 1.0;
+    p.play();
+  });
+  const size = Math.min(SCREEN_W, SCREEN_H) * 0.92;
+  return (
+    <>
+      <CenterHalo color={gift.color} duration={duration} pulses={3} />
+      <View
+        style={{
+          position: "absolute",
+          left: CENTER_X - size / 2,
+          top: CENTER_Y - size / 2,
+          width: size,
+          height: size,
+          borderRadius: 24,
+          overflow: "hidden",
+          backgroundColor: "#000",
+          borderWidth: 2,
+          borderColor: gift.color,
+          shadowColor: gift.color,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.8,
+          shadowRadius: 28,
+          elevation: 12,
+        }}
+      >
+        <VideoView
+          player={player}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="contain"
+          nativeControls={false}
+          allowsFullscreen={false}
+          allowsPictureInPicture={false}
+        />
+      </View>
+    </>
   );
 }
 
