@@ -193,22 +193,25 @@ export default function ConversationScreen() {
     if (isCopointoAdminConv || !id) return;
     if (item.deletedForAll) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const doDelete = () => {
+      if (item.fromMe) {
+        deleteMessage(id, item.id, "forEveryone");
+      } else {
+        tombstoneMessage(id, item.id);
+      }
+    };
+    // Alert.alert is unreliable on react-native-web — fall back to window.confirm
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const ok = window.confirm("حذف الرسالة؟ سيتم استبدالها بـ \"تم حذف هذه الرسالة\" في نفس المكان.");
+      if (ok) doDelete();
+      return;
+    }
     Alert.alert(
       "حذف الرسالة؟",
-      "سيتم استبدال الرسالة بـ \"تم حذف رسالة\" في نفس المكان.",
+      "سيتم استبدال الرسالة بـ \"تم حذف هذه الرسالة\" في نفس المكان.",
       [
         { text: "إلغاء", style: "cancel" },
-        {
-          text: "حذف",
-          style: "destructive",
-          onPress: () => {
-            if (item.fromMe) {
-              deleteMessage(id, item.id, "forEveryone");
-            } else {
-              tombstoneMessage(id, item.id);
-            }
-          },
-        },
+        { text: "حذف", style: "destructive", onPress: doDelete },
       ],
     );
   };

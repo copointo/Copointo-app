@@ -39,6 +39,12 @@ function ConversationItem({ msg }: { msg: Message }) {
   const onLongPress = () => {
     if (isCopointoAdminConv) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Alert.alert is unreliable on react-native-web — fall back to window.confirm
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const ok = window.confirm("حذف المحادثة؟ ستُحذف من جهازك فقط، الطرف الآخر لن يتأثر.");
+      if (ok) deleteConversation(msg.id);
+      return;
+    }
     Alert.alert(
       "حذف المحادثة؟",
       "ستُحذف هذه المحادثة من جهازك فقط، الطرف الآخر لن يتأثر.",
