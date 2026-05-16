@@ -79,7 +79,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
   // Total scene duration depends on the animation kind. Premium cinematic
   // gifts (burst/spiral/zoom) run noticeably longer so the effect lands.
   const animKind = gift?.animationKind ?? "fall";
-  const totalDur =
+  const defaultDur =
     animKind === "burst"  ? 6000 :
     animKind === "spiral" ? 6500 :
     animKind === "zoom"   ? 6000 :
@@ -87,6 +87,8 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
     visibleCount > 0
       ? (visibleCount - 1) * STAGGER_MS + FALL_DUR_MAX + HOLD_AFTER_MS
       : 1500;
+  // Per-gift override (e.g. cinematic GIFs that need a fixed display window).
+  const totalDur = gift?.durationMs ?? defaultDur;
 
   useEffect(() => {
     if (!visible || !gift) return;
@@ -505,9 +507,26 @@ function ZoomHero({ gift, duration }: { gift: GiftDef; duration: number }) {
       Animated.timing(t, { toValue: 0, duration: 700, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, []);
-  const size = Math.min(SCREEN_W, SCREEN_H) * 0.45;
+  const size = Math.min(SCREEN_W, SCREEN_H) * (gift.image ? 0.7 : 0.45);
   const scale = t.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
   const rotate = t.interpolate({ inputRange: [0, 1], outputRange: ["-180deg", "0deg"] });
+  if (gift.image) {
+    return (
+      <Animated.Image
+        source={gift.image}
+        resizeMode="contain"
+        style={{
+          position: "absolute",
+          left: CENTER_X - size / 2,
+          top: CENTER_Y - size / 2,
+          width: size,
+          height: size,
+          opacity: t,
+          transform: [{ scale }, { rotate }],
+        }}
+      />
+    );
+  }
   return (
     <Animated.Text
       style={{

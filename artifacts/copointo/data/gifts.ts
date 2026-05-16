@@ -28,6 +28,9 @@ export interface GiftDef {
   /** Animation style. Defaults to "fall". Premium gifts use "burst",
    *  "spiral", or "zoom" for distinctive motion. */
   animationKind?: GiftAnimKind;
+  /** Optional override for the on-screen duration in milliseconds.
+   *  When omitted, GiftAnimation picks a sensible default per animationKind. */
+  durationMs?: number;
 }
 
 export const GIFTS: GiftDef[] = [
@@ -71,14 +74,15 @@ export const GIFTS: GiftDef[] = [
   },
   {
     id: "gift-cinema-video",
-    name: "العرض السينمائي",
-    emoji: "🎬",
-    video: require("../assets/videos/gift-cinema.mp4"),
+    name: "لا مبالي",
+    emoji: "😎",
+    image: require("../assets/images/gift-indifferent.gif"),
     price: 750,
     tier: 3,
     color: "#E8B86D",
-    animationKind: "video",
+    animationKind: "zoom",
     singleParticle: true,
+    durationMs: 5000,
   },
 ];
 
