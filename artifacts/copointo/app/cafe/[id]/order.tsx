@@ -247,116 +247,35 @@ export default function OrderScreen() {
             <Text style={styles.muted}>جرّب تصنيفاً آخر</Text>
           </View>
         )}
-        {visibleItems.map((item) => {
-          // Sum quantity across every variant of this menu item (composite ids).
-          const qty = cart.reduce(
-            (s, c) => s + ((c.menuItemId ?? c.id) === item.id ? c.quantity : 0),
-            0,
-          );
-          const tracked   = item.stockQty != null;
-          const remaining = tracked ? Math.max(0, (item.stockQty as number) - qty) : Infinity;
-          const depleted  = tracked && (item.stockQty as number) <= 0;
-          const lowStock  = tracked && !depleted && (item.stockQty as number) > 0
-            && (item.stockQty as number) <= Math.max(1, Math.ceil(((item.initialStockQty ?? item.stockQty) as number) * 0.25));
-          return (
-            <View key={item.id} style={styles.card}>
-              {item.image ? (
-                <Image source={{ uri: item.image }} style={styles.cardImage} />
-              ) : (
-                <LinearGradient
-                  colors={["rgba(232,184,109,0.16)", "rgba(232,184,109,0.04)"]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={styles.cardIcon}
-                >
-                  <Text style={{ fontSize: 36 }}>{CATEGORY_ICONS[item.category] ?? "🍽️"}</Text>
-                </LinearGradient>
-              )}
-              <View style={styles.cardBody}>
-                <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-                {!!item.description && (
-                  <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
-                )}
-                {!!(item.promoBuyQty && item.promoGetQty) && (
-                  <View style={styles.bundleBadge}>
-                    <Text style={styles.bundleBadgeText}>
-                      🎁 اشترِ {item.promoBuyQty} واحصل على {item.promoGetQty} مجاناً
-                    </Text>
-                  </View>
-                )}
-                {tracked && (
-                  <View style={[
-                    styles.stockBadge,
-                    depleted ? styles.stockBadgeOut : lowStock ? styles.stockBadgeLow : styles.stockBadgeOk,
-                  ]}>
-                    <Text style={[
-                      styles.stockBadgeText,
-                      depleted ? styles.stockTextOut : lowStock ? styles.stockTextLow : styles.stockTextOk,
-                    ]}>
-                      {depleted
-                        ? "نَفِد المنتج"
-                        : lowStock
-                          ? `كمية محدودة — متبقّي ${item.stockQty}`
-                          : `متوفر: ${item.stockQty}`}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.cardBottom}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    {!!(item.originalPrice && item.originalPrice > item.price) && (
-                      <Text style={styles.oldPrice}>{item.originalPrice.toFixed(3)}</Text>
-                    )}
-                    <Text style={styles.cardPrice}>{item.price.toFixed(3)} OMR</Text>
-                    {!!(item.originalPrice && item.originalPrice > item.price) && (
-                      <View style={styles.discountChip}>
-                        <Text style={styles.discountChipText}>
-                          -{Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}%
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  {depleted ? (
-                    <View style={[styles.addBtn, { opacity: 0.45 }]}>
-                      <View style={[styles.addBtnGrad, { backgroundColor: "#3a1a1a" }]}>
-                        <Feather name="x" size={18} color={CREAM} />
-                      </View>
-                    </View>
-                  ) : qty > 0 ? (
-                    <View style={styles.qtyRow}>
-                      {(hasBeans(item) || hasSizes(item)) ? (
-                        <View style={[styles.qtyBtn, { opacity: 0 }]} />
-                      ) : (
-                        <TouchableOpacity
-                          style={styles.qtyBtn}
-                          onPress={() => { Haptics.selectionAsync(); updateQuantity(item.id, qty - 1); }}
-                        >
-                          <Feather name="minus" size={14} color="#FFF" />
-                        </TouchableOpacity>
-                      )}
-                      <Text style={styles.qtyText}>{qty}</Text>
-                      <TouchableOpacity
-                        style={[styles.qtyBtn, { backgroundColor: PRIMARY, opacity: remaining <= 0 ? 0.4 : 1 }]}
-                        onPress={() => { if (remaining > 0) handleAdd(item); }}
-                        disabled={remaining <= 0}
-                      >
-                        <Feather name="plus" size={14} color="#000" />
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity style={styles.addBtn} onPress={() => handleAdd(item)} activeOpacity={0.85}>
-                      <LinearGradient
-                        colors={[PRIMARY, "#C9985A"]}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                        style={styles.addBtnGrad}
-                      >
-                        <Feather name="plus" size={18} color="#000" />
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            </View>
-          );
-        })}
+        <View style={styles.grid}>
+          {visibleItems.map((item) => {
+            // Sum quantity across every variant of this menu item (composite ids).
+            const qty = cart.reduce(
+              (s, c) => s + ((c.menuItemId ?? c.id) === item.id ? c.quantity : 0),
+              0,
+            );
+            const tracked   = item.stockQty != null;
+            const remaining = tracked ? Math.max(0, (item.stockQty as number) - qty) : Infinity;
+            const depleted  = tracked && (item.stockQty as number) <= 0;
+            const lowStock  = tracked && !depleted && (item.stockQty as number) > 0
+              && (item.stockQty as number) <= Math.max(1, Math.ceil(((item.initialStockQty ?? item.stockQty) as number) * 0.25));
+            const hasVariants = hasBeans(item) || hasSizes(item);
+            return (
+              <ProductTile
+                key={item.id}
+                item={item}
+                qty={qty}
+                depleted={depleted}
+                lowStock={lowStock}
+                tracked={tracked}
+                remaining={remaining}
+                hasVariants={hasVariants}
+                onAdd={() => handleAdd(item)}
+                onMinus={() => { Haptics.selectionAsync(); updateQuantity(item.id, qty - 1); }}
+              />
+            );
+          })}
+        </View>
       </ScrollView>
 
       {/* Variant picker (bean / size) */}
@@ -526,6 +445,161 @@ function ActiveOrderBanner({
         <Feather name="chevron-left" size={18} color={PRIMARY} />
       </LinearGradient>
     </TouchableOpacity>
+  );
+}
+
+// ── Product tile: square card with image background + shimmer sweep ──
+function ProductTile({
+  item, qty, depleted, lowStock, tracked, remaining, hasVariants, onAdd, onMinus,
+}: {
+  item: MenuItem;
+  qty: number;
+  depleted: boolean;
+  lowStock: boolean;
+  tracked: boolean;
+  remaining: number;
+  hasVariants: boolean;
+  onAdd: () => void;
+  onMinus: () => void;
+}) {
+  const [width, setWidth] = useState(0);
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (width === 0) return;
+    progress.value = 0;
+    progress.value = withRepeat(
+      withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      false,
+    );
+  }, [width, progress]);
+
+  const shineStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: interpolate(progress.value, [0, 1], [-80, width + 40]) },
+      { skewX: "-22deg" },
+    ],
+    opacity: interpolate(progress.value, [0, 0.15, 0.6, 1], [0, 0.55, 0.55, 0]),
+  }));
+
+  const hasDiscount = !!(item.originalPrice && item.originalPrice > item.price);
+  const hasBundle   = !!(item.promoBuyQty && item.promoGetQty);
+
+  return (
+    <View
+      style={[styles.tile, depleted && { opacity: 0.55 }]}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      {/* Background image (or fallback gradient + emoji) */}
+      {item.image ? (
+        <Image source={{ uri: item.image }} style={styles.tileBg} />
+      ) : (
+        <LinearGradient
+          colors={["rgba(232,184,109,0.22)", "rgba(232,184,109,0.05)"]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[styles.tileBg, { alignItems: "center", justifyContent: "center" }]}
+        >
+          <Text style={{ fontSize: 56 }}>{CATEGORY_ICONS[item.category] ?? "🍽️"}</Text>
+        </LinearGradient>
+      )}
+
+      {/* Dark gradient overlay for text legibility */}
+      <LinearGradient
+        colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.92)"]}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
+      />
+
+      {/* Shimmer sweep */}
+      {width > 0 && (
+        <Animated.View pointerEvents="none" style={[styles.tileShine, shineStyle]}>
+          <LinearGradient
+            colors={["transparent", "rgba(255,232,180,0.45)", "transparent"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+
+      {/* Top badges row */}
+      <View style={styles.tileTopRow} pointerEvents="none">
+        {hasDiscount && (
+          <View style={styles.tileDiscountChip}>
+            <Text style={styles.tileDiscountText}>
+              -{Math.round(((item.originalPrice! - item.price) / item.originalPrice!) * 100)}%
+            </Text>
+          </View>
+        )}
+        {hasBundle && (
+          <View style={styles.tileBundleChip}>
+            <Text style={styles.tileBundleText}>🎁 {item.promoBuyQty}+{item.promoGetQty}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Bottom info: name, price, add control */}
+      <View style={styles.tileInfo} pointerEvents="box-none">
+        <Text style={styles.tileName} numberOfLines={2}>{item.name}</Text>
+        <View style={styles.tilePriceRow}>
+          <View style={{ flex: 1 }}>
+            {hasDiscount && (
+              <Text style={styles.tileOldPrice}>{item.originalPrice!.toFixed(3)}</Text>
+            )}
+            <Text style={styles.tilePrice}>{item.price.toFixed(3)} OMR</Text>
+          </View>
+
+          {depleted ? (
+            <View style={[styles.tileAddBtn, { backgroundColor: "rgba(120,30,30,0.85)" }]}>
+              <Feather name="x" size={18} color={CREAM} />
+            </View>
+          ) : qty > 0 ? (
+            <View style={styles.tileQtyRow}>
+              {hasVariants ? (
+                <View style={[styles.tileQtyBtn, { opacity: 0 }]} />
+              ) : (
+                <TouchableOpacity style={styles.tileQtyBtn} onPress={onMinus}>
+                  <Feather name="minus" size={14} color="#FFF" />
+                </TouchableOpacity>
+              )}
+              <Text style={styles.tileQtyText}>{qty}</Text>
+              <TouchableOpacity
+                style={[styles.tileQtyBtn, { backgroundColor: PRIMARY, opacity: remaining <= 0 ? 0.4 : 1 }]}
+                onPress={() => { if (remaining > 0) onAdd(); }}
+                disabled={remaining <= 0}
+              >
+                <Feather name="plus" size={14} color="#000" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={onAdd} activeOpacity={0.85} style={styles.tileAddBtnWrap}>
+              <LinearGradient
+                colors={[PRIMARY, "#C9985A"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.tileAddBtn}
+              >
+                <Feather name="plus" size={18} color="#000" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {tracked && (
+          <Text style={[
+            styles.tileStockLine,
+            depleted ? styles.stockTextOut : lowStock ? styles.stockTextLow : styles.stockTextOk,
+          ]}>
+            {depleted
+              ? "نَفِد المنتج"
+              : lowStock
+                ? `متبقّي ${item.stockQty}`
+                : `متوفر: ${item.stockQty}`}
+          </Text>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -740,69 +814,98 @@ const styles = StyleSheet.create({
   },
 
   // List
-  list: { paddingHorizontal: 16, paddingTop: 6, gap: 12 },
+  list: { paddingHorizontal: 12, paddingTop: 6 },
 
-  // Card
-  card: {
-    flexDirection: "row", gap: 12, padding: 12,
-    backgroundColor: CARD, borderRadius: 18,
-    borderWidth: 1, borderColor: BORDER,
-    marginBottom: 12,
+  // Grid of square product tiles
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 12,
   },
-  cardIcon: {
-    width: 78, height: 78, borderRadius: 16,
-    alignItems: "center", justifyContent: "center",
+  tile: {
+    width: "48.5%",
+    aspectRatio: 1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+    overflow: "hidden",
+    position: "relative",
   },
-  cardImage: {
-    width: 78, height: 78, borderRadius: 16,
-    backgroundColor: "rgba(232,184,109,0.08)",
+  tileBg: {
+    ...StyleSheet.absoluteFillObject,
+    width: "100%",
+    height: "100%",
   },
-  cardBody:   { flex: 1, gap: 4 },
-  cardName:   { fontSize: 16, fontFamily: "Inter_700Bold", color: CREAM },
-  cardDesc:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.55)", lineHeight: 16 },
-  cardBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },
-  cardPrice:  { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
-  oldPrice:   {
-    fontSize: 12, fontFamily: "Inter_600SemiBold",
-    color: "rgba(245,230,204,0.5)",
+  tileShine: {
+    position: "absolute",
+    top: 0, bottom: 0,
+    width: 60,
+  },
+  tileTopRow: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    right: 8,
+    flexDirection: "row",
+    gap: 6,
+  },
+  tileDiscountChip: {
+    backgroundColor: "rgba(239,68,68,0.92)",
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8,
+  },
+  tileDiscountText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF" },
+  tileBundleChip: {
+    backgroundColor: "rgba(232,184,109,0.92)",
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8,
+  },
+  tileBundleText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+  tileInfo: {
+    position: "absolute",
+    left: 10, right: 10, bottom: 10,
+    gap: 4,
+  },
+  tileName: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    textShadowColor: "rgba(0,0,0,0.6)",
+    textShadowRadius: 4,
+  },
+  tilePriceRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  tilePrice: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: PRIMARY,
+    textShadowColor: "rgba(0,0,0,0.7)",
+    textShadowRadius: 3,
+  },
+  tileOldPrice: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(245,230,204,0.65)",
     textDecorationLine: "line-through",
   },
-  discountChip: {
-    backgroundColor: "rgba(239,68,68,0.18)",
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+  tileAddBtnWrap: { borderRadius: 12, overflow: "hidden" },
+  tileAddBtn: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  tileQtyRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tileQtyBtn: {
+    width: 28, height: 28, borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center", justifyContent: "center",
   },
-  discountChipText: {
-    fontSize: 10, fontFamily: "Inter_700Bold", color: "#FCA5A5",
-  },
-  bundleBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(232,184,109,0.15)",
-    borderColor: "rgba(232,184,109,0.4)", borderWidth: 1,
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-    marginTop: 4,
-  },
-  bundleBadgeText: {
-    fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY,
-  },
-  stockBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
-    borderWidth: 1, marginTop: 4,
-  },
-  stockBadgeOk:  { backgroundColor: "rgba(34,197,94,0.12)",  borderColor: "rgba(34,197,94,0.35)" },
-  stockBadgeLow: { backgroundColor: "rgba(234,179,8,0.15)",  borderColor: "rgba(234,179,8,0.4)"  },
-  stockBadgeOut: { backgroundColor: "rgba(239,68,68,0.18)",  borderColor: "rgba(239,68,68,0.45)" },
-  stockBadgeText:{ fontSize: 11, fontFamily: "Inter_700Bold" },
+  tileQtyText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", minWidth: 16, textAlign: "center" },
+  tileStockLine: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+
   stockTextOk:   { color: "#86EFAC" },
   stockTextLow:  { color: "#FDE68A" },
   stockTextOut:  { color: "#FCA5A5" },
-
-  // Add controls
-  addBtn:     { borderRadius: 12, overflow: "hidden" },
-  addBtnGrad: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
-  qtyRow:     { flexDirection: "row", alignItems: "center", gap: 10 },
-  qtyBtn:     { width: 32, height: 32, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" },
-  qtyText:    { fontSize: 15, fontFamily: "Inter_700Bold", color: CREAM, minWidth: 18, textAlign: "center" },
 
   // Cart bar
   cartBarWrap:  { position: "absolute", left: 16, right: 16, bottom: 0 },
