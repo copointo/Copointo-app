@@ -2,7 +2,7 @@ import { Router } from "express";
 import path from "node:path";
 import fs from "node:fs";
 import {
-  cafes, users, broadcasts, chatMessages, friendScope, persistStore, reports,
+  cafes, users, broadcasts, chatMessages, friendScope, persistStore, flushNow, reports,
   purgeUserData, purgeCafeData, reels, wipeAllData,
   communities, communityInvites,
   type Cafe, type Broadcast, type ChatMsg, type Report,
@@ -75,14 +75,19 @@ router.post("/cafes", async (req, res) => {
     lng: finalLng,
   };
   cafes.push(newCafe);
+  // Synchronous flush — without this the new cafe lives only in memory
+  // and gets lost on autoscale instance restart / redeploy before the 5s
+  // safety-net interval fires. Same pattern as POST /users/register.
+  try { await flushNow(); } catch { /* persistStore safety net will retry */ }
   res.status(201).json({ cafe: newCafe });
 });
 
 // ── PATCH /api/admin/cafes/:id/toggle ──────
-router.patch("/cafes/:id/toggle", (req, res) => {
+router.patch("/cafes/:id/toggle", async (req, res): Promise<any> => {
   const cafe = cafes.find(c => c.id === req.params.id);
   if (!cafe) return res.status(404).json({ error: "Cafe not found" });
   cafe.active = !cafe.active;
+  try { await flushNow(); } catch { /* persistStore safety net will retry */ }
   res.json({ cafe });
 });
 
@@ -138,6 +143,7 @@ router.patch("/cafes/:id", async (req, res): Promise<any> => {
     if (geo) { cafe.lat = geo.lat; cafe.lng = geo.lng; }
   }
 
+  try { await flushNow(); } catch { /* persistStore safety net will retry */ }
   res.json({ cafe });
 });
 
