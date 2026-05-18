@@ -2167,11 +2167,38 @@ function MenuTab({ id }: { id: string }) {
     if (!file) return;
     setImgErr("");
     if (!file.type.startsWith("image/")) { setImgErr("الملف ليس صورة"); return; }
-    // Image size cap removed for menu items per request — any size accepted.
+    // Auto-downscale large images: huge base64 payloads get rejected by
+    // the Replit proxy with an empty 413 body, surfacing as a useless
+    // "Error". Compressing to ≤1200px / JPEG 0.75 keeps the payload well
+    // under proxy limits while staying sharp for the grid tile.
     const reader = new FileReader();
     reader.onload = () => {
-      const url = String(reader.result || "");
-      setForm(p => ({ ...p, image: url }));
+      const rawDataUrl = String(reader.result || "");
+      if (!rawDataUrl) return;
+      // Safe fallback: store the raw URL first so we never lose the pick.
+      setForm(p => ({ ...p, image: rawDataUrl }));
+      const img = new Image();
+      img.onload = () => {
+        try {
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            const MAX = 1200;
+            const scale = Math.min(MAX / img.naturalWidth, MAX / img.naturalHeight, 1);
+            const canvas = document.createElement("canvas");
+            canvas.width  = Math.round(img.naturalWidth  * scale);
+            canvas.height = Math.round(img.naturalHeight * scale);
+            const ctx = canvas.getContext("2d");
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const compressed = canvas.toDataURL("image/jpeg", 0.75);
+              if (compressed.length > 5000 && compressed.length < rawDataUrl.length) {
+                setForm(p => ({ ...p, image: compressed }));
+              }
+            }
+          }
+        } catch { /* keep raw on failure */ }
+      };
+      img.onerror = () => { /* keep raw on failure */ };
+      img.src = rawDataUrl;
     };
     reader.onerror = () => setImgErr("تعذر قراءة الصورة");
     reader.readAsDataURL(file);
