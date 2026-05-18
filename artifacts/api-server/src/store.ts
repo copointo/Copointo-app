@@ -544,6 +544,7 @@ function setArrayContents(key: string, incoming: unknown) {
 }
 
 let bootLoadPromise: Promise<void> | null = null;
+let bootLoadDone = false;
 async function bootLoad(): Promise<void> {
   try {
     const rows = await db.select().from(kvStoreTable);
@@ -552,6 +553,9 @@ async function bootLoad(): Promise<void> {
       setArrayContents(row.key, row.value);
       lastLoadedAt.set(row.key, row.updatedAt.getTime());
     }
+    // Mark boot as done BEFORE the optional migration so its flushAll()
+    // is allowed through the safety guard in flush().
+    bootLoadDone = true;
     // One-time migration from legacy .store.json if the DB is empty.
     if (rows.length === 0) {
       const legacy = path.join(process.cwd(), ".store.json");
@@ -571,6 +575,10 @@ async function bootLoad(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[store] loaded ${rows.length} collections from kv_store`);
   } catch (e) {
+    // Do NOT mark bootLoadDone on failure — that would let the safety-net
+    // interval flush EMPTY arrays over real data. Leaving it false makes
+    // every subsequent flush() a no-op until the next process restart,
+    // which is the safe failure mode (read-only-ish until DB is healthy).
     // eslint-disable-next-line no-console
     console.warn(`[store] boot load failed: ${(e as Error).message}`);
   }
@@ -631,6 +639,15 @@ async function flush() {
   // `await flush()` actually wait for the on-disk write to complete
   // instead of returning instantly. Critical for `flushNow()` callers.
   if (inFlightFlush) return inFlightFlush;
+  // CRITICAL: never write to the DB before the initial bootLoad has
+  // finished populating the in-memory arrays. Otherwise the 5s safety-net
+  // interval (or a SIGTERM during a slow boot) would snapshot EMPTY
+  // arrays over the real data and wipe every collection. We learned this
+  // the hard way — it nuked users/cafes/orders/etc. in both dev & prod.
+  if (bootLoadPromise) {
+    try { await bootLoadPromise; } catch { /* boot logs the error */ }
+  }
+  if (!bootLoadDone) return;
   saving = true;
   inFlightFlush = (async () => {
     try {
@@ -895,7 +912,8 @@ export function ensureLoaded(): Promise<void> {
 // Kick off the initial load eagerly.
 void ensureLoaded();
 
-// Best-effort flush on graceful shutdown.
+// Best-effort flush on graceful shutdown. The guard in flush() ensures we
+// never write empty arrays if SIGTERM arrives before bootLoad finished.
 const shutdownFlush = () => { void flush(); };
 process.on("SIGTERM", shutdownFlush);
 process.on("SIGINT",  shutdownFlush);
