@@ -2086,20 +2086,31 @@ function MenuTab({ id }: { id: string }) {
         sizes: sizes.length > 0 ? sizes : null,
         sizesRequired: sizes.length > 0 ? !!form.sizesRequired : false,
       };
-      if (editingId) {
-        await api.updateMenuItem(id, editingId, body);
-      } else {
-        await api.addMenuItem(id, body);
+      // Step 1: actually save the item. Any failure here = real save failure.
+      try {
+        if (editingId) {
+          await api.updateMenuItem(id, editingId, body);
+        } else {
+          await api.addMenuItem(id, body);
+        }
+      } catch (err: any) {
+        console.error("[menu save] save failed:", err);
+        const msg = String(err?.message || err || "");
+        if (msg.includes("413") || /too large|payload/i.test(msg)) {
+          setFormErr("تعذّر الحفظ: حجم الصورة كبير جداً. جرّب صورة أصغر.");
+        } else {
+          setFormErr(`تعذّر حفظ المنتج: ${msg || "خطأ غير معروف"}`);
+        }
+        return; // keep form state so user can retry
       }
-      await load();
+      // Step 2: reload list. If this fails the item IS saved, so don't
+      // show an error — just log it and reset the form anyway.
+      try {
+        await load();
+      } catch (reloadErr) {
+        console.warn("[menu save] reload failed (item saved OK):", reloadErr);
+      }
       resetForm();
-    } catch (err: any) {
-      const msg = String(err?.message || err || "");
-      if (msg.includes("413") || /too large|payload/i.test(msg)) {
-        setFormErr("تعذّر الحفظ: حجم الصورة كبير جداً. جرّب صورة أصغر.");
-      } else {
-        setFormErr(`تعذّر حفظ المنتج: ${msg || "خطأ غير معروف"}`);
-      }
     } finally {
       setSaving(false);
     }
