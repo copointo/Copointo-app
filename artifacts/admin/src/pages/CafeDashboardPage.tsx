@@ -2565,9 +2565,9 @@ function MenuTab({ id }: { id: string }) {
                     <p className={`font-medium text-sm truncate ${item.available ? "text-foreground" : "text-muted-foreground line-through"}`}>{item.name}</p>
                     <div className="flex flex-wrap gap-1.5 mt-0.5 items-center">
                       {item.description && <p className="text-xs text-muted-foreground truncate">{item.description}</p>}
-                      {item.originalPrice && (
+                      {item.originalPrice != null && item.originalPrice !== "" && Number.isFinite(Number(item.originalPrice)) && (
                         <span className="text-[10px] bg-red-500/15 text-red-300 px-1.5 py-0.5 rounded">
-                          🏷️ خصم من {item.originalPrice.toFixed(3)} OMR
+                          🏷️ خصم من {Number(item.originalPrice).toFixed(3)} OMR
                         </span>
                       )}
                       {item.promoBuyQty && item.promoGetQty && (
@@ -2577,7 +2577,7 @@ function MenuTab({ id }: { id: string }) {
                       )}
                     </div>
                   </div>
-                  <span className="text-primary font-bold text-sm whitespace-nowrap">{item.price?.toFixed(3)} OMR</span>
+                  <span className="text-primary font-bold text-sm whitespace-nowrap">{Number(item.price ?? 0).toFixed(3)} OMR</span>
                   {(() => {
                     const st = menuStockStatus(item);
                     if (st === "untracked") {
@@ -2633,7 +2633,7 @@ function MenuTab({ id }: { id: string }) {
                     <p className="font-medium text-sm truncate text-foreground">{item.name}</p>
                     <p className="text-xs text-amber-400 mt-0.5">التصنيف الحالي: {item.category}</p>
                   </div>
-                  <span className="text-primary font-bold text-sm whitespace-nowrap">{item.price?.toFixed(3)} OMR</span>
+                  <span className="text-primary font-bold text-sm whitespace-nowrap">{Number(item.price ?? 0).toFixed(3)} OMR</span>
                   <button onClick={() => startEdit(item)} title="تعديل" className="p-1.5 rounded-lg hover:bg-primary/15 text-primary"><Pencil size={14}/></button>
                   <button onClick={() => del(item.id)} title="حذف" className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={14}/></button>
                 </div>

@@ -95,14 +95,14 @@ function CartItemRow({ item, onMinus, onPlus, onRemove }: any) {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           {hasDiscount && (
             <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textDecorationLine: "line-through", fontFamily: "Inter_500Medium" }}>
-              {item.originalPrice.toFixed(3)}
+              {Number(item.originalPrice ?? 0).toFixed(3)}
             </Text>
           )}
-          <Text style={styles.itemPrice}>{item.price.toFixed(3)} OMR × {item.quantity}</Text>
+          <Text style={styles.itemPrice}>{Number(item.price ?? 0).toFixed(3)} OMR × {item.quantity}</Text>
           {hasDiscount && (
             <View style={{ backgroundColor: "rgba(46,125,50,0.18)", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }}>
               <Text style={{ fontSize: 9, color: SUCCESS, fontFamily: "Inter_700Bold" }}>
-                -{Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}%
+                -{Math.round(((Number(item.originalPrice ?? 0) - Number(item.price ?? 0)) / Math.max(1e-9, Number(item.originalPrice ?? 0))) * 100)}%
               </Text>
             </View>
           )}

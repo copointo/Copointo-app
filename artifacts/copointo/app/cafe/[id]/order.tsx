@@ -102,7 +102,16 @@ export default function OrderScreen() {
       apiFetch<{ items: MenuItem[] }>(`/cafe/${id}/menu`)
         .then((data) => {
           if (cancelled || myReqId !== lastReqId) return;
-          const available = data.items.filter((i) => i.available !== false);
+          const available = data.items
+            .filter((i) => i.available !== false)
+            .map((i) => ({
+              ...i,
+              price: Number(i.price ?? 0),
+              originalPrice:
+                i.originalPrice != null && i.originalPrice !== ("" as any) && Number.isFinite(Number(i.originalPrice))
+                  ? Number(i.originalPrice)
+                  : null,
+            }));
           setItems(available);
         })
         .catch(() => { if (!cancelled && showSpinner) setItems([]); })
