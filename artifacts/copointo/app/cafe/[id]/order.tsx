@@ -88,22 +88,41 @@ export default function OrderScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    apiFetch<{ items: MenuItem[] }>(`/cafe/${id}/menu`)
-      .then((data) => {
-        if (cancelled) return;
-        const available = data.items.filter((i) => i.available !== false);
-        setItems(available);
-      })
-      .catch(() => { if (!cancelled) setItems([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+    // Monotonic request id: only the latest response is allowed to
+    // call setItems. This prevents out-of-order poll responses from
+    // overwriting newer data with stale results.
+    let lastReqId = 0;
+    let inFlight = false;
+
+    const fetchMenu = (showSpinner: boolean) => {
+      if (inFlight && !showSpinner) return; // skip overlapping poll ticks
+      inFlight = true;
+      const myReqId = ++lastReqId;
+      if (showSpinner) setLoading(true);
+      apiFetch<{ items: MenuItem[] }>(`/cafe/${id}/menu`)
+        .then((data) => {
+          if (cancelled || myReqId !== lastReqId) return;
+          const available = data.items.filter((i) => i.available !== false);
+          setItems(available);
+        })
+        .catch(() => { if (!cancelled && showSpinner) setItems([]); })
+        .finally(() => {
+          inFlight = false;
+          if (!cancelled && showSpinner) setLoading(false);
+        });
+    };
+
+    fetchMenu(true);
+    // Auto-refresh every 6s so newly-added menu items from the cafe
+    // dashboard appear without forcing the user to reopen the screen.
+    const t = setInterval(() => fetchMenu(false), 6000);
 
     // Fetch real cafe name from API (so admin-created cafes show their actual name)
     apiFetch<{ cafe: { name: string } }>(`/cafes/${id}`)
       .then((data) => { if (!cancelled && data?.cafe?.name) setCafeName(data.cafe.name); })
       .catch(() => { /* keep mock fallback */ });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearInterval(t); };
   }, [id]);
 
   const visibleItems = useMemo(

@@ -2093,6 +2093,13 @@ function MenuTab({ id }: { id: string }) {
       }
       await load();
       resetForm();
+    } catch (err: any) {
+      const msg = String(err?.message || err || "");
+      if (msg.includes("413") || /too large|payload/i.test(msg)) {
+        setFormErr("تعذّر الحفظ: حجم الصورة كبير جداً. جرّب صورة أصغر.");
+      } else {
+        setFormErr(`تعذّر حفظ المنتج: ${msg || "خطأ غير معروف"}`);
+      }
     } finally {
       setSaving(false);
     }
