@@ -2923,7 +2923,7 @@ function TablesTab({ id }: { id: string }) {
     if (!file) return;
     setImgErr("");
     if (!file.type.startsWith("image/")) { setImgErr("الملف ليس صورة"); return; }
-    if (file.size > MAX_IMAGE_BYTES)     { setImgErr("الصورة كبيرة جداً (الحد الأقصى 600 كيلوبايت)"); return; }
+    // Image size cap removed for table images per request — any size accepted.
     const reader = new FileReader();
     reader.onload = () => setForm(p => ({ ...p, image: String(reader.result || "") }));
     reader.onerror = () => setImgErr("تعذر قراءة الصورة");
@@ -2954,7 +2954,7 @@ function TablesTab({ id }: { id: string }) {
 
           {/* Image picker */}
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">صورة الطاولة (اختياري)</label>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5">صورة الطاولة (اختياري — أي حجم مقبول)</label>
             <div className="flex items-center gap-3">
               {form.image ? (
                 <img src={form.image} alt="" className="w-20 h-20 rounded-xl object-cover border border-border" />
@@ -2973,7 +2973,7 @@ function TablesTab({ id }: { id: string }) {
                     إزالة الصورة
                   </button>
                 )}
-                <p className="text-[10px] text-muted-foreground">حد أقصى 600 كيلوبايت — الصورة اختيارية</p>
+                <p className="text-[10px] text-muted-foreground">الصورة اختيارية — أي حجم مقبول</p>
                 {imgErr && <p className="text-[11px] text-red-400">{imgErr}</p>}
               </div>
             </div>
