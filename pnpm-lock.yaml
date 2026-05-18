@@ -161,6 +161,7 @@ overrides:
   picomatch@>=4.0.0 <4.0.4: ^4.0.4
   postcss@<8.5.10: ^8.5.10
   yaml@>=2.0.0 <2.8.3: ^2.8.3
+  '@tootallnate/once@2': ^3.0.1
 
 importers:
 
@@ -2544,8 +2545,8 @@ packages:
     peerDependencies:
       react: ^18 || ^19
 
-  '@tootallnate/once@2.0.1':
-    resolution: {integrity: sha512-HqmEUIGRJ5fSXchkVgR5F7qn48bDBzv0kWj/Kfu5e6uci4UlEeng4331LnBkWffb++Ei3FOVLxo8JJWMFBDMeQ==}
+  '@tootallnate/once@3.0.1':
+    resolution: {integrity: sha512-VyMVKRrpHTT8PnotUeV8L/mDaMwD5DaAKCFLP73zAqAtvF0FCqky+Ki7BYbFCYQmqFyTe9316Ed5zS70QUR9eg==}
     engines: {node: '>= 10'}
 
   '@types/babel__core@7.20.5':
@@ -8672,7 +8673,7 @@ snapshots:
       '@tanstack/query-core': 5.90.20
       react: 19.1.0
 
-  '@tootallnate/once@2.0.1': {}
+  '@tootallnate/once@3.0.1': {}
 
   '@types/babel__core@7.20.5':
     dependencies:
@@ -10362,7 +10363,7 @@ snapshots:
 
   http-proxy-agent@5.0.0:
     dependencies:
-      '@tootallnate/once': 2.0.1
+      '@tootallnate/once': 3.0.1
       agent-base: 6.0.2
       debug: 4.4.3
     transitivePeerDependencies:

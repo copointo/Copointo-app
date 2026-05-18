@@ -167,3 +167,10 @@ overrides:
   "picomatch@>=4.0.0 <4.0.4": "^4.0.4"
   "postcss@<8.5.10": "^8.5.10"
   "yaml@>=2.0.0 <2.8.3": "^2.8.3"
+  # @tootallnate/once@2.x has a ReDoS (GHSA-vpq2-c234-7xj6); only fix is the
+  # ESM-only 3.x line. http-proxy-agent@5 (transitive of @google-cloud/storage)
+  # declares peer @tootallnate/once@2 and does `require('@tootallnate/once')`,
+  # which Node 24 supports for ESM modules via the require(ESM) shim, so the
+  # override is safe at runtime even though the major bump nominally violates
+  # the peer range.
+  "@tootallnate/once@2": "^3.0.1"
