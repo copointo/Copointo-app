@@ -780,8 +780,81 @@ router.patch("/bookings/:bookingId/status", (req, res): any => {
 });
 
 // ── Menu ──────────────────────────────────────────────────────
+import { createHash } from "crypto";
+
+// Real content-derived hash so the URL changes on any image edit and we never
+// risk serving stale bytes from the long immutable cache.
+function imageVersionTag(image: string): string {
+  return createHash("sha1").update(image).digest("hex").slice(0, 12);
+}
+function firstHeaderToken(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  const first = v.split(",")[0];
+  const trimmed = first ? first.trim() : "";
+  return trimmed || undefined;
+}
+function buildBase(req: any): string {
+  // Trust X-Forwarded-* set by the platform proxy; take only the first token
+  // (forwarded headers may be comma-separated when chained).
+  const proto = firstHeaderToken(req.headers["x-forwarded-proto"]) || req.protocol || "http";
+  const host  = firstHeaderToken(req.headers["x-forwarded-host"])  || req.get("host") || "localhost";
+  return `${proto}://${host}`;
+}
+// Match data URLs even when extra parameters (e.g. `;charset=utf-8`) appear
+// between the MIME type and the base64 marker.
+const DATA_URL_RE = /^data:([a-z]+\/[a-z0-9.+-]+)(?:;[^,;]+)*;base64,(.+)$/i;
+
+function isSelfImageUrl(s: unknown): boolean {
+  // Detect URLs that point back to our own image endpoint so we never
+  // accidentally persist them as the source image (would create a redirect
+  // loop and lose the original bytes on the next edit save).
+  if (typeof s !== "string") return false;
+  return /\/api\/cafe\/[^/]+\/menu\/[^/]+\/image(\?|$)/.test(s);
+}
 router.get("/menu", (req: any, res) => {
-  res.json({ items: menuItems.filter(m => m.cafeId === req.params.cafeId) });
+  const cafeId = req.params.cafeId;
+  const base   = buildBase(req);
+  // Replace the heavy base64 `image` payload with an absolute URL to the
+  // image endpoint below. Old responses were 40+ MB (one data URL per item)
+  // which made the browser fail to render the list at all even though the
+  // count was correct. Keeping only the URL string trims the menu response
+  // back to a few KB and lets each <img> / <Image> stream lazily.
+  const items = menuItems
+    .filter(m => m.cafeId === cafeId)
+    .map(m => {
+      const img = typeof m.image === "string" ? m.image : "";
+      if (img.startsWith("data:")) {
+        const v = imageVersionTag(img);
+        return { ...m, image: `${base}/api/cafe/${cafeId}/menu/${m.id}/image?v=${v}` };
+      }
+      return m; // non-data URLs (already external) pass through unchanged
+    });
+  res.json({ items });
+});
+
+// Serve the image bytes parsed from the stored data URL. Cached aggressively
+// since the URL carries a content-derived `v=` cache buster.
+router.get("/menu/:itemId/image", (req: any, res) => {
+  const item = menuItems.find(m => m.id === req.params.itemId && m.cafeId === req.params.cafeId);
+  if (!item || typeof item.image !== "string") return res.status(404).end();
+  const m = item.image.match(DATA_URL_RE);
+  if (!m) {
+    // Image is an external http(s) URL — redirect the browser. Refuse to
+    // redirect to anything else (data:, javascript:, our own endpoint, …)
+    // to avoid loops and exotic schemes.
+    if (/^https?:\/\//i.test(item.image) && !isSelfImageUrl(item.image)) {
+      return res.redirect(302, item.image);
+    }
+    return res.status(404).end();
+  }
+  const buf = Buffer.from(m[2]!, "base64");
+  res.setHeader("Content-Type", m[1]!);
+  // Override the global no-store header for image bytes — these are content-
+  // versioned via `?v=` so they're safe to cache for a long time.
+  res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+  res.removeHeader("Pragma");
+  res.removeHeader("Expires");
+  res.end(buf);
 });
 function normalizeStock(body: any) {
   // Coerce stockQty: undefined → leave alone; null/"" → null (untracked); number → integer >= 0
@@ -834,6 +907,9 @@ function normalizeVariants(body: any) {
 
 router.post("/menu", (req: any, res) => {
   const body = req.body ?? {};
+  // Defence: never persist our own image-endpoint URL as the source image
+  // (would create a redirect loop and lose the original bytes).
+  if (isSelfImageUrl(body.image)) delete body.image;
   normalizeStock(body);
   normalizeVariants(body);
   const item: MenuItem = {
@@ -852,6 +928,11 @@ router.patch("/menu/:itemId", (req, res) => {
   const item = menuItems.find(m => m.id === req.params.itemId);
   if (!item) return res.status(404).json({ error: "Not found" });
   const body = req.body ?? {};
+  // Defence: never overwrite the stored image with our own image-endpoint
+  // URL. The admin form round-trips item.image; without this guard, editing
+  // any non-image field would replace the original data URL with a self-
+  // referential URL and break the image on the next fetch.
+  if (isSelfImageUrl(body.image)) delete body.image;
   normalizeStock(body);
   normalizeVariants(body);
   // Recompute initialStockQty (the alert-threshold baseline) only when stockQty
