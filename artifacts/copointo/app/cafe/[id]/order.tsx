@@ -719,18 +719,18 @@ const styles = StyleSheet.create({
   activeBannerBarFill: { height: "100%", backgroundColor: PRIMARY },
 
   // Tabs
-  tabs: { paddingHorizontal: 14, paddingVertical: 6, gap: 6 },
+  tabs: { paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
   tab: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5,
-    paddingHorizontal: 16, paddingVertical: 0,
-    height: 22, minWidth: 88,
-    borderRadius: 5, borderWidth: 1, borderColor: BORDER,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingHorizontal: 18, paddingVertical: 0,
+    height: 44, minWidth: 110,
+    borderRadius: 14, borderWidth: 1, borderColor: BORDER,
     backgroundColor: CARD,
     overflow: "hidden",
   },
   tabActive: { backgroundColor: "rgba(232,184,109,0.14)", borderColor: PRIMARY },
-  tabIcon:         { fontSize: 10 },
-  tabLabel:        { fontSize: 10.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.65)", lineHeight: 12, includeFontPadding: false },
+  tabIcon:         { fontSize: 16 },
+  tabLabel:        { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.75)", lineHeight: 18, includeFontPadding: false },
   tabLabelActive:  { color: PRIMARY },
   tabShine: {
     position: "absolute",
