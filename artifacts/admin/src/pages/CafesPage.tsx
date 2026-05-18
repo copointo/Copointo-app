@@ -276,13 +276,10 @@ export default function CafesPage() {
       }
       const res = await api.getCafes();
       setCafes(res.cafes);
-      const wasEditing = isEditing;
-      // Find the newly created cafe (only used when ADDING) so we can show
-      // the QR success modal afterwards.
-      const created = wasEditing ? null : ([...res.cafes].reverse().find(c => c.name === form.name) ?? null);
+      // Previously we showed a QR success modal after add; per request we now
+      // close the wizard directly without the QR popup.
       setModal(false);
       setEditingId(null);
-      if (created) setNewCafe(created);
       setForm({ ...EMPTY });
       setLogoPreview("");
       setCoverPreview("");
