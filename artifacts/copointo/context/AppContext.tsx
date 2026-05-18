@@ -935,6 +935,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           error: `🚫 تم حظرك من الموقع: ${status.banReason || "تواصل مع إدارة كوبوينتو"}`,
         };
       }
+      // Block sign-in if the server has no record of this account. Without
+      // this check the user gets a phantom 24-second session: login succeeds
+      // against the local cache, then the periodic ban-poll detects
+      // exists:false three times in a row and kicks them out. This happens
+      // for accounts that existed locally before a server-side wipe (e.g.
+      // after a DB reset). We also strip the dead local entries so the
+      // user can re-register cleanly with the same phone/username.
+      if (status && status.exists === false) {
+        try {
+          const cleaned = users.filter(u => u.id !== found!.id);
+          await AsyncStorage.setItem("registeredUsers", JSON.stringify(cleaned));
+          setRegisteredUsers(cleaned);
+        } catch {}
+        return {
+          ok: false,
+          error: "هذا الحساب لم يعد موجوداً — يرجى إنشاء حساب جديد",
+        };
+      }
 
       // Persist the (possibly-updated) roster so the adopted credential
       // survives a restart.
