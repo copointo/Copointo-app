@@ -175,14 +175,11 @@ export function BuyCoinsPanel() {
     ]).start();
   }, [introOpacity, introTranslate]);
 
-  const handleBuy = (p: Pack) => {
+  const handleBuy = (_p: Pack) => {
     Alert.alert(
-      "تأكيد الشراء",
-      `هل تريد شراء ${fmt(p.coins)} عملة مقابل $${p.price.toFixed(2)}؟`,
-      [
-        { text: "إلغاء", style: "cancel" },
-        { text: "شراء", onPress: async () => { await addCoins(p.coins); } },
-      ],
+      "قريباً",
+      "🚧 شراء العملات من المتجر سوف يتوفر قريباً، ترقّبوا التحديث القادم!",
+      [{ text: "حسناً" }],
     );
   };
 
