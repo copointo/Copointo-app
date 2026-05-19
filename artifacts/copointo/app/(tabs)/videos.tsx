@@ -323,7 +323,16 @@ export default function VideosScreen() {
     if (!userId) return;
     try {
       const r = await apiFetch<{ reels: Reel[] }>(`/reels?userId=${encodeURIComponent(userId)}`);
-      setReels(r.reels ?? []);
+      // Shuffle the reels every time the user enters the screen so the feed
+      // feels fresh (Fisher–Yates, in-place on a copy). Picking a new random
+      // order on each load means returning visitors don't see the same first
+      // clip twice in a row.
+      const list = [...(r.reels ?? [])];
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      setReels(list);
     } catch { /* ignore */ }
     setLoading(false);
   }, [userId]);
