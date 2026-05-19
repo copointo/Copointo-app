@@ -323,16 +323,29 @@ export default function VideosScreen() {
     if (!userId) return;
     try {
       const r = await apiFetch<{ reels: Reel[] }>(`/reels?userId=${encodeURIComponent(userId)}`);
-      // Shuffle the reels every time the user enters the screen so the feed
-      // feels fresh (Fisher–Yates, in-place on a copy). Picking a new random
-      // order on each load means returning visitors don't see the same first
-      // clip twice in a row.
-      const list = [...(r.reels ?? [])];
-      for (let i = list.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [list[i], list[j]] = [list[j], list[i]];
+      // Split the feed into "new" (uploaded in the last 7 days) and "older"
+      // buckets, then shuffle each bucket independently (Fisher–Yates) and
+      // concatenate new-first. This gives new reels priority at the top of
+      // every visit while still keeping the order fresh on each entry to
+      // the screen — returning visitors don't see the same first clip twice.
+      const NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const all = r.reels ?? [];
+      const fresh: Reel[] = [];
+      const older: Reel[] = [];
+      for (const x of all) {
+        const t = Date.parse(x.createdAt);
+        if (Number.isFinite(t) && now - t <= NEW_WINDOW_MS) fresh.push(x);
+        else older.push(x);
       }
-      setReels(list);
+      const shuffle = (arr: Reel[]) => {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      };
+      setReels([...shuffle(fresh), ...shuffle(older)]);
     } catch { /* ignore */ }
     setLoading(false);
   }, [userId]);
