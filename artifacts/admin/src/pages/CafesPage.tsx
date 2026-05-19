@@ -3,6 +3,7 @@ import { Plus, Power, Trash2, X, Clock, Phone, Lock, MapPin, Tag, LayoutDashboar
 import { Link } from "wouter";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
+import LocationPicker from "@/components/LocationPicker";
 
 interface Cafe {
   id: string; name: string; ownerName: string; ownerPhone: string; logo: string; image: string;
@@ -547,18 +548,22 @@ export default function CafesPage() {
               {/* ─── STEP 2 — location ─── */}
               {step === 2 && (
                 <>
-                  <Field label="رابط الموقع من Google Maps" icon={<Globe size={15} />}>
-                    <input
-                      value={form.website}
-                      onChange={f("website")}
-                      placeholder="https://maps.app.goo.gl/..."
-                      className={inp}
-                      dir="ltr"
+                  <Field label="موقع الكوفي على الخريطة *" icon={<MapPin size={15} />}>
+                    <LocationPicker
+                      lat={form.lat}
+                      lng={form.lng}
+                      onChange={(lat, lng) => setForm(s => ({
+                        ...s,
+                        lat,
+                        lng,
+                        // Keep `website` in sync so the existing customer-side
+                        // "open in maps" button keeps working without any
+                        // mobile-side changes — it opens a Google Maps URL
+                        // centred on the exact picked coordinates.
+                        website: `https://www.google.com/maps?q=${lat},${lng}`,
+                      }))}
                     />
                   </Field>
-                  <p className="-mt-2 text-xs text-muted-foreground/80 inline-flex items-center gap-1">
-                    <ExternalLink size={11} /> افتح Google Maps ← شارك ← انسخ الرابط والصقه هنا
-                  </p>
 
                   <Field label="العنوان" icon={<MapPin size={15} />}>
                     <input value={form.address} onChange={f("address")} placeholder="مسقط، شارع الروي" className={inp} />
