@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -351,6 +351,26 @@ export default function VideosScreen() {
   }, [userId]);
 
   useEffect(() => { if (userId) load(); }, [load, userId]);
+
+  // Instagram-style: tapping the Videos tab a second time (while it's the
+  // currently focused tab) refreshes the feed and snaps back to the top.
+  // This re-runs `load()` so a fresh shuffle + any newly-uploaded reels
+  // appear instantly without the user having to leave and come back.
+  const navigation = useNavigation();
+  useEffect(() => {
+    const parent = navigation.getParent?.();
+    if (!parent) return;
+    const unsub = parent.addListener("tabPress" as any, () => {
+      // Only react when the user is already on the Videos tab — otherwise
+      // this is just a normal tab switch and the focus effect handles it.
+      const isFocused = (navigation as any).isFocused?.();
+      if (!isFocused) return;
+      try { listRef.current?.scrollToOffset({ offset: 0, animated: true }); } catch { /* ignore */ }
+      setActiveIndex(0);
+      load();
+    });
+    return unsub;
+  }, [navigation, load]);
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems.find((v) => v.isViewable);
