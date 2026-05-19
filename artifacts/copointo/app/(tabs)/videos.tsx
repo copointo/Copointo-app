@@ -81,6 +81,11 @@ const PRIMARY = "#E8B86D";
 // the user is testing in the web preview iframe).
 function ReelVideo({ src, isActive, muted, paused }: { src: string; isActive: boolean; muted: boolean; paused: boolean }) {
   const videoRef = useRef<any>(null);
+  // Loading state shows a spinner overlay until the browser has enough
+  // data to actually start playing the reel. Without it, slow networks
+  // leave the user staring at a black frame, looking like the app froze.
+  const [loading, setLoading] = useState(true);
+
   // Imperatively sync the muted property so the user can unmute mid-playback
   // without React tearing down the <video> element.
   useEffect(() => {
@@ -98,6 +103,9 @@ function ReelVideo({ src, isActive, muted, paused }: { src: string; isActive: bo
     }
   }, [muted, isActive, paused]);
 
+  // Reset loading state whenever the underlying clip changes.
+  useEffect(() => { setLoading(true); }, [src]);
+
   if (Platform.OS === "web") {
     // Relative API paths (e.g. "/api/reels/123/video") must be resolved
     // against the API origin — the Expo web app is served from a different
@@ -105,7 +113,7 @@ function ReelVideo({ src, isActive, muted, paused }: { src: string; isActive: bo
     const resolved = /^https?:\/\//i.test(src) || src.startsWith("data:")
       ? src
       : `${API_BASE}${src.replace(/^\/api/, "")}`;
-    return React.createElement("video" as any, {
+    const video = React.createElement("video" as any, {
       ref: videoRef,
       src: resolved,
       autoPlay: isActive,
@@ -116,6 +124,14 @@ function ReelVideo({ src, isActive, muted, paused }: { src: string; isActive: bo
       // metadata. The browser's native HTTP Range buffering will pause/stall
       // gracefully on weak networks instead of showing a black frame.
       preload: isActive ? "auto" : "metadata",
+      // Buffering lifecycle: `waiting`/`loadstart` → spinner on,
+      // `playing`/`canplay`/`loadeddata` → spinner off.
+      onLoadStart: () => setLoading(true),
+      onWaiting:   () => setLoading(true),
+      onLoadedData:() => setLoading(false),
+      onCanPlay:   () => setLoading(false),
+      onPlaying:   () => setLoading(false),
+      onError:     () => setLoading(false),
       style: {
         width: "100%",
         height: "100%",
@@ -123,6 +139,16 @@ function ReelVideo({ src, isActive, muted, paused }: { src: string; isActive: bo
         backgroundColor: "#000",
       },
     });
+    return (
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {video}
+        {loading && isActive && (
+          <View style={styles.loadingOverlay} pointerEvents="none">
+            <ActivityIndicator size="large" color={PRIMARY} />
+          </View>
+        )}
+      </View>
+    );
   }
   return (
     <View style={{ flex: 1, backgroundColor: "#111", alignItems: "center", justifyContent: "center" }}>
@@ -651,6 +677,11 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
   pausedOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center", justifyContent: "center",
