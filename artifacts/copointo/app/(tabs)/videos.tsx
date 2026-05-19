@@ -79,7 +79,7 @@ const PRIMARY = "#E8B86D";
 // ── Native-safe video element. On web we use <video>, on native a placeholder
 // thumbnail (full Expo video integration is out of scope for this slice;
 // the user is testing in the web preview iframe).
-function ReelVideo({ src, isActive, muted }: { src: string; isActive: boolean; muted: boolean }) {
+function ReelVideo({ src, isActive, muted, paused }: { src: string; isActive: boolean; muted: boolean; paused: boolean }) {
   const videoRef = useRef<any>(null);
   // Imperatively sync the muted property so the user can unmute mid-playback
   // without React tearing down the <video> element.
@@ -87,16 +87,16 @@ function ReelVideo({ src, isActive, muted }: { src: string; isActive: boolean; m
     const el = videoRef.current;
     if (!el) return;
     el.muted = muted;
-    if (isActive) {
+    if (isActive && !paused) {
       const p = el.play?.();
       if (p && typeof p.catch === "function") p.catch(() => { /* autoplay may be blocked when unmuted */ });
     } else {
       // Pausing on the inactive reels (and especially when the user leaves
       // the Videos tab) is critical so audio doesn't keep playing in the
-      // background.
+      // background. Also pauses when the user taps to pause the active reel.
       try { el.pause?.(); } catch { /* ignore */ }
     }
-  }, [muted, isActive]);
+  }, [muted, isActive, paused]);
 
   if (Platform.OS === "web") {
     // Relative API paths (e.g. "/api/reels/123/video") must be resolved
@@ -161,6 +161,11 @@ function ReelCard({
   // Description is now hidden by default; user opens it via the
   // "اقرأ التفاصيل" button that sits just above the views chip.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Tap-to-pause: tapping anywhere on the video toggles play/pause for the
+  // active reel. We reset this whenever the reel becomes inactive so the
+  // next time the user scrolls back, playback resumes automatically.
+  const [paused, setPaused] = useState(false);
+  useEffect(() => { if (!isActive) setPaused(false); }, [isActive]);
 
   useEffect(() => {
     if (isActive && !viewedRef.current) {
@@ -171,10 +176,20 @@ function ReelCard({
 
   return (
     <View style={[styles.card, { height: videoHeight }]}>
-      <View style={styles.videoLayer}>
-        <ReelVideo src={reel.videoUrl} isActive={isActive} muted={muted} />
-        <View style={styles.scrim} />
-      </View>
+      <Pressable
+        style={styles.videoLayer}
+        onPress={() => setPaused(p => !p)}
+      >
+        <ReelVideo src={reel.videoUrl} isActive={isActive} muted={muted} paused={paused} />
+        <View style={styles.scrim} pointerEvents="none" />
+        {paused && isActive && (
+          <View style={styles.pausedOverlay} pointerEvents="none">
+            <View style={styles.pausedIconBubble}>
+              <Feather name="play" size={42} color="#fff" />
+            </View>
+          </View>
+        )}
+      </Pressable>
 
       {/* Right rail (like / comments / order / location) */}
       <View style={[styles.rightRail, { bottom: bottomPadding + 110 }]}>
@@ -594,6 +609,16 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  pausedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center", justifyContent: "center",
+  },
+  pausedIconBubble: {
+    width: 84, height: 84, borderRadius: 42,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "rgba(255,255,255,0.25)",
+  },
   bottomInfo: {
     position: "absolute", left: 0, right: 80, bottom: 0, padding: 16,
     // Force LTR so children pin to the actual left edge of the screen
