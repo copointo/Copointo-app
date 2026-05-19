@@ -246,25 +246,31 @@ export default function OrderScreen() {
         />
       )}
 
-      {/* Category tabs (always shown) */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabs}
-      >
-        {CATEGORIES.map((c) => (
-          <CategoryTab
-            key={c.key}
-            label={c.key}
-            icon={c.icon}
-            active={activeCategory === c.key}
-            onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
-          />
-        ))}
-      </ScrollView>
+      {/* Category tabs (always shown) — fixed-height bar pinned above the
+          scrollable items list so it never gets covered no matter how many
+          products are loaded. */}
+      <View style={styles.tabsBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabs}
+        >
+          {CATEGORIES.map((c) => (
+            <CategoryTab
+              key={c.key}
+              label={c.key}
+              icon={c.icon}
+              active={activeCategory === c.key}
+              onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
+            />
+          ))}
+        </ScrollView>
+      </View>
 
-      {/* Items list */}
+      {/* Items list — flex:1 constrains it to the remaining space below the
+          categories bar so its own internal scroll stays within bounds. */}
       <ScrollView
+        style={styles.itemsScroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.list, { paddingBottom: botPad + (cartCount > 0 ? 110 : 30) }]}
       >
@@ -821,7 +827,9 @@ const styles = StyleSheet.create({
   activeBannerBarFill: { height: "100%", backgroundColor: PRIMARY },
 
   // Tabs
+  tabsBar: { flexShrink: 0, flexGrow: 0 },
   tabs: { paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
+  itemsScroll: { flex: 1 },
   tab: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     paddingHorizontal: 18, paddingVertical: 0,
