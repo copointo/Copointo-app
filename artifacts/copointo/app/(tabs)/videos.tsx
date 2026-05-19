@@ -594,7 +594,14 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   viewsChipText: { color: "#fff", fontSize: 11, fontWeight: "600" },
-  bottomInfo: { position: "absolute", left: 0, right: 80, bottom: 0, padding: 16 },
+  bottomInfo: {
+    position: "absolute", left: 0, right: 80, bottom: 0, padding: 16,
+    // Force LTR so children pin to the actual left edge of the screen
+    // regardless of the app's RTL writing direction. Arabic text inside
+    // each <Text> still renders correctly because RN handles bidi per text.
+    direction: "ltr",
+    alignItems: "flex-start",
+  },
   descWrap: { marginBottom: 4 },
   readMore: { color: PRIMARY, fontSize: 13, fontWeight: "700", marginTop: 4 },
   cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
