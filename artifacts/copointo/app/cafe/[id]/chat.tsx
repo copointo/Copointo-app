@@ -52,6 +52,8 @@ interface CafePublic {
   id: string; name: string;
   openTime?: string; closeTime?: string;
   address?: string; lat?: number; lng?: number;
+  /** Exact Google Maps URL pasted by the super-admin in the cafe edit form. */
+  website?: string;
 }
 
 type Step =
@@ -471,7 +473,12 @@ export default function CafeChatScreen() {
     if (includesAny(text, ["موقع", "وين", "اين", "العنوان", "location", "address", "where", "خريطه", "خريطة"])) {
       const parts: string[] = [];
       if (cafe.address) parts.push(`📍 العنوان: ${cafe.address}`);
-      if (cafe.lat != null && cafe.lng != null) {
+      // Prefer the EXACT map link saved by the super-admin so the customer
+      // opens the same place the owner pinned; fall back to lat/lng only.
+      const adminUrl = (cafe.website ?? "").trim();
+      if (adminUrl) {
+        parts.push(`🗺️ على الخريطة:\n${adminUrl}`);
+      } else if (cafe.lat != null && cafe.lng != null) {
         const url = `https://maps.google.com/?q=${cafe.lat},${cafe.lng}`;
         parts.push(`🗺️ على الخريطة:\n${url}`);
       }

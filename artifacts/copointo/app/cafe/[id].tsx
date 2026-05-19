@@ -30,6 +30,8 @@ interface ApiCafe {
   id: string; name: string; logo: string; image: string; lat?: number; lng?: number;
   openTime: string; closeTime: string; rating: number; ratingCount?: number;
   tags: string[]; address: string;
+  /** Exact Google Maps URL pasted by the super-admin in the cafe edit form. */
+  website?: string;
 }
 function isOpen(o: string, c: string) {
   const now = new Date(); const m = now.getHours()*60+now.getMinutes();
@@ -442,6 +444,15 @@ export default function CafeLandingScreen() {
             : dist < 1 ? `${Math.round(dist * 1000)} م`
             : `${dist.toFixed(2)} كم`;
           const openMaps = () => {
+            // Use the EXACT link the super-admin pasted in the cafe edit form
+            // (cafe.website) so the customer lands on the same place the
+            // owner pinned — including any custom place-id or share URL.
+            // Fall back to lat/lng or address only when no link was saved.
+            const adminUrl = (cafe.website ?? "").trim();
+            if (adminUrl) {
+              Linking.openURL(adminUrl);
+              return;
+            }
             const q = cafe.lat && cafe.lng
               ? `${cafe.lat},${cafe.lng}`
               : encodeURIComponent(cafe.address);
