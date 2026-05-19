@@ -84,6 +84,18 @@ export const GIFTS: GiftDef[] = [
     singleParticle: true,
     durationMs: 5000,
   },
+  {
+    id: "gift-friends",
+    name: "الأصدقاء",
+    emoji: "🎁",
+    image: require("../assets/images/gift-friends.gif"),
+    price: 750,
+    tier: 3,
+    color: "#E8B86D",
+    animationKind: "zoom",
+    singleParticle: true,
+    durationMs: 3000,
+  },
 ];
 
 export function getGift(id: string | null | undefined): GiftDef | null {
