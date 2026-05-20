@@ -326,6 +326,29 @@ export interface PushToken {
 }
 export const pushTokens: PushToken[] = [];
 
+/**
+ * Monthly leaderboard season. Every 30 days the top-10 players (sorted by
+ * totalOrders desc, then level desc) win free coins (1st = 50k, 2nd = 45k,
+ * ..., 10th = 5k). The countdown shown on the leaderboard is derived from
+ * the latest season's `endsAt`. When a season expires:
+ *   1. `awardedAt` is stamped and `winners[]` is snapshotted
+ *   2. A CoinGift is created for each winner (delivered via the existing
+ *      coin-gifts polling pipeline)
+ *   3. A fresh season is pushed onto the array with a new endsAt = now + 30d
+ * History is kept (we append, never overwrite) so winners can be displayed
+ * retroactively if we ever build a "past seasons" view.
+ */
+export interface MonthlySeason {
+  id: string;
+  startedAt: string;
+  endsAt: string;
+  /** ISO timestamp set the moment winners were paid out. null while active. */
+  awardedAt?: string | null;
+  /** Snapshot of the top-10 at award time. Order matches rank (index 0 = 1st). */
+  winners?: Array<{ userId: string; username: string; rank: number; amount: number }>;
+}
+export const monthlySeasons: MonthlySeason[] = [];
+
 // ─── User-submitted reports (problem / cafe complaint) ───────────────────
 // Two flavours, both visible to the super-admin in the "البلاغات" tab:
 //   - kind: "problem" → general support / bug report from the support screen
@@ -550,7 +573,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
-  reports, coinGifts, giftVouchers, pushTokens,
+  reports, coinGifts, giftVouchers, pushTokens, monthlySeasons,
   communities, communityInvites,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);

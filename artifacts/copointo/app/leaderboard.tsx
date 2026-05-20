@@ -42,6 +42,13 @@ import { getTextStyle } from "@/data/textStyles";
 import { getBackground } from "@/data/backgrounds";
 import { LinearGradient } from "expo-linear-gradient";
 import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
+import { API_BASE } from "@/constants/api";
+
+// Reward table mirrors the server's MONTHLY_REWARDS in
+// artifacts/api-server/src/lib/monthlySeason.ts. The server is authoritative
+// (it actually mints the CoinGifts when a season ends) — this client copy
+// only powers the "🪙 N" badge preview shown on each top-10 entry.
+const MONTHLY_REWARDS = [50000, 45000, 40000, 35000, 30000, 25000, 20000, 15000, 10000, 5000];
 
 type LeaderTab = "friends" | "oman" | "communities";
 
@@ -115,6 +122,48 @@ export default function LeaderboardScreen() {
     const handle = setInterval(() => { refreshAllUsers().catch(() => {}); }, 6000);
     return () => clearInterval(handle);
   }, [refreshAllUsers]);
+
+  // ─── Monthly leaderboard season ──────────────────────────────────────
+  // Pull the season's endsAt from the server (single source of truth for
+  // the 30-day countdown). Refetched every 60 s while this screen is open
+  // so the banner ticks down + auto-rolls when the season expires. The
+  // GET also lazily triggers reward distribution on the server.
+  const [seasonEndsAt, setSeasonEndsAt] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    let cancelled = false;
+    const fetchSeason = async () => {
+      try {
+        const r = await fetch(`${API_BASE}/season/monthly`);
+        if (!r.ok) return;
+        const j = await r.json();
+        if (cancelled) return;
+        setSeasonEndsAt(j?.season?.endsAt ?? null);
+      } catch {}
+    };
+    fetchSeason();
+    const fetchHandle = setInterval(fetchSeason, 60_000);
+    // Lightweight UI tick so the countdown re-evaluates without waiting
+    // for the next /season/monthly poll (purely cosmetic — recomputed
+    // every 60 s from local Date.now()).
+    const tickHandle = setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => { cancelled = true; clearInterval(fetchHandle); clearInterval(tickHandle); };
+  }, []);
+  const seasonCountdown = useMemo(() => {
+    if (!seasonEndsAt) return null;
+    const msLeft = new Date(seasonEndsAt).getTime() - nowTick;
+    if (!Number.isFinite(msLeft)) return null;
+    if (msLeft <= 0) return { kind: "today" as const };
+    const hoursLeft = Math.ceil(msLeft / 3_600_000);
+    if (hoursLeft <= 24) return { kind: "hours" as const, value: hoursLeft };
+    return { kind: "days" as const, value: Math.ceil(msLeft / 86_400_000) };
+  }, [seasonEndsAt, nowTick]);
+  const seasonBannerText =
+    !seasonCountdown                  ? null
+    : seasonCountdown.kind === "today" ? t("lb.seasonBannerToday")
+    : seasonCountdown.kind === "hours" ? t("lb.seasonBannerHours", { n: String(seasonCountdown.value) })
+    :                                    t("lb.seasonBanner",      { n: String(seasonCountdown.value) });
+
   const [activeTab, setActiveTab] = useState<LeaderTab>("friends");
   // ID of the user whose detail panel is currently open (null = closed).
   const [panelUserId, setPanelUserId] = useState<string | null>(null);
@@ -228,6 +277,15 @@ export default function LeaderboardScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t("lb.title")}</Text>
       </View>
+
+      {/* Monthly season countdown — shown above the tabs so it's the
+          first thing the user sees on the leaderboard. */}
+      {seasonBannerText && (
+        <View style={styles.seasonBanner}>
+          <Text style={styles.seasonBannerText} numberOfLines={1}>{seasonBannerText}</Text>
+          <Text style={styles.seasonBannerSub} numberOfLines={1}>{t("lb.seasonSubtitle")}</Text>
+        </View>
+      )}
 
       {/* Tabs */}
       <View style={styles.tabsRow}>
@@ -408,8 +466,25 @@ export default function LeaderboardScreen() {
                 <Text style={styles.entryLevel}>
                   {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
                 </Text>
-                <View style={styles.coffeeChip}>
-                  <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(entry.totalOrders) })}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <View style={styles.coffeeChip}>
+                    <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(entry.totalOrders) })}</Text>
+                  </View>
+                  {/* Monthly-season reward preview — shown only for the top 10
+                      in the global Oman ranking (the server uses the same
+                      ranking when it actually pays out CoinGifts). */}
+                  {(() => {
+                    const omanRank = omanRankOf.get(entry.id);
+                    if (!omanRank || omanRank > MONTHLY_REWARDS.length) return null;
+                    const reward = MONTHLY_REWARDS[omanRank - 1]!;
+                    return (
+                      <View style={styles.rewardChip}>
+                        <Text style={styles.rewardChipText}>
+                          {t("lb.seasonRewardCoins", { n: String(reward) })}
+                        </Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </View>
 
@@ -1053,6 +1128,43 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(79,195,247,0.35)",
   },
   coffeeChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
+  // Gold pill shown next to the coffee count for each of the global top-10
+  // players. Hints at the monthly-season reward they would receive if the
+  // season ended right now.
+  rewardChip: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    paddingHorizontal: 8, paddingVertical: 2.5,
+    borderRadius: 8,
+    backgroundColor: "rgba(232,184,109,0.14)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.55)",
+  },
+  rewardChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#E8B86D" },
+  // Countdown banner pinned just under the screen header.
+  seasonBanner: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.45)",
+    alignItems: "center",
+    gap: 2,
+  },
+  seasonBannerText: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#E8B86D",
+    textAlign: "center",
+  },
+  seasonBannerSub: {
+    fontSize: 10.5,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(232,184,109,0.75)",
+    textAlign: "center",
+  },
   charBadge: {
     position: "absolute",
     left: 8,

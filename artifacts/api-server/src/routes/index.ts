@@ -28,6 +28,9 @@ import {
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 import { sendPushToUser, sendPushToAll } from "../lib/push";
+import {
+  MONTHLY_REWARDS, checkAndProcessSeasonEnd, rankPlayersForSeason,
+} from "../lib/monthlySeason";
 
 const router: IRouter = Router();
 
@@ -230,6 +233,31 @@ router.delete("/broadcasts/:id", (req, res): any => {
   broadcasts.splice(idx, 1);
   persistStore();
   res.json({ ok: true });
+});
+
+// ─── Monthly leaderboard season ─────────────────────────────────────────
+// Returns the current season's endsAt (mobile derives the countdown), the
+// reward table, and a preview of who is currently in the top-10 (so the UI
+// can show a coin badge next to each of those players). Every call also
+// lazily checks whether the season has expired and, if so, awards winners
+// + rolls to a fresh 30-day season — see lib/monthlySeason.ts.
+router.get("/season/monthly", (_req, res) => {
+  const season = checkAndProcessSeasonEnd();
+  const preview = rankPlayersForSeason().map((u, i) => ({
+    userId:   u.id,
+    username: u.username,
+    rank:     i + 1,
+    amount:   MONTHLY_REWARDS[i]!,
+  }));
+  res.json({
+    season: {
+      id:        season.id,
+      startedAt: season.startedAt,
+      endsAt:    season.endsAt,
+    },
+    rewards: MONTHLY_REWARDS,
+    preview,
+  });
 });
 
 // ─── Coin Gifts (super-admin → single user) ─────────────────────────────
