@@ -451,7 +451,12 @@ export default function CafesPage() {
                           <rect x="18" y="18" width="3" height="3"/>
                         </svg>
                       </button>
-                      <Link href={`/cafe/${cafe.id}`} title="داشبورد الكوفي" className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center">
+                      <Link
+                        href={`/cafe/${cafe.id}`}
+                        title="داشبورد الكوفي"
+                        className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center"
+                        onClick={() => { try { sessionStorage.setItem("copointo_from_super_admin", "1"); } catch {} }}
+                      >
                         <LayoutDashboard size={16} />
                       </Link>
                       <button

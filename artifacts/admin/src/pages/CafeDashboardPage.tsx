@@ -4923,17 +4923,28 @@ export default function CafeDashboardPage() {
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
       <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-border bg-card shrink-0">
-        {/* Copointo brand mark — appears on every cafe-dashboard URL so the
-            page is clearly identified as part of the Copointo platform
-            (not a standalone cafe site). Sits to the right of the cafe's
-            own logo+name in this RTL header. */}
-        <Link href="/" className="shrink-0" title="كوبوينتو / Copointo">
-          <img
-            src={copointoLogoUrl}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain"
-            alt="Copointo"
-          />
-        </Link>
+        {/* Copointo brand mark — NOT a link: super-admin must only be
+            reached by typing the root URL deliberately, never from a cafe
+            dashboard or user page. */}
+        <img
+          src={copointoLogoUrl}
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shrink-0"
+          alt="Copointo"
+          title="كوبوينتو / Copointo"
+        />
+        {/* Back-to-super-admin button — visible only when this dashboard
+            was opened from the super-admin cafes list (flag set in
+            sessionStorage by CafesPage). Keeps a return path without
+            exposing super-admin to regular cafe staff. */}
+        {(() => { try { return sessionStorage.getItem("copointo_from_super_admin") === "1"; } catch { return false; } })() && (
+          <Link
+            href="/cafes"
+            className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 shrink-0"
+            title="رجوع إلى السوبر مدير"
+          >
+            <ArrowRight size={14} /> <span className="hidden sm:inline">السوبر مدير</span>
+          </Link>
+        )}
         <div className="hidden sm:block w-px h-7 bg-border shrink-0" />
         {cafe?.logo
           ? <img src={cafe.logo} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shrink-0" alt="" />
@@ -5278,15 +5289,14 @@ export function ManagerAnalyticsPage() {
       {/* Top bar */}
       <header className="flex items-center justify-between gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8B86D]/20 bg-gradient-to-l from-[#E8B86D]/10 to-card shrink-0 flex-wrap">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-          {/* Copointo brand mark — same treatment as the main cafe-dashboard
-              header so analytics pages are also clearly Copointo-branded. */}
-          <Link href="/" className="shrink-0" title="كوبوينتو / Copointo">
-            <img
-              src={copointoLogoUrl}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain"
-              alt="Copointo"
-            />
-          </Link>
+          {/* Copointo brand mark — NOT a link (super-admin is reached only
+              by typing the root URL deliberately). */}
+          <img
+            src={copointoLogoUrl}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shrink-0"
+            alt="Copointo"
+            title="كوبوينتو / Copointo"
+          />
           <div className="hidden sm:block w-px h-5 bg-border" />
           <Link href={`/cafe/${cafeId}`}
             className="flex items-center gap-1.5 sm:gap-2 text-muted-foreground hover:text-foreground transition-colors text-xs sm:text-sm shrink-0">
