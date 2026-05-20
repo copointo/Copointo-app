@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import {
-  ArrowLeft, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
+  ArrowLeft, ArrowRight, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
   MessageCircle, Armchair, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown, ChevronUp,
   Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
