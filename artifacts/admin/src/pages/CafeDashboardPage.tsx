@@ -1466,6 +1466,23 @@ function OrdersTab({ id }: { id: string }) {
     await api.cafeOrderStatus(id, oid, "preparing");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "preparing" } : o));
   };
+  // Delete a pending order — allowed only before the cashier confirms
+  // preparation (server enforces the same rule). Asks the cashier to
+  // confirm first so accidental clicks don't drop a real order.
+  const deletePendingOrder = async (oid: string) => {
+    const o = orders.find(x => x.id === oid);
+    if (!o || o.status !== "pending") return;
+    const ok = window.confirm(
+      `هل أنت متأكد من حذف هذا الطلب؟\nالزبون: ${o.customerName ?? "—"}\nالإجمالي: ${Number(o.total ?? 0).toFixed(3)} ر.ع\n\nلا يمكن التراجع عن هذا الإجراء.`
+    );
+    if (!ok) return;
+    try {
+      await api.cafeDeleteOrder(id, oid);
+      setOrders(prev => prev.filter(x => x.id !== oid));
+    } catch (e: any) {
+      window.alert(e?.message ? String(e.message).slice(0, 200) : "تعذّر حذف الطلب");
+    }
+  };
   const markReady = async (oid: string) => {
     await api.cafeOrderStatus(id, oid, "ready");
     setOrders(prev => prev.map(o => o.id === oid ? { ...o, status: "ready" } : o));
@@ -1711,14 +1728,23 @@ function OrdersTab({ id }: { id: string }) {
                 </span>
               )}
 
-              {/* Step 1 — pending: only the confirm-prep button */}
+              {/* Step 1 — pending: confirm-prep + delete (delete vanishes once confirmed) */}
               {o.status === "pending" && (
-                <button
-                  onClick={() => confirmPrep(o.id)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90"
-                >
-                  <CheckCircle size={14}/> تأكيد تحضير الطلب
-                </button>
+                <>
+                  <button
+                    onClick={() => confirmPrep(o.id)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90"
+                  >
+                    <CheckCircle size={14}/> تأكيد تحضير الطلب
+                  </button>
+                  <button
+                    onClick={() => deletePendingOrder(o.id)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500/15 text-red-400 border border-red-500/40 text-xs font-bold hover:bg-red-500/25"
+                    title="حذف الطلب — متاح فقط قبل تأكيد التحضير"
+                  >
+                    <Trash2 size={14}/> حذف الطلب
+                  </button>
+                </>
               )}
 
               {/* Step 2 — preparing: only the order-ready button */}

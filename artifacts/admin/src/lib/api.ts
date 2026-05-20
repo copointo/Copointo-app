@@ -70,6 +70,7 @@ export const api = {
       "GET", `${C(id)}/lookup-user?phone=${encodeURIComponent(phone)}`
     ),
   cafeOrderPrint: (id:string,oid:string) => req<any>("POST",  `${C(id)}/orders/${oid}/print`),
+  cafeDeleteOrder:(id:string,oid:string) => req<{ ok: true }>("DELETE", `${C(id)}/orders/${oid}`),
   cafeOrdersClear: (id: string, from?: string, to?: string) => {
     const qs = new URLSearchParams();
     if (from) qs.set("from", from);

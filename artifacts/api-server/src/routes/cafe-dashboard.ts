@@ -604,6 +604,22 @@ router.post("/orders/:orderId/print", (req, res) => {
   return res.json({ order });
 });
 
+// Delete a single order — only allowed while it is still in the "pending"
+// state (before the cashier confirms preparation). Once confirmed, the
+// order has been finalised into an invoice and may have credited loyalty
+// progress, so it must NOT be deletable from the regular orders tab.
+router.delete("/orders/:orderId", (req, res): any => {
+  const cafeId = req.params.cafeId;
+  const idx = orders.findIndex(o => o.id === req.params.orderId && o.cafeId === cafeId);
+  if (idx === -1) return res.status(404).json({ error: "Not found" });
+  if (orders[idx].status !== "pending") {
+    return res.status(409).json({ error: "لا يمكن حذف الطلب بعد تأكيد التحضير" });
+  }
+  orders.splice(idx, 1);
+  persistStore();
+  return res.json({ ok: true });
+});
+
 // Bulk-clear orders for a cafe, optionally restricted to a date range.
 // Used after generating a daily/range invoice so the orders tab doesn't
 // keep accumulating already-archived orders.
