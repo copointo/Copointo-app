@@ -1595,8 +1595,52 @@ function OrdersTab({ id }: { id: string }) {
     await printOrderInvoice(id, o, undefined, { customerCopy: true });
   };
 
+  // "Start a new day" — wipes the orders panel only. Invoices are stored
+  // in a separate server-side collection (`invoices`) and are untouched
+  // by `cafeOrdersClear`, so revenue history and the daily/monthly/yearly
+  // reports remain intact. Asks for a clear confirmation first because
+  // this cannot be undone.
+  const [clearing, setClearing] = useState(false);
+  const clearAllOrders = async () => {
+    if (orders.length === 0) return;
+    const ok = window.confirm(
+      `هل تريد حذف جميع الطلبات (${orders.length}) من قسم «طلبات القهوة» لبدء يوم جديد؟\n\n` +
+      `• الطلبات سترفع من هذا القسم.\n` +
+      `• الفواتير المحفوظة لن تتأثر — الإيرادات والتقارير تبقى كما هي.\n\n` +
+      `لا يمكن التراجع عن هذا الإجراء.`
+    );
+    if (!ok) return;
+    setClearing(true);
+    try {
+      await api.cafeOrdersClear(id);
+      setOrders([]);
+      window.dispatchEvent(new CustomEvent("orders:cleared"));
+    } catch (e: any) {
+      window.alert(e?.message ? String(e.message).slice(0, 200) : "تعذّر حذف الطلبات");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
+      {orders.length > 0 && (
+        <Card className="p-4 flex items-center justify-between gap-3 bg-gradient-to-l from-red-500/5 to-card border-red-500/30">
+          <div className="min-w-0">
+            <p className="font-bold text-sm text-foreground">🌅 بدء يوم جديد</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              يحذف جميع طلبات هذا القسم ({orders.length}) لاستقبال طلبات جديدة — الفواتير المحفوظة لا تتأثر.
+            </p>
+          </div>
+          <button
+            onClick={clearAllOrders}
+            disabled={clearing}
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-red-500/15 text-red-400 border border-red-500/40 text-xs font-bold hover:bg-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Trash2 size={14}/> {clearing ? "جارٍ الحذف…" : "احذف الطلبات كاملة"}
+          </button>
+        </Card>
+      )}
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
       {orders.map(o => (
         <Card key={o.id} className="p-5">
