@@ -1,8 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+import Constants from "expo-constants";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { API_BASE } from "@/constants/api";
 import {
   Alert,
   Image,
@@ -253,6 +258,86 @@ export default function ProfileScreen() {
   const { setCoins } = useCoins();
   const [modal, setModal] = useState<null | "username" | "password">(null);
   const [ranksOpen, setRanksOpen] = useState(false);
+
+  // ── Push-notification opt-in ──────────────────────────────────────
+  // We mirror the "is the user opted in?" state from AsyncStorage so the
+  // button shows the right label across cold-starts. The server is the
+  // source of truth for actually delivering pushes (it stores the Expo
+  // token registered by `register()` below), but we don't need to query
+  // it on every mount — checking the local flag + the OS permission is
+  // enough to decide whether to show "Enable" or "Enabled ✓".
+  const NOTIF_FLAG_KEY = user ? `copointo_notif_enabled_v1_${user.id}` : "";
+  const [notifBusy, setNotifBusy] = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) return;
+      try {
+        const stored = await AsyncStorage.getItem(NOTIF_FLAG_KEY);
+        if (cancelled) return;
+        if (stored !== "1") { setNotifEnabled(false); return; }
+        // Double-check the OS permission — the user may have revoked it
+        // from system settings between sessions, in which case we should
+        // re-prompt rather than show a misleading "Enabled" state.
+        const perm = await Notifications.getPermissionsAsync();
+        if (cancelled) return;
+        setNotifEnabled(perm.status === "granted");
+      } catch { if (!cancelled) setNotifEnabled(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [NOTIF_FLAG_KEY, user]);
+
+  const handleEnableNotifications = async () => {
+    if (!user || notifBusy) return;
+    if (Platform.OS === "web") {
+      Alert.alert(t("profile.notifTitle"), t("profile.notifWebUnsupported"));
+      return;
+    }
+    setNotifBusy(true);
+    try {
+      if (!Device.isDevice) {
+        Alert.alert(t("profile.notifTitle"), t("profile.notifNeedsDevice"));
+        return;
+      }
+      let perm = await Notifications.getPermissionsAsync();
+      if (perm.status !== "granted") {
+        perm = await Notifications.requestPermissionsAsync();
+      }
+      if (perm.status !== "granted") {
+        Alert.alert(t("profile.notifTitle"), t("profile.notifDenied"));
+        return;
+      }
+      // projectId is required on newer Expo SDKs but missing in this
+      // workspace's app.json; pass it only if Constants exposes one,
+      // otherwise let the API derive it from the running build.
+      const projectId =
+        (Constants.expoConfig as any)?.extra?.eas?.projectId ??
+        (Constants as any)?.easConfig?.projectId ??
+        undefined;
+      const tokenRes = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined,
+      );
+      const token = tokenRes?.data;
+      if (!token) throw new Error("no-token");
+      const platform: "ios" | "android" | "web" | "unknown" =
+        Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "unknown";
+      const res = await fetch(`${API_BASE}/users/${user.id}/push-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, platform }),
+      });
+      if (!res.ok) throw new Error(`http-${res.status}`);
+      await AsyncStorage.setItem(NOTIF_FLAG_KEY, "1");
+      setNotifEnabled(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(t("profile.notifTitle"), t("profile.notifEnabledMsg"));
+    } catch {
+      Alert.alert(t("profile.notifTitle"), t("profile.notifError"));
+    } finally {
+      setNotifBusy(false);
+    }
+  };
 
   const avatarUri = user?.avatar ?? null;
   const genderEmoji = user?.gender === "female" ? "👩" : user?.gender === "male" ? "🧑" : "👤";
@@ -610,6 +695,23 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ── Enable push notifications ── */}
+        <TouchableOpacity
+          style={[styles.notifBtn, notifEnabled && styles.notifBtnOn]}
+          onPress={handleEnableNotifications}
+          disabled={notifBusy || notifEnabled}
+          activeOpacity={0.85}
+        >
+          <Feather name="bell" size={17} color={PRIMARY} />
+          <Text style={styles.notifText}>
+            {notifBusy
+              ? t("profile.notifBusy")
+              : notifEnabled
+                ? t("profile.notifEnabled")
+                : t("profile.notifEnable")}
+          </Text>
+        </TouchableOpacity>
+
         {/* ── Support button (above logout) ── */}
         <TouchableOpacity
           style={styles.supportBtn}
@@ -963,6 +1065,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: 16, marginTop: 10, marginBottom: 6,
   },
   deleteAcctText: { fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
+
+  // Notifications opt-in
+  notifBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    backgroundColor: `${PRIMARY}18`, borderWidth: 1, borderColor: `${PRIMARY}55`,
+    paddingVertical: 14, borderRadius: 16, marginTop: 4, marginBottom: 10,
+  },
+  notifBtnOn: {
+    backgroundColor: `${PRIMARY}08`, borderColor: `${PRIMARY}30`,
+    borderStyle: "dashed",
+  },
+  notifText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Support
   supportBtn: {
