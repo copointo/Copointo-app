@@ -3495,8 +3495,8 @@ ${compAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 الحسا
   const titlePrefix = isCustomerCopy ? "نسخة الزبون / Customer Copy — " : "";
   const customerCopyBanner = isCustomerCopy ? `
 <tr><td class="cell info-cell" style="text-align:center;border:2px dashed #b8860b;background:#fff8e7">
-  <div style="font-weight:bold;font-size:13px;color:#8a5a00">📄 نسخة الزبون / Customer Copy</div>
-  <div style="font-size:10.5px;color:#7a5a2e;margin-top:1mm">
+  <div style="font-weight:bold;font-size:13px;color:#000">📄 نسخة الزبون / Customer Copy</div>
+  <div style="font-size:10.5px;color:#000;margin-top:1mm">
     هذه نسخة للزبون فقط — غير محتسبة في فواتير الكوفي.<br>
     Customer copy only — not counted in cafe invoices.
   </div>
