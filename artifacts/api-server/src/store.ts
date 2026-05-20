@@ -304,6 +304,28 @@ export interface CoinGift {
 }
 export const coinGifts: CoinGift[] = [];
 
+/**
+ * Expo push notification token registered per user-device pair.
+ * The mobile app registers (or refreshes) its Expo push token after the
+ * user logs in / opts in to notifications. The server uses these tokens
+ * to deliver push notifications (order ready, free coffee, gifts, new
+ * chat messages, friend requests, Copointo broadcasts, etc).
+ *
+ * Keyed by (userId, token) — the same user may have multiple devices,
+ * and the same physical device may host multiple accounts over time.
+ * Tokens are uniquely owned: registering an existing token under a new
+ * userId reassigns it (so a phone that previously belonged to user A
+ * but is now used by user B does not still receive A's notifications).
+ */
+export interface PushToken {
+  id: string;
+  userId: string;
+  token: string;
+  platform: "ios" | "android" | "web" | "unknown";
+  updatedAt: string;
+}
+export const pushTokens: PushToken[] = [];
+
 // ─── User-submitted reports (problem / cafe complaint) ───────────────────
 // Two flavours, both visible to the super-admin in the "البلاغات" tab:
 //   - kind: "problem" → general support / bug report from the support screen
@@ -528,7 +550,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
-  reports, coinGifts, giftVouchers,
+  reports, coinGifts, giftVouchers, pushTokens,
   communities, communityInvites,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);

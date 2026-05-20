@@ -9,6 +9,7 @@ import {
 } from "../store";
 import { deleteReelFile } from "../lib/objectStorage";
 import { geocodeAddress } from "../utils/geocode";
+import { sendPushToUser, sendPushToAll } from "../lib/push";
 
 // Same on-disk reels folder used by the cafe-dashboard upload route.
 // Kept here so the super-admin "delete cafe" path can clean up legacy
@@ -330,6 +331,13 @@ router.post("/users/:id/message", (req, res): any => {
   };
   chatMessages.push(msg);
   persistStore();
+  // Notify the user with the full message text so they can read it from the
+  // lock screen exactly like a WhatsApp message from a friend.
+  void sendPushToUser(user.id, {
+    title: "💬 رسالة من Copointo",
+    body:  text.length > 200 ? text.slice(0, 200) + "…" : text,
+    data:  { type: "chat_message", messageId: msg.id, senderId: COPOINTO_ADMIN_ID, kind: "friend" },
+  });
   res.json({ ok: true, message: msg });
 });
 
@@ -346,6 +354,13 @@ router.post("/broadcasts", (req, res): any => {
     createdAt: new Date().toISOString(),
   };
   broadcasts.unshift(b);
+  persistStore();
+  // Fan-out push to every registered device.
+  void sendPushToAll({
+    title: "إشعار من Copointo 📣",
+    body:  message,
+    data:  { type: "broadcast", broadcastId: b.id },
+  });
   res.json({ broadcast: b });
 });
 

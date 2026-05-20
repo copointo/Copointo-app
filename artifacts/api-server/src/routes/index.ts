@@ -14,19 +14,20 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts, coinGifts,
-  bookings, orders,
+  bookings, orders, pushTokens,
   usernameRegistry, cafeRatings, getCafeRatingStats,
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
   chatMessages, friendScope,
   reports,
   communities, communityInvites,
-  type Community, type CommunityInvite, type CommunityRole,
+  type Community, type CommunityInvite, type CommunityRole, type PushToken,
   purgeUserData,
   persistStore,
   flushNow,
   type AppUser, type FriendRequest, type ChatMsg, type Broadcast, type Report, type CoinGift,
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
+import { sendPushToUser, sendPushToAll } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -212,6 +213,13 @@ router.post("/broadcasts", (req, res): any => {
   };
   broadcasts.unshift(b);
   persistStore();
+  // Fan-out to every registered device. Body shows the full message so the
+  // user can read it from the lock screen without opening the app.
+  void sendPushToAll({
+    title: "إشعار من Copointo 📣",
+    body:  message,
+    data:  { type: "broadcast", broadcastId: b.id },
+  });
   res.json({ ok: true, broadcast: b });
 });
 
@@ -255,6 +263,13 @@ router.post("/admin/coin-gifts", (req, res): any => {
   };
   coinGifts.unshift(g);
   persistStore();
+  // Notify recipient — show the full sender message so it's readable from the
+  // lock screen without opening the app.
+  void sendPushToUser(userId, {
+    title: `🎁 هدية من Copointo`,
+    body:  `${message}\n\nاستلمت ${amount} عملة!`,
+    data:  { type: "coin_gift", giftId: g.id, amount },
+  });
   res.json({ ok: true, gift: g });
 });
 
@@ -747,6 +762,58 @@ router.post("/users/:id/reset", (req, res): any => {
 // hits this endpoint to merge the global roster with whatever local profile
 // data it already has. Banned / game-banned players are filtered out so
 // they don't appear in any ranking.
+// ─── Push notification token registration ───────────────────────────────
+// The mobile app POSTs its Expo push token here right after the user opts
+// in to notifications (and on every cold-start to refresh staleness). If
+// the same token previously belonged to another user (e.g. someone else
+// logged in on this device) we reassign it so the previous account stops
+// receiving notifications meant for the new owner.
+router.post("/users/:id/push-token", (req, res): any => {
+  const userId   = String(req.params.id ?? "").trim();
+  const token    = String(req.body?.token ?? "").trim();
+  const platform = (String(req.body?.platform ?? "unknown").trim().toLowerCase()) as PushToken["platform"];
+  if (!userId || !token) return res.status(400).json({ ok: false, error: "userId/token required" });
+  if (!users.find(u => u.id === userId)) {
+    return res.status(404).json({ ok: false, error: "user not found" });
+  }
+  const safePlatform: PushToken["platform"] =
+    platform === "ios" || platform === "android" || platform === "web" ? platform : "unknown";
+  const now = new Date().toISOString();
+  // Reassign any existing rows for this token to the current user.
+  const existing = pushTokens.find(p => p.token === token);
+  if (existing) {
+    existing.userId    = userId;
+    existing.platform  = safePlatform;
+    existing.updatedAt = now;
+  } else {
+    pushTokens.push({
+      id: `pt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId, token, platform: safePlatform, updatedAt: now,
+    });
+  }
+  persistStore();
+  res.json({ ok: true });
+});
+
+// Mobile calls this on logout or when the user disables notifications.
+// Removes all push tokens for the user (or just the one matching the
+// specific token if `token` is provided in the body/query).
+router.delete("/users/:id/push-token", (req, res): any => {
+  const userId = String(req.params.id ?? "").trim();
+  const token  = String(req.body?.token ?? req.query?.token ?? "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+  let removed = 0;
+  for (let i = pushTokens.length - 1; i >= 0; i--) {
+    const row = pushTokens[i]!;
+    if (row.userId !== userId) continue;
+    if (token && row.token !== token) continue;
+    pushTokens.splice(i, 1);
+    removed++;
+  }
+  if (removed > 0) persistStore();
+  res.json({ ok: true, removed });
+});
+
 router.get("/users/public", (_req, res) => {
   res.json({
     users: users
@@ -935,6 +1002,15 @@ router.post("/friend-requests", (req, res): any => {
   };
   friendRequests.push(fr);
   persistStore();
+  // Notify the recipient — body shows the sender's display name so the
+  // user can decide to accept/decline straight from the notification.
+  const sender = users.find(u => u.id === fromUserId);
+  const senderName = sender?.username || "صديق جديد";
+  void sendPushToUser(toUserId, {
+    title: "طلب صداقة جديد 👋",
+    body:  `${senderName} يريد إضافتك صديقاً`,
+    data:  { type: "friend_request", requestId: fr.id, fromUserId },
+  });
   res.status(201).json({ ok: true, request: fr });
 });
 
@@ -1057,6 +1133,28 @@ router.post("/messages", (req, res): any => {
   }
   chatMessages.push(msg);
   persistStore();
+  // Push notification — only for 1:1 friend messages. Group push fan-out
+  // would require resolving every member of the group; skipped for now to
+  // keep this change focused. Messages sent BY Copointo go through the
+  // separate admin.ts endpoint which has its own push, so we skip here
+  // when the sender is the Copointo admin to avoid double-firing.
+  if (kind === "friend" && senderId !== "copointo-admin") {
+    const sender = users.find(u => u.id === senderId);
+    const senderName = sender?.username || senderNameIn || "صديق";
+    // Gift messages get a richer title so the recipient knows it's a gift.
+    const isGift = !!giftId;
+    void sendPushToUser(recipientId, {
+      title: isGift ? `🎁 ${senderName} أرسل لك هدية` : `💬 ${senderName}`,
+      body:  text.length > 200 ? text.slice(0, 200) + "…" : text,
+      data:  {
+        type: "chat_message",
+        messageId: id,
+        senderId,
+        kind: "friend",
+        ...(isGift ? { giftId, giftQty } : {}),
+      },
+    });
+  }
   res.status(201).json({ ok: true, message: msg });
 });
 

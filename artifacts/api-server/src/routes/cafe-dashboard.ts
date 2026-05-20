@@ -9,6 +9,7 @@ import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
   type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem,
   type Reel, type GiftVoucher, persistStore } from "../store";
+import { sendPushToUser } from "../lib/push";
 
 // ── Reel video uploads ────────────────────────────────────────────────
 // Videos are large, so we stream them to disk via multer (multipart) instead
@@ -82,6 +83,18 @@ function awardMilestoneCoffees(
       redeemedAtCafeId: null,
       redeemedOrderId:  null,
     });
+    // Push: free coffee milestone reached. Include cafe name so the user
+    // knows where to redeem it (the reward is cafe-specific).
+    const owner = users.find(u => u.phone === userPhone);
+    if (owner) {
+      void sendPushToUser(owner.id, {
+        title: "☕ مبروك! ربحت قهوة مجانية",
+        body:  earnedAtCafeName
+          ? `استلم كوبك المجاني من ${earnedAtCafeName}`
+          : "ادخل التطبيق لاستلام قهوتك المجانية",
+        data:  { type: "free_coffee", cafeId: earnedAtCafeId ?? null },
+      });
+    }
   }
 }
 
@@ -460,6 +473,13 @@ function awardOrderProgress(order: any) {
     if (u) {
       u.totalOrders += drinks;
       const cafe = cafes.find(c => c.id === order.cafeId);
+      // Push: drink-progress credited to the player. The milestone push
+      // (free coffee) is fired separately inside awardMilestoneCoffees.
+      void sendPushToUser(u.id, {
+        title: "🎮 نقاط جديدة في لعبة كوبوينتو",
+        body:  `أحرزت ${drinks} كوب جديد${drinks > 1 ? "اً" : ""} — مجموعك الآن ${u.totalOrders}`,
+        data:  { type: "game_points", drinks, totalOrders: u.totalOrders, cafeId: order.cafeId },
+      });
       awardMilestoneCoffees(u.phone, u.username, u.totalOrders, order.cafeId, cafe?.name ?? null);
     }
   }
@@ -490,6 +510,35 @@ router.patch("/orders/:orderId/status", (req, res): any => {
       invoices.push(inv);
     }
     awardOrderProgress(order);
+  }
+  // Push: notify the customer when the order moves to preparing / ready /
+  // done. We look up the user by phone (orders carry customerPhone, not
+  // userId). Direct in-cafe orders (source === "direct") are walk-ins so
+  // they have no app account to notify.
+  if (prevStatus !== next && order.source !== "direct") {
+    const phone = String(order.customerPhone ?? "").trim();
+    const u = phone ? users.find(x => x.phone === phone) : null;
+    if (u) {
+      const cafe = cafes.find(c => c.id === order.cafeId);
+      const cafeName = cafe?.name ?? "الكوفي";
+      let title = "", body = "";
+      if (next === "preparing") {
+        title = "☕ بدأ تحضير طلبك";
+        body  = `${cafeName} بدأ بتحضير طلبك الآن`;
+      } else if (next === "ready") {
+        title = "✅ طلبك جاهز!";
+        body  = `استلم طلبك من ${cafeName}`;
+      } else if (next === "done") {
+        title = "🎉 شكراً لطلبك";
+        body  = `نراك قريباً في ${cafeName}`;
+      }
+      if (title) {
+        void sendPushToUser(u.id, {
+          title, body,
+          data: { type: "order_status", orderId: order.id, status: next, cafeId: order.cafeId },
+        });
+      }
+    }
   }
   return res.json({ order });
 });
