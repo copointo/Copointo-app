@@ -1,7 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useRef, useState } from "react";
+import { API_BASE } from "@/constants/api";
 import {
   Image,
   KeyboardAvoidingView,
@@ -218,7 +220,66 @@ export function AuthModal({
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // First-time registration → automatically offer push notifications.
+    // Must happen BEFORE we close the modal so we're still inside the
+    // user-gesture context (browsers only allow Notification.requestPermission
+    // from a gesture). Fire-and-forget: failure (denied / unsupported)
+    // must NOT block the registration completing. The user can always flip
+    // the toggle from the profile screen later.
+    void promptInitialNotifications(r);
     close();
+  };
+
+  // Best-effort: trigger the browser's permission prompt (web) or the
+  // expo-notifications permission prompt (native) immediately after the
+  // user finishes registering, so they don't have to dig into profile
+  // settings to opt in. We read `currentUser` from AsyncStorage because
+  // the AppContext state has only just been set and may not be visible
+  // on this render yet.
+  const promptInitialNotifications = async (regResult: { ok: boolean }) => {
+    if (!regResult.ok) return;
+    try {
+      const raw = await AsyncStorage.getItem("currentUser");
+      if (!raw) return;
+      const u = JSON.parse(raw);
+      const userId = u?.id;
+      if (!userId) return;
+      if (Platform.OS === "web") {
+        const { enableWebPush, isWebPushSupported } = await import("@/lib/webPush");
+        if (!isWebPushSupported()) return;
+        // enableWebPush internally calls Notification.requestPermission,
+        // which on Chrome/Safari opens the OS-level allow/deny dialog.
+        await enableWebPush(userId);
+      } else {
+        // Native — ask for permission and register the Expo push token.
+        const Notifications = await import("expo-notifications");
+        const Device = await import("expo-device");
+        if (!Device.isDevice) return;
+        let perm = await Notifications.getPermissionsAsync();
+        if (perm.status !== "granted") {
+          perm = await Notifications.requestPermissionsAsync();
+        }
+        if (perm.status !== "granted") return;
+        const Constants = (await import("expo-constants")).default;
+        const projectId =
+          (Constants.expoConfig as any)?.extra?.eas?.projectId ??
+          (Constants as any)?.easConfig?.projectId ??
+          undefined;
+        const tokenRes = await Notifications.getExpoPushTokenAsync(
+          projectId ? { projectId } : undefined,
+        );
+        const token = tokenRes?.data;
+        if (!token) return;
+        const platform: "ios" | "android" | "web" | "unknown" =
+          Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "unknown";
+        await fetch(`${API_BASE}/users/${userId}/push-token`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, platform }),
+        });
+        await AsyncStorage.setItem(`copointo_notif_enabled_v1_${userId}`, "1");
+      }
+    } catch { /* best-effort — never block registration on push errors */ }
   };
 
   // Forgot-password step 1: send OTP to the phone the user typed.
