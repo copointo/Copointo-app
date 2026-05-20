@@ -77,29 +77,47 @@ export async function getExistingWebPushSubscription(): Promise<PushSubscription
 }
 
 /**
- * Enable web push for the user:
- *  1. Request browser permission (browser will show its prompt)
- *  2. Subscribe to the push service using the server's VAPID key
- *  3. POST the subscription to the backend so the server can send to it
- *
- * Returns true on success.
+ * Result of attempting to enable web push. Carries a human-readable
+ * `reason` so the UI can tell the user EXACTLY what failed instead of
+ * just showing a generic "error" toast (which was happening before —
+ * silent returns of `false` made the Switch look broken).
  */
-export async function enableWebPush(userId: string): Promise<boolean> {
-  if (!isWebPushSupported() || !userId) return false;
+export type EnableWebPushResult =
+  | { ok: true }
+  | { ok: false; reason:
+      | "unsupported"
+      | "no-user"
+      | "permission-denied"
+      | "permission-dismissed"
+      | "sw-register-failed"
+      | "vapid-fetch-failed"
+      | "subscribe-failed"
+      | "subscription-invalid"
+      | "server-rejected"; detail?: string };
+
+export async function enableWebPush(userId: string): Promise<EnableWebPushResult> {
+  if (!isWebPushSupported()) return { ok: false, reason: "unsupported" };
+  if (!userId) return { ok: false, reason: "no-user" };
 
   // Request permission first — must be triggered by a user gesture on
   // most browsers, so call sites should invoke this from an onPress.
   let perm = Notification.permission;
   if (perm === "default") {
-    try { perm = await Notification.requestPermission(); } catch { return false; }
+    try { perm = await Notification.requestPermission(); }
+    catch (e) { return { ok: false, reason: "permission-dismissed", detail: String(e) }; }
   }
-  if (perm !== "granted") return false;
+  if (perm === "denied") return { ok: false, reason: "permission-denied" };
+  if (perm !== "granted") return { ok: false, reason: "permission-dismissed" };
 
   const reg = await getRegistration();
-  if (!reg) return false;
+  if (!reg) return { ok: false, reason: "sw-register-failed" };
+
+  // Wait for the SW to actually be ready before subscribing — otherwise
+  // pushManager.subscribe can throw "no active service worker".
+  try { await navigator.serviceWorker.ready; } catch { /* fall through */ }
 
   const vapidKey = await fetchVapidPublicKey();
-  if (!vapidKey) return false;
+  if (!vapidKey) return { ok: false, reason: "vapid-fetch-failed" };
 
   let sub: PushSubscription | null = null;
   try {
@@ -110,13 +128,15 @@ export async function enableWebPush(userId: string): Promise<boolean> {
         applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
       });
     }
-  } catch {
-    return false;
+  } catch (e) {
+    return { ok: false, reason: "subscribe-failed", detail: String(e) };
   }
 
   // Ship the subscription to the backend.
   const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } };
-  if (!json?.endpoint || !json?.keys?.p256dh || !json?.keys?.auth) return false;
+  if (!json?.endpoint || !json?.keys?.p256dh || !json?.keys?.auth) {
+    return { ok: false, reason: "subscription-invalid" };
+  }
   try {
     const res = await fetch(`${API_BASE}/push/web/subscribe`, {
       method: "POST",
@@ -130,9 +150,10 @@ export async function enableWebPush(userId: string): Promise<boolean> {
         userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
       }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (!res.ok) return { ok: false, reason: "server-rejected", detail: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: "server-rejected", detail: String(e) };
   }
 }
 

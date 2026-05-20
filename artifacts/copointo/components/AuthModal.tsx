@@ -249,6 +249,10 @@ export function AuthModal({
         if (!isWebPushSupported()) return;
         // enableWebPush internally calls Notification.requestPermission,
         // which on Chrome/Safari opens the OS-level allow/deny dialog.
+        // Returns a {ok, reason} object now — ignore the failure shape
+        // here because this is the best-effort signup prompt; the user
+        // can retry from the profile-screen toggle (which surfaces the
+        // reason).
         await enableWebPush(userId);
       } else {
         // Native — ask for permission and register the Expo push token.

@@ -368,9 +368,29 @@ export default function ProfileScreen() {
             Alert.alert(t("profile.notifTitle"), t("profile.notifDenied"));
             return;
           }
-          const ok = await enableWebPush(user.id);
-          if (!ok) {
-            Alert.alert(t("profile.notifTitle"), t("profile.notifError"));
+          const res = await enableWebPush(user.id);
+          if (!res.ok) {
+            // Surface the actual failure reason so the toggle never looks
+            // silently broken. Use window.alert on web because RN-Web's
+            // Alert.alert is unreliable in some browsers.
+            const reasonMsg: Record<string, string> = {
+              "unsupported": t("profile.notifWebUnsupported"),
+              "no-user": t("profile.notifError"),
+              "permission-denied": t("profile.notifDenied"),
+              "permission-dismissed": "لم تسمح للمتصفح بإرسال الإشعارات. اضغط على أيقونة القفل بجانب العنوان واسمح بالإشعارات ثم حاول مرة أخرى.",
+              "sw-register-failed": "تعذّر تسجيل خدمة الإشعارات في المتصفح. تأكد أنك تستخدم HTTPS وليس وضع التصفح الخفي.",
+              "vapid-fetch-failed": "تعذّر الاتصال بالخادم لجلب مفتاح الإشعارات. تحقق من الاتصال وحاول مرة أخرى.",
+              "subscribe-failed": "تعذّر إنشاء اشتراك الإشعارات في المتصفح.",
+              "subscription-invalid": "بيانات الاشتراك غير مكتملة.",
+              "server-rejected": "رفض الخادم تسجيل الاشتراك.",
+            };
+            const msg = (reasonMsg[res.reason] ?? t("profile.notifError")) +
+              (res.detail ? `\n\n(${res.detail})` : "");
+            if (typeof window !== "undefined" && typeof window.alert === "function") {
+              window.alert(`${t("profile.notifTitle")}\n\n${msg}`);
+            } else {
+              Alert.alert(t("profile.notifTitle"), msg);
+            }
             return;
           }
         } else {
