@@ -14,6 +14,7 @@
  */
 import { pushTokens, persistStore } from "../store";
 import { logger } from "./logger";
+import { sendWebPushToUser, sendWebPushToUsers, sendWebPushToAll } from "./webPush";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -82,29 +83,44 @@ function pruneInvalidTokens(invalidTokens: Set<string>) {
  */
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<void> {
   if (!userId) return;
+  // Fan out to BOTH Expo native tokens AND browser web-push subscriptions
+  // in parallel — a single user may have the native app on one device
+  // and the website open on another, and we want both to ping.
+  const url = typeof payload.data?.url === "string" ? (payload.data.url as string) : undefined;
+  const webP = sendWebPushToUser(userId, {
+    title: payload.title, body: payload.body, data: payload.data, url,
+  });
   const tokens = pushTokens
     .filter(p => p.userId === userId && isExpoToken(p.token))
     .map(p => p.token);
-  if (tokens.length === 0) return;
-  await sendToTokens(tokens, payload);
+  const nativeP = tokens.length > 0 ? sendToTokens(tokens, payload) : Promise.resolve();
+  await Promise.all([webP, nativeP]);
 }
 
 /** Fan-out helper: send the same payload to every token of every user id. */
 export async function sendPushToUsers(userIds: string[], payload: PushPayload): Promise<void> {
   if (!userIds || userIds.length === 0) return;
+  const url = typeof payload.data?.url === "string" ? (payload.data.url as string) : undefined;
+  const webP = sendWebPushToUsers(userIds, {
+    title: payload.title, body: payload.body, data: payload.data, url,
+  });
   const set = new Set(userIds);
   const tokens = pushTokens
     .filter(p => set.has(p.userId) && isExpoToken(p.token))
     .map(p => p.token);
-  if (tokens.length === 0) return;
-  await sendToTokens(tokens, payload);
+  const nativeP = tokens.length > 0 ? sendToTokens(tokens, payload) : Promise.resolve();
+  await Promise.all([webP, nativeP]);
 }
 
 /** Send to every registered token (super-admin broadcast). */
 export async function sendPushToAll(payload: PushPayload): Promise<void> {
+  const url = typeof payload.data?.url === "string" ? (payload.data.url as string) : undefined;
+  const webP = sendWebPushToAll({
+    title: payload.title, body: payload.body, data: payload.data, url,
+  });
   const tokens = pushTokens.filter(p => isExpoToken(p.token)).map(p => p.token);
-  if (tokens.length === 0) return;
-  await sendToTokens(tokens, payload);
+  const nativeP = tokens.length > 0 ? sendToTokens(tokens, payload) : Promise.resolve();
+  await Promise.all([webP, nativeP]);
 }
 
 async function sendToTokens(tokens: string[], payload: PushPayload): Promise<void> {

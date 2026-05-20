@@ -327,6 +327,23 @@ export interface PushToken {
 export const pushTokens: PushToken[] = [];
 
 /**
+ * Web Push subscriptions — separate from `pushTokens` because the
+ * subscription object shape is completely different from an Expo push
+ * token (we need endpoint + keys.p256dh + keys.auth to encrypt the
+ * payload). Stored per user so a single browser-on-phone, browser-on-
+ * laptop and the mobile app can all receive the same notification.
+ */
+export interface WebPushSubscription {
+  id: string;
+  userId: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  userAgent?: string;
+  createdAt: string;
+}
+export const webPushSubscriptions: WebPushSubscription[] = [];
+
+/**
  * Monthly leaderboard season. Every 30 days the top-10 players (sorted by
  * totalOrders desc, then level desc) win free coins (1st = 50k, 2nd = 45k,
  * ..., 10th = 5k). The countdown shown on the leaderboard is derived from
@@ -573,7 +590,7 @@ const COLLECTIONS: Record<string, any[]> = {
   cafeViews, discountCodes, expenses, invoiceTemplates, freeCoffees,
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
-  reports, coinGifts, giftVouchers, pushTokens, monthlySeasons,
+  reports, coinGifts, giftVouchers, pushTokens, webPushSubscriptions, monthlySeasons,
   communities, communityInvites,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);

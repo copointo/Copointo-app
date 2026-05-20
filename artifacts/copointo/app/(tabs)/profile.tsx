@@ -16,11 +16,18 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  enableWebPush,
+  disableWebPush,
+  isWebPushEnabled,
+  isWebPushSupported,
+} from "@/lib/webPush";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, claimGameUsername } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
@@ -269,11 +276,21 @@ export default function ProfileScreen() {
   const NOTIF_FLAG_KEY = user ? `copointo_notif_enabled_v1_${user.id}` : "";
   const [notifBusy, setNotifBusy] = useState(false);
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const isWeb = Platform.OS === "web";
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!user) return;
       try {
+        if (isWeb) {
+          // On web the source of truth is the browser's push subscription
+          // + permission — AsyncStorage is unreliable since the user can
+          // revoke permission from browser site settings any time.
+          if (!isWebPushSupported()) { setNotifEnabled(false); return; }
+          const enabled = await isWebPushEnabled();
+          if (!cancelled) setNotifEnabled(enabled);
+          return;
+        }
         const stored = await AsyncStorage.getItem(NOTIF_FLAG_KEY);
         if (cancelled) return;
         if (stored !== "1") { setNotifEnabled(false); return; }
@@ -286,52 +303,93 @@ export default function ProfileScreen() {
       } catch { if (!cancelled) setNotifEnabled(false); }
     })();
     return () => { cancelled = true; };
-  }, [NOTIF_FLAG_KEY, user]);
+  }, [NOTIF_FLAG_KEY, user, isWeb]);
 
-  const handleEnableNotifications = async () => {
-    if (!user || notifBusy) return;
-    if (Platform.OS === "web") {
-      Alert.alert(t("profile.notifTitle"), t("profile.notifWebUnsupported"));
-      return;
+  const enableNative = async (): Promise<boolean> => {
+    if (!user) return false;
+    if (!Device.isDevice) {
+      Alert.alert(t("profile.notifTitle"), t("profile.notifNeedsDevice"));
+      return false;
     }
+    let perm = await Notifications.getPermissionsAsync();
+    if (perm.status !== "granted") {
+      perm = await Notifications.requestPermissionsAsync();
+    }
+    if (perm.status !== "granted") {
+      Alert.alert(t("profile.notifTitle"), t("profile.notifDenied"));
+      return false;
+    }
+    const projectId =
+      (Constants.expoConfig as any)?.extra?.eas?.projectId ??
+      (Constants as any)?.easConfig?.projectId ??
+      undefined;
+    const tokenRes = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
+    const token = tokenRes?.data;
+    if (!token) return false;
+    const platform: "ios" | "android" | "web" | "unknown" =
+      Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "unknown";
+    const res = await fetch(`${API_BASE}/users/${user.id}/push-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, platform }),
+    });
+    if (!res.ok) return false;
+    await AsyncStorage.setItem(NOTIF_FLAG_KEY, "1");
+    return true;
+  };
+
+  const disableNative = async (): Promise<void> => {
+    if (!user) return;
+    try {
+      await fetch(`${API_BASE}/users/${user.id}/push-token`, { method: "DELETE" });
+    } catch { /* best-effort */ }
+    try { await AsyncStorage.removeItem(NOTIF_FLAG_KEY); } catch { /* ignore */ }
+  };
+
+  const handleToggleNotifications = async (next: boolean) => {
+    if (!user || notifBusy) return;
+    // On web, browsers only allow the permission prompt from a user
+    // gesture (this onValueChange is exactly that), so we can call
+    // enableWebPush directly without any extra workaround.
     setNotifBusy(true);
     try {
-      if (!Device.isDevice) {
-        Alert.alert(t("profile.notifTitle"), t("profile.notifNeedsDevice"));
-        return;
+      if (next) {
+        // ─── Turn ON ───────────────────────────────────────────────
+        if (isWeb) {
+          if (!isWebPushSupported()) {
+            Alert.alert(t("profile.notifTitle"), t("profile.notifWebUnsupported"));
+            return;
+          }
+          // If permission was already denied, the browser won't re-prompt —
+          // tell the user to flip it from site settings.
+          if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+            Alert.alert(t("profile.notifTitle"), t("profile.notifDenied"));
+            return;
+          }
+          const ok = await enableWebPush(user.id);
+          if (!ok) {
+            Alert.alert(t("profile.notifTitle"), t("profile.notifError"));
+            return;
+          }
+        } else {
+          const ok = await enableNative();
+          if (!ok) return;
+        }
+        setNotifEnabled(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(t("profile.notifTitle"), t("profile.notifEnabledMsg"));
+      } else {
+        // ─── Turn OFF ──────────────────────────────────────────────
+        if (isWeb) {
+          await disableWebPush(user.id);
+        } else {
+          await disableNative();
+        }
+        setNotifEnabled(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       }
-      let perm = await Notifications.getPermissionsAsync();
-      if (perm.status !== "granted") {
-        perm = await Notifications.requestPermissionsAsync();
-      }
-      if (perm.status !== "granted") {
-        Alert.alert(t("profile.notifTitle"), t("profile.notifDenied"));
-        return;
-      }
-      // projectId is required on newer Expo SDKs but missing in this
-      // workspace's app.json; pass it only if Constants exposes one,
-      // otherwise let the API derive it from the running build.
-      const projectId =
-        (Constants.expoConfig as any)?.extra?.eas?.projectId ??
-        (Constants as any)?.easConfig?.projectId ??
-        undefined;
-      const tokenRes = await Notifications.getExpoPushTokenAsync(
-        projectId ? { projectId } : undefined,
-      );
-      const token = tokenRes?.data;
-      if (!token) throw new Error("no-token");
-      const platform: "ios" | "android" | "web" | "unknown" =
-        Platform.OS === "ios" || Platform.OS === "android" ? Platform.OS : "unknown";
-      const res = await fetch(`${API_BASE}/users/${user.id}/push-token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, platform }),
-      });
-      if (!res.ok) throw new Error(`http-${res.status}`);
-      await AsyncStorage.setItem(NOTIF_FLAG_KEY, "1");
-      setNotifEnabled(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(t("profile.notifTitle"), t("profile.notifEnabledMsg"));
     } catch {
       Alert.alert(t("profile.notifTitle"), t("profile.notifError"));
     } finally {
@@ -695,22 +753,25 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Enable push notifications ── */}
-        <TouchableOpacity
-          style={[styles.notifBtn, notifEnabled && styles.notifBtnOn]}
-          onPress={handleEnableNotifications}
-          disabled={notifBusy || notifEnabled}
-          activeOpacity={0.85}
-        >
+        {/* ── Push notifications toggle ── */}
+        <View style={[styles.notifRow, notifEnabled && styles.notifRowOn]}>
           <Feather name="bell" size={17} color={PRIMARY} />
-          <Text style={styles.notifText}>
+          <Text style={styles.notifRowText} numberOfLines={1}>
             {notifBusy
               ? t("profile.notifBusy")
               : notifEnabled
                 ? t("profile.notifEnabled")
                 : t("profile.notifEnable")}
           </Text>
-        </TouchableOpacity>
+          <Switch
+            value={notifEnabled}
+            onValueChange={handleToggleNotifications}
+            disabled={notifBusy}
+            trackColor={{ false: "rgba(255,255,255,0.15)", true: "rgba(232,184,109,0.45)" }}
+            thumbColor={notifEnabled ? PRIMARY : "#ddd"}
+            ios_backgroundColor="rgba(255,255,255,0.15)"
+          />
+        </View>
 
         {/* ── Support button (above logout) ── */}
         <TouchableOpacity
@@ -1067,6 +1128,28 @@ const styles = StyleSheet.create({
   deleteAcctText: { fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
 
   // Notifications opt-in
+  notifRow: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.25)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  notifRowOn: {
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderColor: PRIMARY,
+  },
+  notifRowText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: PRIMARY,
+  },
   notifBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
     backgroundColor: `${PRIMARY}18`, borderWidth: 1, borderColor: `${PRIMARY}55`,

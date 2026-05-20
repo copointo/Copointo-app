@@ -4,6 +4,11 @@ import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { ensureLoaded, refreshFromDb } from "./store";
+import { initWebPush } from "./lib/webPush";
+
+// Initialize VAPID keys for browser web-push at boot — generates and
+// persists keys on first run, no-op on subsequent runs.
+initWebPush();
 
 const app: Express = express();
 

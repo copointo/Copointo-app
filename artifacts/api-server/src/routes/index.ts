@@ -28,6 +28,8 @@ import {
 } from "../store";
 import { geocodeAddress } from "../utils/geocode";
 import { sendPushToUser, sendPushToAll } from "../lib/push";
+import { getVapidPublicKey } from "../lib/webPush";
+import { webPushSubscriptions } from "../store";
 import {
   MONTHLY_REWARDS, checkAndProcessSeasonEnd, rankPlayersForSeason,
 } from "../lib/monthlySeason";
@@ -821,6 +823,66 @@ router.post("/users/:id/push-token", (req, res): any => {
   }
   persistStore();
   res.json({ ok: true });
+});
+
+// ─── Web Push (browser) endpoints ────────────────────────────────────
+// Used by the Copointo Expo web build (i.e. copointo.com opened in a
+// phone/desktop browser). The browser registers a service worker,
+// fetches the VAPID public key from us, subscribes to its push service,
+// and POSTs the resulting subscription so the server can deliver
+// notifications via web-push (handled in lib/webPush.ts).
+
+router.get("/push/web/vapid-public-key", (_req, res) => {
+  res.json({ publicKey: getVapidPublicKey() });
+});
+
+router.post("/push/web/subscribe", (req, res): any => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const sub    = req.body?.subscription;
+  const ua     = typeof req.body?.userAgent === "string" ? String(req.body.userAgent).slice(0, 300) : undefined;
+  if (!userId || !sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
+    return res.status(400).json({ ok: false, error: "userId/subscription required" });
+  }
+  if (!users.find(u => u.id === userId)) {
+    return res.status(404).json({ ok: false, error: "user not found" });
+  }
+  // Endpoint uniquely identifies a browser-on-device subscription. If
+  // the same endpoint was previously registered to a different user
+  // (e.g. account switch on the same browser) reassign it.
+  const existing = webPushSubscriptions.find(s => s.endpoint === sub.endpoint);
+  const now = new Date().toISOString();
+  if (existing) {
+    existing.userId  = userId;
+    existing.keys    = { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) };
+    existing.userAgent = ua;
+  } else {
+    webPushSubscriptions.push({
+      id: `wp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId,
+      endpoint: String(sub.endpoint),
+      keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) },
+      userAgent: ua,
+      createdAt: now,
+    });
+  }
+  persistStore();
+  res.json({ ok: true });
+});
+
+router.post("/push/web/unsubscribe", (req, res): any => {
+  const userId   = String(req.body?.userId ?? "").trim();
+  const endpoint = String(req.body?.endpoint ?? "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+  let removed = 0;
+  for (let i = webPushSubscriptions.length - 1; i >= 0; i--) {
+    const row = webPushSubscriptions[i]!;
+    if (row.userId !== userId) continue;
+    if (endpoint && row.endpoint !== endpoint) continue;
+    webPushSubscriptions.splice(i, 1);
+    removed++;
+  }
+  if (removed > 0) persistStore();
+  res.json({ ok: true, removed });
 });
 
 // Mobile calls this on logout or when the user disables notifications.
