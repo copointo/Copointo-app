@@ -395,7 +395,21 @@ router.post("/orders", (req: any, res): any => {
 router.get("/lookup-user", (req: any, res): any => {
   const phone = String(req.query?.phone ?? "").trim();
   if (!phone) return res.json({ user: null });
-  const u = users.find(x => x.phone === phone);
+  // Normalize both sides: strip everything non-digit so "+968 9988 7766"
+  // matches "99887766". Then also accept a suffix match on the local
+  // 8-digit Oman number so the cashier can type the short form even when
+  // the user registered with the +968 country code.
+  const digits = (p: string) => String(p ?? "").replace(/\D+/g, "");
+  const q = digits(phone);
+  if (!q) return res.json({ user: null });
+  const u =
+    users.find(x => digits(x.phone) === q) ||
+    (q.length >= 7
+      ? users.find(x => {
+          const d = digits(x.phone);
+          return d.endsWith(q) || q.endsWith(d);
+        })
+      : null);
   if (!u) return res.json({ user: null });
   return res.json({
     user: {
