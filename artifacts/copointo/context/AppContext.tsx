@@ -868,11 +868,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const users: User[] = raw ? JSON.parse(raw) : [];
       const id = identifier.trim();
       const idLower = id.toLowerCase();
+      // Phone-normalization: strip spaces and non-digits (but preserve a
+      // leading "+"). Lets the user log in with "+96812345678",
+      // "96812345678", "0096812345678", "+968 1234 5678", etc. when they
+      // registered with any of those forms. Username comparison stays
+      // case-insensitive.
+      const normPhone = (p: string | undefined | null) =>
+        String(p ?? "").replace(/\s+/g, "").replace(/(?!^\+)\D/g, "");
+      const idDigits = id.replace(/\D+/g, "");
+      const matchIdentifier = (uPhone: string | undefined | null, uUser: string | undefined | null) => {
+        if (uUser && uUser.toLowerCase() === idLower) return true;
+        if (!uPhone) return false;
+        if (uPhone === id) return true;
+        if (normPhone(uPhone) === normPhone(id)) return true;
+        // Tail-match: "+96812345678" vs "12345678" — only when the typed
+        // id is digits-only and at least 6 digits to avoid false positives.
+        const uDigits = uPhone.replace(/\D+/g, "");
+        if (idDigits.length >= 6 && (uDigits.endsWith(idDigits) || idDigits.endsWith(uDigits))) return true;
+        return false;
+      };
 
-      // 1) Strict local match: exact identifier + correct password.
+      // 1) Strict local match: matching identifier + correct password.
       let found = users.find(u =>
-        u.password === password &&
-        (u.phone === id || (u.gameUsername ?? "").toLowerCase() === idLower)
+        u.password === password && matchIdentifier(u.phone, u.gameUsername)
       );
 
       // 2) Local record exists with the same identifier but EMPTY password
@@ -883,8 +901,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       //    AsyncStorage entry has no password to compare against.
       if (!found) {
         const placeholder = users.find(u =>
-          (u.password ?? "") === "" &&
-          (u.phone === id || (u.gameUsername ?? "").toLowerCase() === idLower)
+          (u.password ?? "") === "" && matchIdentifier(u.phone, u.gameUsername)
         );
         if (placeholder) {
           found = { ...placeholder, password };
@@ -898,7 +915,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       //    in on this fresh device.
       if (!found) {
         const remoteMatch = remote.find(r =>
-          r.phone === id || (r.username ?? "").toLowerCase() === idLower
+          matchIdentifier(r.phone, r.username)
         );
         if (remoteMatch) {
           found = {
