@@ -146,74 +146,21 @@ function CommunitiesWrapped() {
   return <PageLayout title="المجتمعات"><CommunitiesPage /></PageLayout>;
 }
 
-// ─── Domain gate ────────────────────────────────────────────────
-// The super-admin pages (home + dashboard + cafes + users + copointo-hub
-// + reports + communities) are only reachable from the admin-only custom
-// domain. The `copointo.com` (and any other) public domain is for regular
-// mobile users and must NOT expose the super-admin surface — even though
-// the static admin bundle technically lives at /admin/ on every domain.
-//
-// Detection rules:
-//   • Any hostname containing "admin" (case-insensitive) is the admin
-//     domain — this matches `copointoadmin-al-yaqathan.com` and any
-//     future *admin* subdomain without needing a hardcoded list.
-//   • `localhost` and Replit's `*.replit.dev` preview hosts are also
-//     treated as admin so dev/preview keeps working.
-//   • Everything else (e.g. `copointo.com`) blocks the super-admin
-//     pages and shows a notice instead.
-//
-// Cafe-owner dashboards at `/cafe/:id` and `/cafe/:id/analytics` stay
-// reachable from ANY domain because they have their own per-cafe
-// `managerPassword` gate — a cafe owner with the printed QR code on
-// `copointo.com/admin/cafe/:id` should still get into their dashboard.
-function isAdminDomain(): boolean {
-  if (typeof window === "undefined") return true;
-  const h = window.location.hostname.toLowerCase();
-  if (h === "localhost" || h === "127.0.0.1") return true;
-  if (h.endsWith(".replit.dev")) return true;
-  if (h.endsWith(".replit.app")) return true;
-  return /admin/.test(h);
-}
-
-function SuperAdminBlocked() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4" dir="rtl">
-      <div className="w-full max-w-md text-center bg-card border border-border rounded-3xl p-8 shadow-xl">
-        <img src={logoUrl} alt="Copointo" className="mx-auto mb-4 w-20 h-20 object-contain" />
-        <h1 className="text-2xl font-bold text-foreground mb-2">هذا الرابط مخصص للسوبر مدير</h1>
-        <p className="text-muted-foreground text-sm leading-relaxed mb-6">
-          لوحة السوبر مدير متاحة فقط من خلال الدومين الخاص بها.
-          <br />
-          إذا كنت مستخدماً عادياً، يرجى استخدام تطبيق كوبوينتو.
-        </p>
-        <a
-          href="https://copointo.com"
-          className="inline-block w-full bg-primary text-primary-foreground rounded-xl py-3 font-semibold text-sm hover:opacity-90 transition-opacity"
-        >
-          الذهاب إلى copointo.com
-        </a>
-      </div>
-    </div>
-  );
-}
-
 // ── Router ────────────────────────────────────────────────────
+// Super-admin pages are open on every domain — anyone reaching /admin/
+// sees the full super-admin surface (per the project owner's explicit
+// decision to drop the previous "admin domain only" gate). Cafe-owner
+// pages at /cafe/:id keep their own per-cafe managerPassword gate.
 function AdminApp() {
-  // Super-admin pages are gated by domain. Cafe-owner pages (/cafe/:id)
-  // remain public on every domain — they have their own password gate.
-  const adminDomain = isAdminDomain();
-  const Gate = adminDomain ? HomePage : SuperAdminBlocked;
-  const GateWrap = (Comp: React.ComponentType<any>) =>
-    adminDomain ? Comp : SuperAdminBlocked;
   return (
     <Switch>
-      <Route path="/"             component={Gate} />
-      <Route path="/dashboard"    component={GateWrap(DashboardWrapped)} />
-      <Route path="/cafes"        component={GateWrap(CafesWrapped)} />
-      <Route path="/users"        component={GateWrap(UsersWrapped)} />
-      <Route path="/copointo-hub" component={GateWrap(CopointoHubWrapped)} />
-      <Route path="/reports"      component={GateWrap(ReportsWrapped)} />
-      <Route path="/communities"  component={GateWrap(CommunitiesWrapped)} />
+      <Route path="/"             component={HomePage} />
+      <Route path="/dashboard"    component={DashboardWrapped} />
+      <Route path="/cafes"        component={CafesWrapped} />
+      <Route path="/users"        component={UsersWrapped} />
+      <Route path="/copointo-hub" component={CopointoHubWrapped} />
+      <Route path="/reports"      component={ReportsWrapped} />
+      <Route path="/communities"  component={CommunitiesWrapped} />
       {/* Cafe-owner routes — accessible from any domain. */}
       <Route path="/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
       <Route path="/cafe/:id"           component={CafeDashboardPage}/>
