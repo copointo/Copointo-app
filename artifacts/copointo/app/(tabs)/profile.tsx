@@ -16,6 +16,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Pressable,
   Switch,
   Text,
   TextInput,
@@ -773,8 +774,24 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Push notifications toggle ── */}
-        <View style={[styles.notifRow, notifEnabled && styles.notifRowOn]}>
+        {/* ── Push notifications toggle ──
+            Wrapped in a Pressable so tapping ANYWHERE on the row fires
+            the toggle. RN-Web's <Switch onValueChange> is unreliable
+            (some browsers fail to fire it from inside an async handler
+            controlled component), so we drive the toggle from the row
+            press handler and use the Switch only as a visual indicator.
+            `accessibilityState.disabled` keeps the visual greyed-out
+            look while busy, but we still let the press through so the
+            user gets feedback if they try to spam-tap. */}
+        <Pressable
+          onPress={() => { if (!notifBusy) void handleToggleNotifications(!notifEnabled); }}
+          disabled={notifBusy}
+          style={({ pressed }) => [
+            styles.notifRow,
+            notifEnabled && styles.notifRowOn,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
           <Feather name="bell" size={17} color={PRIMARY} />
           <Text style={styles.notifRowText} numberOfLines={1}>
             {notifBusy
@@ -783,15 +800,17 @@ export default function ProfileScreen() {
                 ? t("profile.notifEnabled")
                 : t("profile.notifEnable")}
           </Text>
-          <Switch
-            value={notifEnabled}
-            onValueChange={handleToggleNotifications}
-            disabled={notifBusy}
-            trackColor={{ false: "rgba(255,255,255,0.15)", true: "rgba(232,184,109,0.45)" }}
-            thumbColor={notifEnabled ? PRIMARY : "#ddd"}
-            ios_backgroundColor="rgba(255,255,255,0.15)"
-          />
-        </View>
+          {/* Switch is visual-only — pointerEvents=none ensures it never
+              swallows the press, so the parent Pressable always fires. */}
+          <View pointerEvents="none">
+            <Switch
+              value={notifEnabled}
+              trackColor={{ false: "rgba(255,255,255,0.15)", true: "rgba(232,184,109,0.45)" }}
+              thumbColor={notifEnabled ? PRIMARY : "#ddd"}
+              ios_backgroundColor="rgba(255,255,255,0.15)"
+            />
+          </View>
+        </Pressable>
 
         {/* ── Support button (above logout) ── */}
         <TouchableOpacity
