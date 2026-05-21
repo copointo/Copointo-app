@@ -146,21 +146,68 @@ function CommunitiesWrapped() {
   return <PageLayout title="المجتمعات"><CommunitiesPage /></PageLayout>;
 }
 
+// ─── Domain gate ────────────────────────────────────────────────
+// Super-admin pages are reachable ONLY from the admin custom domain
+// (`copointoadmin-al-yaqathan.com`) — not from `copointo.com/admin/`
+// or any other public domain. Cafe-owner pages at `/cafe/:id` stay
+// public on every domain because they have their own per-cafe
+// `managerPassword` gate (so the printed QR codes keep working from
+// `copointo.com/admin/cafe/:id`).
+//
+// Detection rules:
+//   • Any hostname containing "admin" (case-insensitive) is the admin
+//     domain — matches `copointoadmin-al-yaqathan.com` and any future
+//     *admin* subdomain without a hardcoded list.
+//   • `localhost`, `*.replit.dev`, `*.replit.app` are also treated as
+//     admin so dev/preview/deploy debugging keeps working.
+//   • Everything else (e.g. `copointo.com`) blocks the super-admin
+//     pages and shows a notice instead.
+function isAdminDomain(): boolean {
+  if (typeof window === "undefined") return true;
+  const h = window.location.hostname.toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1") return true;
+  if (h.endsWith(".replit.dev")) return true;
+  if (h.endsWith(".replit.app")) return true;
+  return /admin/.test(h);
+}
+
+function SuperAdminBlocked() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-4" dir="rtl">
+      <div className="w-full max-w-md text-center bg-card border border-border rounded-3xl p-8 shadow-xl">
+        <img src={logoUrl} alt="Copointo" className="mx-auto mb-4 w-20 h-20 object-contain" />
+        <h1 className="text-2xl font-bold text-foreground mb-2">هذا الرابط مخصص للسوبر مدير</h1>
+        <p className="text-muted-foreground text-sm leading-relaxed mb-6">
+          لوحة السوبر مدير متاحة فقط من خلال الدومين الخاص بها.
+          <br />
+          إذا كنت مستخدماً عادياً، يرجى استخدام تطبيق كوبوينتو.
+        </p>
+        <a
+          href="https://copointo.com"
+          className="inline-block w-full bg-primary text-primary-foreground rounded-xl py-3 font-semibold text-sm hover:opacity-90 transition-opacity"
+        >
+          الذهاب إلى copointo.com
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // ── Router ────────────────────────────────────────────────────
-// Super-admin pages are open on every domain — anyone reaching /admin/
-// sees the full super-admin surface (per the project owner's explicit
-// decision to drop the previous "admin domain only" gate). Cafe-owner
-// pages at /cafe/:id keep their own per-cafe managerPassword gate.
 function AdminApp() {
+  const adminDomain = isAdminDomain();
+  const Gate = adminDomain ? HomePage : SuperAdminBlocked;
+  const GateWrap = (Comp: React.ComponentType<any>) =>
+    adminDomain ? Comp : SuperAdminBlocked;
   return (
     <Switch>
-      <Route path="/"             component={HomePage} />
-      <Route path="/dashboard"    component={DashboardWrapped} />
-      <Route path="/cafes"        component={CafesWrapped} />
-      <Route path="/users"        component={UsersWrapped} />
-      <Route path="/copointo-hub" component={CopointoHubWrapped} />
-      <Route path="/reports"      component={ReportsWrapped} />
-      <Route path="/communities"  component={CommunitiesWrapped} />
+      <Route path="/"             component={Gate} />
+      <Route path="/dashboard"    component={GateWrap(DashboardWrapped)} />
+      <Route path="/cafes"        component={GateWrap(CafesWrapped)} />
+      <Route path="/users"        component={GateWrap(UsersWrapped)} />
+      <Route path="/copointo-hub" component={GateWrap(CopointoHubWrapped)} />
+      <Route path="/reports"      component={GateWrap(ReportsWrapped)} />
+      <Route path="/communities"  component={GateWrap(CommunitiesWrapped)} />
       {/* Cafe-owner routes — accessible from any domain. */}
       <Route path="/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
       <Route path="/cafe/:id"           component={CafeDashboardPage}/>
