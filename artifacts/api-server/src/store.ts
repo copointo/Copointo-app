@@ -108,6 +108,11 @@ export interface Order {
   drinkCount?: number;
   prepMinutes?: number;
   confirmedAt?: string;
+  /** When the cashier presses "بدء يوم جديد" the order is archived (hidden
+   *  from the live orders tab + daily-stats tab) but kept in storage so the
+   *  manager analytics (revenue, top products, busiest day, players ranking,
+   *  etc.) and printed invoices remain fully intact. */
+  archivedAt?: string;
   pointsAwarded?: boolean;
   printedAt?: string;
   /** Optional customer notes (bean type, extra-hot, customizations, etc). */

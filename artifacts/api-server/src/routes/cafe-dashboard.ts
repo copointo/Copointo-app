@@ -113,7 +113,11 @@ router.use(cafeMiddleware);
 // ── Stats ─────────────────────────────────────────────────────
 router.get("/stats", (req: any, res) => {
   const id   = req.params.cafeId;
-  const cafeOrders   = orders.filter(o => o.cafeId === id);
+  // Daily stats tab — intentionally excludes archived orders so the
+  // "بدء يوم جديد" button resets the operational counters (totalOrders,
+  // pendingOrders, topItems, chart). Manager analytics (/advanced-stats)
+  // uses the full unfiltered orders list so revenue history is preserved.
+  const cafeOrders   = orders.filter(o => o.cafeId === id && !o.archivedAt);
   const cafeBookings = bookings.filter(b => b.cafeId === id);
   const cafeMenu     = menuItems.filter(m => m.cafeId === id);
   const cafeInv      = invoices.filter(i => i.cafeId === id);
@@ -238,7 +242,9 @@ router.delete("/gift-vouchers/:id", (req: any, res): any => {
 
 // ── Orders ────────────────────────────────────────────────────
 router.get("/orders", (req: any, res) => {
-  res.json({ orders: orders.filter(o => o.cafeId === req.params.cafeId) });
+  res.json({
+    orders: orders.filter(o => o.cafeId === req.params.cafeId && !o.archivedAt),
+  });
 });
 router.post("/orders", (req: any, res): any => {
   const body = req.body ?? {};
@@ -489,6 +495,7 @@ function awardOrderProgress(order: any) {
 router.patch("/orders/:orderId/status", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.archivedAt) return res.status(409).json({ error: "تم أرشفة الطلب — لا يمكن تعديله" });
   const prevStatus = order.status;
   const next = req.body.status;
   order.status = next;
@@ -549,6 +556,7 @@ router.patch("/orders/:orderId/status", (req, res): any => {
 router.patch("/orders/:orderId/payment", (req: any, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.archivedAt) return res.status(409).json({ error: "تم أرشفة الطلب — لا يمكن تعديله" });
   const raw = String(req.body?.paymentMethod ?? "").trim().toLowerCase();
   if (raw !== "cash" && raw !== "visa" && raw !== "split" && raw !== "free") {
     return res.status(400).json({ error: "paymentMethod must be 'cash', 'visa', 'split', or 'free'" });
@@ -596,6 +604,7 @@ router.patch("/orders/:orderId/discount", (req: any, res): any => {
   const cafeId = req.params.cafeId;
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.archivedAt) return res.status(409).json({ error: "تم أرشفة الطلب — لا يمكن تعديله" });
   if (order.paymentMethod) {
     return res.status(400).json({ error: "لا يمكن تعديل الخصم بعد تثبيت طريقة الدفع" });
   }
@@ -644,9 +653,10 @@ router.patch("/orders/:orderId/discount", (req: any, res): any => {
 // Mark invoice printed → completes order. Drink progress was already awarded at
 // confirmation time (see PATCH /status); this still calls the helper so any
 // edge-case order that was printed without going through confirmation is awarded.
-router.post("/orders/:orderId/print", (req, res) => {
+router.post("/orders/:orderId/print", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.archivedAt) return res.status(409).json({ error: "تم أرشفة الطلب — لا يمكن تعديله" });
   awardOrderProgress(order);
   if (!order.printedAt) order.printedAt = new Date().toISOString();
   if (order.status !== "done") order.status = "done";
@@ -670,25 +680,32 @@ router.delete("/orders/:orderId", (req, res): any => {
 });
 
 // Bulk-clear orders for a cafe, optionally restricted to a date range.
-// Used after generating a daily/range invoice so the orders tab doesn't
-// keep accumulating already-archived orders.
+// IMPORTANT: this is a soft-archive, NOT a hard delete. The orders are
+// flagged with `archivedAt` so they disappear from:
+//   • the live "طلبات القهوة" tab (GET /orders filters !archivedAt)
+//   • the daily stats tab (GET /stats filters !archivedAt)
+// but are still counted in the manager analytics (POST /advanced-stats)
+// and invoices remain untouched. This is what the cashier needs when
+// pressing "بدء يوم جديد" — clear the operational queue without losing
+// any historical data.
 router.delete("/orders", (req: any, res) => {
   const cafeId = req.params.cafeId;
   const fromStr = typeof req.query?.from === "string" ? req.query.from : null;
   const toStr   = typeof req.query?.to   === "string" ? req.query.to   : null;
   const from = fromStr ? new Date(fromStr).getTime() : null;
   const to   = toStr   ? new Date(toStr).getTime()   : null;
+  const now = new Date().toISOString();
 
   let removed = 0;
-  for (let i = orders.length - 1; i >= 0; i--) {
-    const o = orders[i];
+  for (const o of orders) {
     if (o.cafeId !== cafeId) continue;
+    if (o.archivedAt) continue;
     if (from != null || to != null) {
       const t = new Date(o.createdAt).getTime();
       if (from != null && t < from) continue;
       if (to   != null && t >= to)  continue;
     }
-    orders.splice(i, 1);
+    o.archivedAt = now;
     removed++;
   }
   persistStore();
