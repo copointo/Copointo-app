@@ -479,6 +479,13 @@ export default function LeaderboardScreen() {
                     const reward = MONTHLY_REWARDS[omanRank - 1]!;
                     return (
                       <View style={styles.rewardChip}>
+                        {/* Coin icon matches the Copointo Hub currency
+                            (copointo-coin.png) so users instantly
+                            recognise it as the same in-app currency. */}
+                        <Image
+                          source={require("../assets/images/copointo-coin.png")}
+                          style={styles.rewardChipCoin}
+                        />
                         <Text style={styles.rewardChipText}>
                           {t("lb.seasonRewardCoins", { n: String(reward) })}
                         </Text>
@@ -1134,11 +1141,15 @@ const styles = StyleSheet.create({
   rewardChip: {
     alignSelf: "flex-start",
     marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 8, paddingVertical: 2.5,
     borderRadius: 8,
     backgroundColor: "rgba(232,184,109,0.14)",
     borderWidth: 1, borderColor: "rgba(232,184,109,0.55)",
   },
+  rewardChipCoin: { width: 12, height: 12, resizeMode: "contain" },
   rewardChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: "#E8B86D" },
   // Countdown banner pinned just under the screen header.
   seasonBanner: {

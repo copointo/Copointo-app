@@ -230,7 +230,7 @@ export const translations: Record<Lang, Dict> = {
     "lb.seasonBanner": "🏆 متبقي {n} يوم لاستلام العملات المجانية",
     "lb.seasonBannerToday": "🏆 ينتهي اليوم — توزيع العملات المجانية وشيك",
     "lb.seasonBannerHours": "🏆 متبقي {n} ساعة لاستلام العملات المجانية",
-    "lb.seasonRewardCoins": "🪙 {n}",
+    "lb.seasonRewardCoins": "{n}",
     "lb.seasonSubtitle": "أعلى 10 لاعبين يحصلون على عملات مجانية كل 30 يوم",
 
     // ── Messages ───────────────────────────────────────────────
@@ -825,7 +825,7 @@ export const translations: Record<Lang, Dict> = {
     "lb.seasonBanner": "🏆 {n} days left to win free coins",
     "lb.seasonBannerToday": "🏆 Ends today — free coins distribution coming soon",
     "lb.seasonBannerHours": "🏆 {n} hours left to win free coins",
-    "lb.seasonRewardCoins": "🪙 {n}",
+    "lb.seasonRewardCoins": "{n}",
     "lb.seasonSubtitle": "Top 10 players win free coins every 30 days",
 
     // ── Messages ───────────────────────────────────────────────
