@@ -717,6 +717,47 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* ── Per-cafe level breakdown ──
+            Level is conceptually per-cafe (e.g. 6 total drinks = 4 at cafe A
+            with its own level, + 2 at cafe B with its own level). The
+            leaderboard intentionally hides the global level; it only lives
+            here in the profile, as a per-cafe list, so users see exactly
+            where their progress is concentrated. */}
+        <Text style={styles.cosmeticsTitle}>{t("profile.perCafeLevelsTitle")}</Text>
+        {(() => {
+          const perCafe = Object.values(user.cafeProgress ?? {})
+            .filter((c) => (c.totalOrders ?? 0) > 0 || (c.level ?? 0) > 0)
+            .sort((a, b) => (b.totalOrders ?? 0) - (a.totalOrders ?? 0));
+          if (perCafe.length === 0) {
+            return (
+              <View style={styles.perCafeEmpty}>
+                <Text style={styles.perCafeEmptyText}>{t("profile.perCafeLevelsEmpty")}</Text>
+              </View>
+            );
+          }
+          return (
+            <View style={styles.perCafeList}>
+              {perCafe.map((c) => (
+                <View key={c.cafeId} style={styles.perCafeRow}>
+                  <Text style={styles.perCafeName} numberOfLines={1}>{c.cafeName}</Text>
+                  <View style={styles.perCafeChipsRow}>
+                    <View style={styles.perCafeOrdersChip}>
+                      <Text style={styles.perCafeOrdersChipText}>
+                        {t("profile.perCafeOrdersChip", { n: String(c.totalOrders ?? 0) })}
+                      </Text>
+                    </View>
+                    <View style={styles.perCafeLevelChip}>
+                      <Text style={styles.perCafeLevelChipText}>
+                        {t("profile.perCafeLevelChip", { n: String(c.level ?? 0) })}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          );
+        })()}
+
         {/* ── Equipped cosmetics showcase ── */}
         <Text style={styles.cosmeticsTitle}>{t("profile.equippedTitle")}</Text>
         <View style={styles.cosmeticsGrid}>
@@ -1208,6 +1249,33 @@ const styles = StyleSheet.create({
   statIcon:  { fontSize: 26 },
   statValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFF" },
   statLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
+  perCafeList: { gap: 8, marginTop: 4 },
+  perCafeRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.20)",
+  },
+  perCafeName: { flex: 1, fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF", marginRight: 12 },
+  perCafeChipsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  perCafeOrdersChip: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+    backgroundColor: "rgba(79,195,247,0.18)",
+  },
+  perCafeOrdersChipText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
+  perCafeLevelChip: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+    backgroundColor: "rgba(232,184,109,0.18)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.45)",
+  },
+  perCafeLevelChipText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#E8B86D" },
+  perCafeEmpty: {
+    padding: 18, borderRadius: 14, marginTop: 4,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+  },
+  perCafeEmptyText: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
 
   // ── Progress ──
   progressCard: {

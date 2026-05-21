@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, type CafeProgress, type User } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
-import { getRank } from "@/data/mockData";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
 import UserBadge from "@/components/UserBadge";
 import UsernameBackground from "@/components/UsernameBackground";
@@ -58,7 +57,6 @@ interface Entry {
   id: string;
   name: string;
   username: string;
-  level: number;
   totalOrders: number;
   isMe: boolean;
   isFriend: boolean;
@@ -176,7 +174,6 @@ export default function LeaderboardScreen() {
       id: u.id,
       name: u.name,
       username: u.gameUsername,
-      level: u.level,
       totalOrders: u.totalOrders ?? 0,
       isMe,
       isFriend: friends.includes(u.id),
@@ -199,10 +196,12 @@ export default function LeaderboardScreen() {
 
   // Sort by total coffee orders (Copointo Hub progress) — that's the real
   // engagement metric the leaderboard should reflect, not the most recent
-  // joiner. Level is kept as a tiebreaker so two equal counts still order
-  // deterministically.
+  // joiner. Level is intentionally NOT used (per product decision: level is
+  // now a per-cafe concept shown only inside the profile, not on the
+  // leaderboard). `id` is the stable tiebreaker so equal counts still
+  // order deterministically across renders.
   const sortDesc = (a: Entry, b: Entry) =>
-    (b.totalOrders - a.totalOrders) || (b.level - a.level);
+    (b.totalOrders - a.totalOrders) || a.id.localeCompare(b.id);
 
   const entries = useMemo<Entry[]>(() => {
     if (activeTab === "oman") {
@@ -235,10 +234,11 @@ export default function LeaderboardScreen() {
   };
 
   // Oman-wide rank for any given user (1-based, by total coffee orders desc;
-  // level breaks ties). Mirrors the leaderboard list ordering above.
+  // id as stable tiebreaker — level is intentionally not part of ordering).
+  // Mirrors the leaderboard list ordering above.
   const omanRankOf = useMemo(() => {
     const sorted = [...registeredUsers].sort((a, b) =>
-      ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || ((b.level ?? 0) - (a.level ?? 0))
+      ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || a.id.localeCompare(b.id)
     );
     const map = new Map<string, number>();
     sorted.forEach((u, i) => map.set(u.id, i + 1));
@@ -421,7 +421,6 @@ export default function LeaderboardScreen() {
             <Text style={styles.emptySub}>{emptySub}</Text>
           </View>
         ) : entries.map((entry, i) => {
-          const rankInfo = getRank(entry.level);
           // Resolve each cosmetic from the entry's own equipped IDs so EVERY
           // viewer sees the player's actual loadout — frame, badge, character,
           // username color and background — not just their own.
@@ -463,9 +462,6 @@ export default function LeaderboardScreen() {
                     {entry.name}
                   </Text>
                 )}
-                <Text style={styles.entryLevel}>
-                  {t("lb.levelLabel", { n: String(entry.level), rank: `${rankInfo.nameEn} ${rankInfo.icon}` })}
-                </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <View style={styles.coffeeChip}>
                     <Text style={styles.coffeeChipText}>{t("lb.coffeeCount", { n: String(entry.totalOrders) })}</Text>
@@ -706,8 +702,13 @@ function UserDetailPanel(p: PanelProps) {
       .filter((c) => (c.totalOrders ?? 0) > 0)
       .sort((a, b) => b.totalOrders - a.totalOrders);
   }, [u]);
-  const grandTotal = cafes.reduce((s, c) => s + (c.totalOrders ?? 0), 0);
-  const rank = u ? getRank(u.level) : null;
+  // Show the user's actual total coffee count (sum of per-cafe progress).
+  // Fall back to `u.totalOrders` when cafeProgress hasn't synced yet so the
+  // number never displays as 0 for a real player.
+  const grandTotal = Math.max(
+    cafes.reduce((s, c) => s + (c.totalOrders ?? 0), 0),
+    u?.totalOrders ?? 0,
+  );
 
   return (
     <Modal
@@ -759,7 +760,9 @@ function UserDetailPanel(p: PanelProps) {
                 </TouchableOpacity>
               </View>
 
-              {/* Stats: rank · level · total coffees */}
+              {/* Stats: oman rank · total coffees (level is intentionally
+                  hidden here — it's a per-cafe concept now and lives only
+                  inside the profile screen). */}
               <View style={panelStyles.statsRow}>
                 <View style={panelStyles.statBox}>
                   <Text style={panelStyles.statValue}>{p.omanRank ? `#${p.omanRank}` : "—"}</Text>
@@ -767,23 +770,10 @@ function UserDetailPanel(p: PanelProps) {
                 </View>
                 <View style={panelStyles.statDivider} />
                 <View style={panelStyles.statBox}>
-                  <Text style={[panelStyles.statValue, { color: "#E8B86D" }]}>{u.level}</Text>
-                  <Text style={panelStyles.statLabel}>{t("lb.panelLevel")}</Text>
-                </View>
-                <View style={panelStyles.statDivider} />
-                <View style={panelStyles.statBox}>
                   <Text style={[panelStyles.statValue, { color: "#4FC3F7" }]}>{grandTotal}</Text>
                   <Text style={panelStyles.statLabel}>{t("lb.panelTotalCoffee")}</Text>
                 </View>
               </View>
-
-              {/* Rank badge */}
-              {rank && (
-                <View style={panelStyles.rankBadge}>
-                  <Text style={panelStyles.rankIcon}>{rank.icon}</Text>
-                  <Text style={panelStyles.rankName}>{rank.name}</Text>
-                </View>
-              )}
 
               {/* Per-cafe breakdown */}
               <Text style={panelStyles.sectionTitle}>{t("lb.panelPerCafe")}</Text>
@@ -1276,15 +1266,6 @@ const panelStyles = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.12)" },
   statValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF" },
   statLabel: { fontSize: 10.5, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
-  rankBadge: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    alignSelf: "center", marginTop: 12,
-    paddingHorizontal: 16, paddingVertical: 8,
-    borderWidth: 1, borderColor: "rgba(232,184,109,0.45)", borderRadius: 20,
-    backgroundColor: "rgba(232,184,109,0.10)",
-  },
-  rankIcon: { fontSize: 16 },
-  rankName: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E8B86D" },
   sectionTitle: {
     fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF",
     marginTop: 20, marginBottom: 10,
