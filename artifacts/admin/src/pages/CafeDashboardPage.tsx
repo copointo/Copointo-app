@@ -1432,6 +1432,46 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
 }
 
 // ── Orders Tab ────────────────────────────────────────────────
+// Small live countdown shown in the corner of each pending/preparing
+// order card. Counts down from `createdAt + prepMinutes`:
+//   • > 50%  remaining → green
+//   • ≤ 50%  remaining → orange (amber)
+//   • ≤ 25%  remaining → red
+// After the deadline passes it shows "-mm:ss" in red. The timer is
+// hidden entirely when the order has no prepMinutes (legacy orders)
+// or when the cashier has marked it ready/done.
+function OrderTimer({ createdAt, prepMinutes }: { createdAt?: string; prepMinutes?: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  if (!createdAt || !prepMinutes || prepMinutes <= 0) return null;
+  const startMs = new Date(createdAt).getTime();
+  if (!Number.isFinite(startMs)) return null;
+  const totalMs = prepMinutes * 60_000;
+  const remainingMs = startMs + totalMs - now;
+  const ratio = remainingMs / totalMs; // 1 → just started, 0 → due, <0 → late
+  const overdue = remainingMs < 0;
+  const absSec = Math.max(0, Math.ceil(Math.abs(remainingMs) / 1000));
+  const mm = String(Math.floor(absSec / 60)).padStart(2, "0");
+  const ss = String(absSec % 60).padStart(2, "0");
+  const tone =
+    overdue || ratio <= 0.25 ? "bg-red-500/20 text-red-400 border-red-500/50"
+    : ratio <= 0.5            ? "bg-amber-500/20 text-amber-400 border-amber-500/50"
+    :                           "bg-emerald-500/20 text-emerald-400 border-emerald-500/50";
+  return (
+    <div
+      className={`absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-bold tabular-nums ${tone}`}
+      dir="ltr"
+      title="الوقت المتبقي لتحضير الطلب"
+    >
+      <Clock size={11} />
+      {overdue ? "-" : ""}{mm}:{ss}
+    </div>
+  );
+}
+
 function OrdersTab({ id }: { id: string }) {
   const [orders, setOrders] = useState<any[]>([]);
   const load = useCallback(
@@ -1643,7 +1683,10 @@ function OrdersTab({ id }: { id: string }) {
       )}
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
       {orders.map(o => (
-        <Card key={o.id} className="p-5">
+        <Card key={o.id} className="p-5 relative">
+          {(o.status === "pending" || o.status === "preparing") && (
+            <OrderTimer createdAt={o.createdAt} prepMinutes={o.prepMinutes} />
+          )}
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
               <p className="font-semibold text-foreground">
