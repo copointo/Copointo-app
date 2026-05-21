@@ -23,6 +23,25 @@ import { MessagesProvider } from "@/context/MessagesContext";
 
 SplashScreen.preventAutoHideAsync();
 
+// ─── Custom-domain redirect: admin domain → /admin/ ───────────────
+// Visitors who land on the admin custom domain should immediately see
+// the admin dashboard instead of the customer mobile app. We do this
+// at the top of _layout.tsx (which runs before any screen renders) so
+// the redirect happens as early as possible. The check is wrapped in
+// a `pathname` guard so the admin app itself (which lives under
+// `/admin`) doesn't get into a redirect loop.
+const ADMIN_HOSTNAMES = [
+  "copointoadmin-al-yaqathan.com",
+  "www.copointoadmin-al-yaqathan.com",
+];
+if (typeof window !== "undefined" && typeof window.location !== "undefined") {
+  const host = window.location.hostname.toLowerCase();
+  const path = window.location.pathname;
+  if (ADMIN_HOSTNAMES.includes(host) && !path.startsWith("/admin")) {
+    window.location.replace("/admin/");
+  }
+}
+
 // Web-only: force the Copointo logo as the browser favicon and inject SEO meta
 // tags. Expo's dev server uses an internal HTML template that ignores
 // `+html.tsx` and serves a default `/favicon.ico`, so we override the head
