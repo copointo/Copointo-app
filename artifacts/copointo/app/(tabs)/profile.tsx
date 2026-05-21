@@ -362,10 +362,63 @@ export default function ProfileScreen() {
             Alert.alert(t("profile.notifTitle"), t("profile.notifWebUnsupported"));
             return;
           }
-          // If permission was already denied, the browser won't re-prompt —
-          // tell the user to flip it from site settings.
+          // If permission was already denied, the browser will NEVER
+          // re-show the request prompt for this origin — that's a hard
+          // W3C/Chrome/Safari/Firefox security rule, no JS API exists
+          // to bypass it. The only path back is for the user to
+          // manually flip the permission in browser site-settings. We
+          // show a per-browser step-by-step guide instead of a generic
+          // "denied" alert.
           if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-            Alert.alert(t("profile.notifTitle"), t("profile.notifDenied"));
+            const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+            const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: unknown }).MSStream;
+            const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+            const isFirefox = /firefox/i.test(ua);
+            const isEdge = /edg/i.test(ua);
+            const isChrome = /chrome/i.test(ua) && !isEdge;
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+
+            let steps = "";
+            if (isIOS) {
+              steps =
+                "على iPhone/iPad:\n" +
+                "1) افتح تطبيق «الإعدادات» (Settings)\n" +
+                "2) Safari ← Advanced ← Website Data، ابحث عن هذا الموقع وامسحه\n" +
+                "   أو: Safari ← Settings for Websites ← Notifications\n" +
+                "3) ارجع للموقع وحدّث الصفحة ثم اضغط الزر مرة أخرى";
+            } else if (isSafari) {
+              steps =
+                "على Safari (Mac):\n" +
+                "1) من القائمة العلوية: Safari ← Settings ← Websites ← Notifications\n" +
+                `2) ابحث عن «${origin}» وغيّر الإعداد إلى Allow أو Ask\n` +
+                "3) أعد تحميل الصفحة (⌘R) ثم اضغط الزر مرة أخرى";
+            } else if (isFirefox) {
+              steps =
+                "على Firefox:\n" +
+                "1) اضغط أيقونة القفل 🔒 بجانب العنوان في الأعلى\n" +
+                "2) عند «إرسال الإشعارات / Send Notifications» اضغط على ✕ لإزالة المنع\n" +
+                "3) أعد تحميل الصفحة ثم اضغط الزر مرة أخرى";
+            } else if (isChrome || isEdge) {
+              steps =
+                "على Chrome/Edge:\n" +
+                "1) اضغط أيقونة القفل 🔒 (أو ⚙️) بجانب العنوان في الأعلى\n" +
+                "2) ابحث عن «إشعارات / Notifications» وغيّرها إلى «السماح / Allow»\n" +
+                "3) أعد تحميل الصفحة ثم اضغط الزر مرة أخرى\n\n" +
+                "أو افتح: chrome://settings/content/notifications وأزل هذا الموقع من قائمة المحظورة.";
+            } else {
+              steps =
+                "اضغط أيقونة القفل 🔒 بجانب عنوان الصفحة في الأعلى، ثم اسمح بـ «الإشعارات / Notifications»، وأعد تحميل الصفحة ثم اضغط الزر مرة أخرى.";
+            }
+
+            const msg =
+              "المتصفح يمنع إرسال الإشعارات لهذا الموقع. للأسف الموقع لا يستطيع فتح نافذة الطلب مرة أخرى تلقائياً — هذا قيد أمني من المتصفح نفسه. الطريقة الوحيدة لإعادة التفعيل:\n\n" +
+              steps;
+
+            if (typeof window !== "undefined" && typeof window.alert === "function") {
+              window.alert(`${t("profile.notifTitle")}\n\n${msg}`);
+            } else {
+              Alert.alert(t("profile.notifTitle"), msg);
+            }
             return;
           }
           const res = await enableWebPush(user.id);
