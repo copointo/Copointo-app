@@ -4,6 +4,8 @@ import logoUrl from "@/assets/copointo-logo.png";
 const ALLOWED_HOSTS = new Set([
   "copointo.com",
   "www.copointo.com",
+  "copointoadmin-al-yaqathan.com",
+  "www.copointoadmin-al-yaqathan.com",
 ]);
 
 function isHostAllowed(hostname: string): boolean {
