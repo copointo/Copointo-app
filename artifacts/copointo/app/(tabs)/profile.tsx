@@ -16,7 +16,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Pressable,
   Switch,
   Text,
   TextInput,
@@ -775,42 +774,88 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Push notifications toggle ──
-            Wrapped in a Pressable so tapping ANYWHERE on the row fires
-            the toggle. RN-Web's <Switch onValueChange> is unreliable
-            (some browsers fail to fire it from inside an async handler
-            controlled component), so we drive the toggle from the row
-            press handler and use the Switch only as a visual indicator.
-            `accessibilityState.disabled` keeps the visual greyed-out
-            look while busy, but we still let the press through so the
-            user gets feedback if they try to spam-tap. */}
-        <Pressable
-          onPress={() => { if (!notifBusy) void handleToggleNotifications(!notifEnabled); }}
-          disabled={notifBusy}
-          style={({ pressed }) => [
-            styles.notifRow,
-            notifEnabled && styles.notifRowOn,
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Feather name="bell" size={17} color={PRIMARY} />
-          <Text style={styles.notifRowText} numberOfLines={1}>
-            {notifBusy
-              ? t("profile.notifBusy")
-              : notifEnabled
-                ? t("profile.notifEnabled")
-                : t("profile.notifEnable")}
-          </Text>
-          {/* Switch is visual-only — pointerEvents=none ensures it never
-              swallows the press, so the parent Pressable always fires. */}
-          <View pointerEvents="none">
-            <Switch
-              value={notifEnabled}
-              trackColor={{ false: "rgba(255,255,255,0.15)", true: "rgba(232,184,109,0.45)" }}
-              thumbColor={notifEnabled ? PRIMARY : "#ddd"}
-              ios_backgroundColor="rgba(255,255,255,0.15)"
-            />
-          </View>
-        </Pressable>
+            On WEB we render a real HTML <button> via React.createElement
+            because RN-Web's Switch/Pressable have repeatedly failed to
+            fire onValueChange/onPress here. A real <button onClick> is
+            the most reliable user-gesture surface on every browser and
+            is guaranteed to preserve the gesture context required by
+            Notification.requestPermission().
+            On native we keep the TouchableOpacity row + Switch indicator. */}
+        {isWeb ? (
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              disabled: notifBusy,
+              onClick: () => { if (!notifBusy) void handleToggleNotifications(!notifEnabled); },
+              style: {
+                marginTop: 12,
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                width: "100%",
+                backgroundColor: notifEnabled ? "rgba(232,184,109,0.10)" : "rgba(255,255,255,0.04)",
+                border: `1px solid ${notifEnabled ? PRIMARY : "rgba(232,184,109,0.25)"}`,
+                borderRadius: 14,
+                padding: "10px 14px",
+                cursor: notifBusy ? "not-allowed" : "pointer",
+                color: PRIMARY,
+                fontFamily: "Inter_700Bold",
+                fontSize: 14,
+                textAlign: "right",
+                opacity: notifBusy ? 0.6 : 1,
+              },
+            },
+            React.createElement(Feather as unknown as React.ComponentType<{ name: string; size: number; color: string }>, { name: "bell", size: 17, color: PRIMARY }),
+            React.createElement(
+              "span",
+              { style: { flex: 1 } },
+              notifBusy
+                ? t("profile.notifBusy")
+                : notifEnabled
+                  ? t("profile.notifEnabled")
+                  : t("profile.notifEnable"),
+            ),
+            React.createElement(
+              "span",
+              {
+                style: {
+                  fontSize: 12,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  backgroundColor: notifEnabled ? PRIMARY : "rgba(255,255,255,0.15)",
+                  color: notifEnabled ? "#000" : "#fff",
+                },
+              },
+              notifEnabled ? "ON" : "OFF",
+            ),
+          )
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => { if (!notifBusy) void handleToggleNotifications(!notifEnabled); }}
+            disabled={notifBusy}
+            style={[styles.notifRow, notifEnabled && styles.notifRowOn]}
+          >
+            <Feather name="bell" size={17} color={PRIMARY} />
+            <Text style={styles.notifRowText} numberOfLines={1}>
+              {notifBusy
+                ? t("profile.notifBusy")
+                : notifEnabled
+                  ? t("profile.notifEnabled")
+                  : t("profile.notifEnable")}
+            </Text>
+            <View pointerEvents="none">
+              <Switch
+                value={notifEnabled}
+                trackColor={{ false: "rgba(255,255,255,0.15)", true: "rgba(232,184,109,0.45)" }}
+                thumbColor={notifEnabled ? PRIMARY : "#ddd"}
+                ios_backgroundColor="rgba(255,255,255,0.15)"
+              />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* ── Support button (above logout) ── */}
         <TouchableOpacity
