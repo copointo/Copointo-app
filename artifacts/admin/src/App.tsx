@@ -155,20 +155,23 @@ function CommunitiesWrapped() {
 // `copointo.com/admin/cafe/:id`).
 //
 // Detection rules:
-//   • Any hostname containing "admin" (case-insensitive) is the admin
-//     domain — matches `copointoadmin-al-yaqathan.com` and any future
-//     *admin* subdomain without a hardcoded list.
+//   • Exact match for `copointoadmin-al-yaqathan.com` (with or without
+//     the `www.` prefix) is the only public hostname allowed.
 //   • `localhost`, `*.replit.dev`, `*.replit.app` are also treated as
 //     admin so dev/preview/deploy debugging keeps working.
-//   • Everything else (e.g. `copointo.com`) blocks the super-admin
-//     pages and shows a notice instead.
+//   • Everything else (e.g. `copointo.com`, any other custom domain)
+//     blocks the super-admin pages and shows a notice instead.
+const ADMIN_HOSTS = new Set([
+  "copointoadmin-al-yaqathan.com",
+  "www.copointoadmin-al-yaqathan.com",
+]);
 function isAdminDomain(): boolean {
   if (typeof window === "undefined") return true;
   const h = window.location.hostname.toLowerCase();
   if (h === "localhost" || h === "127.0.0.1") return true;
   if (h.endsWith(".replit.dev")) return true;
   if (h.endsWith(".replit.app")) return true;
-  return /admin/.test(h);
+  return ADMIN_HOSTS.has(h);
 }
 
 function SuperAdminBlocked() {
