@@ -1400,10 +1400,19 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
             )}
             <div className="flex justify-between text-base font-bold pt-1">
               <span className="text-foreground">المستحق</span>
-              <span className={`tabular-nums ${freeOrder ? "text-amber-400" : "text-primary"}`}>
-                {finalTotal.toFixed(3)} OMR
-                {freeOrder && <span className="text-[10px] mr-1">(مجاني)</span>}
-              </span>
+              {freeOrder ? (
+                <span className="tabular-nums text-amber-400 flex items-center gap-2">
+                  <span className="line-through text-muted-foreground text-sm font-normal">
+                    {afterDiscount.toFixed(3)} OMR
+                  </span>
+                  <span>0.000 OMR</span>
+                  <span className="text-[10px]">(مجاني)</span>
+                </span>
+              ) : (
+                <span className="tabular-nums text-primary">
+                  {finalTotal.toFixed(3)} OMR
+                </span>
+              )}
             </div>
           </div>
 
