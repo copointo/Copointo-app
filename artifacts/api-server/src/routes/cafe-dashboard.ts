@@ -478,6 +478,15 @@ function awardOrderProgress(order: any) {
     const u = users.find(u => u.phone === order.customerPhone);
     if (u) {
       u.totalOrders += drinks;
+      // Bump the game level too — mirrors the mobile client's `addCafeOrder`
+      // logic (each drink = 1 level, cap 999). This is critical for DIRECT
+      // in-cafe orders: the customer never opens the app for that purchase,
+      // so the client-side level computation never runs. Without this the
+      // user's total-coffee count would grow while their game level stays
+      // frozen (the exact bug the cashier reported). `/users/progress` only
+      // ever increases values, so this is safe to recompute even when the
+      // app later syncs back from another device.
+      u.level = Math.min(999, (u.level ?? 0) + drinks);
       const cafe = cafes.find(c => c.id === order.cafeId);
       // Push: drink-progress credited to the player. The milestone push
       // (free coffee) is fired separately inside awardMilestoneCoffees.
