@@ -959,8 +959,12 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     .map(it => ({ ...it, qty: cart[it.id] }));
   const itemCount = cartLines.reduce((s, l) => s + l.qty, 0);
   const subtotal  = cartLines.reduce((s, l) => s + (Number(l.price) || 0) * l.qty, 0);
+  // Only hot/cold drinks count toward game level / coffee tally.
+  // Allow-list (not deny-list) so legacy items with missing/typo'd category
+  // never accidentally bump the player's level. Must stay in sync with the
+  // server's `awardOrderProgress` drink count in cafe-dashboard.ts.
   const drinkCount = cartLines.reduce(
-    (s, l) => s + (l.category === "حلى" || l.category === "طعام" ? 0 : l.qty),
+    (s, l) => s + (l.category === "مشروب ساخن" || l.category === "مشروبات باردة" ? l.qty : 0),
     0,
   );
 

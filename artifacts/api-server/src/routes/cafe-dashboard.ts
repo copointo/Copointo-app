@@ -465,13 +465,16 @@ function awardOrderProgress(order: any) {
   }
   // Always recompute drinks server-side from items so we cannot be over-credited
   // by a client (chat / mobile / direct) that sent an inflated `drinkCount`.
-  // Only drinks count toward game progress. Anything explicitly tagged as a
-  // non-drink category (food/dessert) is excluded.
+  // ONLY hot and cold drinks count toward game progress / loyalty milestones.
+  // Allow-list (not deny-list) so legacy/typo'd categories never leak into the
+  // tally — desserts (حلى), food (طعام), and anything else are excluded.
   const drinks = Array.isArray(order.items)
     ? order.items.reduce((s: number, it: any) => {
         const cat = String(it.category ?? "");
-        if (cat === "حلى" || cat === "طعام") return s;
-        return s + (Number(it.qty) || 0);
+        if (cat === "مشروب ساخن" || cat === "مشروبات باردة") {
+          return s + (Number(it.qty) || 0);
+        }
+        return s;
       }, 0)
     : 0;
   if (drinks > 0) {
