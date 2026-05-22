@@ -676,6 +676,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
       return next;
     });
+    // ── Mirror server-side level/totalOrders bumps into the CURRENT user
+    // state too. This is critical for DIRECT in-cafe orders: the cashier
+    // credits drinks to the customer's account via the cafe dashboard while
+    // the customer is NOT touching the app, so the local `addCafeOrder`
+    // path never runs. Without this sync, the bumped level only shows up
+    // on other devices' leaderboards — the owning device's own Profile /
+    // Game tab would stay frozen until next login. Server is monotonic
+    // (`/users/progress` only increases), so taking max() is safe.
+    const myId = currentUserIdRef.current;
+    if (myId) {
+      const mine = remote.find(r => r.id === myId);
+      if (mine) {
+        setUserState(prev => {
+          if (!prev || prev.id !== myId) return prev;
+          const remoteLvl    = mine.level ?? 0;
+          const remoteOrders = mine.totalOrders ?? 0;
+          const localLvl     = prev.level ?? 0;
+          const localOrders  = prev.totalOrders ?? 0;
+          if (remoteLvl <= localLvl && remoteOrders <= localOrders) return prev;
+          const updated: User = {
+            ...prev,
+            level:       Math.max(localLvl, remoteLvl),
+            totalOrders: Math.max(localOrders, remoteOrders),
+          };
+          AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
+      }
+    }
   }, []);
 
   // Initial roster sync — runs once after AsyncStorage hydrates so the

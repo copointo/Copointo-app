@@ -909,7 +909,7 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
   // probe the server and (if matched) lock the player so loyalty points are
   // awarded on this direct order.
   const [customerPhone, setCustomerPhone] = useState("");
-  const [matchedUser, setMatchedUser] = useState<null | { id: string; username: string; phone: string; level: number }>(null);
+  const [matchedUser, setMatchedUser] = useState<null | { id: string; username: string; phone: string; level: number; totalOrders: number }>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupTried, setLookupTried] = useState(false);
   const [cart, setCart]             = useState<Record<string, number>>({});
@@ -1240,13 +1240,25 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
                 }`}
               />
               {matchedUser ? (
-                <div className="mt-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40 flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-bold shrink-0">✓</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-emerald-300 truncate">{matchedUser.username}</p>
-                    <p className="text-[10px] text-emerald-300/70 tabular-nums" dir="ltr">{matchedUser.phone} · Lv {matchedUser.level}</p>
+                <div className="mt-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-bold shrink-0">✓</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-emerald-300 truncate">{matchedUser.username}</p>
+                      <p className="text-[10px] text-emerald-300/70 tabular-nums" dir="ltr">{matchedUser.phone} · Lv {matchedUser.level} · ☕ {matchedUser.totalOrders}</p>
+                    </div>
+                    <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-1 rounded-md">سيُحتسب</span>
                   </div>
-                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-1 rounded-md">سيُحتسب</span>
+                  {drinkCount > 0 ? (
+                    <div className="text-[11px] text-emerald-200 bg-emerald-500/10 rounded-md px-2 py-1.5 leading-tight">
+                      🎮 سيُضاف لمستواه <b className="text-emerald-300">+{drinkCount}</b> {drinkCount === 1 ? "كوب" : "كوب"} من هذا الطلب
+                      <span className="block text-emerald-300/70 tabular-nums mt-0.5" dir="ltr">
+                        Lv {matchedUser.level} → Lv {Math.min(999, matchedUser.level + drinkCount)} · ☕ {matchedUser.totalOrders} → {matchedUser.totalOrders + drinkCount}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-emerald-300/70">اختر منتجات (مشروبات) ليُحتسب لها مستوى.</p>
+                  )}
                 </div>
               ) : customerPhone.trim() && lookupTried && !lookingUp ? (
                 <p className="mt-1 text-[11px] text-orange-400">⚠️ غير مسجَّل في Copointo Hub — لن تُحتسب نقاط</p>
