@@ -621,14 +621,19 @@ export default function GameScreen() {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
       }]}>
 
-        {/* My Collection — اغراضي (purple) */}
+        {/* Communities — انشاء مجتمع (blue) */}
         <TouchableOpacity
-          style={[styles.fabThemed, { backgroundColor: "#9B59E8", shadowColor: "#9B59E8" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
+          style={[styles.fabThemed, { backgroundColor: "#4A90E2", shadowColor: "#4A90E2" }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
           activeOpacity={0.85}
         >
-          <Feather name="package" size={22} color="#FFF" />
-          <Text style={styles.fabThemedLabel}>اغراضي</Text>
+          <Feather name="users" size={22} color="#FFF" />
+          <Text style={styles.fabThemedLabel}>انشاء مجتمع</Text>
+          {incomingInvites.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{incomingInvites.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Store — المتجر (green) */}
@@ -660,19 +665,14 @@ export default function GameScreen() {
           <Text style={styles.fabThemedLabel}>المتجر</Text>
         </TouchableOpacity>
 
-        {/* Communities — انشاء مجتمع (blue) */}
+        {/* My Collection — اغراضي (purple) */}
         <TouchableOpacity
-          style={[styles.fabThemed, { backgroundColor: "#4A90E2", shadowColor: "#4A90E2" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
+          style={[styles.fabThemed, { backgroundColor: "#9B59E8", shadowColor: "#9B59E8" }]}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
           activeOpacity={0.85}
         >
-          <Feather name="users" size={22} color="#FFF" />
-          <Text style={styles.fabThemedLabel}>انشاء مجتمع</Text>
-          {incomingInvites.length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{incomingInvites.length}</Text>
-            </View>
-          )}
+          <Feather name="package" size={22} color="#FFF" />
+          <Text style={styles.fabThemedLabel}>اغراضي</Text>
         </TouchableOpacity>
 
         {/* Leaderboard - purple distinctive */}
