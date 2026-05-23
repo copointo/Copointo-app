@@ -31,6 +31,12 @@ export const FRAMES: FrameDef[] = [
   { id: "frame-19", name: "إطار إكليل الزهور",     source: require("../assets/images/frames/frame-19.png"), price: 5000 },
   { id: "frame-20", name: "إطار السحر الأزرق",     source: require("../assets/images/frames/frame-20.png"), price: 5000 },
   { id: "frame-21", name: "إطار الأجنحة الذهبية",  source: require("../assets/images/frames/frame-21.png"), price: 5000 },
+  { id: "frame-22", name: "إطار الشوك الأرجواني",  source: require("../assets/images/frames/frame-22.png"), price: 5000 },
+  { id: "frame-23", name: "إطار الزمرد القوطي",    source: require("../assets/images/frames/frame-23.png"), price: 5000 },
+  { id: "frame-24", name: "إطار الجليد الجناحي",   source: require("../assets/images/frames/frame-24.png"), price: 5000 },
+  { id: "frame-25", name: "إطار الكون الذهبي",     source: require("../assets/images/frames/frame-25.png"), price: 5000 },
+  { id: "frame-26", name: "إطار البخار النحاسي",   source: require("../assets/images/frames/frame-26.png"), price: 5000 },
+  { id: "frame-27", name: "إطار القلب الوردي",     source: require("../assets/images/frames/frame-27.png"), price: 5000 },
 ];
 
 export function getFrame(id: string | null): FrameDef | null {
