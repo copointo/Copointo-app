@@ -57,7 +57,9 @@ export default function OrderTimerScreen() {
   const cafeId    = params.cafeId;
   const cafeName  = params.cafeName ?? "";
   const totalMin  = Math.max(1, Number(params.minutes ?? "3"));
-  const drinkQty  = Math.max(1, Number(params.drinks  ?? "1"));
+  // Drink-only count. Desserts/food orders send `drinks=0` — do NOT coerce to 1,
+  // otherwise the local level would inflate for non-drink orders.
+  const drinkQty  = (() => { const n = Number(params.drinks ?? "0"); return Math.max(0, Number.isFinite(n) ? n : 0); })();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -122,7 +124,7 @@ export default function OrderTimerScreen() {
           // Manager confirmed → award per-café progress (drink count) immediately.
           awardedRef.current = true;
           setPointsAwarded(drinkQty);
-          if (user) {
+          if (user && drinkQty > 0) {
             addCafeOrder(cafeId, cafeName, drinkQty);
           }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

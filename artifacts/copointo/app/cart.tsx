@@ -307,6 +307,12 @@ export default function CartScreen() {
       const cafeId   = cart[0].cafeId;
       const cafeName = cart[0].cafeName;
       const totalQty = cart.reduce((s, i) => s + i.quantity, 0);
+      // Drink-only count for game/level progress. حلى و طعام لا تزيد المستوى
+      // ولا عدد الكوفي — يجب أن يطابق السيرفر (awardOrderProgress).
+      const drinkQty = cart.reduce(
+        (s, i) => s + (i.category === "مشروب ساخن" || i.category === "مشروبات باردة" ? i.quantity : 0),
+        0,
+      );
       const prepMin  = totalQty * 3; // 3 minutes per item
       const customerName   = isDine ? dineName.trim() : carName.trim();
       const customerNameEn = isDine ? dineNameEn.trim() : carNameEn.trim();
@@ -394,7 +400,7 @@ export default function CartScreen() {
         cafeId,
         cafeName,
         prepMinutes: prepMin,
-        drinkQty: totalQty,
+        drinkQty,
         startedAt: Date.now(),
       });
       clearCart();
@@ -405,7 +411,7 @@ export default function CartScreen() {
           cafeId,
           cafeName,
           minutes: String(prepMin),
-          drinks: String(totalQty),
+          drinks: String(drinkQty),
         },
       });
     } catch (e: any) {
