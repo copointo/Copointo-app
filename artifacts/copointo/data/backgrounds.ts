@@ -39,6 +39,13 @@ export const BACKGROUNDS: BackgroundDef[] = [
   { id: "bg-18", name: "ذهب وردي",       colors: ["#7A1F3D", "#C2185B", "#E8B86D"],             highlight: "#FFD9C2", effect: "aurora" },
   { id: "bg-19", name: "ليل عميق",       colors: ["#1E3A8A", "#0F172A", "#000000"],             highlight: "#60A5FA", effect: "aurora" },
   { id: "bg-20", name: "نار ملكية",      colors: ["#7F1D1D", "#EA580C", "#FACC15"],             highlight: "#FCD34D", effect: "aurora" },
+
+  // ───── Tier 5 (21-25): فخامة قصوى — 20,000 coins ─────
+  { id: "bg-21", name: "تاج الإمبراطور",  colors: ["#FFD700", "#B8860B", "#3B2410", "#000000"], highlight: "#FFF3B0", effect: "aurora" },
+  { id: "bg-22", name: "ألماس أسود",      colors: ["#0F0F0F", "#1F2937", "#6B7280", "#E5E7EB"], highlight: "#FFFFFF", effect: "aurora" },
+  { id: "bg-23", name: "ذهب وردي ملكي",   colors: ["#4A0E2E", "#9D174D", "#E11D48", "#F9A8D4"], highlight: "#FFE4E6", effect: "aurora" },
+  { id: "bg-24", name: "زفير ملكي",       colors: ["#0A0F4F", "#1E3A8A", "#3B82F6", "#93C5FD"], highlight: "#DBEAFE", effect: "aurora" },
+  { id: "bg-25", name: "زمرد الأساطير",   colors: ["#022C22", "#065F46", "#10B981", "#6EE7B7"], highlight: "#D1FAE5", effect: "aurora" },
 ];
 
 export function getBackground(id: string | null): BackgroundDef | null {

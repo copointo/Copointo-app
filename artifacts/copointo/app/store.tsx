@@ -286,7 +286,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
         <View style={styles.bgGrid} key="backgrounds">
           {BACKGROUNDS.map((bg, i) => {
             const owned = ownedBackgrounds.includes(bg.id);
-            const price = i < 10 ? 1000 : i < 15 ? 5000 : 10000;
+            const price = i < 10 ? 1000 : i < 15 ? 5000 : i < 20 ? 10000 : 20000;
             const tint = itemTheme(bg.highlight ?? bg.colors[0]);
             return (
               <FadeInItem key={bg.id} index={i} style={{ width: "48%" }}>
