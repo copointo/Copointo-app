@@ -6,11 +6,13 @@ import { GIFTS } from "../data/gifts";
 const KEY = "copointo_gift_inventory_v1";
 
 // Starter pack: every brand-new user (no inventory key yet) gets 5 of each
-// gift type so they can immediately try sending gifts to friends without
-// having to grind coins first.
+// CHEAP gift only (price ≤ 50). Premium/cinematic gifts (500/750 coins)
+// must be purchased — the freebie is meant to let newcomers try sending
+// the basic gifts to friends, not to hand out expensive ones for free.
 const STARTER_QTY_PER_GIFT = 5;
+const STARTER_PRICE_CAP = 50;
 const STARTER_INVENTORY: Record<string, number> = Object.fromEntries(
-  GIFTS.map(g => [g.id, STARTER_QTY_PER_GIFT]),
+  GIFTS.filter(g => g.price <= STARTER_PRICE_CAP).map(g => [g.id, STARTER_QTY_PER_GIFT]),
 );
 
 export type GiftInventory = Record<string, number>;
