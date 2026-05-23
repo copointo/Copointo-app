@@ -660,21 +660,6 @@ export default function GameScreen() {
           <Text style={styles.fabThemedLabel}>المتجر</Text>
         </TouchableOpacity>
 
-        {/* My Cafés — مستوى الكافيهات (orange) */}
-        <TouchableOpacity
-          style={[styles.fabThemed, { backgroundColor: "#FF8A3D", shadowColor: "#FF8A3D" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="coffee" size={22} color="#FFF" />
-          <Text style={styles.fabThemedLabel}>مستوى الكافيهات</Text>
-          {cafeIds.length > 0 && (
-            <View style={styles.cafeCountBadge}>
-              <Text style={styles.cafeCountText}>{cafeIds.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
         {/* Communities — انشاء مجتمع (blue) */}
         <TouchableOpacity
           style={[styles.fabThemed, { backgroundColor: "#4A90E2", shadowColor: "#4A90E2" }]}
@@ -701,6 +686,25 @@ export default function GameScreen() {
         </TouchableOpacity>
 
       </View>
+
+      {/* My Cafés - sits directly above الهدايا المرسلة on the LEFT (orange) */}
+      <TouchableOpacity
+        style={[styles.fabSentGifts, {
+          backgroundColor: "#FF8A3D",
+          shadowColor: "#FF8A3D",
+          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 84 + 84,
+        }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/my-cafes"); }}
+        activeOpacity={0.85}
+      >
+        <Feather name="coffee" size={22} color="#FFF" />
+        <Text style={styles.fabSentGiftsLabel}>مستوى الكافيهات</Text>
+        {cafeIds.length > 0 && (
+          <View style={styles.cafeCountBadge}>
+            <Text style={styles.cafeCountText}>{cafeIds.length}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       {/* Sent Gifts - sits directly above المستويات on the LEFT */}
       <TouchableOpacity
