@@ -14,6 +14,24 @@ function broadcast(n: number) {
   _listeners.forEach(l => l(n));
 }
 
+/**
+ * ⚠️ TEMP DEV-ONLY: idempotent grant used by AppContext when a demo /
+ * skip-login user signs in. Bumps the balance to at least `floor` coins
+ * exactly once per device install (guarded by `markerKey` in AsyncStorage).
+ * Safe to call from any module — also broadcasts so live `useCoins()`
+ * consumers re-render. Remove together with the skip-login button.
+ */
+export async function grantDevDemoCoinsOnce(floor: number, markerKey: string) {
+  const already = await AsyncStorage.getItem(markerKey);
+  if (already) return;
+  const raw = await AsyncStorage.getItem(KEY);
+  const current = raw ? parseInt(raw, 10) || 0 : 0;
+  const next = Math.max(current, Math.floor(floor));
+  await AsyncStorage.setItem(KEY, String(next));
+  await AsyncStorage.setItem(markerKey, "1");
+  broadcast(next);
+}
+
 export function useCoins() {
   const [balance, setBalance] = useState<number>(_cache ?? 0);
   const [hydrated, setHydrated] = useState<boolean>(_cache !== null);

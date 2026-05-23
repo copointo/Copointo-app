@@ -22,6 +22,7 @@ import "@/hooks/useUsernameColors";
 import "@/hooks/useTextStyles";
 import "@/hooks/useCharacters";
 import "@/hooks/useCoins";
+import { grantDevDemoCoinsOnce } from "@/hooks/useCoins";
 import "@/hooks/useGiftInventory";
 
 /**
@@ -509,8 +510,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ⚠️ TEMP DEV-ONLY: when a demo / skip-login user is signed in, inject a
   // handful of fake target users into the leaderboard so the tester can
-  // gift them, message them, etc. Remove together with the skip-login
-  // button in AuthModal.tsx.
+  // gift them, message them, etc. Also tops the coin balance up to 50,000
+  // for testing gift purchases. Remove together with the skip-login button
+  // in AuthModal.tsx.
   useEffect(() => {
     if (!user?.id?.startsWith("demo_")) return;
     const targets: User[] = [
@@ -523,6 +525,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const additions = targets.filter(t => !existing.has(t.id));
       return additions.length === 0 ? prev : [...prev, ...additions];
     });
+    grantDevDemoCoinsOnce(50000, `copointo_demo_50k_grant_v1_${user.id}`).catch(() => {});
   }, [user?.id, registeredUsers]);
   const [initialAuthStep, setInitialAuthStep] = useState<"login" | "register-form" | null>(null);
   const consumeInitialAuthStep = useCallback(() => setInitialAuthStep(null), []);
