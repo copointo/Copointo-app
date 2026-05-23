@@ -27,7 +27,7 @@ interface GiftEvent {
   createdAt: string;
 }
 
-const PRIMARY = "#E8B86D";
+const PRIMARY = "#E8484C";
 const GIFT_BY_ID = new Map<string, GiftDef>(GIFTS.map(g => [g.id, g]));
 
 function formatWhen(iso: string): { date: string; time: string } {
