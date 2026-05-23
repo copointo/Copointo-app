@@ -67,12 +67,12 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
       driftX: (Math.random() - 0.5) * 80,
       rotateDir: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
       size: gift.singleParticle
-        ? Math.min(SCREEN_W, SCREEN_H) * 0.7
+        ? Math.min(SCREEN_W, SCREEN_H) * 0.32
         : gift.tier === 3
-        ? 56 + Math.random() * 26
+        ? 28 + Math.random() * 14
         : gift.tier === 2
-        ? 44 + Math.random() * 18
-        : 34 + Math.random() * 14,
+        ? 22 + Math.random() * 10
+        : 18 + Math.random() * 8,
     }));
   }, [gift?.id, visibleCount]);
 
@@ -524,7 +524,7 @@ function ZoomHero({ gift, duration }: { gift: GiftDef; duration: number }) {
       ]).start();
     }
   }, []);
-  const size = Math.min(SCREEN_W, SCREEN_H) * (imageOnly ? 0.95 : gift.image ? 0.7 : 0.45);
+  const size = Math.min(SCREEN_W, SCREEN_H) * (imageOnly ? 0.4 : gift.image ? 0.32 : 0.22);
   const scale = t.interpolate({ inputRange: [0, 1], outputRange: [0.1, 1] });
   const rotate = t.interpolate({ inputRange: [0, 1], outputRange: ["-180deg", "0deg"] });
   if (gift.image) {
