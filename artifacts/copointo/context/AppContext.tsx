@@ -25,6 +25,87 @@ import "@/hooks/useCoins";
 import "@/hooks/useGiftInventory";
 
 /**
+ * Wipe device-scoped account data (coins, gift inventory, owned/equipped
+ * cosmetics, cart, order history, welcome-bonus flags, etc.) so a NEW user
+ * signing in on this phone starts from a clean slate instead of inheriting
+ * the previous account's wallet and items. Mirrors `deleteAccount`'s local
+ * cleanup but does NOT touch the server — the previous account is left
+ * intact, only its on-device footprint is cleared.
+ *
+ * Per-user keyed data (`friends:${id}`, `copointo_chats_v2:${id}`, etc.)
+ * is intentionally NOT wiped here — those are already scoped to the user
+ * id and won't bleed across accounts on hydration.
+ */
+async function wipeDeviceAccountData(prevUserId: string | null): Promise<void> {
+  const emptyArrayKeys = [
+    "copointo_frames_owned_v3",
+    "copointo_badges_owned_v3",
+    "copointo_backgrounds_owned_v3",
+    "copointo_username_colors_owned_v1",
+    "copointo_text_styles_owned_v1",
+    "copointo_characters_owned_v1",
+  ];
+  const emptyStringKeys = [
+    "copointo_frame_equipped_v3",
+    "copointo_badge_equipped_v3",
+    "copointo_background_equipped_v3",
+    "copointo_username_color_equipped_v1",
+    "copointo_text_style_equipped_v1",
+    "copointo_character_equipped_v1",
+  ];
+  const emptyWrites: [string, string][] = [
+    ...emptyArrayKeys.map(k => [k, "[]"] as [string, string]),
+    ...emptyStringKeys.map(k => [k, ""] as [string, string]),
+    ["copointo_gift_inventory_v1", "{}"],
+    ["copointo_coins_balance_v1", "0"],
+  ];
+  try { await AsyncStorage.multiSet(emptyWrites); } catch {}
+
+  const removeKeys = [
+    "cart", "orderHistory", "likedVideos",
+    // Drop welcome-bonus + level-reward acks so the new account on this
+    // device gets the full new-user experience (200-coin signup bonus,
+    // reward popups, milestone alerts).
+    "copointo_coins_grant_signup_200_v1",
+    "copointo_coins_grant_190k_v1",
+    "copointo_coin_milestones_acked_v1",
+    "copointo_level_rewards_acked_v1",
+    "copointo_booking_last_seen_v1",
+    "copointo_broadcast_last_seen_v1",
+    "copointo_free_coffee_last_seen_v1",
+    "copointo_gift_feed_last_seen_v1",
+    "copointo_saved_order_info_v1",
+  ];
+  if (prevUserId) {
+    removeKeys.push(
+      `friends:${prevUserId}`,
+      `friend_requests_in:${prevUserId}`,
+      `friend_requests_out:${prevUserId}`,
+      `activeGameCafeId:${prevUserId}`,
+      `copointo_chats_v2:${prevUserId}`,
+      `copointo_unread_v2:${prevUserId}`,
+      `copointo_groups_v2:${prevUserId}`,
+      `copointo_rank_ahead_v1:${prevUserId}`,
+    );
+  }
+  try { await AsyncStorage.multiRemove(removeKeys); } catch {}
+
+  // Sweep per-cafe chat-bot drafts (keys we don't know up-front) so no
+  // order/booking draft with the previous user's name+phone survives.
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const cafeChatKeys = allKeys.filter(k => k.startsWith("copointo_chat_state_v1_"));
+    if (cafeChatKeys.length) await AsyncStorage.multiRemove(cafeChatKeys);
+  } catch {}
+
+  // Flush every cosmetic/coin/inventory hook's module-level `_cache` and
+  // broadcast empty defaults so the React tree reflects the wipe
+  // immediately. Without this, the new account inherits the previous
+  // user's loadout in-memory until full app reload.
+  try { runAccountResetHandlers(); } catch {}
+}
+
+/**
  * Reserve a `gameUsername` for a user on the API server. The server is the
  * single source of truth for username uniqueness across all devices, since
  * each mobile client only sees its own AsyncStorage. Returns ok on success
@@ -864,6 +945,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           otpToken,
         });
         if (!synced.ok) return synced;
+        // A brand-new account must NEVER inherit coins/items/cart from any
+        // previous account that was used on this phone. Wipe device-scoped
+        // state before we persist the new currentUser. Pulls prevUserId
+        // from AsyncStorage so per-user keyed data is also cleared.
+        try {
+          const prevRaw = await AsyncStorage.getItem("currentUser");
+          const prevId  = prevRaw ? (JSON.parse(prevRaw)?.id ?? null) : null;
+          await wipeDeviceAccountData(prevId);
+        } catch {}
         const updated = [...users, newUser];
         await AsyncStorage.setItem("registeredUsers", JSON.stringify(updated));
         await AsyncStorage.setItem("currentUser", JSON.stringify(newUser));
@@ -1041,6 +1131,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // survives a restart.
       await AsyncStorage.setItem("registeredUsers", JSON.stringify(users));
       setRegisteredUsers(users);
+      // If a DIFFERENT account was previously signed in on this device,
+      // wipe device-scoped state (coins, gift inventory, owned/equipped
+      // cosmetics, cart, etc.) so this account doesn't inherit the
+      // previous user's wallet and items. Same-user re-login is left
+      // untouched so a session refresh doesn't nuke their own progress.
+      try {
+        const prevRaw = await AsyncStorage.getItem("currentUser");
+        const prevId  = prevRaw ? (JSON.parse(prevRaw)?.id ?? null) : null;
+        if (prevId && prevId !== found.id) {
+          await wipeDeviceAccountData(prevId);
+        }
+      } catch {}
       await AsyncStorage.setItem("currentUser", JSON.stringify(found));
       const [fRaw, inRaw, outRaw] = await Promise.all([
         AsyncStorage.getItem(`friends:${found.id}`),
