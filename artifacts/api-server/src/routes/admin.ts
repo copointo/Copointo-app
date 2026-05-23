@@ -393,6 +393,20 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
   if (levelDelta !== 0) {
     user.level = Math.max(0, Math.min(999, (user.level ?? 0) + Math.trunc(levelDelta)));
   }
+  // Mirror the bump into per-cafe progress for the chosen awardCafeId so the
+  // mobile game tab (which reads `cafeProgress[activeCafe].level`, NOT the
+  // global `user.level`) actually reflects the admin adjustment. Without
+  // this, the global level updates but the in-game level stays stuck.
+  if (awardCafeId) {
+    const cafeExists = cafes.find(c => c.id === awardCafeId);
+    if (cafeExists) {
+      const prog = (user.cafeProgress ??= {});
+      const curr = prog[awardCafeId] ?? { totalOrders: 0, level: 0 };
+      const nextLevel  = Math.max(0, Math.min(999, curr.level       + Math.trunc(levelDelta)));
+      const nextOrders = Math.max(0,                curr.totalOrders + Math.trunc(ordersDelta));
+      prog[awardCafeId] = { level: nextLevel, totalOrders: nextOrders };
+    }
+  }
   let newlyAwarded = 0;
   if (ordersDelta !== 0) {
     const before = user.totalOrders ?? 0;

@@ -76,6 +76,10 @@ export interface PublicServerUser {
   equippedCharacter?: string | null;
   equippedUsernameColor?: string | null;
   equippedTextStyle?: string | null;
+  /** Per-cafe progress mirrored from the server. Set by super-admin
+   *  adjust-progress with an awardCafeId. Mobile merges via Math.max so
+   *  device-side progress is never rolled back. */
+  cafeProgress?: Record<string, { totalOrders: number; level: number }> | null;
 }
 
 /** Push the signed-in user's profile bits (name / avatar / gender) to the
@@ -694,11 +698,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const remoteOrders = mine.totalOrders ?? 0;
           const localLvl     = prev.level ?? 0;
           const localOrders  = prev.totalOrders ?? 0;
-          if (remoteLvl <= localLvl && remoteOrders <= localOrders) return prev;
+          // Per-cafe progress merge: super-admin adjust-progress with an
+          // awardCafeId writes per-cafe level/totalOrders on the server. The
+          // mobile game tab reads `cafeProgress[activeCafe].level` so without
+          // this merge the in-game level stays frozen even though the global
+          // level updates. Math.max keeps device-side progress authoritative.
+          const localProg  = prev.cafeProgress ?? {};
+          const remoteProg = mine.cafeProgress ?? {};
+          let progChanged = false;
+          const mergedProg: Record<string, CafeProgress> = { ...localProg };
+          for (const [cafeId, rp] of Object.entries(remoteProg)) {
+            const lp = localProg[cafeId];
+            const nextLvl    = Math.max(lp?.level       ?? 0, rp.level       ?? 0);
+            const nextOrders = Math.max(lp?.totalOrders ?? 0, rp.totalOrders ?? 0);
+            if (!lp || nextLvl !== lp.level || nextOrders !== lp.totalOrders) {
+              mergedProg[cafeId] = {
+                cafeId,
+                cafeName: lp?.cafeName ?? cafeId,
+                level: nextLvl,
+                totalOrders: nextOrders,
+              };
+              progChanged = true;
+            }
+          }
+          // Global level rises to the max across all (possibly newly-merged) cafes
+          // so Profile / Leaderboard stay consistent with the cafe view.
+          const maxCafeLvl = Math.max(0, ...Object.values(mergedProg).map(c => c.level));
+          const nextGlobalLvl    = Math.max(localLvl, remoteLvl, maxCafeLvl);
+          const nextGlobalOrders = Math.max(localOrders, remoteOrders);
+          if (
+            !progChanged &&
+            nextGlobalLvl === localLvl &&
+            nextGlobalOrders === localOrders
+          ) return prev;
           const updated: User = {
             ...prev,
-            level:       Math.max(localLvl, remoteLvl),
-            totalOrders: Math.max(localOrders, remoteOrders),
+            level:       nextGlobalLvl,
+            totalOrders: nextGlobalOrders,
+            cafeProgress: progChanged ? mergedProg : prev.cafeProgress,
           };
           AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
           return updated;

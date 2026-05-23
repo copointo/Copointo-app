@@ -37,6 +37,12 @@ export interface AppUser {
   equippedCharacter?: string | null;
   equippedUsernameColor?: string | null;
   equippedTextStyle?: string | null;
+  /** Per-cafe progress mirror so super-admin level/order bumps reach the
+   *  mobile game tab (which reads from `cafeProgress[activeCafe]`, NOT the
+   *  global `level`). Keyed by cafeId. Only ever grown by the server when an
+   *  admin adjusts progress with an `awardCafeId`; the mobile client merges
+   *  via Math.max so device-side progress is never rolled back. */
+  cafeProgress?: Record<string, { totalOrders: number; level: number }>;
 }
 export interface MenuItem {
   id: string; cafeId: string; name: string; price: number;

@@ -925,6 +925,9 @@ router.get("/users/public", (_req, res) => {
         equippedCharacter:     u.equippedCharacter     ?? null,
         equippedUsernameColor: u.equippedUsernameColor ?? null,
         equippedTextStyle:     u.equippedTextStyle     ?? null,
+        // Per-cafe progress mirror (admin-adjusted). Mobile merges via
+        // Math.max so device-side progress is never rolled back.
+        cafeProgress: u.cafeProgress ?? null,
       })),
   });
 });
