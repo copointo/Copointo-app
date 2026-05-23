@@ -698,6 +698,18 @@ export default function GameScreen() {
 
       </View>
 
+      {/* Sent Gifts - sits directly above المستويات on the LEFT */}
+      <TouchableOpacity
+        style={[styles.fabSentGifts, {
+          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 84,
+        }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/sent-gifts"); }}
+        activeOpacity={0.85}
+      >
+        <Feather name="gift" size={22} color="#000" />
+        <Text style={styles.fabLevelsLabel}>الهدايا المرسلة</Text>
+      </TouchableOpacity>
+
       {/* Levels - gold, mirrors Leaderboard on the LEFT */}
       <TouchableOpacity
         style={[styles.fabLevels, {
@@ -1084,6 +1096,18 @@ const styles = StyleSheet.create({
   fabLeaderboardLabel: {
     fontSize: 11, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
+  },
+  fabSentGifts: {
+    position: "absolute",
+    left: 20,
+    width: 72, height: 72, borderRadius: 20,
+    alignItems: "center", justifyContent: "center", gap: 3,
+    paddingHorizontal: 4,
+    backgroundColor: PRIMARY,
+    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
+    zIndex: 60,
   },
   fabLevels: {
     position: "absolute",
