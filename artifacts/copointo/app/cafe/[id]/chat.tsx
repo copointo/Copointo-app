@@ -393,6 +393,12 @@ export default function CafeChatScreen() {
   // id change or unmount). The brief typing flash is purely cosmetic and is
   // self-clearing via a short, independent timer that does not gate the push.
   const pushBot = (text: string, quickReplies?: QuickReply[]) => {
+    // Push the bot reply synchronously so the user ALWAYS sees a response —
+    // never gate it behind the typing flag. The typing indicator is purely
+    // cosmetic and self-clears via a short timer; even if the timer is
+    // dropped (component unmount / id change), the reply is already on
+    // screen and the chips will render because we also clear `isTyping`
+    // explicitly on the next user send.
     setMessages(prev => [...prev, { id: uid(), role: "bot", text, quickReplies }]);
     setIsTyping(true);
     scheduleTimer(() => setIsTyping(false), 180);
@@ -441,14 +447,19 @@ export default function CafeChatScreen() {
         if (!byCat.has(k)) byCat.set(k, []);
         byCat.get(k)!.push(m);
       }
-      const lines: string[] = ["📜 قائمة الكوفي:"];
+      // Render the FULL menu — no truncation, no "+N أخرى". Each category gets
+      // a clear header and every item is listed under it with its price.
+      const lines: string[] = ["📜 قائمة الكوفي كاملة:"];
       for (const [cat, items] of byCat) {
-        lines.push(`\n• ${cat}:`);
-        for (const it of items.slice(0, 8)) {
-          lines.push(`   - ${it.name} — ${fmtPrice(it.price)}`);
+        lines.push(`\n━━ ${cat} ━━`);
+        for (const it of items) {
+          const promo = it.originalPrice && it.originalPrice > it.price
+            ? `  (كان ${fmtPrice(it.originalPrice)})`
+            : "";
+          lines.push(`• ${it.name} — ${fmtPrice(it.price)}${promo}`);
         }
-        if (items.length > 8) lines.push(`   …و ${items.length - 8} أخرى`);
       }
+      lines.push(`\n💡 اكتب اسم المنتج اللي تبيه أو اضغط «🛒 اطلب الآن».`);
       return { text: lines.join("\n"), quickReplies: [{ label: "🛒 اطلب الآن", value: "اطلب" }, ...MAIN_QUICK.slice(2)] };
     }
 
@@ -519,14 +530,14 @@ export default function CafeChatScreen() {
       const cold = menu.filter(m => /بارد/.test(m.category) || /cold/i.test(m.name));
       if (cold.length === 0) return { text: "ما عندنا مشروبات باردة حالياً.", quickReplies: MAIN_QUICK };
       const lines = ["🥤 المشروبات الباردة:"];
-      for (const it of cold.slice(0, 8)) lines.push(`• ${it.name} — ${fmtPrice(it.price)}`);
+      for (const it of cold) lines.push(`• ${it.name} — ${fmtPrice(it.price)}`);
       return { text: lines.join("\n"), quickReplies: [{ label: "🛒 اطلب الآن", value: "اطلب" }, ...MAIN_QUICK.slice(2)] };
     }
     if (includesAny(text, ["حار", "حارة", "ساخن", "ساخنة", "hot"])) {
       const hot = menu.filter(m => /ساخن|حار/.test(m.category));
       if (hot.length === 0) return { text: "ما عندنا مشروبات ساخنة حالياً.", quickReplies: MAIN_QUICK };
       const lines = ["☕ المشروبات الساخنة:"];
-      for (const it of hot.slice(0, 8)) lines.push(`• ${it.name} — ${fmtPrice(it.price)}`);
+      for (const it of hot) lines.push(`• ${it.name} — ${fmtPrice(it.price)}`);
       return { text: lines.join("\n"), quickReplies: [{ label: "🛒 اطلب الآن", value: "اطلب" }, ...MAIN_QUICK.slice(2)] };
     }
 
@@ -550,7 +561,43 @@ export default function CafeChatScreen() {
       };
     }
 
-    return { text: FALLBACK_REPLY, quickReplies: MAIN_QUICK };
+    // Token-level fuzzy match — if the user typed something close (e.g. one
+    // word of an item name, or a partial brand of a bean), surface suggestions
+    // instead of returning the dead-end "I don't know" reply. This catches
+    // common cases like "كابتشينو", "بن", "بارد قهوة" etc. that don't trip
+    // the exact-keyword branches above.
+    const tokens = n.split(/\s+/).filter(t => t.length >= 2);
+    if (tokens.length > 0 && menu.length > 0) {
+      const suggestions = menu.filter(m => {
+        const mn = normalize(m.name);
+        return tokens.some(t => mn.includes(t) || t.includes(mn));
+      }).slice(0, 6);
+      if (suggestions.length > 0) {
+        const lines = ["وجدت لك هذه المنتجات القريبة:"];
+        for (const s of suggestions) lines.push(`• ${s.name} — ${fmtPrice(s.price)}`);
+        return {
+          text: lines.join("\n"),
+          quickReplies: [
+            ...suggestions.map(s => ({ label: `🛒 ${s.name}`, value: `اطلب ${s.name}` })),
+            ...MAIN_QUICK.slice(2, 5),
+          ],
+        };
+      }
+      // Also try fuzzy match against admin Q&A topics
+      const infoHit = infos.find(info => {
+        const topicN = normalize(info.topic || "");
+        if (!topicN) return false;
+        return tokens.some(t => topicN.includes(t) || t.includes(topicN));
+      });
+      if (infoHit) return { text: infoHit.content, quickReplies: MAIN_QUICK };
+    }
+
+    // Last resort — friendly fallback with quick options instead of a wall
+    // of text. The user can always tap a chip to get unstuck.
+    return {
+      text: "🙏 ما فهمت قصدك بالضبط — هل تبي تطلب، أو تحجز طاولة، أو تشوف القائمة؟\nاختر من الأزرار أدناه، أو اكتب اسم منتج مباشرة.",
+      quickReplies: MAIN_QUICK,
+    };
   };
 
   // ── Order flow ───────────────────────────────────────────────
@@ -575,9 +622,9 @@ export default function CafeChatScreen() {
       }
     }
     pushBot(
-      "🛒 ممتاز! اختر المنتج اللي تبي تطلبه:",
+      "🛒 ممتاز! اختر المنتج اللي تبي تطلبه (أو اكتب اسمه):",
       [
-        ...menu.slice(0, 12).map(m => ({ label: `${m.name} — ${fmtPrice(m.price)}`, value: m.name })),
+        ...menu.map(m => ({ label: `${m.name} — ${fmtPrice(m.price)}`, value: m.name })),
         CANCEL_QUICK,
       ],
     );
@@ -664,7 +711,7 @@ export default function CafeChatScreen() {
     });
     if (!found) {
       pushBot(`${RETRY_PREFIX}ما لقيت هذا المنتج في القائمة. اختر منتجاً من الأزرار أدناه أو اكتب اسمه بالضبط كما يظهر:`, [
-        ...menu.slice(0, 12).map(m => ({ label: m.name, value: m.name })),
+        ...menu.map(m => ({ label: m.name, value: m.name })),
         CANCEL_QUICK,
       ]);
       return;
@@ -815,8 +862,8 @@ export default function CafeChatScreen() {
   const handleOrderMore = (raw: string) => {
     if (includesAny(raw, ["اضف", "أضف", "ثاني", "منتج", "اكثر", "more", "add"])) {
       setStep("order_pick_item");
-      pushBot("اختر المنتج التالي:", [
-        ...menu.slice(0, 12).map(m => ({ label: `${m.name} — ${fmtPrice(m.price)}`, value: m.name })),
+      pushBot("اختر المنتج التالي (أو اكتب اسمه):", [
+        ...menu.map(m => ({ label: `${m.name} — ${fmtPrice(m.price)}`, value: m.name })),
         CANCEL_QUICK,
       ]);
       return;
@@ -825,7 +872,7 @@ export default function CafeChatScreen() {
       if (order.items.length === 0) {
         // Cart empty — redirect (not a retry); send the user back to pick an item.
         pushBot("سلة الطلب فاضية 🛒\nاختر منتجاً أولاً من الأزرار:", [
-          ...menu.slice(0, 12).map(m => ({ label: m.name, value: m.name })),
+          ...menu.map(m => ({ label: m.name, value: m.name })),
           CANCEL_QUICK,
         ]);
         setStep("order_pick_item");
@@ -1176,6 +1223,12 @@ export default function CafeChatScreen() {
   const sendMessage = (raw: string) => {
     const text = raw.trim();
     if (!text) return;
+    // SAFETY NET: force-clear the typing indicator on every new user message
+    // so chips of the previous bot bubble re-render, and the next pushBot
+    // call's brief typing flash starts from a clean state. This guarantees
+    // the chat can NEVER appear "stuck typing" — even if a prior timer was
+    // dropped by React batching or a fast cafe-id switch.
+    setIsTyping(false);
     pushUser(text);
 
     // Universal cancel
