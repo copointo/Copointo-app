@@ -621,70 +621,82 @@ export default function GameScreen() {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
       }]}>
 
-        {/* Communities */}
-        <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="users" size={22} color={PRIMARY} />
-          {incomingInvites.length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{incomingInvites.length}</Text>
+        {/* My Collection — اغراضي (purple) */}
+        <View style={styles.fabWithLabel}>
+          <TouchableOpacity
+            style={[styles.fabSmall, { borderColor: "#9B59E8", shadowColor: "#9B59E8" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="package" size={22} color="#9B59E8" />
+          </TouchableOpacity>
+          <Text style={[styles.fabSmallLabel, { color: "#9B59E8" }]}>اغراضي</Text>
+        </View>
+
+        {/* Store — المتجر (green) */}
+        <View style={styles.fabWithLabel}>
+          <TouchableOpacity
+            style={[styles.fabSmall, { borderColor: "#4CAF50", shadowColor: "#4CAF50" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/store"); }}
+            activeOpacity={0.85}
+          >
+            <View style={styles.storeIconWrap}>
+              <FontAwesome5
+                name="user-astronaut"
+                size={18}
+                color="#4CAF50"
+                style={styles.storeIconChar}
+              />
+              <Feather
+                name="gift"
+                size={13}
+                color="#4CAF50"
+                style={styles.storeIconGift}
+              />
+              <Feather
+                name="image"
+                size={13}
+                color="#4CAF50"
+                style={styles.storeIconBg}
+              />
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+          <Text style={[styles.fabSmallLabel, { color: "#4CAF50" }]}>المتجر</Text>
+        </View>
 
-        {/* My Cafés */}
-        <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="coffee" size={22} color={PRIMARY} />
-          {cafeIds.length > 0 && (
-            <View style={styles.cafeCountBadge}>
-              <Text style={styles.cafeCountText}>{cafeIds.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* My Cafés — مستوى الكافيهات (orange) */}
+        <View style={styles.fabWithLabel}>
+          <TouchableOpacity
+            style={[styles.fabSmall, { borderColor: "#FF8A3D", shadowColor: "#FF8A3D" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="coffee" size={22} color="#FF8A3D" />
+            {cafeIds.length > 0 && (
+              <View style={styles.cafeCountBadge}>
+                <Text style={styles.cafeCountText}>{cafeIds.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <Text style={[styles.fabSmallLabel, { color: "#FF8A3D" }]}>مستوى الكافيهات</Text>
+        </View>
 
-        {/* Store — composite icon (character + gift + background) */}
-        <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/store"); }}
-          activeOpacity={0.85}
-        >
-          <View style={styles.storeIconWrap}>
-            <FontAwesome5
-              name="user-astronaut"
-              size={18}
-              color={PRIMARY}
-              style={styles.storeIconChar}
-            />
-            <Feather
-              name="gift"
-              size={13}
-              color={PRIMARY}
-              style={styles.storeIconGift}
-            />
-            <Feather
-              name="image"
-              size={13}
-              color={PRIMARY}
-              style={styles.storeIconBg}
-            />
-          </View>
-        </TouchableOpacity>
-
-        {/* My Collection */}
-        <TouchableOpacity
-          style={styles.fabSmall}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="package" size={22} color={PRIMARY} />
-        </TouchableOpacity>
+        {/* Communities — انشاء مجتمع (blue) */}
+        <View style={styles.fabWithLabel}>
+          <TouchableOpacity
+            style={[styles.fabSmall, { borderColor: "#4A90E2", shadowColor: "#4A90E2" }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
+            activeOpacity={0.85}
+          >
+            <Feather name="users" size={22} color="#4A90E2" />
+            {incomingInvites.length > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{incomingInvites.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <Text style={[styles.fabSmallLabel, { color: "#4A90E2" }]}>انشاء مجتمع</Text>
+        </View>
 
         {/* Leaderboard - purple distinctive */}
         <TouchableOpacity
@@ -948,6 +960,10 @@ const styles = StyleSheet.create({
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
     zIndex: 50,
+  },
+  fabWithLabel: {
+    alignItems: "center",
+    gap: 3,
   },
   fabSmall: {
     width: 54, height: 54, borderRadius: 16,
