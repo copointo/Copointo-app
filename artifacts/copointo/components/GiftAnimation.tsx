@@ -132,10 +132,11 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           ))}
         </View>
 
-        {/* Caption (gift name + ×qty + sender → recipient).
-            Now fully background-less: just text + emoji with a subtle
-            shadow so it stays readable over any underlying screen. */}
-        <Animated.View style={[styles.caption, { opacity: captionOpacity }]} pointerEvents="none">
+        {/* Compact top-bar layout:
+            - top-left: small gift chip (emoji + name + ×qty)
+            - top-center: sender → recipient names
+            - top-left (stacked under the chip): "تخطي" skip-all button */}
+        <Animated.View style={[styles.topLeft, { opacity: captionOpacity }]} pointerEvents="box-none">
           <View style={styles.captionRow}>
             <Text style={[styles.giftEmoji, styles.textShadow, { color: gift.color }]}>{gift.emoji}</Text>
             <Text style={[styles.giftName, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
@@ -145,17 +146,30 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
               <Text style={[styles.qtyText, styles.textShadow, { color: gift.color }]}>×{qty}</Text>
             )}
           </View>
+          {onSkipAll && (
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
+              activeOpacity={0.85}
+              style={styles.skipBtn}
+            >
+              <Feather name="x" size={14} color="#FFF" />
+              <Text style={styles.skipText}>تخطي</Text>
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+
+        <Animated.View style={[styles.topCenter, { opacity: captionOpacity }]} pointerEvents="none">
           {fromName && toName ? (
             <View style={styles.namesBlock}>
               <View style={styles.nameLine}>
                 <Text style={[styles.nameLabel, styles.textShadow]}>من: </Text>
-                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]}>
+                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
                   {fromName}
                 </Text>
               </View>
               <View style={styles.nameLine}>
                 <Text style={[styles.nameLabel, styles.textShadow]}>إلى: </Text>
-                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]}>
+                <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
                   {toName}
                 </Text>
               </View>
@@ -163,25 +177,12 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           ) : fromName ? (
             <View style={styles.nameLine}>
               <Text style={[styles.nameLabel, styles.textShadow]}>من: </Text>
-              <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]}>
+              <Text style={[styles.nameStrong, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
                 {fromName}
               </Text>
             </View>
           ) : null}
         </Animated.View>
-
-        {/* Skip-all button (bottom-center, large & prominent) — only shown
-            for the global feed rain so the user can dismiss the queue. */}
-        {onSkipAll && (
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
-            activeOpacity={0.85}
-            style={styles.skipBtn}
-          >
-            <Feather name="x" size={22} color="#FFF" />
-            <Text style={styles.skipText}>تخطي الهدايا</Text>
-          </TouchableOpacity>
-        )}
       </Pressable>
     </Modal>
   );
@@ -744,35 +745,41 @@ function VideoScene({ gift, duration }: { gift: GiftDef; duration: number }) {
 }
 
 const styles = StyleSheet.create({
-  caption: {
+  topLeft: {
     position: "absolute",
-    left: 0, right: 0,
-    top: SCREEN_H / 2 - 60,
+    top: 50, left: 12,
+    alignItems: "flex-start",
+    gap: 6,
+    maxWidth: SCREEN_W * 0.45,
+  },
+  topCenter: {
+    position: "absolute",
+    top: 50, left: 0, right: 0,
     alignItems: "center",
-    gap: 10,
+    gap: 2,
+    paddingHorizontal: SCREEN_W * 0.32,
   },
   captionRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    paddingHorizontal: 12,
+    flexDirection: "row", alignItems: "center", gap: 6,
   },
-  giftEmoji: { fontSize: 36, lineHeight: 40 },
-  giftName: { fontSize: 24, fontFamily: "Inter_700Bold" },
-  qtyText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  giftEmoji: { fontSize: 18, lineHeight: 22 },
+  giftName: { fontSize: 13, fontFamily: "Inter_700Bold", maxWidth: 110 },
+  qtyText: { fontSize: 13, fontFamily: "Inter_700Bold" },
   namesBlock: {
     alignItems: "center",
-    gap: 4,
+    gap: 2,
   },
   nameLine: {
     flexDirection: "row", alignItems: "center",
-    maxWidth: "92%",
+    maxWidth: "100%",
   },
   nameLabel: {
-    fontSize: 16, fontFamily: "Inter_600SemiBold",
+    fontSize: 13, fontFamily: "Inter_600SemiBold",
     color: "#FFF",
   },
   nameStrong: {
-    fontSize: 18, fontFamily: "Inter_700Bold",
-    maxWidth: 220,
+    fontSize: 14, fontFamily: "Inter_700Bold",
+    maxWidth: 140,
   },
   textShadow: {
     textShadowColor: "rgba(0,0,0,0.95)",
@@ -780,28 +787,19 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
   skipBtn: {
-    position: "absolute",
-    bottom: 60,
-    alignSelf: "center",
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 28,
-    paddingVertical: 16,
-    borderRadius: 32,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.85)",
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: "#E8B86D",
-    shadowColor: "#E8B86D",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 14,
-    elevation: 8,
   },
   skipText: {
-    fontSize: 18,
+    fontSize: 11,
     fontFamily: "Inter_700Bold",
     color: "#FFF",
-    letterSpacing: 0.3,
   },
 });
