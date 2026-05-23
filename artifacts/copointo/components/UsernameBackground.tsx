@@ -194,6 +194,8 @@ function FlyingBat({ bat, glow }: { bat: Bat; glow: string }) {
       Animated.sequence([
         Animated.delay(bat.delay),
         Animated.timing(fly, { toValue: 1, duration: bat.duration, easing: Easing.linear, useNativeDriver: true }),
+        Animated.timing(fly, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.delay(3000),
       ]),
     );
     const l2 = Animated.loop(
