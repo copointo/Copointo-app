@@ -132,11 +132,8 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
           ))}
         </View>
 
-        {/* Compact top-bar layout:
-            - top-left: small gift chip (emoji + name + ×qty)
-            - top-center: sender → recipient names
-            - top-left (stacked under the chip): "تخطي" skip-all button */}
-        <Animated.View style={[styles.topLeft, { opacity: captionOpacity }]} pointerEvents="box-none">
+        {/* Single top-left row: gift chip → from/to names → skip button. */}
+        <Animated.View style={[styles.topRow, { opacity: captionOpacity }]} pointerEvents="box-none">
           <View style={styles.captionRow}>
             <Text style={[styles.giftEmoji, styles.textShadow, { color: gift.color }]}>{gift.emoji}</Text>
             <Text style={[styles.giftName, styles.textShadow, { color: gift.color }]} numberOfLines={1}>
@@ -146,19 +143,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
               <Text style={[styles.qtyText, styles.textShadow, { color: gift.color }]}>×{qty}</Text>
             )}
           </View>
-          {onSkipAll && (
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
-              activeOpacity={0.85}
-              style={styles.skipBtn}
-            >
-              <Feather name="x" size={14} color="#FFF" />
-              <Text style={styles.skipText}>تخطي</Text>
-            </TouchableOpacity>
-          )}
-        </Animated.View>
 
-        <Animated.View style={[styles.topCenter, { opacity: captionOpacity }]} pointerEvents="none">
           {fromName && toName ? (
             <View style={styles.namesBlock}>
               <View style={styles.nameLine}>
@@ -182,6 +167,17 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
               </Text>
             </View>
           ) : null}
+
+          {onSkipAll && (
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
+              activeOpacity={0.85}
+              style={styles.skipBtn}
+            >
+              <Feather name="x" size={14} color="#FFF" />
+              <Text style={styles.skipText}>تخطي</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </Pressable>
     </Modal>
@@ -748,41 +744,36 @@ function VideoScene({ gift, duration }: { gift: GiftDef; duration: number }) {
 }
 
 const styles = StyleSheet.create({
-  topLeft: {
+  topRow: {
     position: "absolute",
-    top: 120, left: 12,
-    alignItems: "flex-start",
-    gap: 4,
-    maxWidth: SCREEN_W * 0.42,
-  },
-  topCenter: {
-    position: "absolute",
-    top: 120, left: 0, right: 0,
+    top: 120, left: 12, right: 12,
+    flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    paddingHorizontal: SCREEN_W * 0.3,
+    gap: 8,
+    flexWrap: "wrap",
   },
   captionRow: {
     flexDirection: "row", alignItems: "center", gap: 4,
   },
   giftEmoji: { fontSize: 14, lineHeight: 18 },
-  giftName: { fontSize: 11, fontFamily: "Inter_700Bold", maxWidth: 90 },
+  giftName: { fontSize: 11, fontFamily: "Inter_700Bold", maxWidth: 80 },
   qtyText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   namesBlock: {
-    alignItems: "center",
-    gap: 2,
+    alignItems: "flex-start",
+    gap: 1,
+    flexShrink: 1,
   },
   nameLine: {
     flexDirection: "row", alignItems: "center",
     maxWidth: "100%",
   },
   nameLabel: {
-    fontSize: 13, fontFamily: "Inter_600SemiBold",
+    fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: "#FFF",
   },
   nameStrong: {
-    fontSize: 14, fontFamily: "Inter_700Bold",
-    maxWidth: 140,
+    fontSize: 12, fontFamily: "Inter_700Bold",
+    maxWidth: 110,
   },
   textShadow: {
     textShadowColor: "rgba(0,0,0,0.95)",
