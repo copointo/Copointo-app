@@ -46,17 +46,9 @@ export const BACKGROUNDS: BackgroundDef[] = [
   { id: "bg-19", name: "ليل عميق",       colors: ["#1E3A8A", "#0F172A", "#000000"],             highlight: "#60A5FA", effect: "aurora" },
   { id: "bg-20", name: "نار ملكية",      colors: ["#7F1D1D", "#EA580C", "#FACC15"],             highlight: "#FCD34D", effect: "aurora" },
 
-  // ───── Tier 5 (21-25): فخامة قصوى — 20,000 coins, كل واحد ثيم وتأثير مختلف ─────
-  // تاج الإمبراطور — موجات ذهبية متموجة على خلفية ملكية
-  { id: "bg-21", name: "تاج الإمبراطور",  colors: ["#3B2410", "#8B5A00", "#FFD700", "#FFF3B0"], highlight: "#FFE082", effect: "wave" },
-  // ألماس أسود — حقل نجوم كثيف على أسود فحمي
+  // ───── Tier 5: فخامة قصوى ─────
+  // ألماس أسود — حقل نجوم كثيف على أسود فحمي (10,000 coins)
   { id: "bg-22", name: "ألماس أسود",      colors: ["#000000", "#0B0B14", "#1E1E2E"],            highlight: "#FFFFFF", effect: "starfield" },
-  // ذهب وردي ملكي — توهج وردي نابض قوي (radial bloom)
-  { id: "bg-23", name: "ذهب وردي ملكي",   colors: ["#3B0A1F", "#9D174D", "#F472B6"],            highlight: "#FFE4E6", effect: "glowBurst" },
-  // زفير ملكي — سديم ملكي يدور ببطء
-  { id: "bg-24", name: "زفير ملكي",       colors: ["#020617", "#1E3A8A", "#3B82F6", "#93C5FD"], highlight: "#DBEAFE", effect: "nebula" },
-  // قوس قزح المنشوري — مسح ألوان قوس قزح يدور
-  { id: "bg-25", name: "قوس قزح المنشوري", colors: ["#FF0080", "#FF8C00", "#FFD700", "#00C853", "#00B0FF", "#7C4DFF"], highlight: "#FFFFFF", effect: "prismatic" },
 ];
 
 export function getBackground(id: string | null): BackgroundDef | null {
