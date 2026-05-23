@@ -60,7 +60,7 @@ function generateUniqueCode(): string {
 }
 /** Issues one FreeCoffee per multiple-of-7 milestone the user has crossed but not yet been awarded for.
  *  The triggering cafe is recorded so the free coffee is only redeemable there. */
-function awardMilestoneCoffees(
+export function awardMilestoneCoffees(
   userPhone: string,
   userName: string,
   totalOrders: number,
@@ -68,7 +68,14 @@ function awardMilestoneCoffees(
   earnedAtCafeName?: string | null,
 ) {
   const milestonesEarned = Math.floor(totalOrders / 7);
-  const alreadyAwarded   = freeCoffees.filter(f => f.userPhone === userPhone).length;
+  // Normalize phone numbers when counting existing vouchers so a stored
+  // record like "+96812345678" still matches a lookup of "96812345678".
+  // Without this, format drift between code paths can over-issue vouchers
+  // (e.g. admin manual adjustment vs auto-award from a real order).
+  const normPhone = String(userPhone ?? "").replace(/\D+/g, "");
+  const alreadyAwarded   = freeCoffees.filter(
+    f => String(f.userPhone ?? "").replace(/\D+/g, "") === normPhone,
+  ).length;
   for (let i = alreadyAwarded; i < milestonesEarned; i++) {
     freeCoffees.push({
       id:               Date.now().toString() + "-" + i,

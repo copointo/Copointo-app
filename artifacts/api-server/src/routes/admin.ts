@@ -4,9 +4,10 @@ import fs from "node:fs";
 import {
   cafes, users, broadcasts, chatMessages, friendScope, persistStore, flushNow, reports,
   purgeUserData, purgeCafeData, reels, wipeAllData,
-  communities, communityInvites,
+  communities, communityInvites, orders, freeCoffees,
   type Cafe, type Broadcast, type ChatMsg, type Report,
 } from "../store";
+import { awardMilestoneCoffees } from "./cafe-dashboard";
 import { deleteReelFile } from "../lib/objectStorage";
 import { geocodeAddress } from "../utils/geocode";
 import { sendPushToUser, sendPushToAll } from "../lib/push";
@@ -308,8 +309,57 @@ router.post("/users/:id/game-clear", (req, res) => {
   res.json({ user });
 });
 
+// ── GET /api/admin/users/:id/cafe-breakdown ──
+// Per-cafe stats for ONE user — shows where they've ordered and how many
+// drinks they've had at each cafe. Used by the super-admin "adjust progress"
+// modal so the operator can see the user's history before changing numbers
+// AND choose which cafe a milestone-triggered free coffee belongs to.
+//
+// `drinksHere` counts only hot/cold drinks (matching the loyalty allow-list
+// in `awardOrderProgress` so what the admin sees matches what actually counts
+// toward the 7-drink free-coffee milestone). `ordersHere` is the raw count
+// of orders the user has at that cafe regardless of category.
+//
+// Phone normalization (digits-only) is used to match orders to the user so
+// country-code/format mismatches don't cause cafes to disappear from the list.
+router.get("/users/:id/cafe-breakdown", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const norm = (p: any) => String(p ?? "").replace(/\D+/g, "");
+  const userPhoneN = norm(user.phone);
+  if (!userPhoneN) {
+    return res.json({ breakdown: [], freeCoffees: { total: 0, redeemed: 0 } });
+  }
+  const byCafe = new Map<string, { cafeId: string; cafeName: string; ordersHere: number; drinksHere: number }>();
+  for (const o of orders) {
+    if (norm(o.customerPhone) !== userPhoneN) continue;
+    const cafe = cafes.find(c => c.id === o.cafeId);
+    const cafeName = cafe?.name ?? "كافيه محذوف";
+    const drinks = Array.isArray(o.items)
+      ? o.items.reduce((s: number, it: any) => {
+          const cat = String(it.category ?? "");
+          if (cat === "مشروب ساخن" || cat === "مشروبات باردة") return s + (Number(it.qty) || 0);
+          return s;
+        }, 0)
+      : 0;
+    const cur = byCafe.get(o.cafeId) ?? { cafeId: o.cafeId, cafeName, ordersHere: 0, drinksHere: 0 };
+    cur.ordersHere += 1;
+    cur.drinksHere += drinks;
+    byCafe.set(o.cafeId, cur);
+  }
+  const breakdown = Array.from(byCafe.values()).sort((a, b) => b.drinksHere - a.drinksHere);
+  const userFc = freeCoffees.filter(f => norm(f.userPhone) === userPhoneN);
+  res.json({
+    breakdown,
+    freeCoffees: {
+      total: userFc.length,
+      redeemed: userFc.filter(f => !!f.redeemedAt).length,
+    },
+  });
+});
+
 // ── POST /api/admin/users/:id/adjust-progress ──
-// Body: { levelDelta?: number, ordersDelta?: number }
+// Body: { levelDelta?: number, ordersDelta?: number, awardCafeId?: string }
 // Super-admin manual adjustment of a user's game level and/or coffee count.
 // Each field is INDEPENDENT — adjusting `levelDelta` does NOT touch
 // `totalOrders`, and adjusting `ordersDelta` does NOT touch `level`. This is
@@ -318,14 +368,22 @@ router.post("/users/:id/game-clear", (req, res) => {
 // Deltas can be positive (increase) or negative (decrease). Both fields are
 // clamped to be >= 0 after applying, and `level` is also capped at 999 to
 // match the in-game level cap used everywhere else.
-// Does NOT trigger milestone free-coffees — this is a manual correction, not
-// a real order. `/users/progress` is monotonic-only from the mobile side, so
-// these admin writes win on the next sync.
+//
+// Milestone free-coffees: when the admin INCREASES totalOrders, milestone
+// free coffees ARE issued for any newly-crossed multiple of 7 — so the user
+// actually progresses and earns the rewards (which was the explicit ask).
+// The `awardCafeId` body field selects which cafe the new free coffees are
+// redeemable at (free coffees are cafe-specific). If omitted, the cafe with
+// the user's highest historical drink count is used; if the user has no
+// order history, the free coffees are issued with a null cafe binding (still
+// visible in the user's account but with no preset redemption cafe).
+// Decreases never revoke previously-issued free coffees.
 router.post("/users/:id/adjust-progress", (req, res): any => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
   const levelDelta  = req.body?.levelDelta  != null ? Number(req.body.levelDelta)  : 0;
   const ordersDelta = req.body?.ordersDelta != null ? Number(req.body.ordersDelta) : 0;
+  const awardCafeId = typeof req.body?.awardCafeId === "string" ? req.body.awardCafeId : null;
   if (!Number.isFinite(levelDelta) || !Number.isFinite(ordersDelta)) {
     return res.status(400).json({ error: "Invalid delta" });
   }
@@ -335,11 +393,48 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
   if (levelDelta !== 0) {
     user.level = Math.max(0, Math.min(999, (user.level ?? 0) + Math.trunc(levelDelta)));
   }
+  let newlyAwarded = 0;
   if (ordersDelta !== 0) {
-    user.totalOrders = Math.max(0, (user.totalOrders ?? 0) + Math.trunc(ordersDelta));
+    const before = user.totalOrders ?? 0;
+    user.totalOrders = Math.max(0, before + Math.trunc(ordersDelta));
+    // Issue free-coffee milestones only when ordersDelta is positive AND we
+    // actually crossed at least one new multiple of 7. Pick the cafe binding:
+    // explicit awardCafeId > user's top-drink cafe > null.
+    if (user.totalOrders > before && user.phone) {
+      const norm = (p: any) => String(p ?? "").replace(/\D+/g, "");
+      const userPhoneN = norm(user.phone);
+      const alreadyAwarded = freeCoffees.filter(f => norm(f.userPhone) === userPhoneN).length;
+      const willHave = Math.floor(user.totalOrders / 7);
+      newlyAwarded = Math.max(0, willHave - alreadyAwarded);
+      if (newlyAwarded > 0) {
+        let cafe = awardCafeId ? cafes.find(c => c.id === awardCafeId) : null;
+        if (!cafe) {
+          // Fallback: cafe where the user has the most historical drinks.
+          const counts = new Map<string, number>();
+          for (const o of orders) {
+            if (norm(o.customerPhone) !== userPhoneN) continue;
+            const drinks = Array.isArray(o.items)
+              ? o.items.reduce((s: number, it: any) => {
+                  const cat = String(it.category ?? "");
+                  if (cat === "مشروب ساخن" || cat === "مشروبات باردة") return s + (Number(it.qty) || 0);
+                  return s;
+                }, 0)
+              : 0;
+            counts.set(o.cafeId, (counts.get(o.cafeId) ?? 0) + drinks);
+          }
+          let topId: string | null = null; let topN = -1;
+          counts.forEach((n, id) => { if (n > topN) { topN = n; topId = id; } });
+          if (topId) cafe = cafes.find(c => c.id === topId) ?? null;
+        }
+        awardMilestoneCoffees(
+          user.phone, user.username, user.totalOrders,
+          cafe?.id ?? null, cafe?.name ?? null,
+        );
+      }
+    }
   }
   persistStore();
-  res.json({ user });
+  res.json({ user, newlyAwardedFreeCoffees: newlyAwarded });
 });
 
 // ── POST /api/admin/users/:id/message ──────

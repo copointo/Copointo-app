@@ -142,24 +142,51 @@ export default function UsersPage() {
   const [lvlSaving,    setLvlSaving]    = useState(false);
   const [ordSaving,    setOrdSaving]    = useState(false);
   const [adjErr,       setAdjErr]       = useState("");
+  const [adjOk,        setAdjOk]        = useState("");
+  // Per-cafe history for the user being edited. Loaded on open and refreshed
+  // after each successful apply so the cashier always sees up-to-date numbers.
+  // `awardCafeId` is the cafe a positive ordersDelta will credit any newly-
+  // crossed milestone free-coffees to (defaults to the user's top-drink cafe).
+  type CafeBreakdownRow = { cafeId: string; cafeName: string; ordersHere: number; drinksHere: number };
+  const [bd,            setBd]           = useState<CafeBreakdownRow[]>([]);
+  const [bdLoading,     setBdLoading]    = useState(false);
+  const [bdFc,          setBdFc]         = useState<{ total: number; redeemed: number }>({ total: 0, redeemed: 0 });
+  const [awardCafeId,   setAwardCafeId]  = useState<string>("");
+
+  const loadBreakdown = async (uid: string) => {
+    setBdLoading(true);
+    try {
+      const res = await api.getUserCafeBreakdown(uid);
+      setBd(res.breakdown);
+      setBdFc(res.freeCoffees);
+      // Default the award cafe to the user's top-drink cafe (already first
+      // after server-side sort). Only set if empty so the admin's manual
+      // selection survives a refresh.
+      setAwardCafeId(prev => prev || res.breakdown[0]?.cafeId || "");
+    } catch { /* non-fatal */ } finally { setBdLoading(false); }
+  };
 
   const openAdjust = (u: AppUser) => {
-    setAdjTarget(u); setLvlDelta(""); setOrdDelta(""); setAdjErr("");
+    setAdjTarget(u); setLvlDelta(""); setOrdDelta(""); setAdjErr(""); setAdjOk("");
+    setBd([]); setBdFc({ total: 0, redeemed: 0 }); setAwardCafeId("");
+    void loadBreakdown(u.id);
   };
   const closeAdjust = () => {
     if (lvlSaving || ordSaving) return;
-    setAdjTarget(null); setLvlDelta(""); setOrdDelta(""); setAdjErr("");
+    setAdjTarget(null); setLvlDelta(""); setOrdDelta(""); setAdjErr(""); setAdjOk("");
+    setBd([]); setBdFc({ total: 0, redeemed: 0 }); setAwardCafeId("");
   };
   const applyLevelDelta = async () => {
     if (!adjTarget) return;
     const d = Math.trunc(Number(lvlDelta));
     if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا للمستوى (موجب أو سالب)"); return; }
-    setLvlSaving(true); setAdjErr("");
+    setLvlSaving(true); setAdjErr(""); setAdjOk("");
     try {
       const res = await api.adjustProgress(adjTarget.id, { levelDelta: d });
       setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
       setAdjTarget(t => t ? { ...t, ...res.user } : t);
       setLvlDelta("");
+      setAdjOk(`✓ تم تحديث المستوى إلى ${res.user.level}`);
     } catch (e: any) {
       setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
     } finally { setLvlSaving(false); }
@@ -168,12 +195,22 @@ export default function UsersPage() {
     if (!adjTarget) return;
     const d = Math.trunc(Number(ordDelta));
     if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا لعدد الكوفي (موجب أو سالب)"); return; }
-    setOrdSaving(true); setAdjErr("");
+    setOrdSaving(true); setAdjErr(""); setAdjOk("");
     try {
-      const res = await api.adjustProgress(adjTarget.id, { ordersDelta: d });
+      const res = await api.adjustProgress(adjTarget.id, {
+        ordersDelta: d,
+        ...(awardCafeId ? { awardCafeId } : {}),
+      });
       setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
       setAdjTarget(t => t ? { ...t, ...res.user } : t);
       setOrdDelta("");
+      const newFc = Number(res.newlyAwardedFreeCoffees) || 0;
+      setAdjOk(
+        `✓ عدد الكوفي الآن ${res.user.totalOrders}` +
+        (newFc > 0 ? ` — ربح ${newFc} قهوة مجانية 🎁` : ""),
+      );
+      // Refresh breakdown so the free-coffees counter reflects the new award.
+      void loadBreakdown(adjTarget.id);
     } catch (e: any) {
       setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
     } finally { setOrdSaving(false); }
@@ -443,11 +480,49 @@ export default function UsersPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="p-5 space-y-5">
+            <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
               <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 border border-border rounded-lg px-3 py-2">
                 ⚠️ كل خانة منفصلة تمامًا: تعديل المستوى لا يغيّر عدد الكوفي، وتعديل عدد الكوفي لا يغيّر المستوى.
                 استخدم رقمًا سالبًا للتقليل (مثلاً <span className="font-mono">-3</span>) أو موجبًا للزيادة (<span className="font-mono">+5</span>).
               </p>
+
+              {/* ── Per-cafe history ── */}
+              <div className="border border-border rounded-xl p-4 bg-muted/10">
+                <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                  <p className="font-bold text-foreground text-sm">📍 الكافيهات وعدد المشروبات فيها</p>
+                  <span className="text-[10px] text-muted-foreground">
+                    قهوات مجانية متاحة:{" "}
+                    <span className="text-amber-400 font-bold">{bdFc.total - bdFc.redeemed}</span>
+                    {bdFc.redeemed > 0 && (
+                      <span className="text-muted-foreground"> ({bdFc.redeemed} مستلمة)</span>
+                    )}
+                  </span>
+                </div>
+                {bdLoading ? (
+                  <p className="text-xs text-muted-foreground text-center py-3">جاري التحميل...</p>
+                ) : bd.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-3 bg-card rounded-lg border border-border">
+                    لا توجد طلبات سابقة لهذا المستخدم في أي كافيه.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                    {bd.map(row => (
+                      <div key={row.cafeId} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2 text-xs gap-2">
+                        <span className="font-semibold text-foreground truncate flex-1">{row.cafeName}</span>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="text-muted-foreground">{row.ordersHere} طلب</span>
+                          <span className="bg-primary/15 text-primary rounded px-2 py-0.5 font-bold">
+                            🥤 {row.drinksHere}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+                  💡 المستوى عام (واحد لكل التطبيق)، لكن القهوات المجانية مربوطة بالكافيه الذي ربحها فيه.
+                </p>
+              </div>
 
               {/* ── Level section ── */}
               <div className="border border-amber-500/30 rounded-xl p-4 bg-amber-500/5">
@@ -476,12 +551,36 @@ export default function UsersPage() {
               </div>
 
               {/* ── Coffees (totalOrders) section ── */}
-              <div className="border border-primary/30 rounded-xl p-4 bg-primary/5">
-                <div className="flex items-center gap-2 mb-3">
+              <div className="border border-primary/30 rounded-xl p-4 bg-primary/5 space-y-3">
+                <div className="flex items-center gap-2">
                   <Coffee size={16} className="text-primary" />
                   <p className="font-bold text-foreground text-sm">عدد الكوفي فقط</p>
                   <span className="text-[10px] text-muted-foreground">(لن يتغير المستوى)</span>
                 </div>
+
+                {/* Cafe selector for milestone-triggered free coffees. Shown only when
+                    we know at least one cafe — otherwise the server falls back to
+                    the user's top-drink cafe or issues an unbound voucher. */}
+                {bd.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] text-muted-foreground mb-1">
+                      🎁 إذا تجاوز عدد الكوفي مضاعفًا للرقم 7، تُمنح القهوة المجانية في:
+                    </label>
+                    <select
+                      value={awardCafeId}
+                      onChange={e => setAwardCafeId(e.target.value)}
+                      disabled={lvlSaving || ordSaving}
+                      className="w-full bg-input border border-border rounded-xl px-3 py-2 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                    >
+                      {bd.map(row => (
+                        <option key={row.cafeId} value={row.cafeId}>
+                          {row.cafeName} ({row.drinksHere} كوب)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
@@ -499,11 +598,19 @@ export default function UsersPage() {
                     {ordSaving ? "..." : "تطبيق الكوفي"}
                   </button>
                 </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  ⚠️ كل زيادة تتجاوز مضاعفًا للرقم 7 ستربح قهوة مجانية فعلية للمستخدم في الكافيه أعلاه.
+                </p>
               </div>
 
               {adjErr && (
                 <div className="px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs">
                   {adjErr}
+                </div>
+              )}
+              {adjOk && (
+                <div className="px-3 py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 text-xs">
+                  {adjOk}
                 </div>
               )}
 
