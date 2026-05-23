@@ -3,6 +3,8 @@ export interface CharacterDef {
   name: string;
   /** Emoji glyph used as the character body. */
   emoji: string;
+  /** Optional image asset (require'd) rendered instead of the emoji. */
+  image?: number;
   /** Glow halo color behind the character (tier 2 & 3). */
   glow?: string;
   /** Slow up-and-down bobbing animation (tier 2 & 3). */
@@ -48,6 +50,11 @@ export const CHARACTERS: CharacterDef[] = [
   { id: "char-19", name: "زومبي",        emoji: "🧟", scale: 1.15,
     ringGradient: ["#000000", "#7F1D1D", "#DC2626", "#7F1D1D", "#000000"] },
   { id: "char-20", name: "أسطوري",       emoji: "🦄", rainbow: true },
+
+  // ── 21+ image-based companions ────────────────────────────────────
+  { id: "char-21", name: "الولد الأنيق",  emoji: "🧒",
+    image: require("../assets/images/char-boy-cargo.png"),
+    glow: "#E8B86D", scale: 1.2 },
 ];
 
 const PRICE_OVERRIDES: Record<string, number> = {
@@ -59,6 +66,7 @@ const PRICE_OVERRIDES: Record<string, number> = {
   "char-18": 5000,
   "char-19": 10000,
   "char-20": 10000,
+  "char-21": 2000,
 };
 
 export function getCharacter(id: string | null): CharacterDef | null {

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, Image, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { CharacterDef } from "../data/characters";
 
@@ -30,9 +30,17 @@ export default function Character({ def, size = 36 }: Props) {
       style={{ width: wrapSize, height: wrapSize, alignItems: "center", justifyContent: "center" }}
       pointerEvents="none"
     >
-      <Text style={{ fontSize: effSize, lineHeight: effSize * 1.15, textAlign: "center" }}>
-        {def.emoji}
-      </Text>
+      {def.image ? (
+        <Image
+          source={def.image}
+          style={{ width: effSize, height: effSize }}
+          resizeMode="contain"
+        />
+      ) : (
+        <Text style={{ fontSize: effSize, lineHeight: effSize * 1.15, textAlign: "center" }}>
+          {def.emoji}
+        </Text>
+      )}
     </View>
   );
 }
