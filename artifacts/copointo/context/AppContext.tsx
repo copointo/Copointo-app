@@ -551,6 +551,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user?.id) { setBannedInfo(null); return; }
     const uid = user.id;
+    // ⚠️ TEMP DEV-ONLY: demo / skip-login users don't exist on the server,
+    // so the existence-check poll below would kick them out after ~24s.
+    // Bail out of the poll entirely for them. Remove together with the
+    // dev skip-login button in AuthModal.tsx.
+    if (uid.startsWith("demo_")) { setBannedInfo(null); return; }
     const cacheKey = `ban_cache:${uid}`;
     let cancelled = false;
     // Counter for consecutive "exists:false" readings. We only kick a user
