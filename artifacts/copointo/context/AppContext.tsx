@@ -506,6 +506,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const currentUserIdRef = useRef<string | null>(null);
   useEffect(() => { currentUserIdRef.current = user?.id ?? null; }, [user?.id]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
+
+  // ⚠️ TEMP DEV-ONLY: when a demo / skip-login user is signed in, inject a
+  // handful of fake target users into the leaderboard so the tester can
+  // gift them, message them, etc. Remove together with the skip-login
+  // button in AuthModal.tsx.
+  useEffect(() => {
+    if (!user?.id?.startsWith("demo_")) return;
+    const targets: User[] = [
+      { id: "demo_target_1", name: "أحمد التجريبي",  phone: "00000001", gameUsername: "ahmed_demo",  password: "", level: 12, totalOrders: 34, points: 1240 },
+      { id: "demo_target_2", name: "ليلى التجريبية", phone: "00000002", gameUsername: "laila_demo",  password: "", level:  8, totalOrders: 21, points:  860 },
+      { id: "demo_target_3", name: "خالد التجريبي",  phone: "00000003", gameUsername: "khalid_demo", password: "", level:  5, totalOrders: 11, points:  420 },
+    ];
+    setRegisteredUsers(prev => {
+      const existing = new Set(prev.map(u => u.id));
+      const additions = targets.filter(t => !existing.has(t.id));
+      return additions.length === 0 ? prev : [...prev, ...additions];
+    });
+  }, [user?.id]);
   const [initialAuthStep, setInitialAuthStep] = useState<"login" | "register-form" | null>(null);
   const consumeInitialAuthStep = useCallback(() => setInitialAuthStep(null), []);
   const [friends, setFriends] = useState<string[]>([]);
