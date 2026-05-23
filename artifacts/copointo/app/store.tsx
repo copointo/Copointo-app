@@ -681,7 +681,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                   }}
                 >
                   <View style={styles.charCardWrap}>
-                    <Character def={ch} size={36} animated />
+                    <Character def={ch} size={72} animated />
                   </View>
                   <Text style={styles.bgName} numberOfLines={1}>{ch.name}</Text>
                   <PriceTag price={price} owned={owned} />
