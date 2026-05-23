@@ -747,24 +747,24 @@ function VideoScene({ gift, duration }: { gift: GiftDef; duration: number }) {
 const styles = StyleSheet.create({
   topLeft: {
     position: "absolute",
-    top: 50, left: 12,
+    top: 120, left: 12,
     alignItems: "flex-start",
-    gap: 6,
-    maxWidth: SCREEN_W * 0.45,
+    gap: 4,
+    maxWidth: SCREEN_W * 0.42,
   },
   topCenter: {
     position: "absolute",
-    top: 50, left: 0, right: 0,
+    top: 120, left: 0, right: 0,
     alignItems: "center",
     gap: 2,
-    paddingHorizontal: SCREEN_W * 0.32,
+    paddingHorizontal: SCREEN_W * 0.3,
   },
   captionRow: {
-    flexDirection: "row", alignItems: "center", gap: 6,
+    flexDirection: "row", alignItems: "center", gap: 4,
   },
-  giftEmoji: { fontSize: 18, lineHeight: 22 },
-  giftName: { fontSize: 13, fontFamily: "Inter_700Bold", maxWidth: 110 },
-  qtyText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  giftEmoji: { fontSize: 14, lineHeight: 18 },
+  giftName: { fontSize: 11, fontFamily: "Inter_700Bold", maxWidth: 90 },
+  qtyText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   namesBlock: {
     alignItems: "center",
     gap: 2,
