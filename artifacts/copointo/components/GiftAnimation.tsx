@@ -61,7 +61,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
     if (!gift) return [];
     return Array.from({ length: visibleCount }).map((_, i) => ({
       key: `${gift.id}_${i}`,
-      x: Math.random() * (SCREEN_W - 60) + 30,
+      x: 24 + Math.random() * (SCREEN_W * 0.4),
       delay: i * STAGGER_MS,
       duration: FALL_DUR_MIN + Math.random() * (FALL_DUR_MAX - FALL_DUR_MIN),
       driftX: (Math.random() - 0.5) * 80,
@@ -121,7 +121,7 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
               key={p.key}
               emoji={gift.emoji}
               image={gift.image}
-              x={gift.singleParticle ? SCREEN_W / 2 : p.x}
+              x={gift.singleParticle ? SCREEN_W * 0.22 : p.x}
               size={p.size}
               delay={p.delay}
               duration={p.duration}
@@ -268,8 +268,11 @@ function FallingGift({ emoji, image, x, size, delay, duration, driftX, rotateDir
 
 /* ─────────────────────────── Premium scenes ──────────────────────────── */
 
-const CENTER_X = SCREEN_W / 2;
-const CENTER_Y = SCREEN_H / 2;
+// Anchor for "centerpiece" scenes (zoom / burst / spiral). Moved from the
+// true screen center to an upper-left position so the hero gift sits in
+// the top-left quadrant alongside the small caption chip.
+const CENTER_X = SCREEN_W * 0.22;
+const CENTER_Y = SCREEN_H * 0.22;
 
 /**
  * BurstScene — fireworks-style. Multiple waves where particles explode
