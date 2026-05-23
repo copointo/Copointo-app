@@ -5,9 +5,7 @@ import { BackgroundDef, getBackground } from "../data/backgrounds";
 import { useBackgrounds } from "../hooks/useBackgrounds";
 
 interface Props {
-  /** Override the equipped background (e.g. for previews in the shop). */
   backgroundId?: string | null;
-  /** Override the BackgroundDef directly (skips lookup). */
   bg?: BackgroundDef | null;
   borderRadius?: number;
   style?: ViewStyle;
@@ -16,16 +14,15 @@ interface Props {
   children: React.ReactNode;
 }
 
-const SPARKLE_COUNT = 10;
 type Sparkle = { x: number; y: number; size: number; delay: number; duration: number };
 
-function makeSparkles(count: number): Sparkle[] {
+function makeSparkles(count: number, sizeMin = 2, sizeMax = 6): Sparkle[] {
   const out: Sparkle[] = [];
   for (let i = 0; i < count; i++) {
     out.push({
       x: Math.random() * 100,
       y: Math.random() * 100,
-      size: 2 + Math.random() * 4,
+      size: sizeMin + Math.random() * (sizeMax - sizeMin),
       delay: Math.random() * 1500,
       duration: 1200 + Math.random() * 1800,
     });
@@ -33,8 +30,8 @@ function makeSparkles(count: number): Sparkle[] {
   return out;
 }
 
-function Sparkles({ color }: { color: string }) {
-  const sparkles = useMemo(() => makeSparkles(SPARKLE_COUNT), []);
+function Sparkles({ color, count = 10, sizeMin = 2, sizeMax = 6 }: { color: string; count?: number; sizeMin?: number; sizeMax?: number }) {
+  const sparkles = useMemo(() => makeSparkles(count, sizeMin, sizeMax), [count, sizeMin, sizeMax]);
   const anims = useRef(sparkles.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
@@ -78,6 +75,125 @@ function Sparkles({ color }: { color: string }) {
           />
         );
       })}
+    </View>
+  );
+}
+
+/** Diagonal moving stripes — used by "wave" effect */
+function WaveStripes({ color, borderRadius }: { color: string; borderRadius: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    v.setValue(0);
+    const l = Animated.loop(
+      Animated.timing(v, { toValue: 1, duration: 3200, easing: Easing.linear, useNativeDriver: true }),
+    );
+    l.start();
+    return () => l.stop();
+  }, [v]);
+  const translateX1 = v.interpolate({ inputRange: [0, 1], outputRange: [-220, 220] });
+  const translateX2 = v.interpolate({ inputRange: [0, 1], outputRange: [-260, 180] });
+  const translateX3 = v.interpolate({ inputRange: [0, 1], outputRange: [-300, 140] });
+  const stripe = (w: number, op: number, tx: Animated.AnimatedInterpolation<number>) => (
+    <Animated.View style={{
+      position: "absolute", top: -40, bottom: -40, width: w,
+      backgroundColor: color, opacity: op,
+      transform: [{ translateX: tx }, { skewX: "-25deg" }],
+    }} />
+  );
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+      {stripe(28, 0.55, translateX1)}
+      {stripe(14, 0.40, translateX2)}
+      {stripe(8,  0.30, translateX3)}
+    </View>
+  );
+}
+
+/** Strong radial bloom — used by "glowBurst" effect */
+function GlowBurst({ color, borderRadius }: { color: string; borderRadius: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    v.setValue(0);
+    const l = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 1400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0, duration: 1400, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    l.start();
+    return () => l.stop();
+  }, [v]);
+  const scale = v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.8] });
+  const opacity = v.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.85] });
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden", alignItems: "center", justifyContent: "center" }]}>
+      <Animated.View style={{
+        width: "120%", height: "240%", borderRadius: 9999,
+        backgroundColor: color, opacity,
+        transform: [{ scale }],
+        shadowColor: color, shadowOpacity: 1, shadowRadius: 30,
+      }} />
+    </View>
+  );
+}
+
+/** Slow swirling colorful blob — used by "nebula" effect */
+function Nebula({ colors, borderRadius }: { colors: readonly [string, string, ...string[]]; borderRadius: number }) {
+  const rot = useRef(new Animated.Value(0)).current;
+  const scl = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    rot.setValue(0); scl.setValue(0);
+    const l1 = Animated.loop(Animated.timing(rot, { toValue: 1, duration: 14000, easing: Easing.linear, useNativeDriver: true }));
+    const l2 = Animated.loop(Animated.sequence([
+      Animated.timing(scl, { toValue: 1, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(scl, { toValue: 0, duration: 4000, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    l1.start(); l2.start();
+    return () => { l1.stop(); l2.stop(); };
+  }, [rot, scl]);
+  const rotateDeg = rot.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const scale = scl.interpolate({ inputRange: [0, 1], outputRange: [1.0, 1.35] });
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden", alignItems: "center", justifyContent: "center" }]}>
+      <Animated.View style={{
+        width: "220%", height: "220%", borderRadius: 9999, opacity: 0.85,
+        transform: [{ rotate: rotateDeg }, { scale }],
+      }}>
+        <LinearGradient
+          colors={colors}
+          start={{ x: 0.1, y: 0.1 }}
+          end={{ x: 0.9, y: 0.9 }}
+          style={{ flex: 1, borderRadius: 9999 }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+/** Rotating rainbow gradient — used by "prismatic" effect */
+function Prismatic({ colors, borderRadius }: { colors: readonly [string, string, ...string[]]; borderRadius: number }) {
+  const rot = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    rot.setValue(0);
+    const l = Animated.loop(Animated.timing(rot, { toValue: 1, duration: 4500, easing: Easing.linear, useNativeDriver: true }));
+    l.start();
+    return () => l.stop();
+  }, [rot]);
+  const rotateDeg = rot.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  const looped = [...colors, colors[0]] as readonly [string, string, ...string[]];
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden", alignItems: "center", justifyContent: "center" }]}>
+      <Animated.View style={{
+        width: "250%", height: "250%", opacity: 0.95,
+        transform: [{ rotate: rotateDeg }],
+      }}>
+        <LinearGradient
+          colors={looped}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
     </View>
   );
 }
@@ -145,6 +261,7 @@ export default function UsernameBackground({
   const showPulse   = eff === "pulse"  || eff === "sparkle" || eff === "aurora";
   const showShimmer = eff === "shimmer" || eff === "sparkle" || eff === "aurora";
   const showSparkle = eff === "sparkle" || eff === "aurora";
+  const highlight = bg.highlight ?? "#FFFFFF";
 
   return (
     <View style={[
@@ -152,12 +269,24 @@ export default function UsernameBackground({
       { borderRadius, paddingHorizontal, paddingVertical, borderColor: bg.highlight ?? "rgba(255,255,255,0.2)" },
       style,
     ]}>
-      <LinearGradient
-        colors={colors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[StyleSheet.absoluteFill, { borderRadius }]}
-      />
+      {eff === "prismatic" ? (
+        <Prismatic colors={colors} borderRadius={borderRadius} />
+      ) : (
+        <LinearGradient
+          colors={colors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[StyleSheet.absoluteFill, { borderRadius }]}
+        />
+      )}
+      {eff === "nebula" && <Nebula colors={colors} borderRadius={borderRadius} />}
+      {eff === "glowBurst" && <GlowBurst color={highlight} borderRadius={borderRadius} />}
+      {eff === "wave" && <WaveStripes color={highlight} borderRadius={borderRadius} />}
+      {eff === "starfield" && (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+          <Sparkles color={highlight} count={36} sizeMin={1.2} sizeMax={3.2} />
+        </View>
+      )}
       {showRotate && (
         <Animated.View style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden", transform: [{ rotate: rotateDeg }], opacity: 0.85 }]}>
           <LinearGradient
