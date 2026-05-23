@@ -523,7 +523,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const additions = targets.filter(t => !existing.has(t.id));
       return additions.length === 0 ? prev : [...prev, ...additions];
     });
-  }, [user?.id]);
+  }, [user?.id, registeredUsers]);
   const [initialAuthStep, setInitialAuthStep] = useState<"login" | "register-form" | null>(null);
   const consumeInitialAuthStep = useCallback(() => setInitialAuthStep(null), []);
   const [friends, setFriends] = useState<string[]>([]);
@@ -724,7 +724,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // since removed) is pruned so super-admin wipes propagate.
       const byId = new Map<string, User>();
       for (const u of prev) {
-        if (u.id === currentUserIdRef.current || (u.password ?? "") !== "") {
+        // ⚠️ TEMP DEV-ONLY: also keep `demo_target_*` placeholders alive so
+        // the server poll doesn't prune them from the leaderboard.
+        if (
+          u.id === currentUserIdRef.current ||
+          (u.password ?? "") !== "" ||
+          u.id.startsWith("demo_target_")
+        ) {
           byId.set(u.id, u);
         }
       }
