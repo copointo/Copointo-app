@@ -48,7 +48,7 @@ export const BACKGROUNDS: BackgroundDef[] = [
 
   // ───── Tier 5: فخامة قصوى ─────
   // ألماس أسود — حقل نجوم كثيف على أسود فحمي (10,000 coins)
-  { id: "bg-22", name: "ألماس أسود",      colors: ["#000000", "#0B0B14", "#1E1E2E"],            highlight: "#FFFFFF", effect: "aurora" },
+  { id: "bg-22", name: "ألماس أسود",      colors: ["#000000", "#050505", "#0A0A0A"],            highlight: "#2A2A2A", effect: "aurora" },
 ];
 
 export function getBackground(id: string | null): BackgroundDef | null {
