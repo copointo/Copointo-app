@@ -97,52 +97,41 @@ export default function SentGiftsScreen() {
         style={[
           styles.card,
           {
-            borderColor: tint(color, 0.55),
+            backgroundColor: color,
             shadowColor: color,
           },
         ]}
       >
-        {/* Soft color wash background */}
-        <LinearGradient
-          colors={[tint(color, 0.18), tint(color, 0.04), "rgba(0,0,0,0)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-
-        {/* Accent stripe on the right edge (RTL "start") */}
-        <View style={[styles.accentBar, { backgroundColor: color }]} />
-
-        {/* Gift visual */}
-        <View style={[styles.giftBubble, { borderColor: color, backgroundColor: tint(color, 0.12) }]}>
+        {/* Gift visual — white bubble for contrast on the colored card */}
+        <View style={styles.giftBubble}>
           {gift?.image ? (
             <Image source={gift.image} style={styles.giftImg} resizeMode="contain" />
           ) : (
-            <Text style={[styles.giftEmoji, { color }]}>{gift?.emoji ?? "🎁"}</Text>
+            <Text style={styles.giftEmoji}>{gift?.emoji ?? "🎁"}</Text>
           )}
           {item.giftQty > 1 && (
-            <View style={[styles.qtyChip, { borderColor: color, backgroundColor: "#000" }]}>
+            <View style={[styles.qtyChip, { borderColor: color }]}>
               <Text style={[styles.qtyText, { color }]}>×{item.giftQty}</Text>
             </View>
           )}
         </View>
 
-        {/* Text block */}
+        {/* Text block — solid white text on colored card */}
         <View style={styles.cardBody}>
-          <Text style={[styles.giftName, { color }]} numberOfLines={1}>
+          <Text style={styles.giftName} numberOfLines={1}>
             {gift?.name ?? "هدية"}
           </Text>
 
           <View style={styles.namesRow}>
-            <View style={[styles.namePill, { borderColor: tint(color, 0.6) }]}>
-              <Feather name="user" size={10} color={color} />
+            <View style={styles.namePill}>
+              <Feather name="user" size={10} color="#FFF" />
               <Text style={styles.nameStrong} numberOfLines={1}>
                 {item.senderName}
               </Text>
             </View>
-            <Feather name="arrow-left" size={14} color={color} style={{ marginHorizontal: 4 }} />
-            <View style={[styles.namePill, { borderColor: tint(color, 0.6) }]}>
-              <Feather name="user-check" size={10} color={color} />
+            <Feather name="arrow-left" size={14} color="#FFF" style={{ marginHorizontal: 4 }} />
+            <View style={styles.namePill}>
+              <Feather name="user-check" size={10} color="#FFF" />
               <Text style={styles.nameStrong} numberOfLines={1}>
                 {item.recipientName}
               </Text>
@@ -151,11 +140,11 @@ export default function SentGiftsScreen() {
 
           <View style={styles.metaRow}>
             <View style={styles.metaChip}>
-              <Feather name="calendar" size={10} color="#aaa" />
+              <Feather name="calendar" size={10} color="#FFF" />
               <Text style={styles.metaText}>{when.date}</Text>
             </View>
             <View style={styles.metaChip}>
-              <Feather name="clock" size={10} color="#aaa" />
+              <Feather name="clock" size={10} color="#FFF" />
               <Text style={styles.metaText}>{when.time}</Text>
             </View>
           </View>
@@ -289,40 +278,42 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#0c0c0c",
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.18)",
     overflow: "hidden",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  accentBar: {
-    position: "absolute",
-    right: 0, top: 0, bottom: 0,
-    width: 4,
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    elevation: 8,
   },
   giftBubble: {
-    width: 68, height: 68, borderRadius: 16,
-    borderWidth: 1.5,
+    width: 70, height: 70, borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 2,
+    borderColor: "#FFF",
     alignItems: "center", justifyContent: "center",
     position: "relative",
   },
-  giftImg: { width: 54, height: 54 },
-  giftEmoji: { fontSize: 34, lineHeight: 38 },
+  giftImg: { width: 56, height: 56 },
+  giftEmoji: { fontSize: 36, lineHeight: 40 },
   qtyChip: {
     position: "absolute",
     bottom: -6, right: -6,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 10,
-    paddingHorizontal: 6, paddingVertical: 1,
+    paddingHorizontal: 7, paddingVertical: 1,
+    backgroundColor: "#FFF",
   },
   qtyText: { fontSize: 11, fontFamily: "Inter_700Bold" },
 
   cardBody: { flex: 1, gap: 6 },
-  giftName: { fontSize: 15, fontFamily: "Inter_700Bold" },
+  giftName: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+  },
 
   namesRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
   namePill: {
@@ -333,7 +324,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 10,
     borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    borderColor: "rgba(255,255,255,0.4)",
+    backgroundColor: "rgba(0,0,0,0.22)",
   },
   nameStrong: {
     color: "#fff",
@@ -350,7 +342,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(0,0,0,0.22)",
   },
-  metaText: { color: "#aaa", fontSize: 10.5, fontFamily: "Inter_500Medium" },
+  metaText: { color: "#FFF", fontSize: 10.5, fontFamily: "Inter_600SemiBold" },
 });
