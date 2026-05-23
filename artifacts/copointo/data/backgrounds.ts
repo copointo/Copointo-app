@@ -5,7 +5,8 @@ export type BgEffect =
   | "wave"       // diagonal moving stripes
   | "glowBurst"  // strong radial bloom
   | "nebula"     // slow swirling blob
-  | "bats";      // gothic flying bats + crimson glow
+  | "bats"       // gothic flying bats + crimson glow
+  | "blackDiamond"; // black diamond — facet shimmer + iridescent twinkles
 
 export interface BackgroundDef {
   id: string;
@@ -49,7 +50,7 @@ export const BACKGROUNDS: BackgroundDef[] = [
 
   // ───── Tier 5: فخامة قصوى ─────
   // ألماس أسود — حقل نجوم كثيف على أسود فحمي (10,000 coins)
-  { id: "bg-22", name: "ألماس أسود",      colors: ["#000000", "#050505", "#0A0A0A"],            highlight: "#2A2A2A", effect: "aurora" },
+  { id: "bg-22", name: "ألماس أسود",      colors: ["#000000", "#0A0A12", "#15151F", "#050508"], highlight: "#E8EAF6", effect: "blackDiamond" },
   // قلعة الخفافيش — خفافيش تطير + توهج قرمزي ملكي (20,000 coins)
   { id: "bg-26", name: "قلعة الخفافيش",   colors: ["#0A0008", "#2A0710", "#5B0E1F", "#1A0008"], highlight: "#FF1744", effect: "bats" },
 ];

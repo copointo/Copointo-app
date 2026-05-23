@@ -357,6 +357,29 @@ export default function UsernameBackground({
           </View>
         </>
       )}
+      {eff === "blackDiamond" && (
+        <>
+          {/* iridescent facet wash */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden", opacity: 0.55 }]}>
+            <LinearGradient
+              colors={["rgba(180,200,255,0.10)", "rgba(220,200,255,0.05)", "rgba(120,160,255,0.12)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ flex: 1 }}
+            />
+          </View>
+          {/* slow facet shimmer sweep */}
+          <WaveStripes color="#FFFFFF" borderRadius={borderRadius} />
+          {/* dense bright diamond twinkles */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color="#FFFFFF" count={28} sizeMin={1.3} sizeMax={3.8} />
+          </View>
+          {/* a few large iridescent flares */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color="#B5C7FF" count={6} sizeMin={3} sizeMax={6} />
+          </View>
+        </>
+      )}
       {eff === "starfield" && (
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
           <Sparkles color={highlight} count={36} sizeMin={1.2} sizeMax={3.2} />
