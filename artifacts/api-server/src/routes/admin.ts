@@ -308,6 +308,40 @@ router.post("/users/:id/game-clear", (req, res) => {
   res.json({ user });
 });
 
+// ── POST /api/admin/users/:id/adjust-progress ──
+// Body: { levelDelta?: number, ordersDelta?: number }
+// Super-admin manual adjustment of a user's game level and/or coffee count.
+// Each field is INDEPENDENT — adjusting `levelDelta` does NOT touch
+// `totalOrders`, and adjusting `ordersDelta` does NOT touch `level`. This is
+// intentional: the cashier asked for separate controls so they can fix a
+// drift in one without affecting the other.
+// Deltas can be positive (increase) or negative (decrease). Both fields are
+// clamped to be >= 0 after applying, and `level` is also capped at 999 to
+// match the in-game level cap used everywhere else.
+// Does NOT trigger milestone free-coffees — this is a manual correction, not
+// a real order. `/users/progress` is monotonic-only from the mobile side, so
+// these admin writes win on the next sync.
+router.post("/users/:id/adjust-progress", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const levelDelta  = req.body?.levelDelta  != null ? Number(req.body.levelDelta)  : 0;
+  const ordersDelta = req.body?.ordersDelta != null ? Number(req.body.ordersDelta) : 0;
+  if (!Number.isFinite(levelDelta) || !Number.isFinite(ordersDelta)) {
+    return res.status(400).json({ error: "Invalid delta" });
+  }
+  if (levelDelta === 0 && ordersDelta === 0) {
+    return res.status(400).json({ error: "No change requested" });
+  }
+  if (levelDelta !== 0) {
+    user.level = Math.max(0, Math.min(999, (user.level ?? 0) + Math.trunc(levelDelta)));
+  }
+  if (ordersDelta !== 0) {
+    user.totalOrders = Math.max(0, (user.totalOrders ?? 0) + Math.trunc(ordersDelta));
+  }
+  persistStore();
+  res.json({ user });
+});
+
 // ── POST /api/admin/users/:id/message ──────
 // Body: { message: string }
 // Super-admin sends a direct message to ONE user. Stored as a regular

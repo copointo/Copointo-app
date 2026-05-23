@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2 } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface AppUser {
@@ -135,6 +135,50 @@ export default function UsersPage() {
     }
   };
 
+  // ─── Adjust progress modal (level & coffees, independent) ──────────────
+  const [adjTarget,    setAdjTarget]    = useState<AppUser | null>(null);
+  const [lvlDelta,     setLvlDelta]     = useState("");
+  const [ordDelta,     setOrdDelta]     = useState("");
+  const [lvlSaving,    setLvlSaving]    = useState(false);
+  const [ordSaving,    setOrdSaving]    = useState(false);
+  const [adjErr,       setAdjErr]       = useState("");
+
+  const openAdjust = (u: AppUser) => {
+    setAdjTarget(u); setLvlDelta(""); setOrdDelta(""); setAdjErr("");
+  };
+  const closeAdjust = () => {
+    if (lvlSaving || ordSaving) return;
+    setAdjTarget(null); setLvlDelta(""); setOrdDelta(""); setAdjErr("");
+  };
+  const applyLevelDelta = async () => {
+    if (!adjTarget) return;
+    const d = Math.trunc(Number(lvlDelta));
+    if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا للمستوى (موجب أو سالب)"); return; }
+    setLvlSaving(true); setAdjErr("");
+    try {
+      const res = await api.adjustProgress(adjTarget.id, { levelDelta: d });
+      setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
+      setAdjTarget(t => t ? { ...t, ...res.user } : t);
+      setLvlDelta("");
+    } catch (e: any) {
+      setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
+    } finally { setLvlSaving(false); }
+  };
+  const applyOrdersDelta = async () => {
+    if (!adjTarget) return;
+    const d = Math.trunc(Number(ordDelta));
+    if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا لعدد الكوفي (موجب أو سالب)"); return; }
+    setOrdSaving(true); setAdjErr("");
+    try {
+      const res = await api.adjustProgress(adjTarget.id, { ordersDelta: d });
+      setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
+      setAdjTarget(t => t ? { ...t, ...res.user } : t);
+      setOrdDelta("");
+    } catch (e: any) {
+      setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
+    } finally { setOrdSaving(false); }
+  };
+
   const filtered = users.filter(u =>
     u.username.toLowerCase().includes(query.toLowerCase()) ||
     u.phone.includes(query)
@@ -223,6 +267,13 @@ export default function UsersPage() {
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
                       >
                         <MessageSquare size={14} /> رسالة
+                      </button>
+                      <button
+                        onClick={() => openAdjust(user)}
+                        title="تعديل المستوى أو عدد الكوفي يدوياً"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors"
+                      >
+                        <SlidersHorizontal size={14} /> تعديل
                       </button>
                       <button
                         onClick={() => user.banned ? unban(user.id) : openBan(user)}
@@ -364,6 +415,105 @@ export default function UsersPage() {
                   <Trash2 size={14} /> {delSaving ? "جاري الحذف..." : "حذف نهائي"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Adjust progress modal (level & coffees, INDEPENDENT controls) ── */}
+      {adjTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeAdjust} />
+          <div className="relative bg-card border border-amber-500/40 rounded-2xl w-full max-w-md shadow-2xl z-10 overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-amber-900/30 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400">
+                  <SlidersHorizontal size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">تعديل تقدّم {adjTarget.username}</p>
+                  <p className="text-xs text-muted-foreground">
+                    المستوى الحالي: <span className="text-amber-400 font-semibold">{adjTarget.level}</span>
+                    {" · "}
+                    عدد الكوفي: <span className="text-primary font-semibold">{adjTarget.totalOrders}</span>
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeAdjust} className="text-muted-foreground hover:text-foreground" disabled={lvlSaving || ordSaving}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-5">
+              <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 border border-border rounded-lg px-3 py-2">
+                ⚠️ كل خانة منفصلة تمامًا: تعديل المستوى لا يغيّر عدد الكوفي، وتعديل عدد الكوفي لا يغيّر المستوى.
+                استخدم رقمًا سالبًا للتقليل (مثلاً <span className="font-mono">-3</span>) أو موجبًا للزيادة (<span className="font-mono">+5</span>).
+              </p>
+
+              {/* ── Level section ── */}
+              <div className="border border-amber-500/30 rounded-xl p-4 bg-amber-500/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Trophy size={16} className="text-amber-400" />
+                  <p className="font-bold text-foreground text-sm">المستوى فقط</p>
+                  <span className="text-[10px] text-muted-foreground">(لن يتغير عدد الكوفي)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={lvlDelta}
+                    onChange={e => setLvlDelta(e.target.value)}
+                    placeholder="مثلاً 5 أو -2"
+                    disabled={lvlSaving || ordSaving}
+                    className="flex-1 bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-muted-foreground disabled:opacity-60"
+                  />
+                  <button
+                    onClick={applyLevelDelta}
+                    disabled={lvlSaving || ordSaving || !lvlDelta.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {lvlSaving ? "..." : "تطبيق المستوى"}
+                  </button>
+                </div>
+              </div>
+
+              {/* ── Coffees (totalOrders) section ── */}
+              <div className="border border-primary/30 rounded-xl p-4 bg-primary/5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Coffee size={16} className="text-primary" />
+                  <p className="font-bold text-foreground text-sm">عدد الكوفي فقط</p>
+                  <span className="text-[10px] text-muted-foreground">(لن يتغير المستوى)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={ordDelta}
+                    onChange={e => setOrdDelta(e.target.value)}
+                    placeholder="مثلاً 7 أو -1"
+                    disabled={lvlSaving || ordSaving}
+                    className="flex-1 bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-60"
+                  />
+                  <button
+                    onClick={applyOrdersDelta}
+                    disabled={lvlSaving || ordSaving || !ordDelta.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {ordSaving ? "..." : "تطبيق الكوفي"}
+                  </button>
+                </div>
+              </div>
+
+              {adjErr && (
+                <div className="px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs">
+                  {adjErr}
+                </div>
+              )}
+
+              <button
+                onClick={closeAdjust}
+                disabled={lvlSaving || ordSaving}
+                className="w-full px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+              >
+                إغلاق
+              </button>
             </div>
           </div>
         </div>

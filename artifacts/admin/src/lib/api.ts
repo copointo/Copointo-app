@@ -33,6 +33,8 @@ export const api = {
   gameBan:     (id: string, reason: string)              => req<any>("POST", `${A}/users/${id}/game-ban`,     { reason }),
   gameSuspend: (id: string, days: number, reason: string) => req<any>("POST", `${A}/users/${id}/game-suspend`, { days, reason }),
   gameClear:   (id: string)                              => req<any>("POST", `${A}/users/${id}/game-clear`),
+  adjustProgress: (id: string, body: { levelDelta?: number; ordersDelta?: number }) =>
+    req<any>("POST", `${A}/users/${id}/adjust-progress`, body),
   // User-submitted reports (problem / cafe complaint)
   getReports:        ()              => req<any>("GET",    `${A}/reports`),
   resolveReport:     (id: string, status: "open" | "resolved") =>
