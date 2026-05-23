@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useApp, type User } from "@/context/AppContext";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { AuthModal } from "@/components/AuthModal";
 import { BannedScreen } from "@/components/BannedScreen";
@@ -56,64 +56,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           </View>
         </View>
         {/* Always-on, non-dismissible auth modal so the gate cannot be
-            bypassed (no close button, back-press is a no-op). */}
+            bypassed (no close button, back-press is a no-op).
+            ⚠️ TEMP DEV-ONLY skip-login button lives INSIDE the modal,
+            rendered just above the "تسجيل الدخول" submit button. */}
         <AuthModal visible={true} onClose={() => {}} dismissible={false} />
-        {/* ⚠️ TEMP DEV-ONLY: skip-login button for previewing in-app
-            additions without going through register/OTP. Sets a fake
-            in-memory user (NOT persisted to AsyncStorage), so a full app
-            reload returns to the real auth gate. DELETE THIS BLOCK +
-            <DevSkipLoginButton/> before shipping. */}
-        <DevSkipLoginButton />
       </View>
     );
   }
 
   return <>{children}</>;
 }
-
-// ─────────────────────────────────────────────────────────────────────
-// ⚠️ TEMP DEV-ONLY COMPONENT — DELETE BEFORE SHIPPING
-// Renders a floating "تخطّي تسجيل الدخول" button over the auth gate
-// that injects an in-memory fake user via setUser(). Nothing is written
-// to AsyncStorage, so reloading the app returns to the real login flow.
-// ─────────────────────────────────────────────────────────────────────
-function DevSkipLoginButton() {
-  const { setUser } = useApp();
-  const skip = () => {
-    const fake: User = {
-      id: `demo_${Date.now()}`,
-      name: "مستخدم تجريبي",
-      phone: "00000000",
-      gameUsername: `demo_${Math.random().toString(36).slice(2, 7)}`,
-      password: "",
-      level: 1,
-      totalOrders: 0,
-      points: 0,
-    };
-    setUser(fake);
-  };
-  return (
-    <TouchableOpacity onPress={skip} style={devStyles.btn} activeOpacity={0.85}>
-      <Feather name="zap" size={14} color="#000" />
-      <Text style={devStyles.btnText}>تخطّي تسجيل الدخول (تجريبي)</Text>
-    </TouchableOpacity>
-  );
-}
-
-const devStyles = StyleSheet.create({
-  btn: {
-    position: "absolute",
-    bottom: 24, left: 24, right: 24,
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14, borderRadius: 14,
-    backgroundColor: PRIMARY,
-    zIndex: 9999, elevation: 9999,
-  },
-  btnText: {
-    color: "#000", fontFamily: "Inter_700Bold", fontSize: 14,
-  },
-});
 
 const styles = StyleSheet.create({
   splash: {

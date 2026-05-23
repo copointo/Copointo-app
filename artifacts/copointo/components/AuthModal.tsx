@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useApp, sendOtp, verifyOtp } from "@/context/AppContext";
+import { useApp, sendOtp, verifyOtp, type User } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { CountryCodePicker, DEFAULT_COUNTRY, type Country } from "./CountryCodePicker";
 
@@ -41,7 +41,7 @@ export function AuthModal({
   onClose: () => void;
   dismissible?: boolean;
 }) {
-  const { register, login, resetPasswordWithOtp, initialAuthStep, consumeInitialAuthStep } = useApp();
+  const { register, login, resetPasswordWithOtp, initialAuthStep, consumeInitialAuthStep, setUser } = useApp();
   const { t } = useT();
   const [step, setStep] = useState<Step>(initialAuthStep ?? "login");
 
@@ -620,6 +620,47 @@ export function AuthModal({
             )}
 
             {err ? <Text style={styles.errorText}>{err}</Text> : null}
+
+            {/* ⚠️ TEMP DEV-ONLY: skip-login button rendered just above the
+                "تسجيل الدخول" submit button. Injects an in-memory fake user
+                via setUser() — nothing is persisted to AsyncStorage so a
+                full app reload returns to the real auth gate.
+                DELETE THIS BLOCK before shipping. */}
+            {step === "login" && (
+              <TouchableOpacity
+                onPress={() => {
+                  const fake: User = {
+                    id: `demo_${Date.now()}`,
+                    name: "مستخدم تجريبي",
+                    phone: "00000000",
+                    gameUsername: `demo_${Math.random().toString(36).slice(2, 7)}`,
+                    password: "",
+                    level: 1,
+                    totalOrders: 0,
+                    points: 0,
+                  };
+                  setUser(fake);
+                }}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  backgroundColor: "rgba(232,184,109,0.15)",
+                  borderWidth: 1,
+                  borderColor: PRIMARY,
+                  marginBottom: 8,
+                }}
+              >
+                <Feather name="zap" size={14} color={PRIMARY} />
+                <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold", fontSize: 13 }}>
+                  تخطّي تسجيل الدخول (تجريبي)
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               onPress={
