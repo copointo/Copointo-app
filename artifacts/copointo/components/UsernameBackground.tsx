@@ -170,6 +170,70 @@ function Nebula({ colors, borderRadius }: { colors: readonly [string, string, ..
   );
 }
 
+/** Flying bats with crimson glow — used by "bats" effect */
+type Bat = { y: number; size: number; delay: number; duration: number; flap: number };
+function makeBats(count: number): Bat[] {
+  const out: Bat[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push({
+      y: 5 + Math.random() * 80,
+      size: 14 + Math.random() * 18,
+      delay: Math.random() * 3500,
+      duration: 4500 + Math.random() * 3500,
+      flap: 220 + Math.random() * 180,
+    });
+  }
+  return out;
+}
+function FlyingBat({ bat, glow }: { bat: Bat; glow: string }) {
+  const fly = useRef(new Animated.Value(0)).current;
+  const flap = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    fly.setValue(0); flap.setValue(0);
+    const l1 = Animated.loop(
+      Animated.sequence([
+        Animated.delay(bat.delay),
+        Animated.timing(fly, { toValue: 1, duration: bat.duration, easing: Easing.linear, useNativeDriver: true }),
+      ]),
+    );
+    const l2 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flap, { toValue: 1, duration: bat.flap, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(flap, { toValue: 0, duration: bat.flap, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
+    );
+    l1.start(); l2.start();
+    return () => { l1.stop(); l2.stop(); };
+  }, [fly, flap, bat]);
+  const translateX = fly.interpolate({ inputRange: [0, 1], outputRange: [260, -80] });
+  const translateY = flap.interpolate({ inputRange: [0, 1], outputRange: [-4, 4] });
+  const scaleY = flap.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.1] });
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        top: `${bat.y}%`,
+        left: 0,
+        fontSize: bat.size,
+        color: "#0A0008",
+        textShadowColor: glow,
+        textShadowRadius: 8,
+        transform: [{ translateX }, { translateY }, { scaleY }],
+      }}
+    >
+      🦇
+    </Animated.Text>
+  );
+}
+function Bats({ glow, borderRadius }: { glow: string; borderRadius: number }) {
+  const bats = useMemo(() => makeBats(7), []);
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+      {bats.map((b, i) => <FlyingBat key={i} bat={b} glow={glow} />)}
+    </View>
+  );
+}
+
 /** Rotating rainbow gradient — used by "prismatic" effect */
 function Prismatic({ colors, borderRadius }: { colors: readonly [string, string, ...string[]]; borderRadius: number }) {
   const rot = useRef(new Animated.Value(0)).current;
@@ -282,6 +346,15 @@ export default function UsernameBackground({
       {eff === "nebula" && <Nebula colors={colors} borderRadius={borderRadius} />}
       {eff === "glowBurst" && <GlowBurst color={highlight} borderRadius={borderRadius} />}
       {eff === "wave" && <WaveStripes color={highlight} borderRadius={borderRadius} />}
+      {eff === "bats" && (
+        <>
+          <GlowBurst color={highlight} borderRadius={borderRadius} />
+          <Bats glow={highlight} borderRadius={borderRadius} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
+          </View>
+        </>
+      )}
       {eff === "starfield" && (
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
           <Sparkles color={highlight} count={36} sizeMin={1.2} sizeMax={3.2} />
