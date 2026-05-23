@@ -272,7 +272,7 @@ function FallingGift({ emoji, image, x, size, delay, duration, driftX, rotateDir
 // true screen center to an upper-left position so the hero gift sits in
 // the top-left quadrant alongside the small caption chip.
 const CENTER_X = SCREEN_W * 0.22;
-const CENTER_Y = SCREEN_H * 0.22;
+const CENTER_Y = SCREEN_H * 0.34;
 
 /**
  * BurstScene — fireworks-style. Multiple waves where particles explode
