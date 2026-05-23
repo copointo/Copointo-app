@@ -958,15 +958,15 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   fabThemed: {
-    width: 88, height: 88, borderRadius: 22,
-    alignItems: "center", justifyContent: "center", gap: 4,
-    paddingHorizontal: 4,
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
+    width: 58, height: 58, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", gap: 2,
+    paddingHorizontal: 3,
+    borderWidth: 1.2, borderColor: "rgba(255,255,255,0.18)",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
+    shadowOpacity: 0.6, shadowRadius: 10, elevation: 6,
   },
   fabThemedLabel: {
-    fontSize: 11, fontFamily: "Inter_700Bold",
+    fontSize: 8, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabSmall: {
