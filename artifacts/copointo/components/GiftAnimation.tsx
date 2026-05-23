@@ -168,17 +168,20 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
             </View>
           ) : null}
 
-          {onSkipAll && (
+        </Animated.View>
+
+        {onSkipAll && (
+          <Animated.View style={[styles.skipWrap, { opacity: captionOpacity }]} pointerEvents="box-none">
             <TouchableOpacity
               onPress={(e) => { e.stopPropagation?.(); onSkipAll(); }}
               activeOpacity={0.85}
               style={styles.skipBtn}
             >
-              <Feather name="x" size={14} color="#FFF" />
+              <Feather name="x" size={20} color="#FFF" />
               <Text style={styles.skipText}>تخطي</Text>
             </TouchableOpacity>
-          )}
-        </Animated.View>
+          </Animated.View>
+        )}
       </Pressable>
     </Modal>
   );
@@ -760,7 +763,7 @@ const styles = StyleSheet.create({
   qtyText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   namesBlock: {
     alignItems: "flex-start",
-    gap: 1,
+    gap: 2,
     flexShrink: 1,
   },
   nameLine: {
@@ -768,31 +771,38 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   nameLabel: {
-    fontSize: 11, fontFamily: "Inter_600SemiBold",
+    fontSize: 16, fontFamily: "Inter_600SemiBold",
     color: "#FFF",
   },
   nameStrong: {
-    fontSize: 12, fontFamily: "Inter_700Bold",
-    maxWidth: 110,
+    fontSize: 18, fontFamily: "Inter_700Bold",
+    maxWidth: 180,
   },
   textShadow: {
     textShadowColor: "rgba(0,0,0,0.95)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
+  skipWrap: {
+    position: "absolute",
+    top: SCREEN_H * 0.34 + Math.min(SCREEN_W, SCREEN_H) * 0.22,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
   skipBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.85)",
-    borderWidth: 1,
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: "rgba(0,0,0,0.9)",
+    borderWidth: 2,
     borderColor: "#E8B86D",
   },
   skipText: {
-    fontSize: 11,
+    fontSize: 18,
     fontFamily: "Inter_700Bold",
     color: "#FFF",
   },
