@@ -236,6 +236,51 @@ function renderInner(
   return <Text style={[style, merged]} numberOfLines={numberOfLines}>{text}</Text>;
 }
 
+function ShineSweep() {
+  const v = useRef(new Animated.Value(0)).current;
+  const [w, setW] = React.useState(0);
+  useEffect(() => {
+    v.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 1800, easing: Easing.linear, useNativeDriver: false }),
+        Animated.delay(800),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  const bandW = Math.max(40, w * 0.45);
+  const tx = v.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-bandW, w + bandW],
+  });
+  return (
+    <View
+      pointerEvents="none"
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden" }}
+    >
+      <Animated.View
+        style={{
+          position: "absolute", top: 0, bottom: 0, width: bandW,
+          transform: [{ translateX: tx }, { skewX: "-20deg" }],
+        }}
+      >
+        <LinearGradient
+          colors={[
+            "rgba(255,255,255,0)",
+            "rgba(255,255,255,0.55)",
+            "rgba(255,255,255,0)",
+          ]}
+          start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }}
+          style={{ flex: 1 }}
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
 function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactElement, shine: boolean = false) {
   const baseBox: ViewStyle = {
     paddingHorizontal: 10,
@@ -247,21 +292,7 @@ function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactEleme
     alignSelf: "flex-start",
     shadowColor: bg.border, shadowOpacity: 0.55, shadowRadius: 8,
   };
-  const shineOverlay = shine ? (
-    <LinearGradient
-      pointerEvents="none"
-      colors={[
-        "rgba(255,255,255,0.55)",
-        "rgba(255,255,255,0.18)",
-        "rgba(255,255,255,0)",
-        "rgba(255,255,255,0)",
-        "rgba(255,255,255,0.22)",
-      ]}
-      locations={[0, 0.35, 0.55, 0.75, 1]}
-      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-    />
-  ) : null;
+  const shineOverlay = shine ? <ShineSweep /> : null;
   if (bg.gradient && bg.gradient.length >= 2) {
     const stops = bg.gradient as readonly [string, string, ...string[]];
     return (
