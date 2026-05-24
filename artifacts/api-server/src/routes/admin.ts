@@ -393,6 +393,13 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
   if (levelDelta !== 0) {
     user.level = Math.max(0, Math.min(999, (user.level ?? 0) + Math.trunc(levelDelta)));
   }
+  // Coupling: each in-game level is earned from 7 drinks, so when the admin
+  // bumps the level we ALSO bump totalOrders by `levelDelta * 7`. This is what
+  // makes the user actually overtake others in the leaderboard (which sorts
+  // by level AND drink history) instead of just having the displayed level
+  // change while the underlying progress stays put.
+  const DRINKS_PER_LEVEL = 7;
+  const couplingOrdersDelta = Math.trunc(levelDelta) * DRINKS_PER_LEVEL;
   // Mirror the bump into per-cafe progress for the chosen awardCafeId so the
   // mobile game tab (which reads `cafeProgress[activeCafe].level`, NOT the
   // global `user.level`) actually reflects the admin adjustment. Without
@@ -402,15 +409,19 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     if (cafeExists) {
       const prog = (user.cafeProgress ??= {});
       const curr = prog[awardCafeId] ?? { totalOrders: 0, level: 0 };
-      const nextLevel  = Math.max(0, Math.min(999, curr.level       + Math.trunc(levelDelta)));
-      const nextOrders = Math.max(0,                curr.totalOrders + Math.trunc(ordersDelta));
+      const nextLevel  = Math.max(0, Math.min(999, curr.level + Math.trunc(levelDelta)));
+      const nextOrders = Math.max(0, curr.totalOrders + Math.trunc(ordersDelta) + couplingOrdersDelta);
       prog[awardCafeId] = { level: nextLevel, totalOrders: nextOrders };
     }
   }
   let newlyAwarded = 0;
-  if (ordersDelta !== 0) {
+  // Apply both the explicit ordersDelta AND the level→drinks coupling to the
+  // global totalOrders counter so the user advances on the global leaderboard
+  // and earns any newly-crossed milestone free coffees.
+  const effectiveOrdersDelta = Math.trunc(ordersDelta) + couplingOrdersDelta;
+  if (effectiveOrdersDelta !== 0) {
     const before = user.totalOrders ?? 0;
-    user.totalOrders = Math.max(0, before + Math.trunc(ordersDelta));
+    user.totalOrders = Math.max(0, before + effectiveOrdersDelta);
     // Issue free-coffee milestones only when ordersDelta is positive AND we
     // actually crossed at least one new multiple of 7. Pick the cafe binding:
     // explicit awardCafeId > user's top-drink cafe > null.

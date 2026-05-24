@@ -180,13 +180,19 @@ export default function UsersPage() {
     if (!adjTarget) return;
     const d = Math.trunc(Number(lvlDelta));
     if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا للمستوى (موجب أو سالب)"); return; }
+    if (!awardCafeId) {
+      setAdjErr("اختر الكوفي الذي سيتقدّم فيه اللاعب من قسم «عدد الكوفي» في الأسفل أولاً.");
+      return;
+    }
     setLvlSaving(true); setAdjErr(""); setAdjOk("");
     try {
-      const res = await api.adjustProgress(adjTarget.id, { levelDelta: d });
+      const res = await api.adjustProgress(adjTarget.id, { levelDelta: d, awardCafeId });
       setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
       setAdjTarget(t => t ? { ...t, ...res.user } : t);
       setLvlDelta("");
-      setAdjOk(`✓ تم تحديث المستوى إلى ${res.user.level}`);
+      const cafeName = bd.find(b => b.cafeId === awardCafeId)?.cafeName || "الكوفي المختار";
+      setAdjOk(`✓ تم تقديم اللاعب في ${cafeName} → المستوى ${res.user.level}`);
+      void loadBreakdown(adjTarget.id);
     } catch (e: any) {
       setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
     } finally { setLvlSaving(false); }
@@ -482,7 +488,8 @@ export default function UsersPage() {
             </div>
             <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
               <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 border border-border rounded-lg px-3 py-2">
-                ⚠️ كل خانة منفصلة تمامًا: تعديل المستوى لا يغيّر عدد الكوفي، وتعديل عدد الكوفي لا يغيّر المستوى.
+                ⚠️ <b>تعديل المستوى يقدّم اللاعب فعليًا في اللعبة</b> ويزيد عدد كوبه بمقدار <span className="font-mono">+7 لكل مستوى</span> ليتفوّق على الآخرين في الترتيب.
+                {" "}اختر الكوفي المطلوب من قسم «عدد الكوفي» في الأسفل أولاً، ثم طبّق المستوى.
                 استخدم رقمًا سالبًا للتقليل (مثلاً <span className="font-mono">-3</span>) أو موجبًا للزيادة (<span className="font-mono">+5</span>).
               </p>
 
