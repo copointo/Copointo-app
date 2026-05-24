@@ -53,7 +53,7 @@ export default function UsernameText({
     : renderInner(def, text, style, fallbackColor, numberOfLines, needsShaping);
 
   if (def.bg && withBg) {
-    return wrapBg(def.bg, inner);
+    return wrapBg(def.bg, inner, !!def.anim);
   }
   return inner;
 }
@@ -90,34 +90,18 @@ function AnimatedInner({
       inputRange: stops.map((_, i) => i / (stops.length - 1)),
       outputRange: stops as unknown as string[],
     });
-    // Static lustrous shine: bright halo + soft white inner gloss overlay.
     return (
-      <View style={{ position: "relative", alignSelf: "flex-start" }}>
-        <Animated.Text
-          style={[style, {
-            color,
-            textShadowColor: color,
-            textShadowOffset: { width: 0, height: 0 },
-            textShadowRadius: 16,
-          }]}
-          numberOfLines={numberOfLines}
-        >
-          {text}
-        </Animated.Text>
-        <Animated.Text
-          pointerEvents="none"
-          style={[style, {
-            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-            color: "rgba(255,255,255,0.45)",
-            textShadowColor: "rgba(255,255,255,0.9)",
-            textShadowOffset: { width: 0, height: 0 },
-            textShadowRadius: 6,
-          }]}
-          numberOfLines={numberOfLines}
-        >
-          {text}
-        </Animated.Text>
-      </View>
+      <Animated.Text
+        style={[style, {
+          color,
+          textShadowColor: color,
+          textShadowOffset: { width: 0, height: 0 },
+          textShadowRadius: 12,
+        }]}
+        numberOfLines={numberOfLines}
+      >
+        {text}
+      </Animated.Text>
     );
   }
 
@@ -252,7 +236,7 @@ function renderInner(
   return <Text style={[style, merged]} numberOfLines={numberOfLines}>{text}</Text>;
 }
 
-function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactElement) {
+function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactElement, shine: boolean = false) {
   const baseBox: ViewStyle = {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -263,6 +247,21 @@ function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactEleme
     alignSelf: "flex-start",
     shadowColor: bg.border, shadowOpacity: 0.55, shadowRadius: 8,
   };
+  const shineOverlay = shine ? (
+    <LinearGradient
+      pointerEvents="none"
+      colors={[
+        "rgba(255,255,255,0.55)",
+        "rgba(255,255,255,0.18)",
+        "rgba(255,255,255,0)",
+        "rgba(255,255,255,0)",
+        "rgba(255,255,255,0.22)",
+      ]}
+      locations={[0, 0.35, 0.55, 0.75, 1]}
+      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+    />
+  ) : null;
   if (bg.gradient && bg.gradient.length >= 2) {
     const stops = bg.gradient as readonly [string, string, ...string[]];
     return (
@@ -272,12 +271,14 @@ function wrapBg(bg: NonNullable<UsernameColorDef["bg"]>, inner: React.ReactEleme
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
         />
+        {shineOverlay}
         {inner}
       </View>
     );
   }
   return (
     <View style={[baseBox, { backgroundColor: bg.color ?? "#000" }]}>
+      {shineOverlay}
       {inner}
     </View>
   );
