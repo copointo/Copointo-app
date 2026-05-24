@@ -17,6 +17,39 @@
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <meta name="googlebot" content="index, follow" />
 
+    <!--
+      Per-domain noindex: the admin dashboard domain (copointoadmin-al-yaqathan.com)
+      must NEVER appear in Google. We override the robots/googlebot tags above as
+      soon as the page loads when the hostname matches the admin domain (or any
+      *admin* subdomain), and also tag the path /admin/* on the public domain.
+    -->
+    <script>
+      (function () {
+        try {
+          var h = (location.hostname || "").toLowerCase();
+          var p = (location.pathname || "").toLowerCase();
+          var isAdminHost =
+            h.indexOf("copointoadmin") !== -1 ||
+            h.indexOf("admin.") === 0 ||
+            h.indexOf(".admin.") !== -1;
+          var isAdminPath = p.indexOf("/admin") === 0;
+          if (isAdminHost || isAdminPath) {
+            ["robots", "googlebot", "bingbot"].forEach(function (n) {
+              var m = document.querySelector('meta[name="' + n + '"]');
+              if (!m) {
+                m = document.createElement("meta");
+                m.setAttribute("name", n);
+                document.head.appendChild(m);
+              }
+              m.setAttribute("content", "noindex, nofollow, noarchive, nosnippet, noimageindex");
+            });
+            var c = document.querySelector('link[rel="canonical"]');
+            if (c) c.parentNode.removeChild(c);
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Favicons -->
     <link rel="icon" type="image/png" href="%BASE_URL%copointo-logo.png" />
     <link rel="shortcut icon" type="image/png" href="%BASE_URL%copointo-logo.png" />
