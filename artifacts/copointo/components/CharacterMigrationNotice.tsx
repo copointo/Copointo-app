@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { useCoins } from "@/hooks/useCoins";
+import { useApp } from "@/context/AppContext";
 import {
   readPendingCharacterRefund,
   clearPendingCharacterRefund,
+  ensureDefaultCharacterEquipped,
   type PendingCharacterRefund,
 } from "@/hooks/useCharacters";
 
@@ -19,6 +21,7 @@ const PRIMARY = "#E8B86D";
  */
 export default function CharacterMigrationNotice() {
   const { addCoins, hydrated: coinsHydrated } = useCoins();
+  const { user } = useApp();
   const [pending, setPending] = useState<PendingCharacterRefund | null>(null);
 
   useEffect(() => {
@@ -35,6 +38,15 @@ export default function CharacterMigrationNotice() {
     })();
     return () => { cancelled = true; };
   }, [coinsHydrated, addCoins]);
+
+  // For pre-update accounts: after login, force the equipped character
+  // to match the user's registered gender (boy → char-1, girl → char-2).
+  // This covers users who already had a legacy character equipped before
+  // the roster swap, or whose equipped slot got cleared by the migration.
+  useEffect(() => {
+    if (!user?.gender) return;
+    ensureDefaultCharacterEquipped(user.gender).catch(() => {});
+  }, [user?.gender]);
 
   if (!pending) return null;
 
