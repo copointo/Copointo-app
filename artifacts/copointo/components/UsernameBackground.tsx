@@ -423,7 +423,7 @@ export default function UsernameBackground({
       {eff === "flames" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="✨" dir="fall" count={8} gap={1500} steady sizeMin={18} sizeMax={32} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🔥" dir="fall" count={8} gap={1500} steady sizeMin={18} sizeMax={32} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
