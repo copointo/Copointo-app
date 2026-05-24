@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, StyleSheet, View, ViewStyle } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { BackgroundDef, getBackground } from "../data/backgrounds";
 import { useBackgrounds } from "../hooks/useBackgrounds";
 
