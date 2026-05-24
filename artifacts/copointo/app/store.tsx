@@ -1,7 +1,7 @@
 import { Feather, FontAwesome5, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BuyCoinsPanel } from "./buy-coins";
@@ -24,7 +24,7 @@ import { CHARACTERS, CharacterDef, CHARACTER_PRICE } from "../data/characters";
 import { GIFTS, GiftDef } from "../data/gifts";
 import GiftAnimation from "../components/GiftAnimation";
 import { useGiftInventory } from "../hooks/useGiftInventory";
-import { useCharacters } from "../hooks/useCharacters";
+import { useCharacters, ensureDefaultCharacterEquipped } from "../hooks/useCharacters";
 import Character from "../components/Character";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
@@ -275,6 +275,13 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const [buyQty, setBuyQty]   = useState<number>(1);
   const [animGift, setAnimGift] = useState<GiftDef | null>(null);
   const { inventory: giftInventory, addGift } = useGiftInventory();
+
+  // Auto-equip the gender-matching free starter character on first login
+  useEffect(() => {
+    if (user?.gender) {
+      ensureDefaultCharacterEquipped(user.gender).catch(() => {});
+    }
+  }, [user?.gender]);
 
   const previewOwned = previewBg ? ownedBackgrounds.includes(previewBg.bg.id) : false;
   const previewFrameOwned = previewFrame ? ownedFrames.includes(previewFrame.frame.id) : false;
@@ -663,12 +670,16 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   }
 
   if (cat === "characters") {
+    const visibleChars = CHARACTERS.filter(
+      c => !c.genderLocked || c.genderLocked === user?.gender,
+    );
     return (
       <>
         <View style={styles.bgGrid} key="characters">
-          {CHARACTERS.map((ch, i) => {
+          {visibleChars.map((ch, i) => {
             const owned = ownedCharacters.includes(ch.id);
-            const price = CHARACTER_PRICE(i);
+            const realIdx = CHARACTERS.findIndex(c => c.id === ch.id);
+            const price = CHARACTER_PRICE(realIdx);
             const tint = itemTheme(ch.glow ?? ch.ringGradient?.[1] ?? CHAR_TINT[ch.id]);
             return (
               <FadeInItem key={ch.id} index={i} style={{ width: "48%" }}>

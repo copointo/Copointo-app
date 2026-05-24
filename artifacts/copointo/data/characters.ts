@@ -1,19 +1,19 @@
 export interface CharacterDef {
   id: string;
   name: string;
-  /** Emoji glyph used as the character body. */
+  /** Emoji glyph used as the character body (fallback when no image). */
   emoji: string;
   /** Optional image asset (require'd) rendered instead of the emoji. */
   image?: number;
-  /** Glow halo color behind the character (tier 2 & 3). */
+  /** Glow halo color behind the character. */
   glow?: string;
-  /** Slow up-and-down bobbing animation (tier 2 & 3). */
+  /** Slow up-and-down bobbing animation. */
   float?: boolean;
-  /** Soft scale pulse animation (tier 3). */
+  /** Soft scale pulse animation. */
   pulse?: boolean;
-  /** Two small particles orbiting around the character (tier 3). */
+  /** Two small particles orbiting around the character. */
   sparkle?: boolean;
-  /** Fixed rainbow gradient ring around the body (tier 3 only). */
+  /** Fixed rainbow gradient ring around the body. */
   rainbow?: boolean;
   /** Custom gradient ring colors (overrides rainbow palette). */
   ringGradient?: readonly [string, string, ...string[]];
@@ -21,63 +21,89 @@ export interface CharacterDef {
   scale?: number;
   /** If true, every user owns this character by default (free starter). */
   defaultOwned?: boolean;
+  /** Restrict character visibility/ownership to a specific gender. */
+  genderLocked?: "male" | "female";
 }
 
 export const CHARACTERS: CharacterDef[] = [
-  // ── 1-10 normal companions ────────────────────────────────────────
-  { id: "char-1",  name: "كوب قهوة",   emoji: "☕", defaultOwned: true },
-  { id: "char-2",  name: "أسد",       emoji: "🦁" },
-  { id: "char-3",  name: "أرنب",      emoji: "🐰" },
-  { id: "char-4",  name: "ثعلب",      emoji: "🦊" },
-  { id: "char-5",  name: "باندا",     emoji: "🐼" },
-  { id: "char-6",  name: "بطريق",     emoji: "🐧" },
-  { id: "char-7",  name: "بومة",      emoji: "🦉" },
-  { id: "char-8",  name: "ضفدع",      emoji: "🐸" },
-  { id: "char-9",  name: "هامستر",    emoji: "🐹" },
-  { id: "char-10", name: "حصان",      emoji: "🐴" },
+  // ── Free starters (gender-locked) ─────────────────────────────────
+  { id: "char-1", name: "الولد",  emoji: "🧒", genderLocked: "male",
+    image: require("../assets/images/characters/char-01.png"),
+    defaultOwned: true, glow: "#E8B86D", scale: 1.25 },
+  { id: "char-2", name: "البنت", emoji: "👧", genderLocked: "female",
+    image: require("../assets/images/characters/char-02.png"),
+    defaultOwned: true, glow: "#F472B6", scale: 1.25 },
 
-  // ── 11-15 cooler companions ───────────────────────────────────────
-  { id: "char-11", name: "طاووس",       emoji: "🦚" },
-  { id: "char-12", name: "شبح متوهج",   emoji: "👻" },
-  { id: "char-13", name: "نسر مهيب",    emoji: "🦅" },
-  { id: "char-14", name: "كرة بلورية",  emoji: "🔮" },
-  { id: "char-15", name: "ساحر",        emoji: "🧙" },
-
-  // ── 16-20 legendary ───────────────────────────────────────────────
-  { id: "char-16", name: "وردة سوداء",   emoji: "🥀" },
-  { id: "char-17", name: "تنين أسطوري",  emoji: "🐉" },
-  { id: "char-18", name: "فراشة سحرية",  emoji: "🦋" },
-  { id: "char-19", name: "زومبي",        emoji: "🧟", scale: 1.15,
+  // ── Paid characters (5,000 coins each) ────────────────────────────
+  { id: "char-3",  name: "الشاب الكاجوال",   emoji: "🧑",
+    image: require("../assets/images/characters/char-03.png"),
+    glow: "#9CA3AF", scale: 1.25 },
+  { id: "char-4",  name: "فتاة الهودي",       emoji: "👩",
+    image: require("../assets/images/characters/char-04.png"),
+    glow: "#A78BFA", scale: 1.25 },
+  { id: "char-5",  name: "ولد المدرسة",        emoji: "🎒",
+    image: require("../assets/images/characters/char-05.png"),
+    glow: "#60A5FA", scale: 1.25 },
+  { id: "char-6",  name: "البنت الذهبية",      emoji: "💛",
+    image: require("../assets/images/characters/char-06.png"),
+    glow: "#FCD34D", scale: 1.25 },
+  { id: "char-7",  name: "الولد المثقّف",      emoji: "🤓",
+    image: require("../assets/images/characters/char-07.png"),
+    glow: "#E5E7EB", scale: 1.25 },
+  { id: "char-8",  name: "فتاة القهوة",        emoji: "☕",
+    image: require("../assets/images/characters/char-08.png"),
+    glow: "#D4A373", scale: 1.25 },
+  { id: "char-9",  name: "المصوّر",             emoji: "📸",
+    image: require("../assets/images/characters/char-09.png"),
+    glow: "#A3A3A3", scale: 1.25 },
+  { id: "char-10", name: "ساحر الظلام",        emoji: "🔮",
+    image: require("../assets/images/characters/char-10.png"),
+    glow: "#a855f7", scale: 1.3,
+    ringGradient: ["#1E1B4B", "#7E22CE", "#A855F7", "#7E22CE", "#1E1B4B"] },
+  { id: "char-11", name: "ساحرة الذهب",        emoji: "🌟",
+    image: require("../assets/images/characters/char-11.png"),
+    glow: "#FCD34D", scale: 1.3,
+    ringGradient: ["#451A03", "#B45309", "#FCD34D", "#B45309", "#451A03"] },
+  { id: "char-12", name: "الفارس الذهبي",      emoji: "⚔️",
+    image: require("../assets/images/characters/char-12.png"),
+    glow: "#FBBF24", scale: 1.3,
+    ringGradient: ["#1F2937", "#B45309", "#FBBF24", "#B45309", "#1F2937"] },
+  { id: "char-13", name: "ساحر الكتاب",        emoji: "📖",
+    image: require("../assets/images/characters/char-13.png"),
+    glow: "#60A5FA", scale: 1.3,
+    ringGradient: ["#0C0A2C", "#1D4ED8", "#60A5FA", "#1D4ED8", "#0C0A2C"] },
+  { id: "char-14", name: "محارب السيف",        emoji: "🗡️",
+    image: require("../assets/images/characters/char-14.png"),
+    glow: "#DC2626", scale: 1.3,
     ringGradient: ["#000000", "#7F1D1D", "#DC2626", "#7F1D1D", "#000000"] },
-  { id: "char-20", name: "أسطوري",       emoji: "🦄", rainbow: true },
-
-  // ── 21+ image-based companions ────────────────────────────────────
-  { id: "char-21", name: "الولد الأنيق",  emoji: "🧒",
-    image: require("../assets/images/char-boy-cargo.png"),
-    glow: "#E8B86D", scale: 1.2 },
+  { id: "char-15", name: "ملكة البنفسج",        emoji: "👑",
+    image: require("../assets/images/characters/char-15.png"),
+    glow: "#a855f7", scale: 1.3,
+    ringGradient: ["#1E1B4B", "#6D28D9", "#C084FC", "#6D28D9", "#1E1B4B"] },
+  { id: "char-16", name: "أمير الجليد",         emoji: "❄️",
+    image: require("../assets/images/characters/char-16.png"),
+    glow: "#60A5FA", scale: 1.3,
+    ringGradient: ["#0C4A6E", "#0EA5E9", "#BAE6FD", "#0EA5E9", "#0C4A6E"] },
 ];
 
-const PRICE_OVERRIDES: Record<string, number> = {
-  "char-13": 2000,
-  "char-14": 2000,
-  "char-15": 2000,
-  "char-16": 2000,
-  "char-17": 5000,
-  "char-18": 5000,
-  "char-19": 10000,
-  "char-20": 10000,
-  "char-21": 2000,
-};
+/** IDs that are free-to-own (price = 0). Both gender-locked starters. */
+export const FREE_CHARACTER_IDS: readonly string[] = ["char-1", "char-2"];
 
 export function getCharacter(id: string | null): CharacterDef | null {
   if (!id) return null;
   return CHARACTERS.find(c => c.id === id) ?? null;
 }
 
+/** Picks the free starter that matches the user's gender, defaults to boy. */
+export function defaultCharacterForGender(
+  gender?: "male" | "female" | null,
+): string {
+  return gender === "female" ? "char-2" : "char-1";
+}
+
 export const CHARACTER_PRICE = (idx: number): number => {
   const ch = CHARACTERS[idx];
-  if (ch && PRICE_OVERRIDES[ch.id] !== undefined) return PRICE_OVERRIDES[ch.id];
-  if (idx < 10) return 800;
-  if (idx < 15) return 1200;
-  return 3000;
+  if (!ch) return 5000;
+  if (FREE_CHARACTER_IDS.includes(ch.id)) return 0;
+  return 5000;
 };

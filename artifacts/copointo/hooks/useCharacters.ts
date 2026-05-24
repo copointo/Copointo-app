@@ -2,15 +2,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { registerAccountResetHandler } from "../lib/accountResetRegistry";
 import { syncEquipmentToServer } from "../lib/equipmentSync";
 import { useCallback, useEffect, useState } from "react";
-import { CHARACTERS } from "../data/characters";
+import { CHARACTERS, defaultCharacterForGender } from "../data/characters";
 
 const KEY_OWNED = "copointo_characters_owned_v1";
 const KEY_EQUIPPED = "copointo_character_equipped_v1";
 
 // Every character flagged `defaultOwned` is granted to all users automatically
-// (free starter pack). Currently this is just the cat (char-1).
+// (gender-locked free starters: boy + girl).
 const DEFAULT_OWNED: string[] = CHARACTERS.filter(c => c.defaultOwned).map(c => c.id);
-const DEFAULT_EQUIPPED: string | null = DEFAULT_OWNED[0] ?? null;
+const VALID_IDS = new Set(CHARACTERS.map(c => c.id));
 
 interface State {
   owned: string[];
@@ -33,29 +33,31 @@ function hydrate(): Promise<State> {
     AsyncStorage.getItem(KEY_OWNED),
     AsyncStorage.getItem(KEY_EQUIPPED),
   ]).then(([rawOwned, rawEq]) => {
-    // First-run users (rawOwned === null) get the starter defaults.
-    // Anyone with a persisted value (even "[]" after an account reset)
-    // gets EXACTLY what was persisted, with no defaults merged in.
     let owned: string[];
     if (rawOwned === null) {
-      owned = DEFAULT_OWNED;
+      owned = [...DEFAULT_OWNED];
     } else {
       owned = [];
       try {
         const parsed = JSON.parse(rawOwned);
         if (Array.isArray(parsed)) owned = parsed;
       } catch {}
+      // Always make sure starter characters are present
+      for (const d of DEFAULT_OWNED) if (!owned.includes(d)) owned.push(d);
     }
-    // Only first-run users (rawEq === null AND rawOwned === null) auto-equip
-    // the default starter. Reset writes "" so nothing stays equipped.
-    const equipped =
-      rawEq === null && rawOwned === null
-        ? (DEFAULT_EQUIPPED && owned.includes(DEFAULT_EQUIPPED) ? DEFAULT_EQUIPPED : null)
-        : rawEq && owned.includes(rawEq)
-          ? rawEq
-          : null;
+    // Drop unknown ids (legacy characters from older versions)
+    owned = owned.filter(id => VALID_IDS.has(id));
+
+    // Equipped char must still exist; otherwise clear it (gender helper sets it)
+    const equipped = rawEq && VALID_IDS.has(rawEq) && owned.includes(rawEq)
+      ? rawEq
+      : null;
+
     const next: State = { owned, equipped };
     broadcast(next);
+    // Persist cleaned owned/equipped so we don't repeat the migration
+    AsyncStorage.setItem(KEY_OWNED, JSON.stringify(owned)).catch(() => {});
+    if (rawEq && !equipped) AsyncStorage.setItem(KEY_EQUIPPED, "").catch(() => {});
     return next;
   });
   return _hydrationPromise;
@@ -97,6 +99,33 @@ export function useCharacters() {
     grantCharacter,
     equipCharacter,
   };
+}
+
+/**
+ * Equip the gender-matching free starter character if the user currently
+ * has nothing equipped. Safe to call on every mount / gender change.
+ */
+export async function ensureDefaultCharacterEquipped(
+  gender?: "male" | "female" | null,
+): Promise<void> {
+  const cur = await hydrate();
+  const targetId = defaultCharacterForGender(gender);
+  // If nothing equipped, equip the gender starter
+  if (!cur.equipped) {
+    if (!cur.owned.includes(targetId)) return;
+    await AsyncStorage.setItem(KEY_EQUIPPED, targetId);
+    broadcast({ ...cur, equipped: targetId });
+    syncEquipmentToServer("character", targetId);
+    return;
+  }
+  // If the user currently has the WRONG-gender starter equipped (e.g. they
+  // changed gender or it was set by a legacy default), swap to the right one.
+  const opposite = targetId === "char-1" ? "char-2" : "char-1";
+  if (cur.equipped === opposite && cur.owned.includes(targetId)) {
+    await AsyncStorage.setItem(KEY_EQUIPPED, targetId);
+    broadcast({ ...cur, equipped: targetId });
+    syncEquipmentToServer("character", targetId);
+  }
 }
 
 registerAccountResetHandler(() => {
