@@ -186,7 +186,7 @@ function makeCreatures(count: number): Creature[] {
   }
   return out;
 }
-function FlyingCreature({ c, glow, emoji, dir, gap, spin = false, trail }: { c: Creature; glow: string; emoji: string; dir: FlyDir; gap: number; spin?: boolean; trail?: string }) {
+function FlyingCreature({ c, glow, emoji, dir, gap, spin = false, trail, steady = false }: { c: Creature; glow: string; emoji: string; dir: FlyDir; gap: number; spin?: boolean; trail?: string; steady?: boolean }) {
   const fly = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -236,11 +236,16 @@ function FlyingCreature({ c, glow, emoji, dir, gap, spin = false, trail }: { c: 
   } else {
     positionStyle = { left: `${c.pos}%`, top: 0 };
     const ty = fly.interpolate({ inputRange: [0, 1], outputRange: [-40, 260] });
-    const tx = bob.interpolate({ inputRange: [0, 1], outputRange: [-8, 8] });
-    const rot = spin && spinRot
-      ? spinRot
-      : bob.interpolate({ inputRange: [0, 1], outputRange: ["-15deg", "15deg"] });
-    transform = [{ translateY: ty }, { translateX: tx }, { rotate: rot }];
+    if (steady) {
+      const rot = spin && spinRot ? spinRot : "0deg";
+      transform = [{ translateY: ty }, { rotate: rot as any }];
+    } else {
+      const tx = bob.interpolate({ inputRange: [0, 1], outputRange: [-8, 8] });
+      const rot = spin && spinRot
+        ? spinRot
+        : bob.interpolate({ inputRange: [0, 1], outputRange: ["-15deg", "15deg"] });
+      transform = [{ translateY: ty }, { translateX: tx }, { rotate: rot }];
+    }
   }
 
   return (
@@ -269,7 +274,7 @@ function FlyingCreature({ c, glow, emoji, dir, gap, spin = false, trail }: { c: 
     </Animated.View>
   );
 }
-function FlyingCreatures({ glow, borderRadius, emoji, dir = "horizontal", count = 7, gap = 3000, spin = false, trail, sizeMin = 14, sizeMax = 32, posMin = 5, posMax = 90 }: { glow: string; borderRadius: number; emoji: string; dir?: FlyDir; count?: number; gap?: number; spin?: boolean; trail?: string; sizeMin?: number; sizeMax?: number; posMin?: number; posMax?: number }) {
+function FlyingCreatures({ glow, borderRadius, emoji, dir = "horizontal", count = 7, gap = 3000, spin = false, trail, sizeMin = 14, sizeMax = 32, posMin = 5, posMax = 90, steady = false }: { glow: string; borderRadius: number; emoji: string; dir?: FlyDir; count?: number; gap?: number; spin?: boolean; trail?: string; sizeMin?: number; sizeMax?: number; posMin?: number; posMax?: number; steady?: boolean }) {
   const list = useMemo(() => {
     const out: Creature[] = [];
     for (let i = 0; i < count; i++) {
@@ -285,7 +290,7 @@ function FlyingCreatures({ glow, borderRadius, emoji, dir = "horizontal", count 
   }, [count, sizeMin, sizeMax]);
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
-      {list.map((c, i) => <FlyingCreature key={i} c={c} glow={glow} emoji={emoji} dir={dir} gap={gap} spin={spin} trail={trail} />)}
+      {list.map((c, i) => <FlyingCreature key={i} c={c} glow={glow} emoji={emoji} dir={dir} gap={gap} spin={spin} trail={trail} steady={steady} />)}
     </View>
   );
 }
@@ -445,7 +450,7 @@ export default function UsernameBackground({
       {eff === "dragons" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow="#a855f7" borderRadius={borderRadius} emoji="💎" dir="fall" count={8} gap={1500} spin sizeMin={20} sizeMax={36} />
+          <FlyingCreatures glow="#a855f7" borderRadius={borderRadius} emoji="💎" dir="fall" count={10} gap={1500} steady sizeMin={12} sizeMax={20} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
