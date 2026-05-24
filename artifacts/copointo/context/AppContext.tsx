@@ -22,7 +22,6 @@ import "@/hooks/useUsernameColors";
 import "@/hooks/useTextStyles";
 import "@/hooks/useCharacters";
 import "@/hooks/useCoins";
-import { grantDevDemoCoinsOnce, grantBonusCoinsOnce } from "@/hooks/useCoins";
 import "@/hooks/useGiftInventory";
 
 /**
@@ -508,30 +507,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { currentUserIdRef.current = user?.id ?? null; }, [user?.id]);
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
 
-  // ⚠️ TEMP DEV-ONLY: when a demo / skip-login user is signed in, inject a
-  // handful of fake target users into the leaderboard so the tester can
-  // gift them, message them, etc. Also tops the coin balance up to 50,000
-  // for testing gift purchases. Remove together with the skip-login button
-  // in AuthModal.tsx.
-  useEffect(() => {
-    if (!user?.id?.startsWith("demo_")) return;
-    const targets: User[] = [
-      { id: "demo_target_1", name: "أحمد التجريبي",  phone: "00000001", gameUsername: "ahmed_demo",  password: "", level: 12, totalOrders: 34, points: 1240 },
-      { id: "demo_target_2", name: "ليلى التجريبية", phone: "00000002", gameUsername: "laila_demo",  password: "", level:  8, totalOrders: 21, points:  860 },
-      { id: "demo_target_3", name: "خالد التجريبي",  phone: "00000003", gameUsername: "khalid_demo", password: "", level:  5, totalOrders: 11, points:  420 },
-    ];
-    setRegisteredUsers(prev => {
-      const existing = new Set(prev.map(u => u.id));
-      const additions = targets.filter(t => !existing.has(t.id));
-      return additions.length === 0 ? prev : [...prev, ...additions];
-    });
-    grantDevDemoCoinsOnce(50000, `copointo_demo_50k_grant_v1_${user.id}`).catch(() => {});
-    // One-time ADDITIVE bonus: +50,000 coins per account, on top of the
-    // current balance, guarded by its own marker so it only fires once
-    // per user.id. Uses the broadcast-aware helper so the live balance
-    // updates immediately without an app restart.
-    grantBonusCoinsOnce(50000, `copointo_bonus_50k_v3_${user.id}`).catch(() => {});
-  }, [user?.id, registeredUsers]);
   const [initialAuthStep, setInitialAuthStep] = useState<"login" | "register-form" | null>(null);
   const consumeInitialAuthStep = useCallback(() => setInitialAuthStep(null), []);
   const [friends, setFriends] = useState<string[]>([]);
@@ -577,11 +552,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user?.id) { setBannedInfo(null); return; }
     const uid = user.id;
-    // ⚠️ TEMP DEV-ONLY: demo / skip-login users don't exist on the server,
-    // so the existence-check poll below would kick them out after ~24s.
-    // Bail out of the poll entirely for them. Remove together with the
-    // dev skip-login button in AuthModal.tsx.
-    if (uid.startsWith("demo_")) { setBannedInfo(null); return; }
     const cacheKey = `ban_cache:${uid}`;
     let cancelled = false;
     // Counter for consecutive "exists:false" readings. We only kick a user
@@ -732,12 +702,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // since removed) is pruned so super-admin wipes propagate.
       const byId = new Map<string, User>();
       for (const u of prev) {
-        // ⚠️ TEMP DEV-ONLY: also keep `demo_target_*` placeholders alive so
-        // the server poll doesn't prune them from the leaderboard.
         if (
           u.id === currentUserIdRef.current ||
-          (u.password ?? "") !== "" ||
-          u.id.startsWith("demo_target_")
+          (u.password ?? "") !== ""
         ) {
           byId.set(u.id, u);
         }
