@@ -66,10 +66,19 @@ export default function SentGiftsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/gift-feed?limit=50`);
+      const res = await fetch(`${API_BASE}/gift-feed?limit=200`);
       if (!res.ok) return;
       const data = await res.json();
-      if (Array.isArray(data?.events)) setEvents(data.events as GiftEvent[]);
+      if (Array.isArray(data?.events)) {
+        // Only keep gifts sent in the last 7 days. Anything older drops off
+        // the list automatically the next time this screen mounts/refreshes.
+        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        const recent = (data.events as GiftEvent[]).filter(e => {
+          const t = new Date(e.createdAt).getTime();
+          return Number.isFinite(t) && t >= cutoff;
+        });
+        setEvents(recent);
+      }
     } catch {}
   }, []);
 
@@ -194,7 +203,7 @@ export default function SentGiftsScreen() {
             />
             <Text style={styles.heroTitle}>الهدايا المرسلة من المستخدمين</Text>
             <Text style={styles.heroSub}>
-              آخر {events.length || "—"} هدية أُهديت بين الأصدقاء
+              هدايا آخر 7 أيام فقط ({events.length || "—"}) — تتجدد القائمة أسبوعياً
             </Text>
             <View style={[styles.heroBar, { backgroundColor: ACCENT }]} />
           </View>
