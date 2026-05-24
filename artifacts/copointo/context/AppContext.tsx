@@ -526,6 +526,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return additions.length === 0 ? prev : [...prev, ...additions];
     });
     grantDevDemoCoinsOnce(50000, `copointo_demo_50k_grant_v1_${user.id}`).catch(() => {});
+    // One-time top-up bonus grant requested by user — +50,000 coins per
+    // account, guarded by its own marker so it only fires once per user.id.
+    void (async () => {
+      const KEY_BAL = "copointo_coins_balance_v1";
+      const KEY_MARK = `copointo_bonus_50k_v2_${user.id}`;
+      const already = await AsyncStorage.getItem(KEY_MARK);
+      if (already) return;
+      const raw = await AsyncStorage.getItem(KEY_BAL);
+      const current = raw ? parseInt(raw, 10) || 0 : 0;
+      const next = current + 50000;
+      await AsyncStorage.setItem(KEY_BAL, String(next));
+      await AsyncStorage.setItem(KEY_MARK, "1");
+    })().catch(() => {});
   }, [user?.id, registeredUsers]);
   const [initialAuthStep, setInitialAuthStep] = useState<"login" | "register-form" | null>(null);
   const consumeInitialAuthStep = useCallback(() => setInitialAuthStep(null), []);
