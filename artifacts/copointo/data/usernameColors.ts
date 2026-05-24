@@ -83,9 +83,9 @@ export function getUsernameColor(id: string | null): UsernameColorDef | null {
 }
 
 /**
- * Pricing: static colors 5,000 — animated luxury tier 10,000.
+ * Pricing: first 5 (static colors) = 2,000 — next 5 (animated luxury) = 5,000.
  */
 export const USERNAME_COLOR_PRICE = (idx: number): number => {
   const def = USERNAME_COLORS[idx];
-  return def?.anim ? 10000 : 5000;
+  return def?.anim ? 5000 : 2000;
 };
