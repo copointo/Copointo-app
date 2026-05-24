@@ -84,6 +84,14 @@ export const CHARACTERS: CharacterDef[] = [
     image: require("../assets/images/characters/char-16.png"),
     glow: "#60A5FA", scale: 1.3,
     ringGradient: ["#0C4A6E", "#0EA5E9", "#BAE6FD", "#0EA5E9", "#0C4A6E"] },
+  { id: "char-17", name: "الملك الذهبي",        emoji: "🤴",
+    image: require("../assets/images/characters/char-17.png"),
+    glow: "#DC2626", scale: 1.3,
+    ringGradient: ["#450A0A", "#B91C1C", "#FCD34D", "#B91C1C", "#450A0A"] },
+  { id: "char-18", name: "أميرة الإلف",         emoji: "🧝",
+    image: require("../assets/images/characters/char-18.png"),
+    glow: "#84CC16", scale: 1.3,
+    ringGradient: ["#1A2E05", "#4D7C0F", "#A3E635", "#4D7C0F", "#1A2E05"] },
 ];
 
 /** IDs that are free-to-own (price = 0). Both gender-locked starters. */
