@@ -303,6 +303,29 @@ router.post("/admin/coin-gifts", (req, res): any => {
   res.json({ ok: true, gift: g });
 });
 
+// Super-admin resets a user's coin balance to zero. Reuses the coin-gifts
+// polling pipeline by enqueueing a special CoinGift with reset=true; the
+// mobile client zeros out its local balance silently when it sees a reset
+// record (no celebration modal).
+router.post("/admin/coin-resets", (req, res): any => {
+  const userId = String(req.body?.userId ?? "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "userId مطلوب" });
+  const u = users.find(x => x.id === userId);
+  if (!u) return res.status(404).json({ ok: false, error: "المستخدم غير موجود" });
+  const g: CoinGift = {
+    id:        `cr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId,
+    amount:    0,
+    reset:     true,
+    message:   "تم تصفير عملاتك من قبل إدارة Copointo",
+    createdAt: new Date().toISOString(),
+    claimedAt: null,
+  };
+  coinGifts.unshift(g);
+  persistStore();
+  res.json({ ok: true, reset: g });
+});
+
 // Super-admin sees the full history of gifts (newest first).
 router.get("/admin/coin-gifts", (_req, res) => {
   const enriched = coinGifts.map(g => {

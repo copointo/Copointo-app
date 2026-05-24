@@ -211,6 +211,17 @@ export default function CopointoHubPage() {
     await reload();
   };
 
+  const resetCoins = async (u: HubUser) => {
+    if (!confirm(`تصفير جميع عملات اللاعب "${u.username}" إلى صفر؟\n\nسيتم تحديث رصيده في تطبيق الموبايل تلقائياً خلال أقل من دقيقة.`)) return;
+    try {
+      await api.resetUserCoins(u.id);
+      alert(`✓ تم إرسال أمر التصفير. سيُحدَّث رصيد ${u.username} إلى صفر عند فتح التطبيق التالي.`);
+    } catch (e: any) {
+      try { alert(JSON.parse(e?.message ?? "{}").error || "تعذّر التصفير"); }
+      catch { alert(e?.message || "تعذّر التصفير"); }
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-muted-foreground">جاري التحميل...</div>;
   }
@@ -387,6 +398,13 @@ export default function CopointoHubPage() {
                             <ShieldCheck size={14} /> رفع القيد
                           </button>
                         )}
+                        <button
+                          onClick={() => resetCoins(user)}
+                          title="تصفير عملات هذا اللاعب"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500/15 text-orange-400 hover:bg-orange-500/25"
+                        >
+                          <Coins size={14} /> تصفير العملات
+                        </button>
                       </div>
                     </td>
                   </tr>

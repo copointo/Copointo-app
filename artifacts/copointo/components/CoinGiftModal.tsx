@@ -28,6 +28,8 @@ interface CoinGift {
   amount: number;
   message: string;
   createdAt: string;
+  /** Super-admin reset signal: zero out balance silently, no modal. */
+  reset?: boolean;
 }
 
 /**
@@ -40,7 +42,7 @@ interface CoinGift {
  */
 export default function CoinGiftModal() {
   const { user } = useApp();
-  const { addCoins } = useCoins();
+  const { addCoins, setCoins } = useCoins();
   const userId = user?.id?.trim() || "";
 
   const [queue,   setQueue]   = useState<CoinGift[]>([]);
@@ -70,6 +72,22 @@ export default function CoinGiftModal() {
     } catch { /* ignore */ }
   }, [userId]);
 
+  // Silently handle super-admin RESET records: zero local balance + claim
+  // on server, never queue them for the celebration modal.
+  useEffect(() => {
+    const resets = queue.filter(g => g.reset);
+    if (resets.length === 0) return;
+    (async () => {
+      for (const g of resets) {
+        try {
+          await setCoins(0);
+          await fetch(`${API_BASE}/coin-gifts/${g.id}/claim`, { method: "POST" });
+        } catch { /* ignore — will retry next poll */ }
+      }
+      setQueue(prev => prev.filter(g => !g.reset));
+    })();
+  }, [queue, setCoins]);
+
   useEffect(() => {
     if (!userId) { setQueue([]); setCurrent(null); return; }
     let cancelled = false;
@@ -79,12 +97,16 @@ export default function CoinGiftModal() {
     return () => { cancelled = true; clearInterval(id); };
   }, [userId, refresh]);
 
-  // Pop the next gift from the queue when none is showing.
+  // Pop the next NON-reset gift from the queue when none is showing.
+  // (Reset records are handled silently by the effect above.)
   useEffect(() => {
     if (current) return;
     if (queue.length === 0) return;
-    const [next, ...rest] = queue;
-    setCurrent(next ?? null);
+    const idx = queue.findIndex(g => !g.reset);
+    if (idx === -1) return;
+    const next = queue[idx]!;
+    const rest = [...queue.slice(0, idx), ...queue.slice(idx + 1)];
+    setCurrent(next);
     setQueue(rest);
   }, [queue, current]);
 

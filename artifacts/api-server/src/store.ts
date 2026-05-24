@@ -312,6 +312,12 @@ export interface CoinGift {
   message: string;
   createdAt: string;
   claimedAt?: string | null;
+  /**
+   * When true, this is a super-admin RESET (not a gift). Mobile handles it
+   * silently: sets the local coin balance to 0 and claims without showing
+   * the celebration modal. `amount` is always 0 for reset records.
+   */
+  reset?: boolean;
 }
 export const coinGifts: CoinGift[] = [];
 

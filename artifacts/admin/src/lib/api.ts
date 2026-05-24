@@ -59,6 +59,7 @@ export const api = {
   sendCoinGift:     (userId: string, amount: number, message?: string) =>
                                                                    req<any>("POST",   `${A}/coin-gifts`, { userId, amount, message }),
   deleteCoinGift:   (id: string)                                => req<any>("DELETE", `${A}/coin-gifts/${id}`),
+  resetUserCoins:   (userId: string)                            => req<any>("POST",   `${A}/coin-resets`, { userId }),
 
   // Cafe Dashboard
   cafeStats:     (id: string)              => req<any>("GET",    `${C(id)}/stats`),
