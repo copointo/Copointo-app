@@ -212,13 +212,13 @@ export default function CopointoHubPage() {
   };
 
   const resetCoins = async (u: HubUser) => {
-    if (!confirm(`تصفير جميع عملات اللاعب "${u.username}" إلى صفر؟\n\nسيتم تحديث رصيده في تطبيق الموبايل تلقائياً خلال أقل من دقيقة.`)) return;
+    if (!confirm(`إعادة ضبط جميع عملات اللاعب "${u.username}" إلى صفر؟\n\nسيتم تحديث رصيده في تطبيق الموبايل تلقائياً خلال أقل من دقيقة.`)) return;
     try {
       await api.resetUserCoins(u.id);
-      alert(`✓ تم إرسال أمر التصفير. سيُحدَّث رصيد ${u.username} إلى صفر عند فتح التطبيق التالي.`);
+      alert(`✓ تم إرسال أمر إعادة الضبط. سيُحدَّث رصيد ${u.username} إلى صفر عند فتح التطبيق التالي.`);
     } catch (e: any) {
-      try { alert(JSON.parse(e?.message ?? "{}").error || "تعذّر التصفير"); }
-      catch { alert(e?.message || "تعذّر التصفير"); }
+      try { alert(JSON.parse(e?.message ?? "{}").error || "تعذّرت إعادة الضبط"); }
+      catch { alert(e?.message || "تعذّرت إعادة الضبط"); }
     }
   };
 
@@ -400,10 +400,10 @@ export default function CopointoHubPage() {
                         )}
                         <button
                           onClick={() => resetCoins(user)}
-                          title="تصفير عملات هذا اللاعب"
+                          title="إعادة ضبط عملات هذا اللاعب إلى صفر"
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500/15 text-orange-400 hover:bg-orange-500/25"
                         >
-                          <Coins size={14} /> تصفير العملات
+                          <Coins size={14} /> إعادة ضبط العملات
                         </button>
                       </div>
                     </td>

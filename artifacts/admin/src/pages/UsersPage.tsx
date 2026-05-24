@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface AppUser {
@@ -73,6 +73,20 @@ export default function UsersPage() {
   const unban = async (id: string) => {
     const res = await api.unbanUser(id);
     setUsers(prev => prev.map(u => u.id === id ? { ...u, ...res.user } : u));
+  };
+
+  // ─── Reset coins (super-admin → zero out a player's coin balance) ──────
+  // Enqueues a /admin/coin-resets record; the mobile app picks it up on the
+  // next 30 s poll, silently sets local balance to 0, and claims it.
+  const resetCoins = async (u: AppUser) => {
+    if (!confirm(`إعادة ضبط جميع عملات اللاعب "${u.username}" إلى صفر؟\n\nسيتم تحديث رصيده في تطبيق الموبايل تلقائياً خلال أقل من دقيقة.`)) return;
+    try {
+      await api.resetUserCoins(u.id);
+      alert(`✓ تم إرسال أمر إعادة الضبط. سيُحدَّث رصيد ${u.username} إلى صفر عند فتح التطبيق التالي.`);
+    } catch (e: any) {
+      try { alert(JSON.parse(e?.message ?? "{}").error || "تعذّرت إعادة الضبط"); }
+      catch { alert(e?.message || "تعذّرت إعادة الضبط"); }
+    }
   };
 
   // ─── Delete-user modal state ───────────────────────────────────────────
@@ -327,6 +341,13 @@ export default function UsersPage() {
                         }`}
                       >
                         {user.banned ? <><CheckCircle size={14} /> رفع الحظر</> : <><Ban size={14} /> حظر</>}
+                      </button>
+                      <button
+                        onClick={() => resetCoins(user)}
+                        title="إعادة ضبط عملات هذا المستخدم إلى صفر"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-500/15 text-orange-400 hover:bg-orange-500/25 transition-colors"
+                      >
+                        <Coins size={14} /> إعادة ضبط العملات
                       </button>
                       <button
                         onClick={() => openDelete(user)}
