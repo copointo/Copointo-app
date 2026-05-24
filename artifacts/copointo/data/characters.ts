@@ -109,9 +109,15 @@ export function defaultCharacterForGender(
   return gender === "female" ? "char-2" : "char-1";
 }
 
+/** Character IDs priced at the cheaper 1,000 tier (first 7 paid characters). */
+const CHEAP_CHARACTER_IDS = new Set([
+  "char-3", "char-4", "char-5", "char-6", "char-7", "char-8", "char-9",
+]);
+
 export const CHARACTER_PRICE = (idx: number): number => {
   const ch = CHARACTERS[idx];
   if (!ch) return 5000;
   if (FREE_CHARACTER_IDS.includes(ch.id)) return 0;
+  if (CHEAP_CHARACTER_IDS.has(ch.id)) return 1000;
   return 5000;
 };
