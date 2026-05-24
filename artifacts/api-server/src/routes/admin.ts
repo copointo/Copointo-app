@@ -381,9 +381,75 @@ router.get("/users/:id/cafe-breakdown", (req, res): any => {
 router.post("/users/:id/adjust-progress", (req, res): any => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: "User not found" });
+  const awardCafeId = typeof req.body?.awardCafeId === "string" ? req.body.awardCafeId : null;
+
+  // ── Absolute "set" mode (current admin form) ──────────────────────────
+  // Body: { awardCafeId, setLevel, setOrders } sets the user's per-cafe
+  // progress for awardCafeId to ABSOLUTE values. Replaces the legacy delta
+  // mode which couldn't decrease values reliably (mobile Math.max merge).
+  const DRINKS_PER_LEVEL = 7;
+  const hasSet = req.body?.setLevel != null || req.body?.setOrders != null;
+  if (hasSet) {
+    if (!awardCafeId) {
+      return res.status(400).json({ error: "awardCafeId required for set mode" });
+    }
+    const cafeExists = cafes.find(c => c.id === awardCafeId);
+    if (!cafeExists) {
+      return res.status(404).json({ error: "Cafe not found" });
+    }
+    let setLevel  = Math.trunc(Number(req.body?.setLevel  ?? NaN));
+    let setOrders = Math.trunc(Number(req.body?.setOrders ?? NaN));
+    if (!Number.isFinite(setLevel))  setLevel  = Math.floor(setOrders / DRINKS_PER_LEVEL);
+    if (!Number.isFinite(setOrders)) setOrders = setLevel * DRINKS_PER_LEVEL;
+    setLevel  = Math.max(0, Math.min(999, setLevel));
+    setOrders = Math.max(0, setOrders);
+    const prog = (user.cafeProgress ??= {});
+    const prev = prog[awardCafeId] ?? { totalOrders: 0, level: 0 };
+    prog[awardCafeId] = { level: setLevel, totalOrders: setOrders };
+    // Recompute GLOBAL totals from the union of all cafe progresses so
+    // decreases actually take effect. Without this, the mobile sync's
+    // Math.max(local, server) merge would pull the global level back up
+    // to its old (now stale) server value and undo the admin's decrease.
+    const allCafeLvls = Object.values(prog).map(c => c.level ?? 0);
+    const allCafeOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
+    user.level       = allCafeLvls.length ? Math.max(0, ...allCafeLvls) : 0;
+    user.totalOrders = allCafeOrds.reduce((s, n) => s + n, 0);
+    // Milestone free coffees: only if THIS cafe's coffees crossed upward
+    // through a new multiple of 7. (No-op for decreases.)
+    let newlyAwardedSet = 0;
+    if (setOrders > (prev.totalOrders ?? 0) && user.phone) {
+      const norm = (p: any) => String(p ?? "").replace(/\D+/g, "");
+      const userPhoneN = norm(user.phone);
+      const alreadyAwarded = freeCoffees.filter(f => norm(f.userPhone) === userPhoneN).length;
+      const willHave = Math.floor((user.totalOrders ?? 0) / DRINKS_PER_LEVEL);
+      newlyAwardedSet = Math.max(0, willHave - alreadyAwarded);
+      if (newlyAwardedSet > 0) {
+        awardMilestoneCoffees(
+          user.phone, user.username, user.totalOrders,
+          cafeExists.id, cafeExists.name,
+        );
+      }
+    }
+    const adjSet: ProgressAdjustment = {
+      id:          `pa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId:      user.id,
+      mode:        "set",
+      levelDelta:  0,
+      ordersDelta: 0,
+      setLevel,
+      setOrders,
+      awardCafeId,
+      createdAt:   new Date().toISOString(),
+      claimedAt:   null,
+    };
+    progressAdjustments.unshift(adjSet);
+    persistStore();
+    return res.json({ user, newlyAwardedFreeCoffees: newlyAwardedSet, adjustment: adjSet });
+  }
+
+  // ── Legacy delta mode (kept for backward compat) ──────────────────────
   const levelDelta  = req.body?.levelDelta  != null ? Number(req.body.levelDelta)  : 0;
   const ordersDelta = req.body?.ordersDelta != null ? Number(req.body.ordersDelta) : 0;
-  const awardCafeId = typeof req.body?.awardCafeId === "string" ? req.body.awardCafeId : null;
   if (!Number.isFinite(levelDelta) || !Number.isFinite(ordersDelta)) {
     return res.status(400).json({ error: "Invalid delta" });
   }
@@ -393,17 +459,7 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
   if (levelDelta !== 0) {
     user.level = Math.max(0, Math.min(999, (user.level ?? 0) + Math.trunc(levelDelta)));
   }
-  // Coupling: each in-game level is earned from 7 drinks, so when the admin
-  // bumps the level we ALSO bump totalOrders by `levelDelta * 7`. This is what
-  // makes the user actually overtake others in the leaderboard (which sorts
-  // by level AND drink history) instead of just having the displayed level
-  // change while the underlying progress stays put.
-  const DRINKS_PER_LEVEL = 7;
   const couplingOrdersDelta = Math.trunc(levelDelta) * DRINKS_PER_LEVEL;
-  // Mirror the bump into per-cafe progress for the chosen awardCafeId so the
-  // mobile game tab (which reads `cafeProgress[activeCafe].level`, NOT the
-  // global `user.level`) actually reflects the admin adjustment. Without
-  // this, the global level updates but the in-game level stays stuck.
   if (awardCafeId) {
     const cafeExists = cafes.find(c => c.id === awardCafeId);
     if (cafeExists) {
@@ -415,16 +471,10 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     }
   }
   let newlyAwarded = 0;
-  // Apply both the explicit ordersDelta AND the level→drinks coupling to the
-  // global totalOrders counter so the user advances on the global leaderboard
-  // and earns any newly-crossed milestone free coffees.
   const effectiveOrdersDelta = Math.trunc(ordersDelta) + couplingOrdersDelta;
   if (effectiveOrdersDelta !== 0) {
     const before = user.totalOrders ?? 0;
     user.totalOrders = Math.max(0, before + effectiveOrdersDelta);
-    // Issue free-coffee milestones only when ordersDelta is positive AND we
-    // actually crossed at least one new multiple of 7. Pick the cafe binding:
-    // explicit awardCafeId > user's top-drink cafe > null.
     if (user.totalOrders > before && user.phone) {
       const norm = (p: any) => String(p ?? "").replace(/\D+/g, "");
       const userPhoneN = norm(user.phone);

@@ -857,8 +857,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const r = await fetch(`${API_BASE}/progress-adjustments?userId=${encodeURIComponent(uid)}`);
         if (!r.ok) return;
         const data = await r.json().catch(() => ({}));
-        const items: { id: string; userId: string; levelDelta: number; ordersDelta: number; awardCafeId?: string | null }[] =
-          Array.isArray(data?.adjustments) ? data.adjustments : [];
+        const items: {
+          id: string;
+          userId: string;
+          mode?: "delta" | "set";
+          levelDelta: number;
+          ordersDelta: number;
+          setLevel?: number;
+          setOrders?: number;
+          awardCafeId?: string | null;
+        }[] = Array.isArray(data?.adjustments) ? data.adjustments : [];
         if (cancelled || items.length === 0) return;
         for (const adj of items) {
           // Defense-in-depth: skip if somehow not addressed to us (server
@@ -880,11 +888,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
           } catch { continue; }
           if (!claimedNow) continue;
+          const cafeId = adj.awardCafeId || null;
+          const isSet = adj.mode === "set" && cafeId;
+          if (isSet) {
+            // ── Absolute set mode: replace per-cafe progress exactly ──
+            const setLvl = Math.max(0, Math.min(999, Math.trunc(Number(adj.setLevel) || 0)));
+            const setOrd = Math.max(0, Math.trunc(Number(adj.setOrders) || 0));
+            setUserState(prev => {
+              if (!prev || prev.id !== uid) return prev;
+              const cafeProg = { ...(prev.cafeProgress ?? {}) };
+              const curr = cafeProg[cafeId!] ?? {
+                cafeId: cafeId!,
+                cafeName: cafeId!,
+                level: 0,
+                totalOrders: 0,
+              };
+              cafeProg[cafeId!] = {
+                ...curr,
+                cafeId: cafeId!,
+                level: setLvl,
+                totalOrders: setOrd,
+              };
+              // Recompute global level/orders from the union of all cafe
+              // progresses (max level across cafes, sum of orders) so the
+              // home/profile/leaderboard stay consistent with the per-cafe
+              // change — including decreases. This is the key fix that
+              // makes admin's lower values actually show on-device.
+              const maxLvl = Math.max(0, ...Object.values(cafeProg).map(c => c.level ?? 0));
+              const sumOrd = Object.values(cafeProg).reduce((s, c) => s + (c.totalOrders ?? 0), 0);
+              const updated: User = {
+                ...prev,
+                level: maxLvl,
+                totalOrders: sumOrd,
+                cafeProgress: cafeProg,
+              };
+              AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
+              return updated;
+            });
+            setRegisteredUsers(prev => {
+              const idx = prev.findIndex(u => u.id === uid);
+              if (idx === -1) return prev;
+              const me = prev[idx]!;
+              // Mirror the SAME recomputed totals into the leaderboard cache.
+              const meCafeProg = { ...(me.cafeProgress ?? {}) };
+              meCafeProg[cafeId!] = {
+                ...(meCafeProg[cafeId!] ?? { cafeId: cafeId!, cafeName: cafeId! }),
+                cafeId: cafeId!,
+                level: setLvl,
+                totalOrders: setOrd,
+              };
+              const maxLvl = Math.max(0, ...Object.values(meCafeProg).map(c => c.level ?? 0));
+              const sumOrd = Object.values(meCafeProg).reduce((s, c) => s + (c.totalOrders ?? 0), 0);
+              const next = [...prev];
+              next[idx] = { ...me, level: maxLvl, totalOrders: sumOrd, cafeProgress: meCafeProg };
+              AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+              return next;
+            });
+            continue;
+          }
+          // ── Legacy delta mode (kept for backward compat) ──
           const DRINKS_PER_LEVEL = 7;
           const lvlD = Math.trunc(Number(adj.levelDelta) || 0);
           const ordD = Math.trunc(Number(adj.ordersDelta) || 0);
           const couplingOrders = lvlD * DRINKS_PER_LEVEL;
-          const cafeId = adj.awardCafeId || null;
           setUserState(prev => {
             if (!prev || prev.id !== uid) return prev;
             const nextLevel  = Math.max(0, Math.min(999, (prev.level ?? 0) + lvlD));
@@ -913,8 +979,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
             return updated;
           });
-          // Mirror into registeredUsers so other in-app reads (profile cards,
-          // leaderboard local entry) reflect the new totals immediately too.
           setRegisteredUsers(prev => {
             const idx = prev.findIndex(u => u.id === uid);
             if (idx === -1) return prev;

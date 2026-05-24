@@ -340,8 +340,17 @@ export const coinGifts: CoinGift[] = [];
 export interface ProgressAdjustment {
   id: string;
   userId: string;
+  /**
+   * `delta` (legacy): apply levelDelta/ordersDelta as relative changes.
+   * `set`   (current): set per-cafe progress to ABSOLUTE setLevel/setOrders.
+   * Older records without a mode field are treated as `delta` for compat.
+   */
+  mode?: "delta" | "set";
   levelDelta: number;
   ordersDelta: number;
+  /** Used only when mode === "set". Both required if mode is set. */
+  setLevel?: number;
+  setOrders?: number;
   awardCafeId?: string | null;
   createdAt: string;
   claimedAt?: string | null;

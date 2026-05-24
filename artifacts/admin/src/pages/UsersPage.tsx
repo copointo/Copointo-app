@@ -7,6 +7,9 @@ interface AppUser {
   level: number; totalOrders: number; banned: boolean; joinedAt: string;
   banReason?: string | null;
   bannedAt?: string | null;
+  // Per-cafe progress (server-side). Used by the adjust modal so the admin
+  // can see and absolute-set each cafe's level / coffee count independently.
+  cafeProgress?: Record<string, { totalOrders: number; level: number }>;
 }
 
 export default function UsersPage() {
@@ -149,25 +152,33 @@ export default function UsersPage() {
     }
   };
 
-  // ─── Adjust progress modal (level & coffees, independent) ──────────────
+  // ─── Adjust progress modal (ABSOLUTE per-cafe set, level↔coffees coupled) ──
+  const DRINKS_PER_LEVEL = 7;
   const [adjTarget,    setAdjTarget]    = useState<AppUser | null>(null);
-  const [lvlDelta,     setLvlDelta]     = useState("");
-  const [ordDelta,     setOrdDelta]     = useState("");
-  const [lvlSaving,    setLvlSaving]    = useState(false);
-  const [ordSaving,    setOrdSaving]    = useState(false);
+  const [setLvlStr,    setSetLvlStr]    = useState("");
+  const [setOrdStr,    setSetOrdStr]    = useState("");
+  const [adjSaving,    setAdjSaving]    = useState(false);
   const [adjErr,       setAdjErr]       = useState("");
   const [adjOk,        setAdjOk]        = useState("");
   // Per-cafe history for the user being edited. Loaded on open and refreshed
   // after each successful apply so the cashier always sees up-to-date numbers.
-  // `awardCafeId` is the cafe a positive ordersDelta will credit any newly-
-  // crossed milestone free-coffees to (defaults to the user's top-drink cafe).
   type CafeBreakdownRow = { cafeId: string; cafeName: string; ordersHere: number; drinksHere: number };
   const [bd,            setBd]           = useState<CafeBreakdownRow[]>([]);
   const [bdLoading,     setBdLoading]    = useState(false);
   const [bdFc,          setBdFc]         = useState<{ total: number; redeemed: number }>({ total: 0, redeemed: 0 });
   const [awardCafeId,   setAwardCafeId]  = useState<string>("");
 
-  const loadBreakdown = async (uid: string) => {
+  // Pre-fill the inputs from the user's current per-cafe progress whenever
+  // the admin switches the cafe selector (so they see and edit the EXACT
+  // values that exist now, not a blank slate).
+  const prefillFromCafe = (u: AppUser | null, cafeId: string) => {
+    if (!u || !cafeId) { setSetLvlStr(""); setSetOrdStr(""); return; }
+    const cp = (u.cafeProgress ?? {})[cafeId];
+    setSetLvlStr(String(cp?.level       ?? 0));
+    setSetOrdStr(String(cp?.totalOrders ?? 0));
+  };
+
+  const loadBreakdown = async (uid: string, u?: AppUser | null) => {
     setBdLoading(true);
     try {
       const res = await api.getUserCafeBreakdown(uid);
@@ -175,65 +186,71 @@ export default function UsersPage() {
       setBdFc(res.freeCoffees);
       // Default the award cafe to the user's top-drink cafe (already first
       // after server-side sort). Only set if empty so the admin's manual
-      // selection survives a refresh.
-      setAwardCafeId(prev => prev || res.breakdown[0]?.cafeId || "");
+      // selection survives a refresh. Then pre-fill the inputs.
+      setAwardCafeId(prev => {
+        const next = prev || res.breakdown[0]?.cafeId || "";
+        if (next) prefillFromCafe(u ?? adjTarget, next);
+        return next;
+      });
     } catch { /* non-fatal */ } finally { setBdLoading(false); }
   };
 
   const openAdjust = (u: AppUser) => {
-    setAdjTarget(u); setLvlDelta(""); setOrdDelta(""); setAdjErr(""); setAdjOk("");
+    setAdjTarget(u); setSetLvlStr(""); setSetOrdStr(""); setAdjErr(""); setAdjOk("");
     setBd([]); setBdFc({ total: 0, redeemed: 0 }); setAwardCafeId("");
-    void loadBreakdown(u.id);
+    void loadBreakdown(u.id, u);
   };
   const closeAdjust = () => {
-    if (lvlSaving || ordSaving) return;
-    setAdjTarget(null); setLvlDelta(""); setOrdDelta(""); setAdjErr(""); setAdjOk("");
+    if (adjSaving) return;
+    setAdjTarget(null); setSetLvlStr(""); setSetOrdStr(""); setAdjErr(""); setAdjOk("");
     setBd([]); setBdFc({ total: 0, redeemed: 0 }); setAwardCafeId("");
   };
-  const applyLevelDelta = async () => {
-    if (!adjTarget) return;
-    const d = Math.trunc(Number(lvlDelta));
-    if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا للمستوى (موجب أو سالب)"); return; }
-    if (!awardCafeId) {
-      setAdjErr("اختر الكوفي الذي سيتقدّم فيه اللاعب من قسم «عدد الكوفي» في الأسفل أولاً.");
-      return;
-    }
-    setLvlSaving(true); setAdjErr(""); setAdjOk("");
-    try {
-      const res = await api.adjustProgress(adjTarget.id, { levelDelta: d, awardCafeId });
-      setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
-      setAdjTarget(t => t ? { ...t, ...res.user } : t);
-      setLvlDelta("");
-      const cafeName = bd.find(b => b.cafeId === awardCafeId)?.cafeName || "الكوفي المختار";
-      setAdjOk(`✓ تم تقديم اللاعب في ${cafeName} → المستوى ${res.user.level}`);
-      void loadBreakdown(adjTarget.id);
-    } catch (e: any) {
-      setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
-    } finally { setLvlSaving(false); }
+
+  // Coupling: typing in the level field auto-fills coffees = level*7.
+  // Typing in the coffees field auto-fills level = floor(coffees/7).
+  // Admin can override either after auto-fill if they want a non-coupled value.
+  const onLevelChange = (v: string) => {
+    setSetLvlStr(v);
+    const n = Math.trunc(Number(v));
+    if (Number.isFinite(n) && n >= 0) setSetOrdStr(String(n * DRINKS_PER_LEVEL));
   };
-  const applyOrdersDelta = async () => {
+  const onOrdersChange = (v: string) => {
+    setSetOrdStr(v);
+    const n = Math.trunc(Number(v));
+    if (Number.isFinite(n) && n >= 0) setSetLvlStr(String(Math.floor(n / DRINKS_PER_LEVEL)));
+  };
+  const onCafeChange = (v: string) => {
+    setAwardCafeId(v);
+    prefillFromCafe(adjTarget, v);
+    setAdjErr(""); setAdjOk("");
+  };
+
+  const applyAdjust = async () => {
     if (!adjTarget) return;
-    const d = Math.trunc(Number(ordDelta));
-    if (!Number.isFinite(d) || d === 0) { setAdjErr("أدخل رقمًا لعدد الكوفي (موجب أو سالب)"); return; }
-    setOrdSaving(true); setAdjErr(""); setAdjOk("");
+    if (!awardCafeId) { setAdjErr("اختر الكوفي أولاً."); return; }
+    const lvl = Math.trunc(Number(setLvlStr));
+    const ord = Math.trunc(Number(setOrdStr));
+    if (!Number.isFinite(lvl) || lvl < 0) { setAdjErr("أدخل مستوى صحيحًا (0 أو أكثر)."); return; }
+    if (!Number.isFinite(ord) || ord < 0) { setAdjErr("أدخل عدد كوفي صحيحًا (0 أو أكثر)."); return; }
+    setAdjSaving(true); setAdjErr(""); setAdjOk("");
     try {
       const res = await api.adjustProgress(adjTarget.id, {
-        ordersDelta: d,
-        ...(awardCafeId ? { awardCafeId } : {}),
+        setLevel:  lvl,
+        setOrders: ord,
+        awardCafeId,
       });
       setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
       setAdjTarget(t => t ? { ...t, ...res.user } : t);
-      setOrdDelta("");
+      const cafeName = bd.find(b => b.cafeId === awardCafeId)?.cafeName || "الكوفي المختار";
       const newFc = Number(res.newlyAwardedFreeCoffees) || 0;
       setAdjOk(
-        `✓ عدد الكوفي الآن ${res.user.totalOrders}` +
+        `✓ تم ضبط ${cafeName} → المستوى ${lvl} • ${ord} كوب` +
         (newFc > 0 ? ` — ربح ${newFc} قهوة مجانية 🎁` : ""),
       );
-      // Refresh breakdown so the free-coffees counter reflects the new award.
       void loadBreakdown(adjTarget.id);
     } catch (e: any) {
       setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
-    } finally { setOrdSaving(false); }
+    } finally { setAdjSaving(false); }
   };
 
   const filtered = users.filter(u =>
@@ -503,15 +520,15 @@ export default function UsersPage() {
                   </p>
                 </div>
               </div>
-              <button onClick={closeAdjust} className="text-muted-foreground hover:text-foreground" disabled={lvlSaving || ordSaving}>
+              <button onClick={closeAdjust} className="text-muted-foreground hover:text-foreground" disabled={adjSaving}>
                 <X size={20} />
               </button>
             </div>
             <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
               <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 border border-border rounded-lg px-3 py-2">
-                ⚠️ <b>تعديل المستوى يقدّم اللاعب فعليًا في اللعبة</b> ويزيد عدد كوبه بمقدار <span className="font-mono">+7 لكل مستوى</span> ليتفوّق على الآخرين في الترتيب.
-                {" "}اختر الكوفي المطلوب من قسم «عدد الكوفي» في الأسفل أولاً، ثم طبّق المستوى.
-                استخدم رقمًا سالبًا للتقليل (مثلاً <span className="font-mono">-3</span>) أو موجبًا للزيادة (<span className="font-mono">+5</span>).
+                ✏️ <b>أدخل المستوى وعدد الكوفي الذي تريده بالضبط لهذا الكافيه</b> — الحقلان مربوطان تلقائيًا
+                (<span className="font-mono">1 مستوى = 7 كوب</span>). القيم تطبّق <b>كما هي</b> على حساب اللاعب
+                (تزيد أو تنقص). المستوى العام يُعاد حسابه تلقائيًا من أعلى مستوى بين كل الكافيهات.
               </p>
 
               {/* ── Per-cafe history ── */}
@@ -534,100 +551,96 @@ export default function UsersPage() {
                   </p>
                 ) : (
                   <div className="space-y-1.5 max-h-44 overflow-y-auto">
-                    {bd.map(row => (
-                      <div key={row.cafeId} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2 text-xs gap-2">
-                        <span className="font-semibold text-foreground truncate flex-1">{row.cafeName}</span>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-muted-foreground">{row.ordersHere} طلب</span>
-                          <span className="bg-primary/15 text-primary rounded px-2 py-0.5 font-bold">
-                            🥤 {row.drinksHere}
-                          </span>
+                    {bd.map(row => {
+                      const cp = (adjTarget?.cafeProgress ?? {})[row.cafeId];
+                      return (
+                        <div key={row.cafeId} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2 text-xs gap-2">
+                          <span className="font-semibold text-foreground truncate flex-1">{row.cafeName}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="bg-amber-500/15 text-amber-400 rounded px-2 py-0.5 font-bold">
+                              🏆 م{cp?.level ?? 0}
+                            </span>
+                            <span className="bg-primary/15 text-primary rounded px-2 py-0.5 font-bold">
+                              🥤 {cp?.totalOrders ?? 0}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-                  💡 المستوى عام (واحد لكل التطبيق)، لكن القهوات المجانية مربوطة بالكافيه الذي ربحها فيه.
+                  💡 المستوى وعدد الكوفي لكل كافيه منفصلان. القهوة المجانية تُمنح عند تجاوز مضاعفًا للرقم 7.
                 </p>
               </div>
 
-              {/* ── Level section ── */}
-              <div className="border border-amber-500/30 rounded-xl p-4 bg-amber-500/5">
-                <div className="flex items-center gap-2 mb-3">
-                  <Trophy size={16} className="text-amber-400" />
-                  <p className="font-bold text-foreground text-sm">المستوى فقط</p>
-                  <span className="text-[10px] text-muted-foreground">(لن يتغير عدد الكوفي)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={lvlDelta}
-                    onChange={e => setLvlDelta(e.target.value)}
-                    placeholder="مثلاً 5 أو -2"
-                    disabled={lvlSaving || ordSaving}
-                    className="flex-1 bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-muted-foreground disabled:opacity-60"
-                  />
-                  <button
-                    onClick={applyLevelDelta}
-                    disabled={lvlSaving || ordSaving || !lvlDelta.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              {/* ── Cafe selector ── */}
+              <div className="border border-border rounded-xl p-4 bg-muted/10">
+                <label className="block text-[11px] text-muted-foreground mb-2 font-semibold">
+                  🏪 اختر الكافيه المراد تعديله:
+                </label>
+                {bd.length === 0 ? (
+                  <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                    لا يوجد للمستخدم سجل في أي كافيه. أضف طلبًا مباشرًا من شاشة الكافيه أولاً.
+                  </p>
+                ) : (
+                  <select
+                    value={awardCafeId}
+                    onChange={e => onCafeChange(e.target.value)}
+                    disabled={adjSaving}
+                    className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
                   >
-                    {lvlSaving ? "..." : "تطبيق المستوى"}
-                  </button>
-                </div>
+                    {bd.map(row => {
+                      const cp = (adjTarget?.cafeProgress ?? {})[row.cafeId];
+                      return (
+                        <option key={row.cafeId} value={row.cafeId}>
+                          {row.cafeName} — حاليًا: م{cp?.level ?? 0} • {cp?.totalOrders ?? 0} كوب
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
               </div>
 
-              {/* ── Coffees (totalOrders) section ── */}
-              <div className="border border-primary/30 rounded-xl p-4 bg-primary/5 space-y-3">
+              {/* ── Absolute set: level ↔ coffees (coupled) ── */}
+              <div className="border border-amber-500/30 rounded-xl p-4 bg-amber-500/5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Coffee size={16} className="text-primary" />
-                  <p className="font-bold text-foreground text-sm">عدد الكوفي فقط</p>
-                  <span className="text-[10px] text-muted-foreground">(لن يتغير المستوى)</span>
+                  <SlidersHorizontal size={16} className="text-amber-400" />
+                  <p className="font-bold text-foreground text-sm">القيم النهائية لهذا الكافيه</p>
                 </div>
 
-                {/* Cafe selector for milestone-triggered free coffees. Shown only when
-                    we know at least one cafe — otherwise the server falls back to
-                    the user's top-drink cafe or issues an unbound voucher. */}
-                {bd.length > 0 && (
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] text-muted-foreground mb-1">
-                      🎁 إذا تجاوز عدد الكوفي مضاعفًا للرقم 7، تُمنح القهوة المجانية في:
+                    <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1.5">
+                      <Trophy size={12} className="text-amber-400" /> المستوى
                     </label>
-                    <select
-                      value={awardCafeId}
-                      onChange={e => setAwardCafeId(e.target.value)}
-                      disabled={lvlSaving || ordSaving}
-                      className="w-full bg-input border border-border rounded-xl px-3 py-2 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
-                    >
-                      {bd.map(row => (
-                        <option key={row.cafeId} value={row.cafeId}>
-                          {row.cafeName} ({row.drinksHere} كوب)
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      value={setLvlStr}
+                      onChange={e => onLevelChange(e.target.value)}
+                      placeholder="0"
+                      disabled={adjSaving || !awardCafeId}
+                      className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-muted-foreground disabled:opacity-60"
+                    />
                   </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={ordDelta}
-                    onChange={e => setOrdDelta(e.target.value)}
-                    placeholder="مثلاً 7 أو -1"
-                    disabled={lvlSaving || ordSaving}
-                    className="flex-1 bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-60"
-                  />
-                  <button
-                    onClick={applyOrdersDelta}
-                    disabled={lvlSaving || ordSaving || !ordDelta.trim()}
-                    className="px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {ordSaving ? "..." : "تطبيق الكوفي"}
-                  </button>
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1.5">
+                      <Coffee size={12} className="text-primary" /> عدد الكوفي
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={setOrdStr}
+                      onChange={e => onOrdersChange(e.target.value)}
+                      placeholder="0"
+                      disabled={adjSaving || !awardCafeId}
+                      className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-60"
+                    />
+                  </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  ⚠️ كل زيادة تتجاوز مضاعفًا للرقم 7 ستربح قهوة مجانية فعلية للمستخدم في الكافيه أعلاه.
+                  🔗 الحقلان مربوطان: تعديل المستوى يضبط الكوفي = المستوى × 7، وتعديل الكوفي يضبط المستوى = الكوفي ÷ 7 (تقريبًا للأسفل).
                 </p>
               </div>
 
@@ -642,13 +655,22 @@ export default function UsersPage() {
                 </div>
               )}
 
-              <button
-                onClick={closeAdjust}
-                disabled={lvlSaving || ordSaving}
-                className="w-full px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
-              >
-                إغلاق
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={closeAdjust}
+                  disabled={adjSaving}
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+                >
+                  إغلاق
+                </button>
+                <button
+                  onClick={applyAdjust}
+                  disabled={adjSaving || !awardCafeId}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {adjSaving ? "جاري الحفظ..." : "💾 حفظ التعديل"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
