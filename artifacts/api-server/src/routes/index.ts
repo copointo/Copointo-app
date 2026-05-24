@@ -14,6 +14,7 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 import {
   cafes, users, freeCoffees, reels, reelLikes, reelComments, reelViews, broadcasts, coinGifts,
+  progressAdjustments,
   bookings, orders, pushTokens,
   usernameRegistry, cafeRatings, getCafeRatingStats,
   friendRequests, addFriendship, removeFriendship, friendsOf, areFriends,
@@ -365,6 +366,31 @@ router.post("/coin-gifts/:id/claim", (req, res): any => {
   g.claimedAt = new Date().toISOString();
   persistStore();
   res.json({ ok: true, gift: g });
+});
+
+// ─── Progress Adjustments (super-admin → device-local delta apply) ───────
+// See store.ts ProgressAdjustment for the rationale. Mobile polls for
+// unclaimed adjustments, applies the delta to its LOCAL level/orders/
+// cafeProgress (so the player actually sees the change), then claims.
+router.get("/progress-adjustments", (req, res) => {
+  const userId = String(req.query.userId ?? "").trim();
+  if (!userId) return res.json({ adjustments: [] });
+  const items = progressAdjustments.filter(a => a.userId === userId && !a.claimedAt);
+  res.json({ adjustments: items });
+});
+
+router.post("/progress-adjustments/:id/claim", (req, res): any => {
+  const id     = String(req.params.id ?? "").trim();
+  const userId = String(req.body?.userId ?? "").trim();
+  if (!userId) return res.status(400).json({ ok: false, error: "userId required" });
+  const a = progressAdjustments.find(x => x.id === id);
+  if (!a) return res.status(404).json({ ok: false, error: "not found" });
+  // Ownership check — only the user the adjustment is addressed to may claim it.
+  if (a.userId !== userId) return res.status(403).json({ ok: false, error: "forbidden" });
+  if (a.claimedAt) return res.json({ ok: true, adjustment: a, alreadyClaimed: true });
+  a.claimedAt = new Date().toISOString();
+  persistStore();
+  res.json({ ok: true, adjustment: a });
 });
 
 // ─── Public Reels endpoints ─────────────────────────────────────────────

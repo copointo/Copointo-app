@@ -322,6 +322,33 @@ export interface CoinGift {
 export const coinGifts: CoinGift[] = [];
 
 /**
+ * Pending game-progress adjustment from the super-admin. Created whenever
+ * the admin uses the "تعديل المستوى/عدد الكوفي" form. The mobile client
+ * polls /progress-adjustments?userId=..., applies the deltas to its LOCAL
+ * cafeProgress + global level/totalOrders (so the change is actually
+ * visible on the player's device), then POSTs /progress-adjustments/:id/claim
+ * to mark it consumed.
+ *
+ * NOTE: the existing /admin/users/:id/adjust-progress endpoint ALSO bumps
+ * the server-side `user.level` / `user.totalOrders` / `cafeProgress` (for
+ * cross-device leaderboard view) — but that bump uses the server's
+ * possibly-stale snapshot as the base, and the device-side merge does
+ * `Math.max(local, server)`, so admin INCREASES often had no visible
+ * effect on the owner's device. This pending-adjustment record is the
+ * authoritative signal for the device itself.
+ */
+export interface ProgressAdjustment {
+  id: string;
+  userId: string;
+  levelDelta: number;
+  ordersDelta: number;
+  awardCafeId?: string | null;
+  createdAt: string;
+  claimedAt?: string | null;
+}
+export const progressAdjustments: ProgressAdjustment[] = [];
+
+/**
  * Expo push notification token registered per user-device pair.
  * The mobile app registers (or refreshes) its Expo push token after the
  * user logs in / opts in to notifications. The server uses these tokens
@@ -608,7 +635,7 @@ const COLLECTIONS: Record<string, any[]> = {
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
   reports, coinGifts, giftVouchers, pushTokens, webPushSubscriptions, monthlySeasons,
-  communities, communityInvites,
+  communities, communityInvites, progressAdjustments,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 
@@ -840,6 +867,9 @@ export function purgeUserData(id: string): boolean {
   }
   for (let i = coinGifts.length - 1; i >= 0; i--) {
     if (coinGifts[i]!.userId === id) coinGifts.splice(i, 1);
+  }
+  for (let i = progressAdjustments.length - 1; i >= 0; i--) {
+    if (progressAdjustments[i]!.userId === id) progressAdjustments.splice(i, 1);
   }
   for (let i = cafeRatings.length - 1; i >= 0; i--) {
     if (cafeRatings[i]!.userId === id) cafeRatings.splice(i, 1);

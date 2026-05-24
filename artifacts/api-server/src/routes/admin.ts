@@ -4,8 +4,8 @@ import fs from "node:fs";
 import {
   cafes, users, broadcasts, chatMessages, friendScope, persistStore, flushNow, reports,
   purgeUserData, purgeCafeData, reels, wipeAllData,
-  communities, communityInvites, orders, freeCoffees,
-  type Cafe, type Broadcast, type ChatMsg, type Report,
+  communities, communityInvites, orders, freeCoffees, progressAdjustments,
+  type Cafe, type Broadcast, type ChatMsg, type Report, type ProgressAdjustment,
 } from "../store";
 import { awardMilestoneCoffees } from "./cafe-dashboard";
 import { deleteReelFile } from "../lib/objectStorage";
@@ -458,8 +458,23 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
       }
     }
   }
+  // Enqueue a device-side adjustment record so the owning device actually
+  // applies these deltas to its LOCAL cafeProgress + global level/orders.
+  // Without this, the server-side bumps above are typically masked by the
+  // mobile sync's `Math.max(local, server)` merge (server's snapshot for
+  // per-cafe progress is often 0 since mobile only mirrors GLOBAL progress).
+  const adj: ProgressAdjustment = {
+    id:          `pa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    userId:      user.id,
+    levelDelta:  Math.trunc(levelDelta),
+    ordersDelta: Math.trunc(ordersDelta),
+    awardCafeId: awardCafeId ?? null,
+    createdAt:   new Date().toISOString(),
+    claimedAt:   null,
+  };
+  progressAdjustments.unshift(adj);
   persistStore();
-  res.json({ user, newlyAwardedFreeCoffees: newlyAwarded });
+  res.json({ user, newlyAwardedFreeCoffees: newlyAwarded, adjustment: adj });
 });
 
 // ── POST /api/admin/users/:id/message ──────

@@ -841,6 +841,101 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, [hydrated, refreshAllUsers]);
 
+  // ─── Pending progress adjustments (super-admin → device-local apply) ───
+  // The super-admin's "تعديل المستوى / عدد الكوفي" form enqueues a
+  // ProgressAdjustment record server-side. Here we poll for any unclaimed
+  // record addressed to the signed-in user, apply the deltas to LOCAL
+  // cafeProgress + global level/totalOrders (so the change is actually
+  // visible on this device, bypassing the Math.max merge that often masks
+  // server-side bumps), then mark the record claimed so it never re-applies.
+  useEffect(() => {
+    const uid = user?.id;
+    if (!uid) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await fetch(`${API_BASE}/progress-adjustments?userId=${encodeURIComponent(uid)}`);
+        if (!r.ok) return;
+        const data = await r.json().catch(() => ({}));
+        const items: { id: string; userId: string; levelDelta: number; ordersDelta: number; awardCafeId?: string | null }[] =
+          Array.isArray(data?.adjustments) ? data.adjustments : [];
+        if (cancelled || items.length === 0) return;
+        for (const adj of items) {
+          // Defense-in-depth: skip if somehow not addressed to us (server
+          // already filters by userId, but never trust the response).
+          if (!adj || adj.userId !== uid) continue;
+          // Claim FIRST so a crash/reload doesn't double-apply. Server is
+          // idempotent (returns alreadyClaimed:true on the second call) and
+          // enforces ownership via the userId in the body.
+          let claimedNow = false;
+          try {
+            const cr = await fetch(`${API_BASE}/progress-adjustments/${adj.id}/claim`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: uid }),
+            });
+            if (cr.ok) {
+              const cd = await cr.json().catch(() => ({}));
+              claimedNow = !cd?.alreadyClaimed;
+            }
+          } catch { continue; }
+          if (!claimedNow) continue;
+          const DRINKS_PER_LEVEL = 7;
+          const lvlD = Math.trunc(Number(adj.levelDelta) || 0);
+          const ordD = Math.trunc(Number(adj.ordersDelta) || 0);
+          const couplingOrders = lvlD * DRINKS_PER_LEVEL;
+          const cafeId = adj.awardCafeId || null;
+          setUserState(prev => {
+            if (!prev || prev.id !== uid) return prev;
+            const nextLevel  = Math.max(0, Math.min(999, (prev.level ?? 0) + lvlD));
+            const nextOrders = Math.max(0, (prev.totalOrders ?? 0) + ordD + couplingOrders);
+            const cafeProg = { ...(prev.cafeProgress ?? {}) };
+            if (cafeId) {
+              const curr = cafeProg[cafeId] ?? {
+                cafeId,
+                cafeName: cafeId,
+                level: 0,
+                totalOrders: 0,
+              };
+              cafeProg[cafeId] = {
+                ...curr,
+                cafeId,
+                level: Math.max(0, Math.min(999, (curr.level ?? 0) + lvlD)),
+                totalOrders: Math.max(0, (curr.totalOrders ?? 0) + ordD + couplingOrders),
+              };
+            }
+            const updated: User = {
+              ...prev,
+              level: nextLevel,
+              totalOrders: nextOrders,
+              cafeProgress: cafeProg,
+            };
+            AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
+            return updated;
+          });
+          // Mirror into registeredUsers so other in-app reads (profile cards,
+          // leaderboard local entry) reflect the new totals immediately too.
+          setRegisteredUsers(prev => {
+            const idx = prev.findIndex(u => u.id === uid);
+            if (idx === -1) return prev;
+            const me = prev[idx]!;
+            const next = [...prev];
+            next[idx] = {
+              ...me,
+              level:       Math.max(0, Math.min(999, (me.level ?? 0) + lvlD)),
+              totalOrders: Math.max(0, (me.totalOrders ?? 0) + ordD + couplingOrders),
+            };
+            AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+            return next;
+          });
+        }
+      } catch { /* network errors are non-fatal — next tick will retry */ }
+    };
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [user?.id]);
+
   // Pull the authoritative friend snapshot from the server. Used on login,
   // on notifications-screen focus, and on a polling interval while signed in
   // so cross-device requests / accept / decline reach both sides quickly.
