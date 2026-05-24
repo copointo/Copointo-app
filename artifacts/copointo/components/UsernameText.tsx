@@ -90,33 +90,34 @@ function AnimatedInner({
       inputRange: stops.map((_, i) => i / (stops.length - 1)),
       outputRange: stops as unknown as string[],
     });
-    // Breathing halo: radius and scale pulse twice per full color cycle.
-    const radius = v.interpolate({
-      inputRange: [0, 0.25, 0.5, 0.75, 1],
-      outputRange: [8, 22, 10, 22, 8],
-    });
-    const scale = v.interpolate({
-      inputRange: [0, 0.25, 0.5, 0.75, 1],
-      outputRange: [1, 1.04, 1, 1.04, 1],
-    });
-    const opacity = v.interpolate({
-      inputRange: [0, 0.5, 1],
-      outputRange: [0.9, 1, 0.9],
-    });
+    // Static lustrous shine: bright halo + soft white inner gloss overlay.
     return (
-      <Animated.Text
-        style={[style, {
-          color,
-          textShadowColor: color,
-          textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: radius,
-          opacity,
-          transform: [{ scale }],
-        }]}
-        numberOfLines={numberOfLines}
-      >
-        {text}
-      </Animated.Text>
+      <View style={{ position: "relative", alignSelf: "flex-start" }}>
+        <Animated.Text
+          style={[style, {
+            color,
+            textShadowColor: color,
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 16,
+          }]}
+          numberOfLines={numberOfLines}
+        >
+          {text}
+        </Animated.Text>
+        <Animated.Text
+          pointerEvents="none"
+          style={[style, {
+            position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+            color: "rgba(255,255,255,0.45)",
+            textShadowColor: "rgba(255,255,255,0.9)",
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 6,
+          }]}
+          numberOfLines={numberOfLines}
+        >
+          {text}
+        </Animated.Text>
+      </View>
     );
   }
 
