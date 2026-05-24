@@ -52,27 +52,27 @@ export const USERNAME_COLORS: UsernameColorDef[] = [
   // ── Distinct gradient tier ─────────────────────────────────────
   {
     id: "uc-21", name: "💖 وردي ماسي",
-    gradient: ["#FFD6F1", "#FF6FB5", "#C71585"], shine: true,
+    gradient: ["#FFD6F1", "#FF6FB5", "#C71585", "#FF6FB5", "#FFD6F1"], shine: true, anim: "rainbow",
     bg: { gradient: ["#2A0820", "#5C1148", "#2A0820"], border: "#FF6FB5" },
   },
   {
     id: "uc-22", name: "🌈 قوس قزح",
-    gradient: ["#FF3B3B", "#FFB400", "#3CD96C", "#3A8DFF", "#A640FF"], shine: true,
+    gradient: ["#FF3B3B", "#FFB400", "#3CD96C", "#3A8DFF", "#A640FF", "#FF3B3B"], shine: true, anim: "rainbow",
     bg: { gradient: ["#0a0a0a", "#1a0a2e", "#0a0a0a"], border: "#A640FF" },
   },
   {
     id: "uc-23", name: "💚 لايم نيون",
-    gradient: ["#F4FFB0", "#C8FF3D", "#7CFC00"], shine: true,
+    gradient: ["#F4FFB0", "#C8FF3D", "#7CFC00", "#C8FF3D", "#F4FFB0"], shine: true, anim: "rainbow",
     bg: { gradient: ["#0B1F00", "#1E4A00", "#0B1F00"], border: "#C8FF3D" },
   },
   {
     id: "uc-24", name: "🟠 نحاسي ملكي",
-    gradient: ["#FFD4A8", "#E07A28", "#7C3A0E"], shine: true,
+    gradient: ["#FFD4A8", "#E07A28", "#7C3A0E", "#E07A28", "#FFD4A8"], shine: true, anim: "rainbow",
     bg: { gradient: ["#1F0E04", "#4A1F08", "#1F0E04"], border: "#E07A28" },
   },
   {
     id: "uc-25", name: "⚪ فضي بلاتيني",
-    gradient: ["#FFFFFF", "#D9DCE0", "#8C97A1"], shine: true,
+    gradient: ["#FFFFFF", "#D9DCE0", "#8C97A1", "#D9DCE0", "#FFFFFF"], shine: true, anim: "rainbow",
     bg: { gradient: ["#0E1116", "#252A33", "#0E1116"], border: "#D9DCE0" },
   },
 ];
