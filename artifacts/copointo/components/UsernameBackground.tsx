@@ -170,70 +170,93 @@ function Nebula({ colors, borderRadius }: { colors: readonly [string, string, ..
   );
 }
 
-/** Flying bats with crimson glow — used by "bats" effect */
-type Bat = { y: number; size: number; delay: number; duration: number; flap: number };
-function makeBats(count: number): Bat[] {
-  const out: Bat[] = [];
+/** Generic flying creature (bats, birds, dragons, flames, water, leaves) */
+type FlyDir = "horizontal" | "rise" | "fall";
+type Creature = { pos: number; size: number; delay: number; duration: number; bob: number };
+function makeCreatures(count: number): Creature[] {
+  const out: Creature[] = [];
   for (let i = 0; i < count; i++) {
     out.push({
-      y: 5 + Math.random() * 80,
+      pos: 5 + Math.random() * 85,
       size: 14 + Math.random() * 18,
       delay: Math.random() * 3500,
       duration: 4500 + Math.random() * 3500,
-      flap: 220 + Math.random() * 180,
+      bob: 220 + Math.random() * 180,
     });
   }
   return out;
 }
-function FlyingBat({ bat, glow }: { bat: Bat; glow: string }) {
+function FlyingCreature({ c, glow, emoji, dir, gap }: { c: Creature; glow: string; emoji: string; dir: FlyDir; gap: number }) {
   const fly = useRef(new Animated.Value(0)).current;
-  const flap = useRef(new Animated.Value(0)).current;
+  const bob = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    fly.setValue(0); flap.setValue(0);
+    fly.setValue(0); bob.setValue(0);
     const l1 = Animated.loop(
       Animated.sequence([
-        Animated.delay(bat.delay),
-        Animated.timing(fly, { toValue: 1, duration: bat.duration, easing: Easing.linear, useNativeDriver: true }),
+        Animated.delay(c.delay),
+        Animated.timing(fly, { toValue: 1, duration: c.duration, easing: Easing.linear, useNativeDriver: true }),
         Animated.timing(fly, { toValue: 0, duration: 0, useNativeDriver: true }),
-        Animated.delay(3000),
+        Animated.delay(gap),
       ]),
     );
     const l2 = Animated.loop(
       Animated.sequence([
-        Animated.timing(flap, { toValue: 1, duration: bat.flap, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(flap, { toValue: 0, duration: bat.flap, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 1, duration: c.bob, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 0, duration: c.bob, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       ]),
     );
     l1.start(); l2.start();
     return () => { l1.stop(); l2.stop(); };
-  }, [fly, flap, bat]);
-  const translateX = fly.interpolate({ inputRange: [0, 1], outputRange: [260, -80] });
-  const translateY = flap.interpolate({ inputRange: [0, 1], outputRange: [-4, 4] });
-  const scaleY = flap.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.1] });
+  }, [fly, bob, c, gap]);
+
+  let positionStyle: any = {};
+  let transform: any[] = [];
+  if (dir === "horizontal") {
+    positionStyle = { top: `${c.pos}%`, left: 0 };
+    const tx = fly.interpolate({ inputRange: [0, 1], outputRange: [260, -80] });
+    const ty = bob.interpolate({ inputRange: [0, 1], outputRange: [-4, 4] });
+    const sy = bob.interpolate({ inputRange: [0, 1], outputRange: [0.75, 1.1] });
+    transform = [{ translateX: tx }, { translateY: ty }, { scaleY: sy }];
+  } else if (dir === "rise") {
+    positionStyle = { left: `${c.pos}%`, bottom: 0 };
+    const ty = fly.interpolate({ inputRange: [0, 1], outputRange: [40, -260] });
+    const tx = bob.interpolate({ inputRange: [0, 1], outputRange: [-6, 6] });
+    const sc = bob.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.15] });
+    transform = [{ translateY: ty }, { translateX: tx }, { scale: sc }];
+  } else {
+    positionStyle = { left: `${c.pos}%`, top: 0 };
+    const ty = fly.interpolate({ inputRange: [0, 1], outputRange: [-40, 260] });
+    const tx = bob.interpolate({ inputRange: [0, 1], outputRange: [-8, 8] });
+    const rot = bob.interpolate({ inputRange: [0, 1], outputRange: ["-15deg", "15deg"] });
+    transform = [{ translateY: ty }, { translateX: tx }, { rotate: rot }];
+  }
+
   return (
     <Animated.Text
       style={{
         position: "absolute",
-        top: `${bat.y}%`,
-        left: 0,
-        fontSize: bat.size,
-        color: "#0A0008",
+        ...positionStyle,
+        fontSize: c.size,
         textShadowColor: glow,
         textShadowRadius: 8,
-        transform: [{ translateX }, { translateY }, { scaleY }],
+        transform,
       }}
     >
-      🦇
+      {emoji}
     </Animated.Text>
   );
 }
-function Bats({ glow, borderRadius }: { glow: string; borderRadius: number }) {
-  const bats = useMemo(() => makeBats(7), []);
+function FlyingCreatures({ glow, borderRadius, emoji, dir = "horizontal", count = 7, gap = 3000 }: { glow: string; borderRadius: number; emoji: string; dir?: FlyDir; count?: number; gap?: number }) {
+  const list = useMemo(() => makeCreatures(count), [count]);
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
-      {bats.map((b, i) => <FlyingBat key={i} bat={b} glow={glow} />)}
+      {list.map((c, i) => <FlyingCreature key={i} c={c} glow={glow} emoji={emoji} dir={dir} gap={gap} />)}
     </View>
   );
+}
+// Backwards-compat alias for "bats" effect
+function Bats({ glow, borderRadius }: { glow: string; borderRadius: number }) {
+  return <FlyingCreatures glow={glow} borderRadius={borderRadius} emoji="🦇" dir="horizontal" count={7} gap={3000} />;
 }
 
 /** Rotating rainbow gradient — used by "prismatic" effect */
@@ -352,6 +375,51 @@ export default function UsernameBackground({
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
           <Bats glow={highlight} borderRadius={borderRadius} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
+          </View>
+        </>
+      )}
+      {eff === "flames" && (
+        <>
+          <GlowBurst color={highlight} borderRadius={borderRadius} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🔥" dir="rise" count={8} gap={3000} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
+          </View>
+        </>
+      )}
+      {eff === "water" && (
+        <>
+          <GlowBurst color={highlight} borderRadius={borderRadius} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="💧" dir="rise" count={8} gap={3000} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
+          </View>
+        </>
+      )}
+      {eff === "plants" && (
+        <>
+          <GlowBurst color={highlight} borderRadius={borderRadius} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🍃" dir="fall" count={8} gap={3000} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
+          </View>
+        </>
+      )}
+      {eff === "dragons" && (
+        <>
+          <GlowBurst color={highlight} borderRadius={borderRadius} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🐉" dir="horizontal" count={5} gap={3000} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
+            <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
+          </View>
+        </>
+      )}
+      {eff === "birds" && (
+        <>
+          <GlowBurst color={highlight} borderRadius={borderRadius} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🦅" dir="horizontal" count={7} gap={3000} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>

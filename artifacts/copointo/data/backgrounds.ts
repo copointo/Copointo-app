@@ -6,7 +6,12 @@ export type BgEffect =
   | "glowBurst"  // strong radial bloom
   | "nebula"     // slow swirling blob
   | "bats"       // gothic flying bats + crimson glow
-  | "blackDiamond"; // black diamond — facet shimmer + iridescent twinkles
+  | "blackDiamond" // black diamond — facet shimmer + iridescent twinkles
+  | "flames"     // rising flames + ember glow
+  | "water"      // rising bubbles + deep ocean glow
+  | "plants"     // falling leaves + forest glow
+  | "dragons"    // flying dragons + violet glow
+  | "birds";     // soaring birds + golden glow
 
 export interface BackgroundDef {
   id: string;
@@ -53,6 +58,16 @@ export const BACKGROUNDS: BackgroundDef[] = [
   { id: "bg-22", name: "ألماس أسود",      colors: ["#000000", "#0A0A12", "#15151F", "#050508"], highlight: "#E8EAF6", effect: "blackDiamond" },
   // قلعة الخفافيش — خفافيش تطير + توهج قرمزي ملكي (20,000 coins)
   { id: "bg-26", name: "قلعة الخفافيش",   colors: ["#0A0008", "#2A0710", "#5B0E1F", "#1A0008"], highlight: "#FF1744", effect: "bats" },
+  // وادي اللهب — ألسنة لهب تتصاعد + توهج برتقالي
+  { id: "bg-27", name: "وادي اللهب",      colors: ["#1A0500", "#3D0E00", "#6B1F00", "#0A0200"], highlight: "#FF6B00", effect: "flames" },
+  // محيط الأعماق — فقاعات تصعد + توهج أزرق فيروزي
+  { id: "bg-28", name: "محيط الأعماق",    colors: ["#000814", "#001D3D", "#003566", "#000814"], highlight: "#00B4D8", effect: "water" },
+  // غابة الأشباح — أوراق تتساقط + توهج زمردي
+  { id: "bg-29", name: "غابة الأشباح",    colors: ["#020D02", "#0A2E0A", "#1F4D1F", "#020D02"], highlight: "#39FF14", effect: "plants" },
+  // عرين التنانين — تنانين تطير + توهج بنفسجي
+  { id: "bg-30", name: "عرين التنانين",   colors: ["#0F0014", "#2E0A3D", "#5B1A7A", "#0F0014"], highlight: "#B026FF", effect: "dragons" },
+  // عاصفة الطيور — طيور تحلق + توهج ذهبي
+  { id: "bg-31", name: "عاصفة الطيور",    colors: ["#1A0F00", "#3D2410", "#6B4A1F", "#1A0F00"], highlight: "#FFB300", effect: "birds" },
 ];
 
 export function getBackground(id: string | null): BackgroundDef | null {
