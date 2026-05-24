@@ -196,13 +196,85 @@ function SuperAdminBlocked() {
   );
 }
 
+// ─── Super-admin password gate ─────────────────────────────────
+// Temporary gate while the admin URL is still indexed on Google.
+// Password is checked client-side (the API has its own auth). Once
+// unlocked, the choice is persisted in sessionStorage so reloads in
+// the same tab don't re-prompt. Cafe-owner routes (/cafe/:id) are
+// intentionally NOT protected — they keep their own managerPassword.
+const SUPER_ADMIN_PASSWORD = "Yaqdan113324@";
+const SUPER_ADMIN_UNLOCK_KEY = "copointo_super_admin_unlocked_v1";
+
+function SuperAdminPasswordGate({ children }: { children: React.ReactNode }) {
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return sessionStorage.getItem(SUPER_ADMIN_UNLOCK_KEY) === "1"; }
+    catch { return false; }
+  });
+  const [pwd, setPwd] = useState("");
+  const [err, setErr] = useState("");
+
+  if (unlocked) return <>{children}</>;
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwd === SUPER_ADMIN_PASSWORD) {
+      try { sessionStorage.setItem(SUPER_ADMIN_UNLOCK_KEY, "1"); } catch { /* ignore */ }
+      setErr("");
+      setUnlocked(true);
+    } else {
+      setErr("كلمة المرور غير صحيحة");
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-4" dir="rtl">
+      <form
+        onSubmit={onSubmit}
+        className="w-full max-w-sm bg-card border border-border rounded-3xl p-7 shadow-2xl"
+      >
+        <div className="text-center mb-6">
+          <img src={logoUrl} alt="Copointo" className="mx-auto mb-3 w-16 h-16 object-contain" />
+          <h1 className="text-xl font-bold text-foreground">لوحة السوبر مدير</h1>
+          <p className="text-xs text-muted-foreground mt-1">أدخل كلمة المرور للمتابعة</p>
+        </div>
+        <input
+          type="password"
+          value={pwd}
+          onChange={(e) => { setPwd(e.target.value); setErr(""); }}
+          placeholder="كلمة المرور"
+          autoFocus
+          className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground text-sm focus:outline-none focus:border-primary"
+          dir="ltr"
+        />
+        {err && (
+          <p className="text-red-400 text-xs mt-2 text-center">{err}</p>
+        )}
+        <button
+          type="submit"
+          className="w-full mt-4 bg-primary text-primary-foreground rounded-xl py-3 font-semibold text-sm hover:opacity-90 transition-opacity"
+        >
+          دخول
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ── Router ────────────────────────────────────────────────────
 function AdminApp() {
   const adminDomain = isAdminDomain();
   const Gate = adminDomain ? HomePage : SuperAdminBlocked;
   const GateWrap = (Comp: React.ComponentType<any>) =>
     adminDomain ? Comp : SuperAdminBlocked;
-  return (
+  // Cafe-owner routes bypass the super-admin password — they have
+  // their own per-cafe gate (managerPassword). Everything else
+  // (super-admin home + sub-pages) goes through SuperAdminPasswordGate.
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const relPath = base && path.startsWith(base) ? path.slice(base.length) : path;
+  const isCafeOwnerRoute = /^\/cafe\//.test(relPath);
+
+  const routes = (
     <Switch>
       <Route path="/"             component={Gate} />
       <Route path="/dashboard"    component={GateWrap(DashboardWrapped)} />
@@ -216,6 +288,9 @@ function AdminApp() {
       <Route path="/cafe/:id"           component={CafeDashboardPage}/>
     </Switch>
   );
+
+  if (isCafeOwnerRoute) return routes;
+  return <SuperAdminPasswordGate>{routes}</SuperAdminPasswordGate>;
 }
 
 // ── Splash Screen ─────────────────────────────────────────────
