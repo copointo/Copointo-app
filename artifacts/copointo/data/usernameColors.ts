@@ -9,6 +9,8 @@ export interface UsernameColorDef {
   mix?: readonly string[];
   /** Glow/shine on the text. */
   shine?: boolean;
+  /** Optional motion effect (animated luxury tier). */
+  anim?: "shimmer" | "rainbow" | "pulse" | "wave" | "fire";
   /** Optional fancy background card around the username (tier-3). */
   bg?: {
     /** Solid background — overridden by gradient if provided. */
@@ -47,6 +49,35 @@ export const USERNAME_COLORS: UsernameColorDef[] = [
     gradient: ["#FFF1B0", "#FFD700", "#FFF1B0"], shine: true,
     bg: { gradient: ["#2A1A05", "#5C3D0A", "#2A1A05"], border: "#FFD700" },
   },
+  // ── Animated luxury tier ──────────────────────────────────────
+  {
+    id: "uc-21", name: "✨ ذهب متلألئ",
+    gradient: ["#FFF8B0", "#FFD700", "#FFAA00"], shine: true, anim: "shimmer",
+    bg: { gradient: ["#2A1A05", "#5C3D0A", "#2A1A05"], border: "#FFD700" },
+  },
+  {
+    id: "uc-22", name: "🌈 قوس قزح",
+    gradient: ["#FF6B6B", "#FFD93D", "#6BCB77", "#4D96FF", "#9D4EDD", "#FF6B6B"],
+    shine: true, anim: "rainbow",
+    bg: { gradient: ["#0a0a0a", "#1a0a2e", "#0a0a0a"], border: "#9D4EDD" },
+  },
+  {
+    id: "uc-23", name: "💜 نيون بنفسجي",
+    color: "#E0AAFF", shine: true, anim: "pulse",
+    bg: { gradient: ["#10002B", "#3C096C", "#10002B"], border: "#C77DFF" },
+  },
+  {
+    id: "uc-24", name: "🔥 نار سائلة",
+    gradient: ["#FFE066", "#FF8C42", "#FF2E2E", "#FF8C42", "#FFE066"],
+    shine: true, anim: "fire",
+    bg: { gradient: ["#1A0000", "#4A0E0E", "#1A0000"], border: "#FF6B35" },
+  },
+  {
+    id: "uc-25", name: "🌊 موجة ماسية",
+    gradient: ["#E0F7FA", "#80DEEA", "#FFFFFF", "#80DEEA", "#E0F7FA"],
+    shine: true, anim: "wave",
+    bg: { gradient: ["#001E2B", "#003D5B", "#001E2B"], border: "#4DD0E1" },
+  },
 ];
 
 export function getUsernameColor(id: string | null): UsernameColorDef | null {
@@ -54,4 +85,10 @@ export function getUsernameColor(id: string | null): UsernameColorDef | null {
   return USERNAME_COLORS.find(u => u.id === id) ?? null;
 }
 
-export const USERNAME_COLOR_PRICE = (_idx: number): number => 5000;
+/**
+ * Pricing: static colors 5,000 — animated luxury tier 12,000.
+ */
+export const USERNAME_COLOR_PRICE = (idx: number): number => {
+  const def = USERNAME_COLORS[idx];
+  return def?.anim ? 12000 : 5000;
+};

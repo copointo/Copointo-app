@@ -1,5 +1,5 @@
-import React from "react";
-import { Text, TextStyle, StyleProp, View, ViewStyle } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Easing, Text, TextStyle, StyleProp, View, ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { UsernameColorDef, getUsernameColor } from "../data/usernameColors";
 import { useUsernameColors } from "../hooks/useUsernameColors";
@@ -48,12 +48,116 @@ export default function UsernameText({
   }
 
   const needsShaping = SHAPING_RE.test(text);
-  const inner = renderInner(def, text, style, fallbackColor, numberOfLines, needsShaping);
+  const inner = def.anim
+    ? <AnimatedInner def={def} text={text} style={style} numberOfLines={numberOfLines} fallbackColor={fallbackColor} />
+    : renderInner(def, text, style, fallbackColor, numberOfLines, needsShaping);
 
   if (def.bg && withBg) {
     return wrapBg(def.bg, inner);
   }
   return inner;
+}
+
+function AnimatedInner({
+  def, text, style, numberOfLines, fallbackColor,
+}: {
+  def: UsernameColorDef;
+  text: string;
+  style: StyleProp<TextStyle> | undefined;
+  numberOfLines: number | undefined;
+  fallbackColor: string;
+}) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    v.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(v, {
+        toValue: 1,
+        duration: def.anim === "rainbow" ? 4000 : def.anim === "fire" ? 1400 : 1800,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: false,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [v, def.anim]);
+
+  const stops = def.gradient as readonly string[] | undefined;
+  const baseColor = def.color ?? (stops && stops[0]) ?? fallbackColor;
+
+  if (def.anim === "rainbow" && stops && stops.length >= 2) {
+    const color = v.interpolate({
+      inputRange: stops.map((_, i) => i / (stops.length - 1)),
+      outputRange: stops as unknown as string[],
+    });
+    return (
+      <Animated.Text style={[style, { color, textShadowColor: color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 10 }]} numberOfLines={numberOfLines}>
+        {text}
+      </Animated.Text>
+    );
+  }
+
+  if (def.anim === "wave" && stops && stops.length >= 2) {
+    // Sweep through gradient stops smoothly back and forth.
+    const color = v.interpolate({
+      inputRange: stops.map((_, i) => i / (stops.length - 1)),
+      outputRange: stops as unknown as string[],
+    });
+    const radius = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [6, 16, 6] });
+    return (
+      <Animated.Text style={[style, { color, textShadowColor: color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: radius }]} numberOfLines={numberOfLines}>
+        {text}
+      </Animated.Text>
+    );
+  }
+
+  if (def.anim === "fire" && stops && stops.length >= 2) {
+    const color = v.interpolate({
+      inputRange: stops.map((_, i) => i / (stops.length - 1)),
+      outputRange: stops as unknown as string[],
+    });
+    const radius = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [8, 20, 8] });
+    const scaleY = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.06, 1] });
+    return (
+      <Animated.Text style={[style, {
+        color, textShadowColor: color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: radius,
+        transform: [{ scaleY }],
+      }]} numberOfLines={numberOfLines}>
+        {text}
+      </Animated.Text>
+    );
+  }
+
+  if (def.anim === "pulse") {
+    const radius = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [4, 18, 4] });
+    const opacity = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.85, 1, 0.85] });
+    const scale = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.04, 1] });
+    return (
+      <Animated.Text style={[style, {
+        color: baseColor, textShadowColor: baseColor, textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: radius, opacity, transform: [{ scale }],
+      }]} numberOfLines={numberOfLines}>
+        {text}
+      </Animated.Text>
+    );
+  }
+
+  // shimmer (default)
+  const shimmerColor = stops && stops.length >= 2
+    ? v.interpolate({
+        inputRange: stops.map((_, i) => i / (stops.length - 1)),
+        outputRange: stops as unknown as string[],
+      })
+    : baseColor;
+  const radius = v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [4, 20, 4] });
+  return (
+    <Animated.Text style={[style, {
+      color: shimmerColor as any, textShadowColor: shimmerColor as any,
+      textShadowOffset: { width: 0, height: 0 }, textShadowRadius: radius,
+    }]} numberOfLines={numberOfLines}>
+      {text}
+    </Animated.Text>
+  );
 }
 
 function renderInner(
