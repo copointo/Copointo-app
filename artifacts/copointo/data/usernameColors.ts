@@ -56,7 +56,7 @@ export const USERNAME_COLORS: UsernameColorDef[] = [
     bg: { gradient: ["#2A0820", "#5C1148", "#2A0820"], border: "#FF6FB5" },
   },
   {
-    id: "uc-22", name: "🌈 قوس قزح",
+    id: "uc-22", name: "🌈 أسطوري",
     gradient: ["#FF3B3B", "#FFB400", "#3CD96C", "#3A8DFF", "#A640FF", "#FF3B3B"], shine: true, anim: "rainbow",
     bg: { gradient: ["#0a0a0a", "#1a0a2e", "#0a0a0a"], border: "#A640FF" },
   },
