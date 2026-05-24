@@ -35,6 +35,7 @@ import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
 import { useCharacters } from "@/hooks/useCharacters";
 import { getCharacter } from "@/data/characters";
+import { useUnseenSentGifts } from "@/hooks/useUnseenSentGifts";
 
 interface GameStatus {
   gameBanned: boolean;
@@ -70,6 +71,7 @@ export default function GameScreen() {
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
   const r = useResponsive();
   const { toast: overtakeToast, dismiss: dismissOvertake } = useRankOvertakeNotifier();
+  const unseenSentGifts = useUnseenSentGifts();
 
   // Per-café progress: pick the currently-viewed café, or first available.
   const cafeProgress = user?.cafeProgress ?? {};
@@ -716,6 +718,11 @@ export default function GameScreen() {
       >
         <Feather name="gift" size={22} color="#FFF" />
         <Text style={styles.fabSentGiftsLabel}>الهدايا المرسلة</Text>
+        {unseenSentGifts > 0 && (
+          <View style={styles.sentGiftsBadge}>
+            <Text style={styles.sentGiftsBadgeText}>{unseenSentGifts}</Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* Levels - gold, mirrors Leaderboard on the LEFT */}
@@ -1015,6 +1022,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: BG,
   },
   cafeCountText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#000" },
+  sentGiftsBadge: {
+    position: "absolute", top: -5, right: -5,
+    minWidth: 20, height: 20, borderRadius: 10,
+    backgroundColor: "#E8484C",
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 5,
+    borderWidth: 1.5, borderColor: BG,
+  },
+  sentGiftsBadgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
   cafePill: {
     flexDirection: "row", alignItems: "center", gap: 8,
     alignSelf: "center",

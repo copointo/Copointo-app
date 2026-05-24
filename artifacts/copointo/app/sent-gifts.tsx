@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE } from "@/constants/api";
 import { GIFTS, type GiftDef } from "@/data/gifts";
+import { markSentGiftsSeen } from "@/hooks/useUnseenSentGifts";
 
 interface GiftEvent {
   id: string;
@@ -88,6 +89,8 @@ export default function SentGiftsScreen() {
       await load();
       if (mounted) setLoading(false);
     })();
+    // Clear the unseen-sent-gifts badge as soon as the user opens this screen.
+    markSentGiftsSeen();
     return () => { mounted = false; };
   }, [load]);
 
