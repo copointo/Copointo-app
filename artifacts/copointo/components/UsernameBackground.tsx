@@ -418,7 +418,7 @@ export default function UsernameBackground({
       {eff === "flames" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🔥" dir="horizontal" count={2} gap={3000} spin sizeMin={50} sizeMax={70} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🔥" dir="horizontal" count={3} gap={2000} spin sizeMin={80} sizeMax={110} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
@@ -427,7 +427,7 @@ export default function UsernameBackground({
       {eff === "water" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🌊" dir="horizontal" count={2} gap={3000} spin sizeMin={50} sizeMax={70} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🌊" dir="horizontal" count={3} gap={2000} spin sizeMin={80} sizeMax={110} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
@@ -445,7 +445,7 @@ export default function UsernameBackground({
       {eff === "dragons" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🐉" dir="horizontal" count={2} gap={3000} trail="🔥" sizeMin={50} sizeMax={68} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🐉" dir="horizontal" count={3} gap={2000} trail="🔥" sizeMin={80} sizeMax={110} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
