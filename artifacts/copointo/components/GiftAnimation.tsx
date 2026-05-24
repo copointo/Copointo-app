@@ -749,7 +749,7 @@ function VideoScene({ gift, duration }: { gift: GiftDef; duration: number }) {
 const styles = StyleSheet.create({
   topRow: {
     position: "absolute",
-    top: SCREEN_H * 0.34, left: 12, right: 12,
+    top: SCREEN_H * 0.26, left: 12, right: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
