@@ -206,19 +206,10 @@ export default function UsersPage() {
     setBd([]); setBdFc({ total: 0, redeemed: 0 }); setAwardCafeId("");
   };
 
-  // Coupling: typing in the level field auto-fills coffees = level*7.
-  // Typing in the coffees field auto-fills level = floor(coffees/7).
-  // Admin can override either after auto-fill if they want a non-coupled value.
-  const onLevelChange = (v: string) => {
-    setSetLvlStr(v);
-    const n = Math.trunc(Number(v));
-    if (Number.isFinite(n) && n >= 0) setSetOrdStr(String(n * DRINKS_PER_LEVEL));
-  };
-  const onOrdersChange = (v: string) => {
-    setSetOrdStr(v);
-    const n = Math.trunc(Number(v));
-    if (Number.isFinite(n) && n >= 0) setSetLvlStr(String(Math.floor(n / DRINKS_PER_LEVEL)));
-  };
+  // Independent fields — no coupling, no multiplication. The exact number
+  // the admin types is the exact number stored on the user's account.
+  const onLevelChange  = (v: string) => setSetLvlStr(v);
+  const onOrdersChange = (v: string) => setSetOrdStr(v);
   const onCafeChange = (v: string) => {
     setAwardCafeId(v);
     prefillFromCafe(adjTarget, v);
@@ -526,9 +517,8 @@ export default function UsersPage() {
             </div>
             <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
               <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 border border-border rounded-lg px-3 py-2">
-                ✏️ <b>أدخل المستوى وعدد الكوفي الذي تريده بالضبط لهذا الكافيه</b> — الحقلان مربوطان تلقائيًا
-                (<span className="font-mono">1 مستوى = 7 كوب</span>). القيم تطبّق <b>كما هي</b> على حساب اللاعب
-                (تزيد أو تنقص). المستوى العام يُعاد حسابه تلقائيًا من أعلى مستوى بين كل الكافيهات.
+                ✏️ <b>أدخل المستوى وعدد الكوفي الذي تريده بالضبط لهذا الكافيه</b> — الحقلان مستقلّان،
+                والقيم تطبّق <b>كما هي حرفيًا</b> على حساب اللاعب (بدون ضرب ولا حساب تلقائي، تزيد أو تنقص).
               </p>
 
               {/* ── Per-cafe history ── */}
@@ -640,7 +630,7 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  🔗 الحقلان مربوطان: تعديل المستوى يضبط الكوفي = المستوى × 7، وتعديل الكوفي يضبط المستوى = الكوفي ÷ 7 (تقريبًا للأسفل).
+                  ✅ الحقلان مستقلّان تمامًا. كل رقم تكتبه هنا يظهر بالضبط كما هو عند المستخدم.
                 </p>
               </div>
 
