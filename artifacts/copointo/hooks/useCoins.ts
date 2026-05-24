@@ -32,6 +32,23 @@ export async function grantDevDemoCoinsOnce(floor: number, markerKey: string) {
   broadcast(next);
 }
 
+/**
+ * Idempotent ADDITIVE bonus: adds `delta` to the current balance exactly
+ * once per `markerKey`. Unlike `grantDevDemoCoinsOnce` (which floors), this
+ * stacks on top of whatever the user already has and broadcasts so live
+ * `useCoins()` consumers re-render immediately.
+ */
+export async function grantBonusCoinsOnce(delta: number, markerKey: string) {
+  const already = await AsyncStorage.getItem(markerKey);
+  if (already) return;
+  const raw = await AsyncStorage.getItem(KEY);
+  const current = raw ? parseInt(raw, 10) || 0 : 0;
+  const next = Math.max(0, current + Math.floor(delta));
+  await AsyncStorage.setItem(KEY, String(next));
+  await AsyncStorage.setItem(markerKey, "1");
+  broadcast(next);
+}
+
 export function useCoins() {
   const [balance, setBalance] = useState<number>(_cache ?? 0);
   const [hydrated, setHydrated] = useState<boolean>(_cache !== null);
