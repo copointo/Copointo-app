@@ -5105,7 +5105,7 @@ export default function CafeDashboardPage() {
           ? <img src={cafe.logo} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover shrink-0" alt="" />
           : <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-muted flex items-center justify-center text-xl shrink-0">☕</div>}
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-foreground text-sm sm:text-base truncate">{cafe?.name ?? "..."}</p>
+          <p className="font-bold text-foreground text-sm sm:text-base truncate">لوحة التحكم الخاصة بالكوفي Copointo</p>
           <p className="text-[11px] sm:text-xs text-muted-foreground truncate">{cafe?.address ?? ""}</p>
         </div>
         <div className="mr-auto shrink-0">
