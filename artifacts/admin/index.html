@@ -8,20 +8,15 @@
       html, body { touch-action: pan-x pan-y; -ms-touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
     </style>
 
-    <title>Copointo — دليل الكوفيهات في سلطنة عمان</title>
-    <meta name="description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
-    <meta name="keywords" content="كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, coffee Oman" />
-    <link rel="canonical" href="https://copointo.com/" />
-    <meta name="application-name" content="Copointo" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
-    <meta name="googlebot" content="index, follow" />
-
     <!--
-      Per-domain noindex: the admin dashboard domain (copointoadmin-al-yaqathan.com)
-      must NEVER appear in Google. We override the robots/googlebot tags above as
-      soon as the page loads when the hostname matches the admin domain (or any
-      *admin* subdomain), and also tag the path /admin/* on the public domain.
+      Per-domain identity: this MUST run BEFORE the <title> and <meta> below so
+      Googlebot (which renders JS) sees the correct title/description for the
+      admin dashboard hostname. On copointoadmin-al-yaqathan.com (or any admin.*
+      subdomain, or /admin/* path) we:
+        1. Rewrite <title> to "Al yaqathan" so the brand name never shows.
+        2. Strip every "Copointo" reference from meta description/keywords/og.
+        3. Apply the strictest possible noindex/nofollow to all known crawlers.
+        4. Drop the canonical so Google can't merge it with copointo.com.
     -->
     <script>
       (function () {
@@ -33,22 +28,64 @@
             h.indexOf("admin.") === 0 ||
             h.indexOf(".admin.") !== -1;
           var isAdminPath = p.indexOf("/admin") === 0;
-          if (isAdminHost || isAdminPath) {
-            ["robots", "googlebot", "bingbot"].forEach(function (n) {
-              var m = document.querySelector('meta[name="' + n + '"]');
-              if (!m) {
-                m = document.createElement("meta");
-                m.setAttribute("name", n);
-                document.head.appendChild(m);
-              }
-              m.setAttribute("content", "noindex, nofollow, noarchive, nosnippet, noimageindex");
-            });
-            var c = document.querySelector('link[rel="canonical"]');
-            if (c) c.parentNode.removeChild(c);
+          window.__IS_ADMIN_DOMAIN__ = isAdminHost || isAdminPath;
+          if (!window.__IS_ADMIN_DOMAIN__) return;
+
+          // Rewrite document title immediately so Googlebot's renderer captures
+          // "Al yaqathan" instead of "Copointo".
+          document.title = "Al yaqathan";
+
+          function setMeta(attr, name, content) {
+            var sel = 'meta[' + attr + '="' + name + '"]';
+            var m = document.querySelector(sel);
+            if (!m) {
+              m = document.createElement("meta");
+              m.setAttribute(attr, name);
+              document.head.appendChild(m);
+            }
+            m.setAttribute("content", content);
           }
+          // Strictest noindex for every crawler we know about.
+          [
+            "robots", "googlebot", "googlebot-news", "googlebot-image",
+            "bingbot", "slurp", "duckduckbot", "baiduspider", "yandex",
+            "applebot", "facebookexternalhit", "twitterbot",
+          ].forEach(function (n) {
+            setMeta("name", n, "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate");
+          });
+
+          // Replace public-brand meta with the admin identity so any cached or
+          // scraped copy shows "Al yaqathan" with no Copointo reference.
+          setMeta("name", "description",     "Al yaqathan — private admin dashboard. Not a public site.");
+          setMeta("name", "keywords",        "");
+          setMeta("name", "application-name","Al yaqathan");
+          setMeta("property", "og:title",       "Al yaqathan");
+          setMeta("property", "og:site_name",   "Al yaqathan");
+          setMeta("property", "og:description", "Private admin dashboard.");
+          setMeta("name", "twitter:title",       "Al yaqathan");
+          setMeta("name", "twitter:description", "Private admin dashboard.");
+
+          // Drop canonical so Google can't fold this URL into copointo.com.
+          var c = document.querySelector('link[rel="canonical"]');
+          if (c) c.parentNode.removeChild(c);
+
+          // Drop the public-site structured data (JSON-LD) — it advertises the
+          // Copointo brand and would otherwise leak into rich-result previews.
+          document.querySelectorAll('script[type="application/ld+json"]').forEach(function (s) {
+            s.parentNode.removeChild(s);
+          });
         } catch (e) {}
       })();
     </script>
+
+    <title>Copointo — دليل الكوفيهات في سلطنة عمان</title>
+    <meta name="description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
+    <meta name="keywords" content="كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, coffee Oman" />
+    <link rel="canonical" href="https://copointo.com/" />
+    <meta name="application-name" content="Copointo" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="googlebot" content="index, follow" />
 
     <!-- Favicons -->
     <link rel="icon" type="image/png" href="%BASE_URL%copointo-logo.png" />
