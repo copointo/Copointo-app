@@ -1103,6 +1103,49 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ── Always-visible sticky running total bar (full width on top) ── */}
+      {cartLines.length > 0 && (
+        <div className="lg:col-span-3 sticky top-2 z-30">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border-2 border-primary/60 bg-gradient-to-l from-primary/15 via-primary/10 to-primary/15 backdrop-blur shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
+              <ShoppingBag size={20} />
+            </div>
+            <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span className="text-xs text-muted-foreground">عدد القطع</span>
+              <span className="font-bold text-foreground tabular-nums">{itemCount}</span>
+              {appliedDiscount && (
+                <>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <span className="text-xs text-muted-foreground">قبل الخصم</span>
+                  <span className="line-through text-muted-foreground tabular-nums text-sm">{subtotal.toFixed(3)}</span>
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">-{appliedDiscount.percent}%</span>
+                </>
+              )}
+              <span className="text-xs text-muted-foreground">·</span>
+              <span className="text-xs text-muted-foreground">المستحق</span>
+              {freeOrder ? (
+                <span className="text-lg font-bold text-amber-400 tabular-nums flex items-center gap-1.5">
+                  <span className="line-through text-muted-foreground text-sm font-normal">{afterDiscount.toFixed(3)}</span>
+                  0.000 OMR <span className="text-[10px]">(مجاني)</span>
+                </span>
+              ) : (
+                <span className="text-lg font-bold text-primary tabular-nums">{finalTotal.toFixed(3)} OMR</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={submitting || !customerName.trim()}
+              title={!customerName.trim() ? "أدخل اسم الزبون أولاً" : "تأكيد الطلب"}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 hover:opacity-90 shrink-0"
+            >
+              <CheckCircle size={14} />
+              {submitting ? "…" : "تأكيد"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Right column: menu picker (2/3) ── */}
       <div className="lg:col-span-2 space-y-5">
         {/* Quick search bar */}
