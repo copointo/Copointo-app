@@ -202,7 +202,7 @@ function SuperAdminBlocked() {
 // unlocked, the choice is persisted in sessionStorage so reloads in
 // the same tab don't re-prompt. Cafe-owner routes (/cafe/:id) are
 // intentionally NOT protected — they keep their own managerPassword.
-const SUPER_ADMIN_PASSWORD = "Yaqdan1324@";
+const SUPER_ADMIN_PASSWORD = "Admin123@";
 const SUPER_ADMIN_UNLOCK_KEY = "copointo_super_admin_unlocked_v1";
 
 function SuperAdminPasswordGate({ children }: { children: React.ReactNode }) {
