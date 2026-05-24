@@ -269,12 +269,12 @@ function FlyingCreature({ c, glow, emoji, dir, gap, spin = false, trail }: { c: 
     </Animated.View>
   );
 }
-function FlyingCreatures({ glow, borderRadius, emoji, dir = "horizontal", count = 7, gap = 3000, spin = false, trail, sizeMin = 14, sizeMax = 32 }: { glow: string; borderRadius: number; emoji: string; dir?: FlyDir; count?: number; gap?: number; spin?: boolean; trail?: string; sizeMin?: number; sizeMax?: number }) {
+function FlyingCreatures({ glow, borderRadius, emoji, dir = "horizontal", count = 7, gap = 3000, spin = false, trail, sizeMin = 14, sizeMax = 32, posMin = 5, posMax = 90 }: { glow: string; borderRadius: number; emoji: string; dir?: FlyDir; count?: number; gap?: number; spin?: boolean; trail?: string; sizeMin?: number; sizeMax?: number; posMin?: number; posMax?: number }) {
   const list = useMemo(() => {
     const out: Creature[] = [];
     for (let i = 0; i < count; i++) {
       out.push({
-        pos: 5 + Math.random() * 85,
+        pos: posMin + Math.random() * Math.max(0, posMax - posMin),
         size: sizeMin + Math.random() * (sizeMax - sizeMin),
         delay: Math.random() * 3500,
         duration: 4500 + Math.random() * 3500,
@@ -418,7 +418,7 @@ export default function UsernameBackground({
       {eff === "flames" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🔥" dir="horizontal" count={3} gap={2000} spin sizeMin={80} sizeMax={110} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🔥" dir="horizontal" count={3} gap={2000} spin sizeMin={80} sizeMax={110} posMin={0} posMax={35} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
@@ -427,7 +427,7 @@ export default function UsernameBackground({
       {eff === "water" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🌊" dir="horizontal" count={3} gap={2000} spin sizeMin={80} sizeMax={110} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🌊" dir="horizontal" count={3} gap={2000} spin sizeMin={80} sizeMax={110} posMin={0} posMax={35} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
@@ -445,7 +445,7 @@ export default function UsernameBackground({
       {eff === "dragons" && (
         <>
           <GlowBurst color={highlight} borderRadius={borderRadius} />
-          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🐉" dir="horizontal" count={3} gap={2000} trail="🔥" sizeMin={80} sizeMax={110} />
+          <FlyingCreatures glow={highlight} borderRadius={borderRadius} emoji="🐉" dir="horizontal" count={3} gap={2000} trail="🔥" sizeMin={80} sizeMax={110} posMin={0} posMax={35} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" }]}>
             <Sparkles color={highlight} count={14} sizeMin={1.5} sizeMax={3} />
           </View>
