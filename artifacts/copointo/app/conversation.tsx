@@ -40,7 +40,7 @@ const BORDER_SOFT = "rgba(232,184,109,0.18)";
 const ROLE_BADGE: Record<CommunityRole, { label: string; color: string; emoji: string }> = {
   leader: { label: "قائد", color: "#FFD700", emoji: "👑" },
   vice:   { label: "نائب القائد", color: "#C0C0C0", emoji: "⭐" },
-  senior: { label: "عضو مميز", color: "#CD7F32", emoji: "🌟" },
+  senior: { label: "عضو كبير", color: "#CD7F32", emoji: "🌟" },
   member: { label: "عضو", color: "rgba(255,255,255,0.55)", emoji: "" },
 };
 
