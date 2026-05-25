@@ -650,8 +650,13 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
           return { ok: false, error: "لا يمكن تخفيض القائد" };
         }
       } else if (myRole === "vice") {
-        if (!(targetRole === "member" && nextRole === "senior")) {
-          return { ok: false, error: "القائد المساعد يستطيع فقط ترقية الأعضاء إلى أعضاء كبار" };
+        // Vice can promote member → senior, and demote senior → member.
+        // No other transitions allowed (cannot touch leader/vice ranks).
+        const allowed =
+          (targetRole === "member" && nextRole === "senior") ||
+          (targetRole === "senior" && nextRole === "member");
+        if (!allowed) {
+          return { ok: false, error: "القائد المساعد يستطيع فقط ترقية الأعضاء إلى أعضاء كبار أو تخفيضهم" };
         }
       } else {
         return { ok: false, error: "لا تملك صلاحية تغيير الرتب" };

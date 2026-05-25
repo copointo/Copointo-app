@@ -314,7 +314,10 @@ export default function CommunityInfoScreen() {
                 (isVice   && targetRole === "member")
               );
             const canDemote =
-              !isMe && isLeader && (targetRole === "vice" || targetRole === "senior");
+              !isMe && (
+                (isLeader && (targetRole === "vice" || targetRole === "senior")) ||
+                (isVice   && targetRole === "senior")
+              );
             const promoteNext: CommunityRole | null =
               targetRole === "member" ? "senior"
               : targetRole === "senior" ? "vice"
