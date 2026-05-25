@@ -2,8 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import {
-  AudioModule, RecordingPresets, useAudioRecorder, useAudioRecorderState,
+  AudioModule, RecordingPresets, useAudioPlayer, useAudioPlayerStatus,
+  useAudioRecorder, useAudioRecorderState,
 } from "expo-audio";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -21,7 +23,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ChatMessage, CommunityRole, getCommunityRole } from "@/data/mockData";
+import { ChatMessage, CommunityRole, getCommunityRole, getRank } from "@/data/mockData";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useMessages } from "@/context/MessagesContext";
@@ -90,7 +92,7 @@ export default function ConversationScreen() {
   const { getCommunity } = useCommunities();
   const { equipped: equippedTextStyleId } = useTextStyles();
   const equippedTextStyleDef = getTextStyle(equippedTextStyleId);
-  const { registeredUsers } = useApp();
+  const { registeredUsers, user } = useApp();
   const { t } = useT();
   const convMsgs = chats[id ?? ""] ?? [];
 
@@ -196,6 +198,93 @@ export default function ConversationScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recState = useAudioRecorderState(recorder);
   const recStartRef = useRef<number>(0);
+  // Live timer (seconds) shown while recording so the user can see how
+  // long the voice note has been going. Stops at cancel/stop.
+  const [recElapsed, setRecElapsed] = useState(0);
+  useEffect(() => {
+    if (!recState.isRecording) { setRecElapsed(0); return; }
+    setRecElapsed(Math.max(0, Math.round((Date.now() - recStartRef.current) / 1000)));
+    const t = setInterval(() => {
+      setRecElapsed(Math.max(0, Math.round((Date.now() - recStartRef.current) / 1000)));
+    }, 500);
+    return () => clearInterval(t);
+  }, [recState.isRecording]);
+
+  // Pre-send preview: pickers and the recorder no longer auto-upload —
+  // they stage the media into `pendingMedia` so the user can review it
+  // (see the image, replay the voice note, scrub the video) and either
+  // confirm send or cancel. Only on confirm do we upload and append.
+  type PendingMedia = {
+    kind: "image" | "video" | "audio";
+    uri: string;
+    mime: string;
+    filename: string;
+    duration?: number;
+  };
+  const [pendingMedia, setPendingMedia] = useState<PendingMedia | null>(null);
+  const previewVideoPlayer = useVideoPlayer(
+    pendingMedia?.kind === "video" ? pendingMedia.uri : "",
+    (p) => { p.loop = false; },
+  );
+  const previewAudioPlayer = useAudioPlayer(
+    pendingMedia?.kind === "audio" ? pendingMedia.uri : "",
+  );
+  const previewAudioStatus = useAudioPlayerStatus(previewAudioPlayer);
+  const previewAudioPlaying = !!previewAudioStatus?.playing;
+  const previewAudioCurrent = previewAudioStatus?.currentTime ?? 0;
+  const previewAudioTotal = pendingMedia?.duration && pendingMedia.duration > 0
+    ? pendingMedia.duration
+    : (previewAudioStatus?.duration ?? 0);
+  const togglePreviewAudio = () => {
+    if (!pendingMedia || pendingMedia.kind !== "audio") return;
+    if (previewAudioPlaying) { previewAudioPlayer.pause(); return; }
+    if (previewAudioTotal > 0 && previewAudioCurrent >= previewAudioTotal - 0.25) {
+      try { previewAudioPlayer.seekTo(0); } catch { /* ignore */ }
+    }
+    previewAudioPlayer.play();
+  };
+  const fmtPreviewTime = (s: number) => {
+    if (!Number.isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60);
+    const r = Math.floor(s % 60);
+    return `${m}:${r.toString().padStart(2, "0")}`;
+  };
+  // If the user swipes back / navigates away while the preview modal is
+  // open, pause both preview players so audio/video don't keep playing
+  // in the background. Discard/Confirm pause inline too — this is the
+  // safety net for navigation paths.
+  useEffect(() => {
+    return () => {
+      try { previewAudioPlayer.pause(); } catch {}
+      try { previewVideoPlayer.pause(); } catch {}
+    };
+  }, []);
+
+  const discardPending = () => {
+    if (pendingMedia?.kind === "audio") { try { previewAudioPlayer.pause(); } catch {} }
+    if (pendingMedia?.kind === "video") { try { previewVideoPlayer.pause(); } catch {} }
+    setPendingMedia(null);
+  };
+  const confirmSendPending = async () => {
+    if (!pendingMedia) return;
+    const pm = pendingMedia;
+    if (pm.kind === "audio") { try { previewAudioPlayer.pause(); } catch {} }
+    if (pm.kind === "video") { try { previewVideoPlayer.pause(); } catch {} }
+    setPendingMedia(null);
+    setUploading(true);
+    try {
+      const url = await uploadChatMedia(pm.uri, pm.mime, pm.filename, pm.kind);
+      const extra: Partial<ChatMessage> =
+          pm.kind === "image" ? { imageUrl: url }
+        : pm.kind === "video" ? { videoUrl: url, mediaDuration: pm.duration }
+        : { audioUrl: url, mediaDuration: pm.duration };
+      sendMediaMessage(extra);
+    } catch (err: any) {
+      Alert.alert("فشل الإرسال", err?.message || "تعذر إرسال المرفق");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   /** Build a ChatMessage shell and POST it through appendMsg. */
   const sendMediaMessage = (extra: Partial<ChatMessage>) => {
@@ -230,20 +319,21 @@ export default function ConversationScreen() {
       });
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
-      setUploading(true);
       const ext = (asset.uri.match(/\.([a-zA-Z0-9]+)(\?|$)/)?.[1] || (kind === "image" ? "jpg" : "mp4")).toLowerCase();
       const mime = asset.mimeType
         || (kind === "image" ? `image/${ext === "jpg" ? "jpeg" : ext}` : `video/${ext}`);
       const filename = `${kind}_${Date.now()}.${ext}`;
-      const url = await uploadChatMedia(asset.uri, mime, filename, kind);
-      const extra: Partial<ChatMessage> = kind === "image"
-        ? { imageUrl: url }
-        : { videoUrl: url, mediaDuration: asset.duration ? Math.round(asset.duration / 1000) : undefined };
-      sendMediaMessage(extra);
+      // Stage into preview — user reviews then taps "Send" to actually upload.
+      setPendingMedia({
+        kind,
+        uri: asset.uri,
+        mime,
+        filename,
+        duration: kind === "video" && asset.duration
+          ? Math.round(asset.duration / 1000) : undefined,
+      });
     } catch (err: any) {
-      Alert.alert("فشل الإرسال", err?.message || "تعذر إرسال المرفق");
-    } finally {
-      setUploading(false);
+      Alert.alert("فشل اختيار المرفق", err?.message || "تعذر تحميل الملف");
     }
   };
 
@@ -274,18 +364,21 @@ export default function ConversationScreen() {
         Alert.alert("لا يوجد تسجيل", "لم يتم حفظ التسجيل");
         return;
       }
-      setUploading(true);
       const ext = (uri.match(/\.([a-zA-Z0-9]+)(\?|$)/)?.[1] || "m4a").toLowerCase();
       const mime = ext === "m4a" || ext === "mp4" ? "audio/mp4"
         : ext === "wav" ? "audio/wav"
         : ext === "caf" ? "audio/x-caf"
         : `audio/${ext}`;
-      const url = await uploadChatMedia(uri, mime, `voice_${Date.now()}.${ext}`, "audio");
-      sendMediaMessage({ audioUrl: url, mediaDuration: seconds });
+      // Stage into preview — user listens back then taps "Send" to upload.
+      setPendingMedia({
+        kind: "audio",
+        uri,
+        mime,
+        filename: `voice_${Date.now()}.${ext}`,
+        duration: seconds,
+      });
     } catch (err: any) {
-      Alert.alert("فشل الإرسال", err?.message || "تعذر إرسال التسجيل");
-    } finally {
-      setUploading(false);
+      Alert.alert("فشل التسجيل", err?.message || "تعذر إنهاء التسجيل");
     }
   };
 
@@ -324,6 +417,67 @@ export default function ConversationScreen() {
         { text: "إلغاء", style: "cancel" },
         { text: "حذف", style: "destructive", onPress: doDelete },
       ],
+    );
+  };
+
+  /** Resolve the sender chip (name + avatar + rank) for a media message.
+   *  Falls back to the conv header name when the friend isn't in the
+   *  registeredUsers list (e.g. mock 1:1 chats). */
+  const getMediaSenderInfo = (item: ChatMessage): {
+    name: string; avatar?: string; level: number;
+  } => {
+    if (item.fromMe) {
+      return {
+        name: user?.name || "أنت",
+        avatar: user?.avatar,
+        level: user?.level ?? 0,
+      };
+    }
+    const r = item.senderId ? registeredUsers.find(u => u.id === item.senderId) : undefined;
+    return {
+      name: r?.name || item.senderName || (typeof name === "string" ? name : ""),
+      avatar: r?.avatar || item.senderAvatar,
+      level: r?.level ?? 0,
+    };
+  };
+
+  /** Compact "who sent this" chip rendered ABOVE images / videos / voice
+   *  notes so the recipient can see at-a-glance the sender's name, photo
+   *  and rank without scrolling back up the conversation. */
+  const renderMediaSenderChip = (item: ChatMessage) => {
+    if (item.deletedForAll) return null;
+    if (!item.imageUrl && !item.videoUrl && !item.audioUrl) return null;
+    const s = getMediaSenderInfo(item);
+    const rank = getRank(s.level);
+    const isAvatarUri = !!s.avatar && (
+      s.avatar.startsWith("http") || s.avatar.startsWith("data:") || s.avatar.startsWith("file:")
+    );
+    const nameColor = item.fromMe ? "rgba(0,0,0,0.85)" : PRIMARY;
+    const subColor  = item.fromMe ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)";
+    return (
+      <View style={styles.mediaSenderChip}>
+        {isAvatarUri ? (
+          <Image source={{ uri: s.avatar! }} style={styles.mediaSenderAvatarImg} />
+        ) : (
+          <View style={styles.mediaSenderAvatarFallback}>
+            <Text style={{ fontSize: 14 }}>{s.avatar || "👤"}</Text>
+          </View>
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.mediaSenderName, { color: nameColor }]} numberOfLines={1}>
+            {s.name}
+          </Text>
+          <View style={styles.mediaSenderRankRow}>
+            <Text style={styles.mediaSenderRankIcon}>{rank.icon}</Text>
+            <Text style={[styles.mediaSenderRankText, { color: rank.color }]} numberOfLines={1}>
+              L{s.level} · {rank.name}
+            </Text>
+            <Text style={[styles.mediaSenderRankSub, { color: subColor }]} numberOfLines={1}>
+              {rank.nameEn}
+            </Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
@@ -418,6 +572,7 @@ export default function ConversationScreen() {
               {showSenderName && (
                 <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
               )}
+              {renderMediaSenderChip(item)}
               {!item.deletedForAll && <ChatMediaContent message={item} onThemed />}
               {!!item.text && (
                 <Text style={[
@@ -466,6 +621,7 @@ export default function ConversationScreen() {
                 </View>
               );
             })()}
+            {renderMediaSenderChip(item)}
             {!item.deletedForAll && <ChatMediaContent message={item} />}
             {!!item.text && (
               <Text style={[
@@ -576,13 +732,14 @@ export default function ConversationScreen() {
           <View style={styles.recordingBar}>
             <View style={styles.recordingDot} />
             <Text style={styles.recordingText}>جاري التسجيل…</Text>
+            <Text style={styles.recordingTimer}>{fmtPreviewTime(recElapsed)}</Text>
           </View>
           <TouchableOpacity
             style={styles.sendBtn}
             onPress={stopRecordingAndSend}
             activeOpacity={0.85}
           >
-            <Feather name="send" size={18} color="#000" />
+            <Feather name="check" size={18} color="#000" />
           </TouchableOpacity>
         </View>
       ) : (
@@ -670,6 +827,89 @@ export default function ConversationScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Pre-send preview — image/video/voice all share this sheet so the
+          user can review (and listen / watch) before tapping إرسال. */}
+      <Modal
+        visible={!!pendingMedia}
+        transparent
+        animationType="fade"
+        onRequestClose={discardPending}
+      >
+        <View style={styles.previewBackdrop}>
+          <View style={styles.previewSheet}>
+            <Text style={styles.previewTitle}>
+              {pendingMedia?.kind === "image" ? "معاينة الصورة"
+                : pendingMedia?.kind === "video" ? "معاينة الفيديو"
+                : "معاينة التسجيل الصوتي"}
+            </Text>
+
+            {pendingMedia?.kind === "image" && (
+              <Image
+                source={{ uri: pendingMedia.uri }}
+                style={styles.previewImage}
+                resizeMode="contain"
+              />
+            )}
+            {pendingMedia?.kind === "video" && (
+              <View style={styles.previewVideoWrap}>
+                <VideoView
+                  player={previewVideoPlayer}
+                  style={styles.previewVideo}
+                  nativeControls
+                  contentFit="contain"
+                  allowsFullscreen
+                />
+              </View>
+            )}
+            {pendingMedia?.kind === "audio" && (
+              <View style={styles.previewAudioBox}>
+                <TouchableOpacity
+                  onPress={togglePreviewAudio}
+                  activeOpacity={0.85}
+                  style={styles.previewAudioBtn}
+                >
+                  <Feather name={previewAudioPlaying ? "pause" : "play"} size={26} color="#000" />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.previewAudioTrack}>
+                    <View style={[
+                      styles.previewAudioFill,
+                      { width: `${previewAudioTotal > 0
+                          ? Math.min(100, (previewAudioCurrent / previewAudioTotal) * 100)
+                          : 0}%` },
+                    ]} />
+                  </View>
+                  <Text style={styles.previewAudioTime}>
+                    {fmtPreviewTime(previewAudioCurrent)} / {fmtPreviewTime(previewAudioTotal)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.previewActions}>
+              <TouchableOpacity
+                style={[styles.previewBtn, styles.previewBtnCancel]}
+                onPress={discardPending}
+                activeOpacity={0.85}
+                disabled={uploading}
+              >
+                <Feather name="x" size={18} color="#EF4444" />
+                <Text style={[styles.previewBtnText, { color: "#EF4444" }]}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.previewBtn, styles.previewBtnSend]}
+                onPress={confirmSendPending}
+                activeOpacity={0.85}
+                disabled={uploading}
+              >
+                <Feather name="send" size={18} color="#000" />
+                <Text style={[styles.previewBtnText, { color: "#000" }]}>إرسال</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       <GiftPicker
@@ -771,7 +1011,107 @@ const styles = StyleSheet.create({
   },
   recordingText: {
     fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
+    flex: 1,
   },
+  recordingTimer: {
+    fontSize: 13, fontFamily: "Inter_700Bold", color: "#EF4444",
+    fontVariant: ["tabular-nums"],
+  },
+
+  // Pre-send preview (image / video / voice note)
+  previewBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.85)",
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  previewSheet: {
+    width: "100%", maxWidth: 480,
+    backgroundColor: CARD,
+    borderRadius: 18, borderWidth: 1, borderColor: BORDER,
+    padding: 16, gap: 14,
+  },
+  previewTitle: {
+    fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY,
+    textAlign: "center",
+  },
+  previewImage: {
+    width: "100%", height: 380,
+    backgroundColor: "#000", borderRadius: 12,
+  },
+  previewVideoWrap: {
+    width: "100%", height: 380,
+    backgroundColor: "#000", borderRadius: 12, overflow: "hidden",
+  },
+  previewVideo: { width: "100%", height: "100%" },
+  previewAudioBox: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: BORDER,
+    borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 18,
+  },
+  previewAudioBtn: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: PRIMARY,
+    alignItems: "center", justifyContent: "center",
+  },
+  previewAudioTrack: {
+    height: 6, borderRadius: 3, overflow: "hidden",
+    backgroundColor: "rgba(232,184,109,0.20)",
+  },
+  previewAudioFill: { height: "100%", backgroundColor: PRIMARY, borderRadius: 3 },
+  previewAudioTime: {
+    fontSize: 12, fontFamily: "Inter_700Bold",
+    color: PRIMARY, marginTop: 6, textAlign: "center",
+    fontVariant: ["tabular-nums"],
+  },
+  previewActions: {
+    flexDirection: "row-reverse", gap: 10,
+  },
+  previewBtn: {
+    flex: 1,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1,
+  },
+  previewBtnCancel: {
+    backgroundColor: "rgba(239,68,68,0.10)",
+    borderColor: "#EF4444",
+  },
+  previewBtnSend: {
+    backgroundColor: PRIMARY,
+    borderColor: PRIMARY,
+  },
+  previewBtnText: { fontSize: 14, fontFamily: "Inter_700Bold" },
+
+  // Sender chip rendered above media bubbles (image / video / voice note)
+  mediaSenderChip: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    marginBottom: 6,
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.15)",
+  },
+  mediaSenderAvatarImg: {
+    width: 28, height: 28, borderRadius: 14,
+    borderWidth: 1, borderColor: PRIMARY + "55",
+  },
+  mediaSenderAvatarFallback: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: "rgba(232,184,109,0.20)",
+    borderWidth: 1, borderColor: PRIMARY + "55",
+    alignItems: "center", justifyContent: "center",
+  },
+  mediaSenderName: {
+    fontSize: 12, fontFamily: "Inter_700Bold",
+  },
+  mediaSenderRankRow: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    marginTop: 1,
+  },
+  mediaSenderRankIcon: { fontSize: 11 },
+  mediaSenderRankText:  { fontSize: 10, fontFamily: "Inter_700Bold" },
+  mediaSenderRankSub:   { fontSize: 9,  fontFamily: "Inter_400Regular" },
 
   // List
   listContent: { paddingHorizontal: 12, paddingVertical: 16, gap: 8 },
