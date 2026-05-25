@@ -337,15 +337,52 @@ export default function CompetitorProfileScreen() {
           })()}
         </View>
 
-        {/* Activity placeholder */}
-        <Text style={styles.sectionTitle}>☕ النشاط</Text>
-        <View style={styles.placeholderCard}>
-          <Text style={styles.placeholderText}>
-            {(target.totalOrders ?? 0) > 0
-              ? `${target.totalOrders} طلب حتى الآن`
-              : "لم يبدأ هذا المستخدم بطلب القهوة بعد"}
-          </Text>
-        </View>
+        {/* ── Per-cafe coffee breakdown ──
+            Shows how many coffees the user has at EACH cafe (with its own
+            level), sorted by cafe size. Hides the synthetic "__legacy__"
+            bucket that the super-admin uses to preserve un-tracked
+            historical totals. */}
+        <Text style={styles.sectionTitle}>☕ القهوات من كل كافيه</Text>
+        {(() => {
+          const perCafe = Object.entries(target.cafeProgress ?? {})
+            .filter(([k, c]: any) => k !== "__legacy__" && ((c?.totalOrders ?? 0) > 0 || (c?.level ?? 0) > 0))
+            .map(([, c]: any) => c)
+            .sort((a: any, b: any) => (b.totalOrders ?? 0) - (a.totalOrders ?? 0));
+          if (perCafe.length === 0) {
+            return (
+              <View style={styles.placeholderCard}>
+                <Text style={styles.placeholderText}>
+                  {(target.totalOrders ?? 0) > 0
+                    ? `${target.totalOrders} طلب حتى الآن`
+                    : "لم يبدأ هذا المستخدم بطلب القهوة بعد"}
+                </Text>
+              </View>
+            );
+          }
+          return (
+            <View style={styles.cafeBreakdownList}>
+              {perCafe.map((c: any) => (
+                <View key={c.cafeId} style={styles.cafeBreakdownRow}>
+                  <Text style={styles.cafeBreakdownName} numberOfLines={1}>
+                    {c.cafeName ?? "كافيه"}
+                  </Text>
+                  <View style={styles.cafeBreakdownChips}>
+                    <View style={styles.cafeBreakdownCoffeeChip}>
+                      <Text style={styles.cafeBreakdownCoffeeText}>
+                        ☕ {c.totalOrders ?? 0}
+                      </Text>
+                    </View>
+                    <View style={styles.cafeBreakdownLevelChip}>
+                      <Text style={styles.cafeBreakdownLevelText}>
+                        🏆 م{c.level ?? 0}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          );
+        })()}
       </ScrollView>
 
       <GiftPicker
@@ -463,5 +500,35 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
+  },
+  cafeBreakdownList: {
+    marginHorizontal: 16, marginBottom: 18, gap: 8,
+  },
+  cafeBreakdownRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14, padding: 14, gap: 12,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.18)",
+  },
+  cafeBreakdownName: {
+    flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF",
+    textAlign: "right",
+  },
+  cafeBreakdownChips: { flexDirection: "row", gap: 6 },
+  cafeBreakdownCoffeeChip: {
+    backgroundColor: "rgba(79,195,247,0.15)",
+    borderWidth: 1, borderColor: "rgba(79,195,247,0.4)",
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+  },
+  cafeBreakdownCoffeeText: {
+    fontSize: 12, fontFamily: "Inter_700Bold", color: "#4FC3F7",
+  },
+  cafeBreakdownLevelChip: {
+    backgroundColor: "rgba(232,184,109,0.15)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.4)",
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+  },
+  cafeBreakdownLevelText: {
+    fontSize: 12, fontFamily: "Inter_700Bold", color: "#E8B86D",
   },
 });
