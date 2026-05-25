@@ -160,6 +160,29 @@ export function AuthModal({
     close();
   };
 
+  // Demo login — bypasses phone/OTP/registration entirely. Creates a
+  // local-only demo user via `setUser` so the visitor can explore the
+  // app without signing up. The user has a unique random id per session
+  // so multiple demo sessions don't collide on the same device.
+  const submitDemoLogin = () => {
+    setErr("");
+    const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const demoUser = {
+      id: `demo_${Date.now()}_${suffix}`,
+      name: `ضيف تجريبي ${suffix}`,
+      phone: `demo-${suffix}`,
+      gameUsername: `guest_${suffix.toLowerCase()}`,
+      password: "",
+      level: 0,
+      totalOrders: 0,
+      points: 0,
+      gender: "male" as const,
+    };
+    setUser(demoUser);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    close();
+  };
+
   // Send OTP to the typed phone number. Just needs a plausible phone — the
   // rest of the form can still be empty when the user requests the code.
   const sendRegisterOtp = async () => {
@@ -435,6 +458,19 @@ export function AuthModal({
                     نسيت كلمة المرور؟
                   </Text>
                 </TouchableOpacity>
+                {/* Demo login — one-tap exploration without sign-up. */}
+                <TouchableOpacity
+                  onPress={submitDemoLogin}
+                  activeOpacity={0.85}
+                  disabled={busy}
+                  style={styles.demoBtn}
+                >
+                  <Feather name="zap" size={16} color={PRIMARY} />
+                  <Text style={styles.demoBtnText}>تسجيل دخول تجريبي</Text>
+                </TouchableOpacity>
+                <Text style={styles.demoBtnHint}>
+                  جرّب التطبيق بدون تسجيل — حساب ضيف مؤقت
+                </Text>
               </>
             )}
 
@@ -793,6 +829,18 @@ const styles = StyleSheet.create({
   },
   authPrimaryText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
   authSwitchText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+
+  demoBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: `${PRIMARY}55`, borderStyle: "dashed",
+    borderRadius: 14, paddingVertical: 12, marginTop: 4,
+  },
+  demoBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  demoBtnHint: {
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.45)", textAlign: "center", marginTop: -4,
+  },
 
   regAvatarWrap: {
     width: 86, height: 86, borderRadius: 43,
