@@ -167,6 +167,18 @@ export default function UsersPage() {
   const [bdLoading,     setBdLoading]    = useState(false);
   const [bdFc,          setBdFc]         = useState<{ total: number; redeemed: number }>({ total: 0, redeemed: 0 });
   const [awardCafeId,   setAwardCafeId]  = useState<string>("");
+  // All registered cafes (for the dropdown). Loaded once on first modal open
+  // so the admin can pick ANY cafe — not just ones in the user's order
+  // history. Solves "ما اقدر اضيف لانه ما طالب من كوفي" (can't credit a
+  // user who hasn't ordered yet).
+  type CafeListRow = { id: string; name: string };
+  const [allCafes, setAllCafes] = useState<CafeListRow[]>([]);
+  useEffect(() => {
+    api.getCafes().then((d: any) => {
+      const list: CafeListRow[] = (d?.cafes ?? d ?? []).map((c: any) => ({ id: c.id, name: c.name }));
+      setAllCafes(list);
+    }).catch(() => {});
+  }, []);
 
   // Pre-fill the inputs from the user's current per-cafe progress whenever
   // the admin switches the cafe selector (so they see and edit the EXACT
@@ -564,31 +576,43 @@ export default function UsersPage() {
                 </p>
               </div>
 
-              {/* ── Cafe selector ── */}
+              {/* ── Cafe selector (ALL registered cafes) ── */}
               <div className="border border-border rounded-xl p-4 bg-muted/10">
                 <label className="block text-[11px] text-muted-foreground mb-2 font-semibold">
                   🏪 اختر الكافيه المراد تعديله:
                 </label>
-                {bd.length === 0 ? (
+                {allCafes.length === 0 ? (
                   <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
-                    لا يوجد للمستخدم سجل في أي كافيه. أضف طلبًا مباشرًا من شاشة الكافيه أولاً.
+                    لا توجد كافيهات مسجلة بعد.
                   </p>
                 ) : (
-                  <select
-                    value={awardCafeId}
-                    onChange={e => onCafeChange(e.target.value)}
-                    disabled={adjSaving}
-                    className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
-                  >
-                    {bd.map(row => {
-                      const cp = (adjTarget?.cafeProgress ?? {})[row.cafeId];
-                      return (
-                        <option key={row.cafeId} value={row.cafeId}>
-                          {row.cafeName} — حاليًا: م{cp?.level ?? 0} • {cp?.totalOrders ?? 0} كوب
-                        </option>
-                      );
-                    })}
-                  </select>
+                  <>
+                    <select
+                      value={awardCafeId}
+                      onChange={e => onCafeChange(e.target.value)}
+                      disabled={adjSaving}
+                      className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                    >
+                      <option value="">— اختر الكافيه —</option>
+                      {allCafes.map(c => {
+                        const cp = (adjTarget?.cafeProgress ?? {})[c.id];
+                        const had = bd.find(b => b.cafeId === c.id);
+                        const tag = cp
+                          ? ` — حاليًا: م${cp.level ?? 0} • ${cp.totalOrders ?? 0} كوب`
+                          : had
+                            ? ` — سجل: ${had.drinksHere} مشروب`
+                            : "";
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.name}{tag}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+                      💡 تقدر تعطي اللاعب مستوى وعدد كوفي في <b>أي كافيه</b> حتى لو ما طلب منه قبل.
+                    </p>
+                  </>
                 )}
               </div>
 

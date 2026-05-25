@@ -405,6 +405,26 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     setOrders = Math.max(0, setOrders);
     const prog = (user.cafeProgress ??= {});
     const prev = prog[awardCafeId] ?? { totalOrders: 0, level: 0 };
+    // ── Preserve legacy un-tracked progress on FIRST per-cafe set ──
+    // If the user has a non-zero global (from before per-cafe tracking
+    // existed) but their cafeProgress is empty or missing this cafe, the
+    // diff between the existing global and the sum of tracked cafes is
+    // "legacy untracked drinks" we don't want to wipe out. Stash it under
+    // a synthetic "__legacy__" cafe key so future recomputes keep it.
+    const trackedOrdersBefore = Object.entries(prog)
+      .filter(([k]) => k !== awardCafeId)
+      .reduce((s, [, c]) => s + (c.totalOrders ?? 0), 0);
+    const trackedLevelsBefore = Object.entries(prog)
+      .filter(([k]) => k !== awardCafeId)
+      .reduce((m, [, c]) => Math.max(m, c.level ?? 0), 0);
+    const legacyOrders = Math.max(0, (user.totalOrders ?? 0) - trackedOrdersBefore - (prev.totalOrders ?? 0));
+    const legacyLevel  = Math.max(0, (user.level       ?? 0) - 0); // global max only
+    if (legacyOrders > 0 && !prog["__legacy__"]) {
+      prog["__legacy__"] = {
+        level: Math.max(0, legacyLevel - trackedLevelsBefore),
+        totalOrders: legacyOrders,
+      };
+    }
     prog[awardCafeId] = { level: setLevel, totalOrders: setOrders };
     // Recompute GLOBAL totals from the union of all cafe progresses so
     // decreases actually take effect. Without this, the mobile sync's
