@@ -536,6 +536,14 @@ export interface ChatMsg {
    *  poll filter ORs this against `createdAt` so deletion events propagate
    *  to recipients on their normal `since=...` poll, not just on cold sync. */
   deletedAt?: string;
+  /** Optional image attachment. Stored as `gcs:<key>` (or legacy http URL). */
+  imageUrl?: string;
+  /** Optional video attachment. Stored as `gcs:<key>` (or legacy http URL). */
+  videoUrl?: string;
+  /** Optional audio (voice note) attachment. Stored as `gcs:<key>`. */
+  audioUrl?: string;
+  /** Duration of the audio/video attachment in seconds (display only). */
+  mediaDuration?: number;
 }
 export const chatMessages: ChatMsg[] = [];
 

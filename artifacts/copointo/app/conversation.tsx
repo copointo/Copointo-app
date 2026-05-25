@@ -1,5 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import {
+  AudioModule, RecordingPresets, useAudioRecorder, useAudioRecorderState,
+} from "expo-audio";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -7,7 +11,9 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -26,8 +32,10 @@ import { useTextStyles } from "@/hooks/useTextStyles";
 import { getTextStyle } from "@/data/textStyles";
 import GiftPicker from "@/components/GiftPicker";
 import GiftAnimation from "@/components/GiftAnimation";
+import ChatMediaContent from "@/components/ChatMediaContent";
 import { getGift, GiftDef } from "@/data/gifts";
 import { useGiftInventory } from "@/hooks/useGiftInventory";
+import { uploadChatMedia } from "@/constants/api";
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -182,6 +190,109 @@ export default function ConversationScreen() {
     // ✓✓ ticks now flip via the real server "seen" sync — no fake delay.
   };
 
+  // ─── Media attachments (images / videos / voice notes) ───────────────────
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recState = useAudioRecorderState(recorder);
+  const recStartRef = useRef<number>(0);
+
+  /** Build a ChatMessage shell and POST it through appendMsg. */
+  const sendMediaMessage = (extra: Partial<ChatMessage>) => {
+    if (!id) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    playSendMessageSound();
+    const msg: ChatMessage = {
+      id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      text: "",
+      fromMe: true,
+      time: buildNow(t("conv.amPm.am"), t("conv.amPm.pm")),
+      seen: false,
+      ...extra,
+    };
+    appendMsg(id, msg);
+  };
+
+  const pickAndSend = async (kind: "image" | "video") => {
+    setAttachOpen(false);
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== "granted") {
+        Alert.alert("الإذن مطلوب", "نحتاج الوصول إلى المعرض لإرسال المرفقات");
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: kind === "image"
+          ? ImagePicker.MediaTypeOptions.Images
+          : ImagePicker.MediaTypeOptions.Videos,
+        quality: kind === "image" ? 0.85 : 1,
+        videoMaxDuration: 120,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      setUploading(true);
+      const ext = (asset.uri.match(/\.([a-zA-Z0-9]+)(\?|$)/)?.[1] || (kind === "image" ? "jpg" : "mp4")).toLowerCase();
+      const mime = asset.mimeType
+        || (kind === "image" ? `image/${ext === "jpg" ? "jpeg" : ext}` : `video/${ext}`);
+      const filename = `${kind}_${Date.now()}.${ext}`;
+      const url = await uploadChatMedia(asset.uri, mime, filename, kind);
+      const extra: Partial<ChatMessage> = kind === "image"
+        ? { imageUrl: url }
+        : { videoUrl: url, mediaDuration: asset.duration ? Math.round(asset.duration / 1000) : undefined };
+      sendMediaMessage(extra);
+    } catch (err: any) {
+      Alert.alert("فشل الإرسال", err?.message || "تعذر إرسال المرفق");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    setAttachOpen(false);
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("الإذن مطلوب", "نحتاج إذن الميكروفون لتسجيل الرسائل الصوتية");
+        return;
+      }
+      await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      recStartRef.current = Date.now();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (err: any) {
+      Alert.alert("فشل التسجيل", err?.message || "تعذر بدء التسجيل");
+    }
+  };
+
+  const stopRecordingAndSend = async () => {
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      const seconds = Math.max(1, Math.round((Date.now() - recStartRef.current) / 1000));
+      if (!uri) {
+        Alert.alert("لا يوجد تسجيل", "لم يتم حفظ التسجيل");
+        return;
+      }
+      setUploading(true);
+      const ext = (uri.match(/\.([a-zA-Z0-9]+)(\?|$)/)?.[1] || "m4a").toLowerCase();
+      const mime = ext === "m4a" || ext === "mp4" ? "audio/mp4"
+        : ext === "wav" ? "audio/wav"
+        : ext === "caf" ? "audio/x-caf"
+        : `audio/${ext}`;
+      const url = await uploadChatMedia(uri, mime, `voice_${Date.now()}.${ext}`, "audio");
+      sendMediaMessage({ audioUrl: url, mediaDuration: seconds });
+    } catch (err: any) {
+      Alert.alert("فشل الإرسال", err?.message || "تعذر إرسال التسجيل");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const cancelRecording = async () => {
+    try { await recorder.stop(); } catch { /* ignore */ }
+  };
+
   const isCafe = type === "cafe";
 
   // Long-press on a bubble → confirm delete. The bubble is replaced by a
@@ -307,13 +418,16 @@ export default function ConversationScreen() {
               {showSenderName && (
                 <Text style={styles.senderLabel} numberOfLines={1}>{item.senderName}</Text>
               )}
-              <Text style={[
-                styles.bubbleText,
-                { color: item.deletedForAll ? "rgba(0,0,0,0.55)" : (equippedTextStyleDef?.textColor ?? "#000") },
-                item.deletedForAll && { fontStyle: "italic" },
-              ]}>
-                {item.text}
-              </Text>
+              {!item.deletedForAll && <ChatMediaContent message={item} onThemed />}
+              {!!item.text && (
+                <Text style={[
+                  styles.bubbleText,
+                  { color: item.deletedForAll ? "rgba(0,0,0,0.55)" : (equippedTextStyleDef?.textColor ?? "#000") },
+                  item.deletedForAll && { fontStyle: "italic" },
+                ]}>
+                  {item.text}
+                </Text>
+              )}
               {item.fromMe && (
                 <View style={styles.metaRow}>
                   <Text style={[styles.metaTimeMe, equippedTextStyleDef?.bg && !item.deletedForAll && { color: "rgba(255,255,255,0.65)" }]}>{item.time}</Text>
@@ -352,13 +466,16 @@ export default function ConversationScreen() {
                 </View>
               );
             })()}
-            <Text style={[
-              styles.bubbleText,
-              styles.bubbleTextThem,
-              item.deletedForAll && { color: "rgba(255,255,255,0.55)", fontStyle: "italic" },
-            ]}>
-              {item.text}
-            </Text>
+            {!item.deletedForAll && <ChatMediaContent message={item} />}
+            {!!item.text && (
+              <Text style={[
+                styles.bubbleText,
+                styles.bubbleTextThem,
+                item.deletedForAll && { color: "rgba(255,255,255,0.55)", fontStyle: "italic" },
+              ]}>
+                {item.text}
+              </Text>
+            )}
             <Text style={[styles.metaTime, { alignSelf: "flex-start", marginTop: 3 }]}>
               {item.time}
             </Text>
@@ -448,8 +565,39 @@ export default function ConversationScreen() {
             لا يمكن الرد على رسائل Copointo
           </Text>
         </View>
+      ) : recState.isRecording ? (
+        // Compact recording bar — replaces the normal input while recording.
+        <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+          <TouchableOpacity
+            style={[styles.giftBtn, { borderColor: "#EF4444" }]}
+            onPress={cancelRecording}
+            activeOpacity={0.85}
+          >
+            <Feather name="x" size={20} color="#EF4444" />
+          </TouchableOpacity>
+          <View style={styles.recordingBar}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingText}>جاري التسجيل…</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.sendBtn}
+            onPress={stopRecordingAndSend}
+            activeOpacity={0.85}
+          >
+            <Feather name="send" size={18} color="#000" />
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={[styles.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+          {/* Attach (photo/video/voice) — available in both 1:1 and group chats. */}
+          <TouchableOpacity
+            style={styles.giftBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAttachOpen(true); }}
+            activeOpacity={0.85}
+            disabled={uploading}
+          >
+            <Feather name={uploading ? "loader" : "paperclip"} size={20} color={PRIMARY} />
+          </TouchableOpacity>
           {/* Gifts are 1:1 only — hidden in group chats. */}
           {!isGroup && (
             <TouchableOpacity
@@ -471,16 +619,60 @@ export default function ConversationScreen() {
             selectionColor={PRIMARY}
             returnKeyType="default"
           />
-          <TouchableOpacity
-            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
-            onPress={sendMessage}
-            activeOpacity={0.85}
-            disabled={!text.trim()}
-          >
-            <Feather name="send" size={18} color="#000" />
-          </TouchableOpacity>
+          {text.trim() ? (
+            <TouchableOpacity
+              style={styles.sendBtn}
+              onPress={sendMessage}
+              activeOpacity={0.85}
+            >
+              <Feather name="send" size={18} color="#000" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.sendBtn}
+              onPress={startRecording}
+              activeOpacity={0.85}
+              disabled={uploading}
+            >
+              <Feather name="mic" size={18} color="#000" />
+            </TouchableOpacity>
+          )}
         </View>
       )}
+
+      {/* Attach-type chooser modal */}
+      <Modal
+        visible={attachOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAttachOpen(false)}
+      >
+        <Pressable style={styles.attachBackdrop} onPress={() => setAttachOpen(false)}>
+          <Pressable style={styles.attachSheet} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.attachTitle}>إرفاق</Text>
+            <View style={styles.attachRow}>
+              <TouchableOpacity style={styles.attachItem} onPress={() => pickAndSend("image")} activeOpacity={0.8}>
+                <View style={[styles.attachIcon, { backgroundColor: "#3B82F622", borderColor: "#3B82F6" }]}>
+                  <Feather name="image" size={22} color="#3B82F6" />
+                </View>
+                <Text style={styles.attachLabel}>صورة</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachItem} onPress={() => pickAndSend("video")} activeOpacity={0.8}>
+                <View style={[styles.attachIcon, { backgroundColor: "#A855F722", borderColor: "#A855F7" }]}>
+                  <Feather name="video" size={22} color="#A855F7" />
+                </View>
+                <Text style={styles.attachLabel}>فيديو</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.attachItem} onPress={startRecording} activeOpacity={0.8}>
+                <View style={[styles.attachIcon, { backgroundColor: "#22C55E22", borderColor: "#22C55E" }]}>
+                  <Feather name="mic" size={22} color="#22C55E" />
+                </View>
+                <Text style={styles.attachLabel}>تسجيل صوتي</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <GiftPicker
         visible={pickerOpen && !isCopointoAdminConv}
@@ -535,6 +727,52 @@ const styles = StyleSheet.create({
   },
   groupBadgeText: {
     fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY,
+  },
+
+  // Attach modal
+  attachBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  attachSheet: {
+    backgroundColor: CARD,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 30,
+  },
+  attachTitle: {
+    fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY,
+    textAlign: "center", marginBottom: 14,
+  },
+  attachRow: {
+    flexDirection: "row", justifyContent: "space-around", alignItems: "center",
+    gap: 12,
+  },
+  attachItem: { alignItems: "center", gap: 8, flex: 1 },
+  attachIcon: {
+    width: 60, height: 60, borderRadius: 30,
+    borderWidth: 1.5,
+    alignItems: "center", justifyContent: "center",
+  },
+  attachLabel: {
+    fontSize: 12, fontFamily: "Inter_700Bold",
+    color: "rgba(255,255,255,0.85)",
+  },
+
+  // Recording bar
+  recordingBar: {
+    flex: 1,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: BORDER_SOFT,
+    borderWidth: 1, borderColor: BORDER,
+    borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 10,
+  },
+  recordingDot: {
+    width: 10, height: 10, borderRadius: 5, backgroundColor: "#EF4444",
+  },
+  recordingText: {
+    fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
   },
 
   // List

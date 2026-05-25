@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import fs from "node:fs";
 import path from "node:path";
-import { reelFile } from "../lib/objectStorage";
+import multer from "multer";
+import { reelFile, uploadChatMediaFile, chatMediaFile } from "../lib/objectStorage";
 import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
@@ -1258,6 +1259,120 @@ router.delete("/friendships", (req, res): any => {
   res.json({ ok: true });
 });
 
+// ─── Chat media attachments (images / videos / voice notes) ──────────────
+// Mobile clients POST a multipart file under field name "file" along with
+// a "kind" field ("image"|"video"|"audio"). The bytes are uploaded to GCS
+// Object Storage and the returned `{ url }` is referenced from the chat
+// message (imageUrl / videoUrl / audioUrl). The serve endpoint streams the
+// bytes back with HTTP Range support.
+const CHAT_MEDIA_DIR = path.join(process.cwd(), "uploads", "chat-media");
+fs.mkdirSync(CHAT_MEDIA_DIR, { recursive: true });
+// Per-kind size caps — images small, audio modest, video larger.
+const CHAT_MEDIA_MAX = 50 * 1024 * 1024; // 50 MB upper bound (multer hard limit)
+const CHAT_MEDIA_KIND_LIMITS: Record<string, number> = {
+  image: 10 * 1024 * 1024, // 10 MB
+  audio: 15 * 1024 * 1024, // 15 MB
+  video: 50 * 1024 * 1024, // 50 MB
+};
+// MIME allowlist by kind — magic-byte sniffing isn't worth the dep here, but
+// at least reject obviously wrong content-types so the bucket can't be used
+// as a generic file host.
+const CHAT_MEDIA_KIND_MIMES: Record<string, RegExp> = {
+  image: /^image\/(jpeg|jpg|png|webp|gif|heic|heif)$/i,
+  audio: /^audio\/(mp4|mpeg|mp3|aac|wav|x-wav|x-m4a|webm|ogg|x-caf)$/i,
+  video: /^video\/(mp4|quicktime|webm|x-matroska|3gpp)$/i,
+};
+const chatMediaUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, CHAT_MEDIA_DIR),
+    filename:    (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "") || ".bin";
+      cb(null, `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+    },
+  }),
+  limits: { fileSize: CHAT_MEDIA_MAX },
+});
+function chatMediaUploadSafe(req: any, res: any, next: any) {
+  chatMediaUpload.single("file")(req, res, (err: any) => {
+    if (!err) return next();
+    let message = err?.message || "فشل رفع الملف";
+    if (err?.code === "LIMIT_FILE_SIZE") {
+      message = "حجم الملف كبير جداً — الحد الأقصى 50 ميجابايت";
+    }
+    req.log?.error?.({ err, code: err?.code }, "chat media upload failed");
+    return res.status(400).json({ error: message, code: err?.code ?? "UPLOAD_ERROR" });
+  });
+}
+router.post("/chat-media", chatMediaUploadSafe, async (req: any, res): Promise<any> => {
+  if (!req.file) return res.status(400).json({ error: "no file uploaded" });
+  const cleanup = () => { try { fs.unlinkSync(req.file.path); } catch { /* ignore */ } };
+  const kind = String(req.body?.kind ?? "").toLowerCase();
+  const mime = (req.file.mimetype || "application/octet-stream").toLowerCase();
+  // Validate kind + MIME + per-kind size.
+  const allowedMime = CHAT_MEDIA_KIND_MIMES[kind];
+  if (!allowedMime) {
+    cleanup();
+    return res.status(400).json({ error: "نوع المرفق غير مدعوم", code: "BAD_KIND" });
+  }
+  if (!allowedMime.test(mime)) {
+    cleanup();
+    return res.status(400).json({ error: "نوع الملف غير مسموح به", code: "BAD_MIME" });
+  }
+  if (req.file.size > (CHAT_MEDIA_KIND_LIMITS[kind] ?? CHAT_MEDIA_MAX)) {
+    cleanup();
+    return res.status(400).json({ error: "حجم الملف يتجاوز الحد المسموح", code: "TOO_LARGE" });
+  }
+  try {
+    const ext = path.extname(req.file.filename || "") || "";
+    const key = await uploadChatMediaFile(req.file.path, ext, mime);
+    cleanup();
+    return res.status(201).json({ url: `gcs:${key}` });
+  } catch (err: any) {
+    req.log?.error?.({ err }, "chat media GCS upload failed");
+    cleanup();
+    return res.status(500).json({ error: "فشل رفع المرفق إلى التخزين السحابي", detail: err?.message });
+  }
+});
+
+// Stream a chat-media binary with HTTP Range so images load progressively,
+// audio scrubs, and video can seek. Key arrives URL-encoded because it
+// contains a slash ("chat-media/<uuid>.<ext>").
+router.get("/chat-media/:key/stream", async (req, res): Promise<any> => {
+  const rawKey = decodeURIComponent(String(req.params.key ?? ""));
+  // Defence-in-depth: only allow our own chat-media prefix.
+  if (!rawKey.startsWith("chat-media/")) return res.status(400).end();
+  try {
+    const file = chatMediaFile(rawKey);
+    const [meta] = await file.getMetadata();
+    const total = Number(meta.size ?? 0);
+    const mime = (meta.contentType as string) || "application/octet-stream";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const range = req.headers.range;
+    if (range && total > 0) {
+      const parts = /bytes=(\d*)-(\d*)/.exec(String(range));
+      if (parts) {
+        const start = parts[1] ? parseInt(parts[1], 10) : 0;
+        const end   = parts[2] ? parseInt(parts[2], 10) : total - 1;
+        if (start >= total || end >= total) {
+          res.status(416).setHeader("Content-Range", `bytes */${total}`);
+          return res.end();
+        }
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+        res.setHeader("Content-Length", String(end - start + 1));
+        return file.createReadStream({ start, end }).pipe(res);
+      }
+    }
+    if (total) res.setHeader("Content-Length", String(total));
+    return file.createReadStream().pipe(res);
+  } catch (err: any) {
+    req.log?.error?.({ err, key: rawKey }, "chat media stream failed");
+    return res.status(404).end();
+  }
+});
+
 // ─── Cross-device chat messages ──────────────────────────────────────────
 // Real WhatsApp-style messaging: clients POST every outgoing message here
 // and poll GET /messages to pick up incoming ones from other devices. The
@@ -1277,8 +1392,17 @@ router.post("/messages", (req, res): any => {
   const giftQty     = Number.isFinite(giftQtyRaw) ? Math.max(1, Math.min(99, giftQtyRaw)) : 1;
   const senderNameIn    = String(req.body?.senderName    ?? "").trim().slice(0, 64);
   const recipientNameIn = String(req.body?.recipientName ?? "").trim().slice(0, 64);
-  if (!id || !senderId || !text) {
-    return res.status(400).json({ error: "id/senderId/text required" });
+  const imageUrl  = String(req.body?.imageUrl  ?? "").trim();
+  const videoUrl  = String(req.body?.videoUrl  ?? "").trim();
+  const audioUrl  = String(req.body?.audioUrl  ?? "").trim();
+  const mediaDurRaw = parseInt(String(req.body?.mediaDuration ?? "0"), 10);
+  const mediaDuration = Number.isFinite(mediaDurRaw) && mediaDurRaw > 0
+    ? Math.min(3600, mediaDurRaw) : undefined;
+  // Allow empty text when the message carries a media attachment (voice
+  // note / photo / video send no caption by default).
+  const hasMedia = !!(imageUrl || videoUrl || audioUrl);
+  if (!id || !senderId || (!text && !hasMedia)) {
+    return res.status(400).json({ error: "id/senderId/text-or-media required" });
   }
   // Dedupe — if this id already exists, just return the stored row.
   const existing = chatMessages.find(m => m.id === id);
@@ -1303,6 +1427,10 @@ router.post("/messages", (req, res): any => {
     if (senderNameIn)    msg.senderName    = senderNameIn;
     if (recipientNameIn) msg.recipientName = recipientNameIn;
   }
+  if (imageUrl)       msg.imageUrl      = imageUrl;
+  if (videoUrl)       msg.videoUrl      = videoUrl;
+  if (audioUrl)       msg.audioUrl      = audioUrl;
+  if (mediaDuration)  msg.mediaDuration = mediaDuration;
   chatMessages.push(msg);
   persistStore();
   // Push notification — only for 1:1 friend messages. Group push fan-out

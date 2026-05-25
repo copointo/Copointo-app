@@ -70,6 +70,14 @@ export interface ChatMessage {
   /** When true, this message was deleted "for everyone" by the sender.
    *  Clients render a placeholder ("🚫 تم حذف الرسالة") instead of `text`. */
   deletedForAll?: boolean;
+  /** Optional image attachment (server-resolved URL or `gcs:<key>`). */
+  imageUrl?: string;
+  /** Optional video attachment (server-resolved URL or `gcs:<key>`). */
+  videoUrl?: string;
+  /** Optional audio voice note attachment (server-resolved URL or `gcs:<key>`). */
+  audioUrl?: string;
+  /** Duration (in seconds) of audio/video attachment — display only. */
+  mediaDuration?: number;
 }
 
 /** A user-created chat group. Stored per-user and mirrored to members. */

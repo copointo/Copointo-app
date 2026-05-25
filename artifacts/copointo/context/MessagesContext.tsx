@@ -29,6 +29,10 @@ interface ServerMsg {
   giftId?: string;
   giftQty?: number;
   deletedForAll?: boolean;
+  imageUrl?: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  mediaDuration?: number;
 }
 
 const STORAGE_KEY_CHATS    = "copointo_chats_v2";
@@ -374,6 +378,13 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       if (senderName) body.senderName = String(senderName);
       if (msg.recipientName) body.recipientName = String(msg.recipientName);
     }
+    // Media attachments — image / video / audio voice notes. We send the
+    // raw `gcs:<key>` reference; the recipient resolves it to a stream URL
+    // via `resolveChatMediaUrl()`.
+    if (msg.imageUrl)      body.imageUrl      = msg.imageUrl;
+    if (msg.videoUrl)      body.videoUrl      = msg.videoUrl;
+    if (msg.audioUrl)      body.audioUrl      = msg.audioUrl;
+    if (msg.mediaDuration) body.mediaDuration = String(Math.round(msg.mediaDuration));
     fetch(`${API_BASE}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -511,6 +522,12 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
                 };
                 if (sm.deletedForAll || isTombstoned) cm.deletedForAll = true;
                 if (sm.giftId && !sm.deletedForAll) { cm.giftId = sm.giftId; cm.giftQty = sm.giftQty ?? 1; }
+                if (!sm.deletedForAll && !isTombstoned) {
+                  if (sm.imageUrl)      cm.imageUrl      = sm.imageUrl;
+                  if (sm.videoUrl)      cm.videoUrl      = sm.videoUrl;
+                  if (sm.audioUrl)      cm.audioUrl      = sm.audioUrl;
+                  if (sm.mediaDuration) cm.mediaDuration = sm.mediaDuration;
+                }
                 if (!isMine) {
                   cm.senderId = sm.senderId;
                   const sender = registeredUsersRef.current.find(u => u.id === sm.senderId);

@@ -76,3 +76,34 @@ export async function deleteReelFile(key: string): Promise<void> {
     /* ignore */
   }
 }
+
+/**
+ * Upload a chat-message media attachment (image, video, audio voice note).
+ * Returns the object key under `chat-media/<uuid>.<ext>` suitable for storing
+ * on a ChatMsg as `imageUrl/videoUrl/audioUrl = "gcs:<key>"`.
+ */
+export async function uploadChatMediaFile(
+  localPath: string,
+  ext: string,
+  contentType: string,
+): Promise<string> {
+  const dir = privateDir();
+  const safeExt = ext.startsWith(".") ? ext : `.${ext || "bin"}`;
+  const key = `chat-media/${randomUUID()}${safeExt}`;
+  const fullPath = `${dir}/${key}`;
+  const { bucketName, objectName } = parse(fullPath);
+  await gcs.bucket(bucketName).upload(localPath, {
+    destination: objectName,
+    contentType,
+    resumable: false,
+    metadata: { cacheControl: "public, max-age=86400" },
+  });
+  return key;
+}
+
+/** Get a GCS file handle for a previously-uploaded chat media key. */
+export function chatMediaFile(key: string): File {
+  const fullPath = `${privateDir()}/${key.replace(/^\/+/, "")}`;
+  const { bucketName, objectName } = parse(fullPath);
+  return gcs.bucket(bucketName).file(objectName);
+}
