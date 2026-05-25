@@ -32,8 +32,8 @@
           if (!window.__IS_ADMIN_DOMAIN__) return;
 
           // Rewrite document title immediately so Googlebot's renderer captures
-          // "Al yaqathan" instead of "Copointo".
-          document.title = "Al yaqathan";
+          // the admin-dashboard identity instead of the public Copointo brand.
+          document.title = "لوحة التحكم الخاصة بالكافيه Copointo";
 
           function setMeta(attr, name, content) {
             var sel = 'meta[' + attr + '="' + name + '"]';
@@ -55,15 +55,16 @@
           });
 
           // Replace public-brand meta with the admin identity so any cached or
-          // scraped copy shows "Al yaqathan" with no Copointo reference.
-          setMeta("name", "description",     "Al yaqathan — private admin dashboard. Not a public site.");
+          // scraped copy shows the admin-dashboard title.
+          var ADMIN_TITLE = "لوحة التحكم الخاصة بالكافيه Copointo";
+          setMeta("name", "description",     ADMIN_TITLE + " — لوحة تحكم خاصة. ليست موقعاً عاماً.");
           setMeta("name", "keywords",        "");
-          setMeta("name", "application-name","Al yaqathan");
-          setMeta("property", "og:title",       "Al yaqathan");
-          setMeta("property", "og:site_name",   "Al yaqathan");
-          setMeta("property", "og:description", "Private admin dashboard.");
-          setMeta("name", "twitter:title",       "Al yaqathan");
-          setMeta("name", "twitter:description", "Private admin dashboard.");
+          setMeta("name", "application-name", ADMIN_TITLE);
+          setMeta("property", "og:title",       ADMIN_TITLE);
+          setMeta("property", "og:site_name",   ADMIN_TITLE);
+          setMeta("property", "og:description", "لوحة تحكم خاصة.");
+          setMeta("name", "twitter:title",       ADMIN_TITLE);
+          setMeta("name", "twitter:description", "لوحة تحكم خاصة.");
 
           // Drop canonical so Google can't fold this URL into copointo.com.
           var c = document.querySelector('link[rel="canonical"]');
