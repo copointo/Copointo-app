@@ -444,7 +444,14 @@ function StatsTab({ id }: { id: string }) {
         <StatBox label="إجمالي الطلبات"   value={data.totalOrders}   Icon={ShoppingBag} />
         <StatBox label="الحجوزات"          value={data.totalBookings} Icon={CalendarDays} />
         <StatBox label="عناصر القائمة"    value={data.totalMenuItems} Icon={UtensilsCrossed} />
-        <StatBox label="إجمالي الإيرادات" value={`${data.totalRevenue} OMR`} Icon={Wallet} />
+        <StatBox label="إجمالي مبيعات اليوم" value={`${(() => {
+          // Today's revenue only — derived from chartData (server already
+          // groups orders by YYYY-MM-DD day). Falls back to 0 if today has
+          // no orders yet so the box reads "0.000 OMR" instead of blank.
+          const today = new Date().toISOString().substring(0, 10);
+          const row = (data.chartData || []).find((d: any) => d.date === today);
+          return (Number(row?.revenue) || 0).toFixed(3);
+        })()} OMR`} Icon={Wallet} />
         <StatBox label="طلبات بانتظار"    value={data.pendingOrders}  Icon={Clock} />
         <StatBox label="حجوزات مؤكدة"    value={data.confirmedBookings} Icon={CheckCircle} />
         <StatBox label="القسائم الشرائية"        value={data.totalVouchers ?? 0} Icon={Gift} />
