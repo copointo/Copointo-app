@@ -404,14 +404,26 @@ export default function ConversationScreen() {
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerName} numberOfLines={1}>
-              {isGroup && group ? group.name : name}
-            </Text>
-            <Text style={styles.headerSub}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {isGroup && group ? group.name : name}
+              </Text>
+              {/* "Group" badge so it's visually clear this is a chat with
+                  multiple people and not a 1:1 user conversation. */}
+              {isGroup && (
+                <View style={styles.groupBadge}>
+                  <Feather name="users" size={10} color={PRIMARY} />
+                  <Text style={styles.groupBadgeText}>جروب</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.headerSub} numberOfLines={1}>
               {isCafe
                 ? t("conv.cafeRole")
                 : isGroup
-                  ? t("conv.groupSubtitle", { n: String(group?.members.length ?? 0) })
+                  ? (boundCommunity
+                      ? `🏛️ ${boundCommunity.name} · 👥 ${group?.members.length ?? 0} أعضاء`
+                      : t("conv.groupSubtitle", { n: String(group?.members.length ?? 0) }))
                   : t("conv.friendRole")}
             </Text>
           </View>
@@ -513,8 +525,17 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20,
     borderWidth: 1, borderColor: PRIMARY,
   },
-  headerName: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
+  headerName: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY, flexShrink: 1 },
   headerSub:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.55)" },
+  groupBadge: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: PRIMARY + "22",
+    borderWidth: 1, borderColor: PRIMARY + "55",
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999,
+  },
+  groupBadgeText: {
+    fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY,
+  },
 
   // List
   listContent: { paddingHorizontal: 12, paddingVertical: 16, gap: 8 },
