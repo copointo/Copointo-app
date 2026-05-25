@@ -520,6 +520,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // resolve the underlying server request id without an extra round-trip.
   const incomingMap = useRef<Map<string, string>>(new Map()); // fromUserId → requestId
   const outgoingMap = useRef<Map<string, string>>(new Map()); // toUserId   → requestId
+  // Tracks the wall-clock time of the most recent local `addCafeOrder`
+  // bump per cafe. `refreshAllUsers` consults this to AVOID replacing the
+  // local cafeProgress entry with a stale server value during the short
+  // window between mobile order placement and the server's status-change
+  // awardOrderProgress call. Entries older than RECENT_BUMP_MS are ignored.
+  const recentCafeBumpRef = useRef<Map<string, number>>(new Map());
   const [cart, setCart] = useState<CartItem[]>([]);
   const [likedVideos, setLikedVideos] = useState<string[]>([]);
   const [orderHistory, setOrderHistory] = useState<Order[]>([]);
@@ -783,19 +789,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const remoteOrders = mine.totalOrders ?? 0;
           const localLvl     = prev.level ?? 0;
           const localOrders  = prev.totalOrders ?? 0;
-          // Per-cafe progress merge: super-admin adjust-progress with an
-          // awardCafeId writes per-cafe level/totalOrders on the server. The
-          // mobile game tab reads `cafeProgress[activeCafe].level` so without
-          // this merge the in-game level stays frozen even though the global
-          // level updates. Math.max keeps device-side progress authoritative.
+          // Per-cafe progress merge: the SERVER is the single source of
+          // truth for cafeProgress. Mobile pushes its per-cafe counters via
+          // POST /users/progress (with cafeId+cafeLevel+cafeTotalOrders), and
+          // server awardOrderProgress + super-admin set both update server's
+          // cafeProgress directly. So here we REPLACE local with server (not
+          // max-merge) — this is what makes admin-set decreases actually
+          // stick instead of being silently reverted by the old max merge.
+          // Local-only cafes (server hasn't tracked yet) are preserved.
           const localProg  = prev.cafeProgress ?? {};
           const remoteProg = mine.cafeProgress ?? {};
           let progChanged = false;
           const mergedProg: Record<string, CafeProgress> = { ...localProg };
+          const RECENT_BUMP_MS = 20_000;
+          const nowTs = Date.now();
           for (const [cafeId, rp] of Object.entries(remoteProg)) {
             const lp = localProg[cafeId];
-            const nextLvl    = Math.max(lp?.level       ?? 0, rp.level       ?? 0);
-            const nextOrders = Math.max(lp?.totalOrders ?? 0, rp.totalOrders ?? 0);
+            // Race guard: if mobile just bumped this cafe locally and the
+            // server hasn't observed it yet (push in-flight or status not
+            // yet advanced past pending), keep the local value to avoid a
+            // visible flicker. The guard auto-expires after RECENT_BUMP_MS.
+            const lastBump = recentCafeBumpRef.current.get(cafeId) ?? 0;
+            if (lp && nowTs - lastBump < RECENT_BUMP_MS &&
+                ((lp.totalOrders ?? 0) > (rp.totalOrders ?? 0) ||
+                 (lp.level       ?? 0) > (rp.level       ?? 0))) {
+              continue;
+            }
+            const nextLvl    = rp.level       ?? 0;
+            const nextOrders = rp.totalOrders ?? 0;
             if (!lp || nextLvl !== lp.level || nextOrders !== lp.totalOrders) {
               mergedProg[cafeId] = {
                 cafeId,
@@ -806,11 +827,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               progChanged = true;
             }
           }
-          // Global level rises to the max across all (possibly newly-merged) cafes
-          // so Profile / Leaderboard stay consistent with the cafe view.
-          const maxCafeLvl = Math.max(0, ...Object.values(mergedProg).map(c => c.level));
-          const nextGlobalLvl    = Math.max(localLvl, remoteLvl, maxCafeLvl);
-          const nextGlobalOrders = Math.max(localOrders, remoteOrders);
+          // Global counters: recompute from merged cafeProgress so they
+          // reflect any per-cafe decrease the admin just applied. We still
+          // fall back to remote globals when there's no cafeProgress at all
+          // (brand-new account or pre-cafeProgress legacy data).
+          const cafeVals = Object.values(mergedProg);
+          const nextGlobalLvl = cafeVals.length
+            ? Math.max(0, ...cafeVals.map(c => c.level ?? 0))
+            : remoteLvl;
+          const nextGlobalOrders = cafeVals.length
+            ? cafeVals.reduce((s, c) => s + (c.totalOrders ?? 0), 0)
+            : remoteOrders;
           if (
             !progChanged &&
             nextGlobalLvl === localLvl &&
@@ -1719,6 +1746,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addCafeOrder = useCallback((cafeId: string, cafeName: string, qty: number) => {
     if (qty <= 0) return;
+    // Stamp this cafe so the next ~20s of refreshAllUsers won't replace
+    // its local progress with a stale lower server value (race guard).
+    recentCafeBumpRef.current.set(cafeId, Date.now());
     setUserState((prev) => {
       if (!prev) return prev;
 
@@ -1766,9 +1796,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         AsyncStorage.setItem(`activeGameCafeId:${updated.id}`, cafeId).catch(() => {});
         return cafeId;
       });
-      // Mirror the new global level + totalOrders to the server so OTHER
-      // devices see this user's bump on the leaderboard within their next
-      // refresh. Fire-and-forget — failure just delays cross-device sync.
+      // Mirror the new global level + totalOrders AND the per-cafe
+      // counters to the server. The per-cafe payload is what keeps
+      // server.cafeProgress in sync with our local view — without it,
+      // mobile's `refreshAllUsers` (which now REPLACES from server) would
+      // briefly revert this cafe's count to the stale server value during
+      // the window between order placement and order status-change.
       fetch(`${API_BASE}/users/progress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1776,6 +1809,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           id: updated.id,
           level: updated.level,
           totalOrders: updated.totalOrders,
+          cafeId,
+          cafeLevel:       nextCafe.level,
+          cafeTotalOrders: nextCafe.totalOrders,
         }),
       }).catch(() => {});
       return updated;

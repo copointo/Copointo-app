@@ -487,16 +487,27 @@ function awardOrderProgress(order: any) {
   if (drinks > 0) {
     const u = users.find(u => u.phone === order.customerPhone);
     if (u) {
-      u.totalOrders += drinks;
-      // Bump the game level too — mirrors the mobile client's `addCafeOrder`
-      // logic (each drink = 1 level, cap 999). This is critical for DIRECT
-      // in-cafe orders: the customer never opens the app for that purchase,
-      // so the client-side level computation never runs. Without this the
-      // user's total-coffee count would grow while their game level stays
-      // frozen (the exact bug the cashier reported). `/users/progress` only
-      // ever increases values, so this is safe to recompute even when the
-      // app later syncs back from another device.
-      u.level = Math.min(999, (u.level ?? 0) + drinks);
+      // ── Per-cafe progress bump (critical for admin-set consistency) ──
+      // Admin's super-admin "set" mode recomputes user.totalOrders from
+      // sum(cafeProgress). If we only bumped the global counters here, the
+      // next admin set would wipe this drink from the global total (since
+      // sum(cafeProgress) wouldn't include it). Mirroring into cafeProgress
+      // keeps the invariant `global == sum(cafeProgress)` so admin-set
+      // decreases stick instead of being silently reverted by future order
+      // completions.
+      const prog = (u.cafeProgress ??= {});
+      const curr = prog[order.cafeId] ?? { level: 0, totalOrders: 0 };
+      prog[order.cafeId] = {
+        level: Math.min(999, (curr.level ?? 0) + drinks),
+        totalOrders: (curr.totalOrders ?? 0) + drinks,
+      };
+      // Recompute globals from the union of all cafe progresses (same
+      // invariant the admin-set branch enforces). This guarantees the
+      // global counters and per-cafe counters never drift apart.
+      const allLvls = Object.values(prog).map(c => c.level ?? 0);
+      const allOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
+      u.level       = allLvls.length ? Math.max(0, ...allLvls) : Math.min(999, (u.level ?? 0) + drinks);
+      u.totalOrders = allOrds.length ? allOrds.reduce((s, n) => s + n, 0) : (u.totalOrders ?? 0) + drinks;
       const cafe = cafes.find(c => c.id === order.cafeId);
       // Push: drink-progress credited to the player. The milestone push
       // (free coffee) is fired separately inside awardMilestoneCoffees.

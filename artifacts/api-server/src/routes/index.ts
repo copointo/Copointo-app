@@ -1022,6 +1022,36 @@ router.post("/users/progress", (req, res): any => {
   const u = users.find(x => x.id === id);
   if (!u) return res.status(404).json({ ok: false, error: "user not found" });
   let changed = false;
+  // ── Per-cafe progress mirror (new) ────────────────────────────────────
+  // Mobile addCafeOrder now pushes the per-cafe counters too so server's
+  // cafeProgress stays in sync with the device's local view. Without this
+  // the brief window between order placement and order status-change
+  // (when awardOrderProgress fires server-side) leaves server.cafeProgress
+  // stale, which then causes mobile's refresh to silently revert the
+  // count after admin's set takes effect.
+  const cafeId           = typeof req.body?.cafeId === "string" ? req.body.cafeId.trim() : "";
+  const cafeLevel        = Number(req.body?.cafeLevel        ?? NaN);
+  const cafeTotalOrders  = Number(req.body?.cafeTotalOrders  ?? NaN);
+  if (cafeId && (Number.isFinite(cafeLevel) || Number.isFinite(cafeTotalOrders))) {
+    const prog = (u.cafeProgress ??= {});
+    const curr = prog[cafeId] ?? { level: 0, totalOrders: 0 };
+    const nextLvl = Number.isFinite(cafeLevel)
+      ? Math.max(curr.level ?? 0, Math.min(999, Math.floor(cafeLevel)))
+      : curr.level ?? 0;
+    const nextOrd = Number.isFinite(cafeTotalOrders)
+      ? Math.max(curr.totalOrders ?? 0, Math.floor(cafeTotalOrders))
+      : curr.totalOrders ?? 0;
+    if (nextLvl !== curr.level || nextOrd !== curr.totalOrders) {
+      prog[cafeId] = { level: nextLvl, totalOrders: nextOrd };
+      // Recompute globals from union so the invariant holds even when
+      // the mobile push raises this cafe above the previous global max.
+      const allLvls = Object.values(prog).map(c => c.level ?? 0);
+      const allOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
+      u.level       = Math.max(u.level ?? 0, Math.max(0, ...allLvls));
+      u.totalOrders = Math.max(u.totalOrders ?? 0, allOrds.reduce((s, n) => s + n, 0));
+      changed = true;
+    }
+  }
   if (Number.isFinite(level) && level > (u.level ?? 0)) {
     u.level = Math.min(999, Math.floor(level));
     changed = true;
