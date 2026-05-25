@@ -48,6 +48,9 @@ export interface Message {
   timestamp: string;
   unread: number;
   type: "user" | "cafe" | "group";
+  /** For `type === "group"`: number of members in the underlying group.
+   *  Used by the chat list to render a "مجتمع · N أعضاء" badge. */
+  groupMemberCount?: number;
 }
 
 export interface ChatMessage {

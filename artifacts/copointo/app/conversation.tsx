@@ -525,14 +525,12 @@ export default function ConversationScreen() {
               <Text style={styles.headerName} numberOfLines={1}>
                 {isGroup && group ? group.name : name}
               </Text>
-              {/* "Group" badge so it's visually clear this is a chat with
-                  multiple people and not a 1:1 user conversation. */}
-              {isGroup && (
-                <View style={styles.groupBadge}>
-                  <Feather name="users" size={10} color={PRIMARY} />
-                  <Text style={styles.groupBadgeText}>جروب</Text>
-                </View>
-              )}
+              {/* In-conversation "مجتمع" tag intentionally removed — the
+                  chat list (messages tab) now shows a clear "مجتمع · N
+                  أعضاء" badge so the user knows it's a community before
+                  they even open the chat. Keeping the subtitle below
+                  (member count + bound community name) is enough context
+                  once you're inside. */}
             </View>
             <Text style={styles.headerSub} numberOfLines={1}>
               {isCafe

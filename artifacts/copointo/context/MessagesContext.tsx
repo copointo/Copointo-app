@@ -288,6 +288,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         timestamp: last ? last.time : "الآن",
         unread: unreadMap[convId] ?? 0,
         type: "group",
+        groupMemberCount: g.members.length,
       };
       if (g.avatar) msg.senderAvatar = g.avatar;
       out.push(msg);

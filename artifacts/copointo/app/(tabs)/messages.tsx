@@ -93,9 +93,31 @@ function ConversationItem({ msg }: { msg: Message }) {
       )}
       <View style={styles.convContent}>
         <View style={styles.convHeader}>
-          <Text style={[styles.senderName, { color: colors.foreground }]}>
-            {msg.senderName}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}>
+            <Text
+              style={[styles.senderName, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
+              {msg.senderName}
+            </Text>
+            {/* Community badge — visible from the chat list so the user
+                knows this row is a group chat (مجتمع) and how many
+                members it has, before they open the conversation. */}
+            {isGroup && (
+              <View style={[
+                styles.commBadge,
+                { backgroundColor: colors.primary + "22", borderColor: colors.primary + "66" },
+              ]}>
+                <Feather name="users" size={10} color={colors.primary} />
+                <Text style={[styles.commBadgeText, { color: colors.primary }]}>
+                  مجتمع
+                  {typeof msg.groupMemberCount === "number"
+                    ? ` · ${msg.groupMemberCount} أعضاء`
+                    : ""}
+                </Text>
+              </View>
+            )}
+          </View>
           <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>
             {msg.timestamp}
           </Text>
@@ -290,6 +312,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     flex: 1,
     marginRight: 8,
+  },
+  commBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderWidth: 1,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 999,
+  },
+  commBadgeText: {
+    fontSize: 10, fontFamily: "Inter_700Bold",
   },
   unreadBadge: {
     minWidth: 20,
