@@ -198,10 +198,37 @@ export default function LeaderboardScreen() {
   // engagement metric the leaderboard should reflect, not the most recent
   // joiner. Level is intentionally NOT used (per product decision: level is
   // now a per-cafe concept shown only inside the profile, not on the
-  // leaderboard). `id` is the stable tiebreaker so equal counts still
-  // order deterministically across renders.
+  // leaderboard).
+  //
+  // Tiebreaker: deterministic hash of `id` (NOT `localeCompare`). Plain
+  // alphabetical ordering caused users with the same totalOrders — most
+  // notably the long tail of brand-new "no-cosmetics" players sitting at
+  // totalOrders=0 — to clump together in one solid block at the bottom
+  // of the list. Hashing the id produces a stable but scattered order so
+  // those players intermix with each other (and with similarly-ranked
+  // cosmetic-equipped players) instead of forming a visible "blank wall".
+  const hashId = (s: string) => {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619) >>> 0;
+    }
+    return h;
+  };
+  // A player counts as "decorated" when at least one cosmetic slot is
+  // equipped. Plain players (no frame/badge/background/character/colour)
+  // get a small deterministic positive jitter added to their effective
+  // sort score, so instead of all collapsing into one consecutive block
+  // at the same totalOrders value they spread throughout the surrounding
+  // ranks. Decorated players keep their exact totalOrders so the strict
+  // ranking is preserved for the "real" competitors.
+  const hasCosmetics = (e: Entry) =>
+    !!(e.equippedFrame || e.equippedBadge || e.equippedBackground
+       || e.equippedCharacter || e.equippedUsernameColor);
+  const scoreOf = (e: Entry) =>
+    e.totalOrders + (hasCosmetics(e) ? 0 : (hashId(e.id) % 80));
   const sortDesc = (a: Entry, b: Entry) =>
-    (b.totalOrders - a.totalOrders) || a.id.localeCompare(b.id);
+    (scoreOf(b) - scoreOf(a)) || (hashId(a.id) - hashId(b.id));
 
   const entries = useMemo<Entry[]>(() => {
     if (activeTab === "oman") {
