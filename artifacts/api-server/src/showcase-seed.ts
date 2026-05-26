@@ -231,17 +231,21 @@ function buildCompetitors(count: number): AppUser[] {
     const isFemale = i % FIRST_NAMES.length >= 20;
     // Levels 1..239 — never exceeds showcase user's 240. Top competitor at 239.
     const level = Math.max(1, 239 - Math.floor(i * 2.39));
-    // Theme every competitor with varied cosmetics. Top-ranked players
-    // (low index) get the most premium ids from each pool; mid/low-ranked
-    // players still get themed but with progressively earlier-unlock items.
-    const frame = FRAME_POOL[i % FRAME_POOL.length]!;
-    const badge = BADGE_POOL[i % BADGE_POOL.length]!;
-    const bg    = BG_POOL[i % BG_POOL.length]!;
-    const ch    = isFemale
-      ? CHAR_F_POOL[i % CHAR_F_POOL.length]!
-      : CHAR_M_POOL[i % CHAR_M_POOL.length]!;
-    const uc    = UC_POOL[i % UC_POOL.length]!;
-    const ts    = TS_POOL[i % TS_POOL.length]!;
+    // Only the top 50 ranked players (low index) get themed cosmetics —
+    // the bottom 50 stay bare (no frame/badge/bg/character/uc/ts) so the
+    // showcase leaderboard looks like a realistic mix of decorated
+    // veterans and plain casual players, not a uniform sea of cosmetics.
+    const themed = i < 50;
+    const frame = themed ? FRAME_POOL[i % FRAME_POOL.length]! : null;
+    const badge = themed ? BADGE_POOL[i % BADGE_POOL.length]! : null;
+    const bg    = themed ? BG_POOL[i % BG_POOL.length]! : null;
+    const ch    = themed
+      ? (isFemale
+          ? CHAR_F_POOL[i % CHAR_F_POOL.length]!
+          : CHAR_M_POOL[i % CHAR_M_POOL.length]!)
+      : null;
+    const uc    = themed ? UC_POOL[i % UC_POOL.length]! : null;
+    const ts    = themed ? TS_POOL[i % TS_POOL.length]! : null;
     out.push({
       id: `sc-user-${i + 1}`,
       username: `player_${i + 1}`,
