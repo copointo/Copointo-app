@@ -468,27 +468,58 @@ function buildCommunities(competitors: AppUser[]): Community[] {
     [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
   }
 
-  const PER_GROUP = 12; // ~120 memberships across 100 users → overlap is fine
+  // Per-community member counts — explicitly varied (intimate 6-member
+  // groups all the way up to a busy 60-member community) so each row in
+  // the communities list feels distinct instead of all 10 being clones.
+  const sizes = [8, 14, 22, 6, 35, 18, 50, 11, 28, 60];
+  // Per-community age in days — spread from 3 days (brand-new) to 6 months
+  // so the "created X days ago" subtitle varies as well.
+  const agesDays = [3, 9, 18, 32, 7, 75, 120, 14, 45, 180];
+  // Whether the showcase user is the founder of each community. Half are
+  // led by other competitors so the showcase user appears as just a
+  // regular member (or vice) — much more believable than "you founded
+  // all 10 communities".
+  const showcaseLeads = [true, false, true, false, false, true, false, true, false, false];
   return Array.from({ length: 10 }, (_, i) => {
     const n = shuffled[i]!;
-    const start = (i * 10) % competitors.length;
-    const members = [SHOWCASE_USER_ID];
-    for (let j = 0; j < PER_GROUP; j++) {
-      const u = competitors[(start + j) % competitors.length]!;
-      if (!members.includes(u.id)) members.push(u.id);
+    const size = sizes[i]!;
+    const start = Math.floor(rand() * competitors.length);
+    const members: string[] = [SHOWCASE_USER_ID];
+    // Pick `size` unique competitors via random offsets from `start` so
+    // the membership sets across communities don't repeat in fixed slots.
+    const seen = new Set<string>([SHOWCASE_USER_ID]);
+    let cursor = start;
+    while (members.length < size && seen.size < competitors.length + 1) {
+      const u = competitors[cursor % competitors.length]!;
+      if (!seen.has(u.id)) { members.push(u.id); seen.add(u.id); }
+      cursor += 1 + Math.floor(rand() * 3); // jittered stride
     }
-    const roles: Record<string, "leader" | "vice" | "senior" | "member"> = {
-      [SHOWCASE_USER_ID]: "leader",
-    };
-    if (members[1]) roles[members[1]] = "vice";
-    if (members[2]) roles[members[2]] = "senior";
+    const roles: Record<string, "leader" | "vice" | "senior" | "member"> = {};
+    const isShowcaseLeader = showcaseLeads[i]!;
+    if (isShowcaseLeader) {
+      roles[SHOWCASE_USER_ID] = "leader";
+      if (members[1]) roles[members[1]] = "vice";
+      if (members[2]) roles[members[2]] = "senior";
+    } else {
+      // A competitor is the leader — pick the first non-showcase member.
+      // The showcase user becomes a normal member (or vice in some cases).
+      const leaderId = members.find(id => id !== SHOWCASE_USER_ID);
+      if (leaderId) roles[leaderId] = "leader";
+      // 50% chance the showcase user is vice instead of plain member, to
+      // keep the variety interesting across the 10 communities.
+      if (rand() > 0.5) roles[SHOWCASE_USER_ID] = "vice";
+      const otherSenior = members.find(id => id !== leaderId && id !== SHOWCASE_USER_ID);
+      if (otherSenior) roles[otherSenior] = "senior";
+    }
     return {
       id: `sc-comm-${i + 1}`,
       name: `${n.emoji} ${n.name}`,
       avatar: unsplash(n.img, 300),
       members,
-      createdBy: SHOWCASE_USER_ID,
-      createdAt: Date.now() - (i + 1) * 7 * 86_400_000,
+      createdBy: isShowcaseLeader
+        ? SHOWCASE_USER_ID
+        : (members.find(id => id !== SHOWCASE_USER_ID) ?? SHOWCASE_USER_ID),
+      createdAt: Date.now() - agesDays[i]! * 86_400_000,
       roles,
       showcaseOnly: true,
     };
@@ -692,22 +723,18 @@ export async function seedShowcaseData(): Promise<void> {
     dirty = true;
   }
 
-  // 6) 10 communities — upsert so updated themes (emoji-prefixed names,
-  // varied avatars) replace any older seeded rows.
+  // 6) 10 communities — full upsert (replace the WHOLE row, not just
+  // name/avatar). The previous behaviour preserved an existing `members`
+  // array, which meant changes to the seed's varied member counts /
+  // founders / ages couldn't take effect on already-seeded boots. Since
+  // the showcase user can't really "join" or "leave" sc-comm-* groups in
+  // a way we need to preserve across restarts, it's safe to overwrite.
   for (const c of buildCommunities(competitors)) {
     const idx = communities.findIndex(x => x.id === c.id);
     if (idx === -1) {
       communities.push(c);
     } else {
-      const existing = communities[idx]!;
-      // Keep the existing members list (in case the player added/removed
-      // anyone) but refresh the visual theme.
-      communities[idx] = {
-        ...existing,
-        name: c.name,
-        avatar: c.avatar,
-        showcaseOnly: true,
-      };
+      communities[idx] = c;
     }
     dirty = true;
   }
