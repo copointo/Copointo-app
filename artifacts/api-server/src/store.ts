@@ -698,13 +698,17 @@ async function bootLoad(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[store] loaded ${rows.length} collections from kv_store`);
     // ── Demo seed (idempotent) ──
-    // Re-creates one demo cafe + one demo menu item + one demo user with
-    // stable IDs after every boot, so the mobile "تسجيل تجريبي" button
-    // always has somewhere to land. Safe to call repeatedly — each entity
-    // is only inserted when its stable id is missing.
+    // Seeds only the demo user with a stable ID so the mobile demo-login
+    // button keeps working. The demo cafe + menu item are intentionally NOT
+    // seeded anymore (removed per user request); a one-time cleanup below
+    // purges any leftover demo cafe rows from previous boots.
     try { await seedDemoData(); } catch (e) {
       // eslint-disable-next-line no-console
       console.warn(`[store] demo seed failed: ${(e as Error).message}`);
+    }
+    try { await purgeDemoCafe(); } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[store] demo cafe purge failed: ${(e as Error).message}`);
     }
   } catch (e) {
     // Do NOT mark bootLoadDone on failure — that would let the safety-net
@@ -1049,56 +1053,10 @@ export const DEMO_USER_PHONE = "+96890000000";
 
 async function seedDemoData(): Promise<void> {
   let dirty = false;
-  const today = new Date().toISOString().split("T")[0];
-  const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
 
-  if (!cafes.some(c => c.id === DEMO_CAFE_ID)) {
-    cafes.push({
-      id: DEMO_CAFE_ID,
-      name: "كوفي تجريبي ☕",
-      ownerName: "مالك تجريبي",
-      ownerPhone: DEMO_USER_PHONE,
-      logo: "",
-      image: "",
-      openTime: "06:00",
-      closeTime: "23:59",
-      managerPassword: "0000",
-      active: true,
-      subscriptionPaid: true,
-      subscriptionAmount: 0,
-      subscriptionStart: today,
-      subscriptionEnd: oneYear.toISOString().split("T")[0],
-      website: "",
-      createdAt: new Date().toISOString(),
-      rating: 5,
-      tags: ["تجريبي", "اختبار"],
-      address: "مسقط، عُمان",
-      lat: 23.5859,
-      lng: 58.4059,
-    });
-    dirty = true;
-  }
-
-  if (!menuItems.some(m => m.id === DEMO_MENU_ID)) {
-    menuItems.push({
-      id: DEMO_MENU_ID,
-      cafeId: DEMO_CAFE_ID,
-      name: "قهوة تجريبية",
-      price: 1.0,
-      category: "قهوة",
-      description: "مشروب تجريبي للاختبار — تذوّق وامرح.",
-      available: true,
-      createdAt: new Date().toISOString(),
-      image: null,
-      originalPrice: null,
-      promoBuyQty: null,
-      promoGetQty: null,
-      stockQty: null,
-      initialStockQty: null,
-    });
-    dirty = true;
-  }
-
+  // Only the demo user remains seeded — the demo login button needs a
+  // matching server-side row to avoid the 3-strike auto-logout. The demo
+  // cafe + menu item were intentionally removed.
   if (!users.some(u => u.id === DEMO_USER_ID)) {
     users.push({
       id: DEMO_USER_ID,
@@ -1114,6 +1072,28 @@ async function seedDemoData(): Promise<void> {
     dirty = true;
   }
 
+  if (dirty) {
+    try { await flushAll(); } catch { /* persist will retry */ }
+  }
+}
+
+/** One-time cleanup: removes the demo cafe + every menu item that belonged
+ *  to it from any prior boot's seed. Idempotent — no-op once the rows are
+ *  gone. Kept as a permanent step (cheap) so re-deploys against legacy DBs
+ *  always end up clean. */
+async function purgeDemoCafe(): Promise<void> {
+  let dirty = false;
+  const cafeIdx = cafes.findIndex(c => c.id === DEMO_CAFE_ID);
+  if (cafeIdx !== -1) {
+    cafes.splice(cafeIdx, 1);
+    dirty = true;
+  }
+  for (let i = menuItems.length - 1; i >= 0; i--) {
+    if (menuItems[i].cafeId === DEMO_CAFE_ID || menuItems[i].id === DEMO_MENU_ID) {
+      menuItems.splice(i, 1);
+      dirty = true;
+    }
+  }
   if (dirty) {
     try { await flushAll(); } catch { /* persist will retry */ }
   }
