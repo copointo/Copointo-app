@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   card: { width: "100%", backgroundColor: "#000", position: "relative" },
   videoLayer: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
-  rightRail: { position: "absolute", right: 12, alignItems: "center", gap: 18 },
+  rightRail: { position: "absolute", left: 12, alignItems: "center", gap: 18 },
   railBtn: { alignItems: "center", marginBottom: 16 },
   railNum: { color: "#fff", fontSize: 12, marginTop: 4, fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 3 },
@@ -696,17 +696,20 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: "rgba(255,255,255,0.25)",
   },
   bottomInfo: {
-    // Pinned to the BOTTOM-LEFT corner of the reel (TikTok-style footer)
-    // so the cafe name, "اقرأ التفاصيل" button, views chip and mute toggle
-    // sit just above the floating tab bar, opposite the right-rail action
-    // buttons. `paddingBottom` is applied inline (uses safe-area inset).
-    position: "absolute", left: 0, right: 80, bottom: 0, padding: 16,
-    // Force LTR so children pin to the actual left edge of the screen
-    // regardless of the app's RTL writing direction. Arabic text inside
-    // each <Text> still renders correctly because RN handles bidi per text.
+    // Pinned to the BOTTOM-RIGHT corner of the reel. The action rail
+    // (likes/comments/share) lives on the LEFT side, so the info column
+    // (cafe name, "اقرأ التفاصيل" button, views chip, mute toggle) sits
+    // opposite it on the right just above the floating tab bar.
+    // `paddingBottom` is applied inline (uses safe-area inset).
+    position: "absolute", right: 0, left: 80, bottom: 0, padding: 16,
+    // Force LTR so layout math is predictable regardless of the app's
+    // RTL writing direction. `alignItems: flex-end` then pins the column
+    // to the right edge of the screen. Arabic text inside each <Text>
+    // still renders correctly because RN handles bidi per text.
     direction: "ltr",
-    alignItems: "flex-start",
+    alignItems: "flex-end",
   },
+  cafeRowRight: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 8 },
   descWrap: { marginBottom: 4 },
   readMore: { color: PRIMARY, fontSize: 13, fontWeight: "700", marginTop: 4 },
   cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
