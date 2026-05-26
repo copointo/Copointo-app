@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
   card: { width: "100%", backgroundColor: "#000", position: "relative" },
   videoLayer: { ...StyleSheet.absoluteFillObject, backgroundColor: "#000" },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" },
-  rightRail: { position: "absolute", left: 12, alignItems: "center", gap: 18 },
+  rightRail: { position: "absolute", right: 12, alignItems: "center", gap: 18 },
   railBtn: { alignItems: "center", marginBottom: 16 },
   railNum: { color: "#fff", fontSize: 12, marginTop: 4, fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 3 },
