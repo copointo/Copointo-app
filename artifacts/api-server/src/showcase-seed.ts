@@ -302,20 +302,53 @@ function buildReels(cafeRows: Cafe[]): Reel[] {
 // Each community has its own distinct theme: name + matching emoji avatar
 // (rendered when the URL avatar fails) + a thematic Unsplash cover.
 function buildCommunities(competitors: AppUser[]): Community[] {
-  const themes = [
-    { id: "sc-comm-1",  name: "محبي اللاتيه",        emoji: "🥛", img: "1497935586351-b67a49e012bf" },
-    { id: "sc-comm-2",  name: "عشاق الإسبريسو",      emoji: "☕", img: "1510707577719-ae7c14805e3a" },
-    { id: "sc-comm-3",  name: "مقاهي مسقط",          emoji: "🕌", img: "1518684079-3c830dcef090" },
-    { id: "sc-comm-4",  name: "باريستا عُمان",         emoji: "🎽", img: "1521017432531-fbd92d768814" },
-    { id: "sc-comm-5",  name: "قهوة الصباح",          emoji: "🌅", img: "1442550528053-c431ecb55509" },
-    { id: "sc-comm-6",  name: "جلسات المساء",         emoji: "🌙", img: "1559925393-8be0ec4767c8" },
-    { id: "sc-comm-7",  name: "القهوة المختصة",       emoji: "🏆", img: "1559496417950-9d35f4a96ad7" },
-    { id: "sc-comm-8",  name: "ذوّاقو القهوة",         emoji: "👃", img: "1495474472287-4d71bcdd2085" },
-    { id: "sc-comm-9",  name: "مزارع البن",            emoji: "🌱", img: "1611854779393-1b2da9d400fe" },
-    { id: "sc-comm-10", name: "صانعو القهوة",         emoji: "🧑‍🍳", img: "1453614512568-c4024d13c247" },
+  // Larger themed pool than 10 communities — picks below are randomized
+  // (Fisher–Yates with a fixed seed so the assignment is stable across
+  // boots but visually random, not "comm-1 always = latte" anymore).
+  const themePool = [
+    { name: "محبي اللاتيه",     emoji: "🥛", img: "1497935586351-b67a49e012bf" },
+    { name: "عشاق الإسبريسو",   emoji: "☕", img: "1510707577719-ae7c14805e3a" },
+    { name: "مقاهي مسقط",       emoji: "🕌", img: "1518684079-3c830dcef090" },
+    { name: "باريستا عُمان",      emoji: "🎽", img: "1521017432531-fbd92d768814" },
+    { name: "قهوة الصباح",       emoji: "🌅", img: "1442550528053-c431ecb55509" },
+    { name: "جلسات المساء",      emoji: "🌙", img: "1559925393-8be0ec4767c8" },
+    { name: "القهوة المختصة",    emoji: "🏆", img: "1559496417950-9d35f4a96ad7" },
+    { name: "ذوّاقو القهوة",      emoji: "👃", img: "1495474472287-4d71bcdd2085" },
+    { name: "مزارع البن",         emoji: "🌱", img: "1611854779393-1b2da9d400fe" },
+    { name: "صانعو القهوة",      emoji: "🧑‍🍳", img: "1453614512568-c4024d13c247" },
+    { name: "القهوة الباردة",     emoji: "🧊", img: "1517959105821-eaf2591984ca" },
+    { name: "حلويات مع القهوة",  emoji: "🍰", img: "1488477181946-6428a0291777" },
+    { name: "كابتشينو ديلوكس",   emoji: "☁️", img: "1572442388796-11668a67e53d" },
+    { name: "موكا بريميوم",      emoji: "🍫", img: "1485808191679-5f86510681a2" },
+    { name: "محبو الكورتادو",    emoji: "🥤", img: "1534687941688-651ccaafbff8" },
+    { name: "قهوة عمانية أصيلة",  emoji: "🇴🇲", img: "1565299624946-b28f40a0ae38" },
+    { name: "كاراك وشاي",         emoji: "🫖", img: "1597318181409-cf64d0b5d8a2" },
+    { name: "تجارب القهوة",      emoji: "🧪", img: "1462917882517-e150004895fa" },
+    { name: "نقاشات الكافيين",    emoji: "💬", img: "1521017432531-fbd92d768814" },
+    { name: "صور القهوة",        emoji: "📸", img: "1447933601403-0c6688de566e" },
   ];
+
+  // Tiny deterministic PRNG (mulberry32) seeded with a fixed value so
+  // every boot picks the SAME random-looking ordering — no churn.
+  const rand = (() => {
+    let s = 0xC0FF_EE42 >>> 0;
+    return () => {
+      s |= 0; s = (s + 0x6D2B79F5) | 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  })();
+  const shuffled = [...themePool];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+
   const PER_GROUP = 12; // ~120 memberships across 100 users → overlap is fine
-  return themes.map((n, i) => {
+  return Array.from({ length: 10 }, (_, i) => {
+    const n = shuffled[i]!;
     const start = (i * 10) % competitors.length;
     const members = [SHOWCASE_USER_ID];
     for (let j = 0; j < PER_GROUP; j++) {
@@ -328,7 +361,7 @@ function buildCommunities(competitors: AppUser[]): Community[] {
     if (members[1]) roles[members[1]] = "vice";
     if (members[2]) roles[members[2]] = "senior";
     return {
-      id: n.id,
+      id: `sc-comm-${i + 1}`,
       name: `${n.emoji} ${n.name}`,
       avatar: unsplash(n.img, 300),
       members,
