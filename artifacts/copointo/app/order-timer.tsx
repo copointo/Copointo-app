@@ -300,6 +300,37 @@ export default function OrderTimerScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, cafeId, completed, confirmed, drinkQty]);
 
+  // ── Live MM:SS countdown ──
+  // Starts the moment the cafe confirms the order, counts down totalMin*60
+  // seconds to 00:00, and freezes when the order becomes ready/done so the
+  // customer can see how long the prep actually took. Persisted across
+  // re-renders by anchoring on a single `prepStartedAt` timestamp so polling
+  // refreshes don't restart the count.
+  const PREP_TOTAL_SEC = totalMin * 60;
+  const prepStartedAtRef = useRef<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number>(PREP_TOTAL_SEC);
+  useEffect(() => {
+    // Stop the clock as soon as the drink is ready — freeze whatever value
+    // we landed on (could be a small positive number, 0, or "early").
+    if (!confirmed || isReadyOrDone || completed) return;
+    if (prepStartedAtRef.current == null) prepStartedAtRef.current = Date.now();
+    const tick = () => {
+      const elapsed = Math.floor((Date.now() - (prepStartedAtRef.current ?? Date.now())) / 1000);
+      setSecondsLeft(Math.max(0, PREP_TOTAL_SEC - elapsed));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [confirmed, isReadyOrDone, completed, PREP_TOTAL_SEC]);
+  // When the order becomes ready before the count reaches zero, snap to 0
+  // so the timer doesn't look like it's still ticking.
+  useEffect(() => {
+    if (isReadyOrDone || completed) setSecondsLeft(0);
+  }, [isReadyOrDone, completed]);
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const ss = String(secondsLeft % 60).padStart(2, "0");
+  const timerActive = confirmed && !isReadyOrDone && !completed;
+
   // ── Status pill text (top-right) ──
   const pillText = useMemo(() => {
     if (completed)     return isAr ? "اكتمل" : "Done";
@@ -483,6 +514,31 @@ export default function OrderTimerScreen() {
         </View>
 
         <Text style={styles.headline}>{headline}</Text>
+
+        {/* ── Live MM:SS countdown ── */}
+        <View style={[
+          styles.timerCard,
+          timerActive && styles.timerCardActive,
+          (isReadyOrDone || completed) && styles.timerCardDone,
+        ]}>
+          <Text style={styles.timerLabel}>
+            {completed || isReadyOrDone
+              ? (isAr ? "اكتمل التحضير" : "Preparation complete")
+              : confirmed
+                ? (isAr ? "الوقت المتبقي للتحضير" : "Time remaining")
+                : (isAr ? "سيبدأ المؤقت بعد التأكيد" : "Timer starts after confirmation")}
+          </Text>
+          <Text style={[
+            styles.timerValue,
+            (isReadyOrDone || completed) && { color: SUCCESS },
+            !confirmed && { color: "rgba(245,230,204,0.45)" },
+          ]}>
+            {mm}:{ss}
+          </Text>
+          <Text style={styles.timerSub}>
+            {isAr ? `من أصل ${totalMin} د` : `of ${totalMin} min total`}
+          </Text>
+        </View>
 
         {/* ── Order details ── */}
         <View style={styles.detailsBox}>
@@ -683,6 +739,48 @@ const styles = StyleSheet.create({
   ctaText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
 
   tip: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center", lineHeight: 18 },
+
+  // ── Live countdown timer card ──
+  timerCard: {
+    width: "100%",
+    alignItems: "center",
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+    marginBottom: 14,
+  },
+  timerCardActive: {
+    borderColor: "rgba(232,184,109,0.55)",
+    backgroundColor: "rgba(232,184,109,0.08)",
+  },
+  timerCardDone: {
+    borderColor: "rgba(74,222,128,0.45)",
+    backgroundColor: "rgba(74,222,128,0.08)",
+  },
+  timerLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(245,230,204,0.70)",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  timerValue: {
+    fontSize: 44,
+    lineHeight: 52,
+    fontFamily: "Inter_700Bold",
+    color: PRIMARY,
+    fontVariant: ["tabular-nums"],
+    letterSpacing: 1,
+  },
+  timerSub: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(245,230,204,0.50)",
+    marginTop: 4,
+  },
 
   // ── Top-of-screen step toast banner ──
   bannerWrap: {
