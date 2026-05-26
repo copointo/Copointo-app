@@ -505,7 +505,18 @@ router.get("/reels/:rid/video", async (req, res): Promise<any> => {
     return fs.createReadStream(filePath).pipe(res);
   }
 
-  // Mode B (legacy): inline data URL kept for backward compatibility with
+  // Mode C: external http(s) URL (used by the showcase seed, which points
+  // reels at public Pexels MP4 URLs). The reels list endpoint always rewrites
+  // `videoUrl` to `/api/reels/:id/video`, so when the underlying source is an
+  // external URL we just 302-redirect the player there. The browser <video>
+  // and expo-video both follow the redirect transparently and still get HTTP
+  // Range support from the upstream host.
+  if (/^https?:\/\//i.test(r.videoUrl)) {
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.redirect(302, r.videoUrl);
+  }
+
+  // Mode D (legacy): inline data URL kept for backward compatibility with
   // reels created before the disk-storage migration.
   const idx = r.videoUrl.indexOf(";base64,");
   const m = idx > 5 && r.videoUrl.startsWith("data:")
