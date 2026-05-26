@@ -41,7 +41,7 @@ export function AuthModal({
   onClose: () => void;
   dismissible?: boolean;
 }) {
-  const { register, login, resetPasswordWithOtp, initialAuthStep, consumeInitialAuthStep } = useApp();
+  const { register, login, resetPasswordWithOtp, setUser, initialAuthStep, consumeInitialAuthStep } = useApp();
   const { t } = useT();
   const [step, setStep] = useState<Step>(initialAuthStep ?? "login");
 
@@ -146,6 +146,28 @@ export function AuthModal({
       setRegAvatar(dataUri);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+  };
+
+  // ── Demo login ─────────────────────────────────────────────────
+  // Drops the user into the server-seeded demo account (stable id
+  // `demo-user-1` so AsyncStorage persists the session across reloads
+  // and the server-side ban-poll keeps confirming `exists:true` — that
+  // means the AuthGate never kicks them out mid-session). The matching
+  // demo cafe + menu item are seeded by the API server on every boot.
+  const submitDemoLogin = () => {
+    setUser({
+      id: "demo-user-1",
+      name: "مستخدم تجريبي",
+      phone: "+96890000000",
+      gameUsername: "demo_player",
+      password: "demo",
+      gender: "male",
+      level: 1,
+      totalOrders: 0,
+      points: 0,
+    } as User);
+    Haptics.selectionAsync();
+    close();
   };
 
   const submitLogin = async () => {
@@ -660,6 +682,17 @@ export function AuthModal({
                 </Text>
               </TouchableOpacity>
             )}
+
+            {step === "login" && (
+              <TouchableOpacity
+                onPress={submitDemoLogin}
+                activeOpacity={0.85}
+                style={styles.demoBtn}
+              >
+                <Feather name="zap" size={14} color={PRIMARY} />
+                <Text style={styles.demoBtnText}>تسجيل دخول تجريبي</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -793,6 +826,14 @@ const styles = StyleSheet.create({
   },
   authPrimaryText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
   authSwitchText:  { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)" },
+  demoBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 11, borderRadius: 12,
+    backgroundColor: "rgba(232,184,109,0.08)",
+    borderWidth: 1, borderColor: BORDER, borderStyle: "dashed",
+    marginTop: 2,
+  },
+  demoBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   regAvatarWrap: {
     width: 86, height: 86, borderRadius: 43,
