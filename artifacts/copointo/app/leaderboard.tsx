@@ -225,8 +225,14 @@ export default function LeaderboardScreen() {
   const hasCosmetics = (e: Entry) =>
     !!(e.equippedFrame || e.equippedBadge || e.equippedBackground
        || e.equippedCharacter || e.equippedUsernameColor);
+  // Jitter range is wide on purpose (0..299): in the showcase world the
+  // 100 competitor sc-users sit at ~240 totalOrders each, so a small
+  // jitter (e.g. 80) would still leave every plain player below them all.
+  // 300 covers the full ordered range so no-cosmetics players genuinely
+  // spread throughout the leaderboard — some near the top, some middle,
+  // some at the bottom — instead of all collapsing under the competitors.
   const scoreOf = (e: Entry) =>
-    e.totalOrders + (hasCosmetics(e) ? 0 : (hashId(e.id) % 80));
+    e.totalOrders + (hasCosmetics(e) ? 0 : (hashId(e.id) % 300));
   const sortDesc = (a: Entry, b: Entry) =>
     (scoreOf(b) - scoreOf(a)) || (hashId(a.id) - hashId(b.id));
 
