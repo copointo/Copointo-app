@@ -191,12 +191,14 @@ export default function OrderTimerScreen() {
   }, []);
 
   // ── Bar fill (0 .. 1) ──
-  // Smoothly progresses across the 4 step centres. While the order is
-  // being prepared the bar advances linearly with the prep-minutes timer
-  // (from step 2 centre toward — but not past — step 3 centre) so the
-  // customer sees real-time progress without the bar ever jumping back.
+  // The bar must always *look alive* until the final step. While waiting at
+  // any non-final milestone we run a looping fill animation: the bar grows
+  // from the current step's anchor toward the next step's anchor, then
+  // resets and grows again, over and over. Only the final "completed" step
+  // freezes the fill in place.
   const fillAnim = useRef(new Animated.Value(STEPS[0].pos)).current;
   useEffect(() => {
+    // Final step — freeze the bar fully filled.
     if (completed) {
       Animated.timing(fillAnim, {
         toValue: STEPS[3].pos,
@@ -206,40 +208,52 @@ export default function OrderTimerScreen() {
       }).start();
       return;
     }
+
+    // For every non-final stage, build a [from → to] looping crawl. The
+    // `from` is the current step's anchor and `to` is the next step's
+    // anchor minus a hair so the next-step icon doesn't visually fill in
+    // before the server actually advances us.
+    let from: number;
+    let to: number;
+    let crawlMs: number;
     if (isReadyOrDone) {
-      Animated.timing(fillAnim, {
-        toValue: STEPS[2].pos,
-        duration: 700,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-      return;
+      // Ready → done: short, brisk loop between step 3 and step 4.
+      from = STEPS[2].pos;
+      to   = STEPS[3].pos - 0.03;
+      crawlMs = 2200;
+    } else if (confirmed) {
+      // Preparing: loop between step 2 and step 3, paced by prep time but
+      // capped so the user always sees movement within a few seconds.
+      from = STEPS[1].pos;
+      to   = STEPS[2].pos - 0.03;
+      crawlMs = Math.min(Math.max(2500, totalMin * 60 * 1000), 12000);
+    } else {
+      // Pending: loop between step 1 and step 2 while waiting for the
+      // cafe to confirm — keeps the bar feeling alive from the very start.
+      from = STEPS[0].pos;
+      to   = STEPS[1].pos - 0.03;
+      crawlMs = 2400;
     }
-    if (confirmed) {
-      // Jump to step 2 centre, then crawl to just before step 3 centre
-      // over the full prep-time so the bar appears to "fill" with time.
+
+    fillAnim.setValue(from);
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(fillAnim, {
-          toValue: STEPS[1].pos,
-          duration: 500,
-          easing: Easing.out(Easing.cubic),
+          toValue: to,
+          duration: crawlMs,
+          easing: Easing.inOut(Easing.ease),
           useNativeDriver: false,
         }),
         Animated.timing(fillAnim, {
-          toValue: STEPS[2].pos - 0.03, // stop just shy of step 3
-          duration: Math.max(2000, totalMin * 60 * 1000),
-          easing: Easing.linear,
+          toValue: from,
+          duration: 450,
+          easing: Easing.in(Easing.cubic),
           useNativeDriver: false,
         }),
-      ]).start();
-      return;
-    }
-    // Pending — sit at step 1.
-    Animated.timing(fillAnim, {
-      toValue: STEPS[0].pos,
-      duration: 400,
-      useNativeDriver: false,
-    }).start();
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
   }, [confirmed, isReadyOrDone, completed, totalMin, fillAnim]);
 
   // ── Shimmer sweep ──
