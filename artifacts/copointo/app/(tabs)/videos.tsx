@@ -701,7 +701,8 @@ const styles = StyleSheet.create({
     // (cafe name, "اقرأ التفاصيل" button, views chip, mute toggle) sits
     // opposite it on the right just above the floating tab bar.
     // `paddingBottom` is applied inline (uses safe-area inset).
-    position: "absolute", right: 0, left: 80, bottom: 0, padding: 16,
+    position: "absolute", right: 0, left: 80, bottom: 0,
+    paddingTop: 16, paddingLeft: 16, paddingRight: 6,
     // Force LTR so layout math is predictable regardless of the app's
     // RTL writing direction. `alignItems: flex-end` then pins the column
     // to the right edge of the screen. Arabic text inside each <Text>
