@@ -790,6 +790,9 @@ function UserDetailPanel(p: PanelProps) {
                       <Text style={panelStyles.cafeName} numberOfLines={1}>
                         {c.cafeName}
                       </Text>
+                      <View style={panelStyles.cafeLevelPill}>
+                        <Text style={panelStyles.cafeLevelText}>L{c.level ?? 0}</Text>
+                      </View>
                       <View style={panelStyles.cafeQtyPill}>
                         <Text style={panelStyles.cafeQtyText}>{c.totalOrders}</Text>
                       </View>
@@ -798,6 +801,11 @@ function UserDetailPanel(p: PanelProps) {
                   {/* Grand total row */}
                   <View style={[panelStyles.cafeRow, panelStyles.totalRow]}>
                     <Text style={panelStyles.totalLabel}>{t("lb.panelTotal")}</Text>
+                    <View style={[panelStyles.cafeLevelPill, { backgroundColor: "rgba(232,184,109,0.25)", borderColor: "rgba(232,184,109,0.55)" }]}>
+                      <Text style={[panelStyles.cafeLevelText, { color: "#E8B86D" }]}>
+                        L{cafes.reduce((s, c) => s + (c.level ?? 0), 0)}
+                      </Text>
+                    </View>
                     <View style={[panelStyles.cafeQtyPill, { backgroundColor: "#E8B86D" }]}>
                       <Text style={[panelStyles.cafeQtyText, { color: "#000" }]}>{grandTotal}</Text>
                     </View>
@@ -1288,6 +1296,16 @@ const panelStyles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   cafeQtyText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
+  // Amber "Lxx" chip shown next to each cafe row's coffee-count pill so the
+  // viewer can see both the per-cafe level AND the drinks at a glance.
+  cafeLevelPill: {
+    minWidth: 38, paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 10, backgroundColor: "rgba(232,184,109,0.14)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.40)",
+    alignItems: "center", justifyContent: "center",
+    marginRight: 6,
+  },
+  cafeLevelText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#E8B86D" },
   totalRow: {
     marginTop: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
