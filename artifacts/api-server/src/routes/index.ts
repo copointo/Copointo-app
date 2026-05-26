@@ -1067,10 +1067,16 @@ router.post("/users/progress", (req, res): any => {
       prog[cafeId] = { level: nextLvl, totalOrders: nextOrd };
       // Recompute globals from union so the invariant holds even when
       // the mobile push raises this cafe above the previous global max.
+      // Per product spec: globals are SUMS across cafes (level == totalOrders
+      // == Σ per-cafe levels). Both branches must reduce-sum, not Math.max,
+      // otherwise a user with cups across multiple cafes would have their
+      // global level shrunk to just the single max cafe.
       const allLvls = Object.values(prog).map(c => c.level ?? 0);
       const allOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
-      u.level       = Math.max(u.level ?? 0, Math.max(0, ...allLvls));
-      u.totalOrders = Math.max(u.totalOrders ?? 0, allOrds.reduce((s, n) => s + n, 0));
+      const sumLvls = allLvls.reduce((s, n) => s + n, 0);
+      const sumOrds = allOrds.reduce((s, n) => s + n, 0);
+      u.level       = Math.max(u.level ?? 0, sumLvls);
+      u.totalOrders = Math.max(u.totalOrders ?? 0, sumOrds);
       changed = true;
     }
   }

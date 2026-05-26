@@ -430,9 +430,13 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     // decreases actually take effect. Without this, the mobile sync's
     // Math.max(local, server) merge would pull the global level back up
     // to its old (now stale) server value and undo the admin's decrease.
+    // Per product spec: global level == global totalOrders == Σ per-cafe
+    // levels == Σ per-cafe totalOrders. Both globals must be sums (not
+    // max) so that admin-set changes across multiple cafes accumulate
+    // instead of just reflecting the single highest cafe.
     const allCafeLvls = Object.values(prog).map(c => c.level ?? 0);
     const allCafeOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
-    user.level       = allCafeLvls.length ? Math.max(0, ...allCafeLvls) : 0;
+    user.level       = allCafeLvls.reduce((s, n) => s + n, 0);
     user.totalOrders = allCafeOrds.reduce((s, n) => s + n, 0);
     // Milestone free coffees: only if THIS cafe's coffees crossed upward
     // through a new multiple of 7. (No-op for decreases.)

@@ -504,9 +504,16 @@ function awardOrderProgress(order: any) {
       // Recompute globals from the union of all cafe progresses (same
       // invariant the admin-set branch enforces). This guarantees the
       // global counters and per-cafe counters never drift apart.
+      // Invariant per product spec: per cafe → level == totalOrders (number
+      // of drinks the user ordered at that cafe). Globally → level and
+      // totalOrders are BOTH sums across every cafe (so they always equal
+      // each other and equal Σ per-cafe levels). The previous implementation
+      // used `Math.max` for the global level which broke that invariant
+      // (a user with 12 + 5 cups across two cafes was shown as level 12
+      // instead of level 17 = total cups).
       const allLvls = Object.values(prog).map(c => c.level ?? 0);
       const allOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
-      u.level       = allLvls.length ? Math.max(0, ...allLvls) : Math.min(999, (u.level ?? 0) + drinks);
+      u.level       = allLvls.length ? allLvls.reduce((s, n) => s + n, 0) : (u.level ?? 0) + drinks;
       u.totalOrders = allOrds.length ? allOrds.reduce((s, n) => s + n, 0) : (u.totalOrders ?? 0) + drinks;
       const cafe = cafes.find(c => c.id === order.cafeId);
       // Push: drink-progress credited to the player. The milestone push
