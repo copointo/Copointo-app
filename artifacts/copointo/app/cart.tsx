@@ -339,7 +339,7 @@ export default function CartScreen() {
         }),
         total: cartTotal,
         type: isDine ? "dine" : "car",
-        source: "direct",
+        source: "app",
         prepMinutes: prepMin,
       };
       if (discountPercent > 0 && discountCode.trim()) {

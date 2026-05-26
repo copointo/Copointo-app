@@ -109,7 +109,7 @@ export interface Order {
   total: number; status: "pending" | "preparing" | "ready" | "done";
   type: "dine" | "car"; tableNumber?: string;
   plateNumber?: string; plateSymbol?: string;
-  source?: "direct" | "chat";
+  source?: "direct" | "chat" | "app";
   userId?: string;
   drinkCount?: number;
   prepMinutes?: number;
