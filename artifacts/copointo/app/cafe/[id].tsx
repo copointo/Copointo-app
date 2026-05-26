@@ -232,7 +232,7 @@ export default function CafeLandingScreen() {
 
   useEffect(() => {
     // Fetch the single cafe (returns live average rating + ratingCount).
-    apiFetch<{ cafe: ApiCafe }>(`/cafes/${id}`)
+    apiFetch<{ cafe: ApiCafe }>(`/cafes/${id}${user ? `?userId=${encodeURIComponent(user.id)}` : ""}`)
       .then(d => { if (d.cafe) setCafe(d.cafe); })
       .catch(() => {})
       .finally(() => setLoading(false));

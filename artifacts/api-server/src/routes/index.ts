@@ -7,6 +7,7 @@ import healthRouter from "./health";
 import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
 import authOtpRouter, { consumeOtpToken } from "./auth-otp";
+import { isShowcaseViewer } from "../showcase-seed";
 
 const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
 const MIME_BY_EXT: Record<string, string> = {
@@ -44,8 +45,10 @@ router.use("/cafe/:cafeId", cafeDashRouter);
 router.use("/auth/otp", authOtpRouter);
 
 // Public cafes endpoint for mobile app
-router.get("/cafes", async (_req, res) => {
-  const active = cafes.filter(c => c.active);
+router.get("/cafes", async (req, res) => {
+
+  const viewer = isShowcaseViewer(String(req.query.userId ?? ""));
+  const active = cafes.filter(c => c.active && (viewer || !c.showcaseOnly));
 
   // Lazy backfill: geocode any active cafe missing coordinates (in parallel, capped)
   const missing = active.filter(c => (c.lat == null || c.lng == null) && c.address);
@@ -80,9 +83,11 @@ router.get("/cafes", async (_req, res) => {
 });
 
 // Public single-cafe endpoint
-router.get("/cafes/:id", (req, res) => {
+router.get("/cafes/:id", async (req, res) => {
+
+  const viewer = isShowcaseViewer(String(req.query.userId ?? ""));
   const c = cafes.find(x => x.id === req.params.id);
-  if (!c) { res.status(404).json({ error: "Cafe not found" }); return; }
+  if (!c || (c.showcaseOnly && !viewer)) { res.status(404).json({ error: "Cafe not found" }); return; }
   const stats = getCafeRatingStats(c.id);
   res.json({
     cafe: {
@@ -397,10 +402,13 @@ router.post("/progress-adjustments/:id/claim", (req, res): any => {
 // ─── Public Reels endpoints ─────────────────────────────────────────────
 // Engagement-ranked feed: score = likes*3 + comments*5 + views*0.05, with a
 // recency boost so brand-new reels still surface.
-router.get("/reels", (req, res) => {
+router.get("/reels", async (req, res) => {
   const userId = String(req.query.userId ?? "").trim();
+
+  const viewer = isShowcaseViewer(userId);
+  const visibleReels = reels.filter(r => viewer || !r.showcaseOnly);
   const now = Date.now();
-  const enriched = reels.map(r => {
+  const enriched = visibleReels.map(r => {
     const likes    = reelLikes.filter(l => l.reelId === r.id).length;
     const comments = reelComments.filter(c => c.reelId === r.id).length;
     const ageHours = Math.max(1, (now - new Date(r.createdAt).getTime()) / 3_600_000);
@@ -954,10 +962,12 @@ router.delete("/users/:id/push-token", (req, res): any => {
   res.json({ ok: true, removed });
 });
 
-router.get("/users/public", (_req, res) => {
+router.get("/users/public", async (req, res) => {
+
+  const viewer = isShowcaseViewer(String(req.query.userId ?? ""));
   res.json({
     users: users
-      .filter(u => !u.banned && !u.gameBanned)
+      .filter(u => !u.banned && !u.gameBanned && (viewer || !u.showcaseOnly))
       .map(u => ({
         id: u.id,
         username: u.username,
@@ -1666,9 +1676,11 @@ router.post("/reports", (req, res): any => {
  * `communities` is the FULL global list (used by the leaderboard ranking).
  * `invites` is filtered to the requesting user when `userId` is given.
  */
-router.get("/communities", (req, res): any => {
+router.get("/communities", async (req, res): Promise<any> => {
   const userId = String(req.query.userId ?? "").trim();
-  const allComs = communities.slice();
+
+  const viewer = isShowcaseViewer(userId);
+  const allComs = communities.filter(c => viewer || !c.showcaseOnly);
   const invs = userId
     ? communityInvites.filter(i => i.toUserId === userId)
     : [];

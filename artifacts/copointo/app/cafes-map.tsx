@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { apiFetch } from "@/constants/api";
 import { useT } from "@/context/LanguageContext";
+import { useApp } from "@/context/AppContext";
 
 interface ApiCafe {
   id: string; name: string; logo: string; image: string;
@@ -160,6 +161,7 @@ export default function CafesMapScreen() {
   const insets  = useSafeAreaInsets();
   const topPad  = Platform.OS === "web" ? 67 : insets.top;
   const { t } = useT();
+  const { user } = useApp();
 
   const [cafes,    setCafes]    = useState<ApiCafe[]>([]);
   const [userLoc,  setUserLoc]  = useState<{ lat: number; lng: number } | null>(null);
@@ -182,7 +184,9 @@ export default function CafesMapScreen() {
           }
         } catch { /* ignore */ }
 
-        const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
+        const data = await apiFetch<{ cafes: ApiCafe[] }>(
+          user ? `/cafes?userId=${encodeURIComponent(user.id)}` : "/cafes"
+        );
         if (alive) setCafes(data.cafes);
       } catch {
         if (alive) setError(t("cafesMap.errorLoad"));

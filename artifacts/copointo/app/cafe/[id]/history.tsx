@@ -110,7 +110,7 @@ export default function CafeHistoryScreen() {
       const phone = user?.phone?.trim();
 
       // Always load the cafe name (cheap, public)
-      apiFetch<{ cafe: { name: string } }>(`/cafes/${id}`)
+      apiFetch<{ cafe: { name: string } }>(`/cafes/${id}${user ? `?userId=${encodeURIComponent(user.id)}` : ""}`)
         .then((d) => { if (!cancelled && d?.cafe?.name) setCafeName(d.cafe.name); })
         .catch(() => { /* ignore */ });
 

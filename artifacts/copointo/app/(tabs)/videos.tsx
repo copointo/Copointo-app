@@ -342,7 +342,10 @@ export default function VideosScreen() {
 
   const [anonId, setAnonId] = useState<string>("");
   useEffect(() => { getAnonId().then(setAnonId); }, []);
-  const userId = currentUser?.phone ?? currentUser?.id ?? anonId;
+  // Prefer id (stable, matches showcase user id "copointo-showcase-user")
+  // over phone so the server can correctly identify the viewer for
+  // showcase-only reel filtering.
+  const userId = currentUser?.id ?? currentUser?.phone ?? anonId;
   const userName = currentUser?.gameUsername ?? currentUser?.name ?? "ضيف";
 
   const load = useCallback(async () => {

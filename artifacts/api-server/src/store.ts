@@ -6,6 +6,10 @@ export interface Cafe {
   website: string;
   createdAt: string; rating: number; tags: string[]; address: string; image: string;
   lat?: number; lng?: number;
+  /** When true, this row is part of the "Copointo" showcase/demo bundle and
+   *  must be hidden from every endpoint unless the requesting user is the
+   *  showcase user (see showcase-seed.ts). */
+  showcaseOnly?: boolean;
 }
 export interface AppUser {
   id: string; username: string; phone: string; level: number;
@@ -43,6 +47,8 @@ export interface AppUser {
    *  admin adjusts progress with an `awardCafeId`; the mobile client merges
    *  via Math.max so device-side progress is never rolled back. */
   cafeProgress?: Record<string, { totalOrders: number; level: number }>;
+  /** Showcase/demo flag — see Cafe.showcaseOnly. */
+  showcaseOnly?: boolean;
 }
 export interface MenuItem {
   id: string; cafeId: string; name: string; price: number;
@@ -63,6 +69,8 @@ export interface MenuItem {
   sizes?: { label: string; extraPrice: number }[];
   /** When true, the customer MUST pick a size before adding to cart. Default false (optional). */
   sizesRequired?: boolean;
+  /** Showcase/demo flag — see Cafe.showcaseOnly. */
+  showcaseOnly?: boolean;
 }
 export interface CafeTable {
   id: string; cafeId: string; number: number; capacity: number;
@@ -257,6 +265,8 @@ export interface Reel {
   locationUrl: string;
   views: number;
   createdAt: string;
+  /** Showcase/demo flag — see Cafe.showcaseOnly. */
+  showcaseOnly?: boolean;
 }
 export interface ReelLike {
   reelId: string;
@@ -620,6 +630,8 @@ export interface Community {
   createdBy: string;
   createdAt: number;
   roles?: Record<string, CommunityRole>;
+  /** Showcase/demo flag — see Cafe.showcaseOnly. */
+  showcaseOnly?: boolean;
 }
 export const communities: Community[] = [];
 
@@ -705,6 +717,26 @@ async function bootLoad(): Promise<void> {
       // eslint-disable-next-line no-console
       console.warn(`[store] demo purge failed: ${(e as Error).message}`);
     }
+    // ── Showcase seed (idempotent) ──
+    // Seeds the hidden "Copointo" account world: 10 cafes + menus, 100
+    // competitor users, 10 reels, 10 communities, friend chats. Every row
+    // is flagged showcaseOnly so the public endpoints filter it out from
+    // regular users — only the Copointo account sees the demo content.
+    // Fire-and-forget: do NOT await — bootLoad must resolve so the
+    // request middleware (ensureLoaded) stops blocking. The seed mutates
+    // in-memory arrays synchronously up to the final flush, so showcase
+    // data is visible to subsequent requests almost immediately.
+    void (async () => {
+      try {
+        const showcase = await import("./showcase-seed");
+        await showcase.seedShowcaseData();
+        // eslint-disable-next-line no-console
+        console.log(`[store] showcase seed complete`);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn(`[store] showcase seed failed: ${(e as Error).message}`);
+      }
+    })();
   } catch (e) {
     // Do NOT mark bootLoadDone on failure — that would let the safety-net
     // interval flush EMPTY arrays over real data. Leaving it false makes

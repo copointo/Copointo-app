@@ -232,7 +232,9 @@ export default function HomeScreen() {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<{ cafes: ApiCafe[] }>("/cafes");
+      const data = await apiFetch<{ cafes: ApiCafe[] }>(
+        user ? `/cafes?userId=${encodeURIComponent(user.id)}` : "/cafes"
+      );
       setRawCafes(data.cafes);
     } catch {
       setError(t("home.errorLoadingCafes"));

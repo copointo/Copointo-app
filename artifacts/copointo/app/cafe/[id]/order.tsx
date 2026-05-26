@@ -72,7 +72,7 @@ export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cartCount, cartTotal, addToCart, cart, updateQuantity, activeOrder } = useApp();
+  const { user, cartCount, cartTotal, addToCart, cart, updateQuantity, activeOrder } = useApp();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -127,7 +127,7 @@ export default function OrderScreen() {
     const t = setInterval(() => fetchMenu(false), 6000);
 
     // Fetch real cafe name from API (so admin-created cafes show their actual name)
-    apiFetch<{ cafe: { name: string } }>(`/cafes/${id}`)
+    apiFetch<{ cafe: { name: string } }>(`/cafes/${id}${user ? `?userId=${encodeURIComponent(user.id)}` : ""}`)
       .then((data) => { if (!cancelled && data?.cafe?.name) setCafeName(data.cafe.name); })
       .catch(() => { /* keep mock fallback */ });
 

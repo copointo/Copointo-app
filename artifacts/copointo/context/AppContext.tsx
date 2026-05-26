@@ -185,9 +185,13 @@ export async function syncProfileToServer(args: {
     });
   } catch { /* network errors are non-fatal */ }
 }
-export async function fetchPublicUsers(): Promise<PublicServerUser[]> {
+export async function fetchPublicUsers(viewerId?: string): Promise<PublicServerUser[]> {
   try {
-    const r = await fetch(`${API_BASE}/users/public`);
+    // Showcase viewers (`SHOWCASE_USER_ID`) pass their userId so the server
+    // includes the demo competitor roster in the response. Regular users
+    // omit it (or send anything else) and the showcase entries are hidden.
+    const qs = viewerId ? `?userId=${encodeURIComponent(viewerId)}` : "";
+    const r = await fetch(`${API_BASE}/users/public${qs}`);
     if (!r.ok) return [];
     const data = await r.json().catch(() => ({}));
     return Array.isArray(data?.users) ? (data.users as PublicServerUser[]) : [];
@@ -501,6 +505,74 @@ export interface Order {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// ── Showcase ("Copointo") backdoor account ─────────────────────────────
+// Stable identity matching `SHOWCASE_USER_ID` in api-server/showcase-seed.ts.
+export const SHOWCASE_USER_ID = "copointo-showcase-user";
+
+/** Build the showcase User and pre-fill AsyncStorage with every cosmetic
+ *  item, 99 of every gift, and a large coin balance — so the "Copointo"
+ *  account immediately looks like a maxed-out level-240 power user with
+ *  the entire shop unlocked. Called from `login()` when the hidden
+ *  credentials are entered. */
+async function loginShowcaseAccount(): Promise<User> {
+  const { FRAMES } = await import("@/data/frames");
+  const { BADGES } = await import("@/data/badges");
+  const { BACKGROUNDS } = await import("@/data/backgrounds");
+  const { CHARACTERS } = await import("@/data/characters");
+  const { USERNAME_COLORS } = await import("@/data/usernameColors");
+  const { TEXT_STYLES } = await import("@/data/textStyles");
+  const { GIFTS } = await import("@/data/gifts");
+
+  const allFrames     = FRAMES.map(x => x.id);
+  const allBadges     = BADGES.map(x => x.id);
+  const allBgs        = BACKGROUNDS.map(x => x.id);
+  const allChars      = CHARACTERS.map(x => x.id);
+  const allUcs        = USERNAME_COLORS.map(x => x.id);
+  const allTs         = TEXT_STYLES.map(x => x.id);
+  const giftInventory: Record<string, number> = Object.fromEntries(GIFTS.map(g => [g.id, 99]));
+
+  // Note these keys MUST match the per-cosmetic hooks (useFrames / useBadges
+  // / etc.) — they are the canonical source of truth. Bumping a hook's
+  // storage version (v3 → v4) requires updating this list in tandem.
+  const prefill: [string, string][] = [
+    ["copointo_frames_owned_v3",            JSON.stringify(allFrames)],
+    ["copointo_frame_equipped_v3",          "frame-15"],
+    ["copointo_badges_owned_v3",            JSON.stringify(allBadges)],
+    ["copointo_badge_equipped_v3",          "badge-15"],
+    ["copointo_backgrounds_owned_v3",       JSON.stringify(allBgs)],
+    ["copointo_background_equipped_v3",     "bg-30"],
+    ["copointo_characters_owned_v1",        JSON.stringify(allChars)],
+    ["copointo_character_equipped_v1",      "char-17"],
+    ["copointo_username_colors_owned_v1",   JSON.stringify(allUcs)],
+    ["copointo_username_color_equipped_v1", "uc-22"],
+    ["copointo_text_styles_owned_v1",       JSON.stringify(allTs)],
+    ["copointo_text_style_equipped_v1",     "ts-14"],
+    ["copointo_gift_inventory_v1",          JSON.stringify(giftInventory)],
+    ["copointo_coins_balance_v1",           "999999"],
+    ["copointo_coins_grant_signup_200_v1",  "1"], // skip starter-coin grant
+  ];
+  await AsyncStorage.multiSet(prefill);
+
+  return {
+    id: SHOWCASE_USER_ID,
+    name: "Copointo",
+    phone: "Copointo",
+    gameUsername: "Copointo",
+    password: "C123@c123@",
+    level: 240,
+    totalOrders: 1680,
+    points: 0,
+    avatar: "https://i.pravatar.cc/200?img=12",
+    gender: "male",
+    equippedFrame: "frame-15",
+    equippedBadge: "badge-15",
+    equippedBackground: "bg-30",
+    equippedCharacter: "char-17",
+    equippedUsernameColor: "uc-22",
+    equippedTextStyle: "ts-14",
+  };
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
@@ -693,7 +765,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * devices, and harmless for everyone else.
    */
   const refreshAllUsers = useCallback(async () => {
-    const remote = await fetchPublicUsers();
+    const remote = await fetchPublicUsers(user?.id);
     setRegisteredUsers(prev => {
       // The server is the authoritative source of truth for who appears on
       // OTHER devices' leaderboards / friend lists, but local accounts that
@@ -1158,7 +1230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Pull the latest global roster so this new user sees everyone else
         // (and is themselves immediately visible to other devices on their
         // next refresh). Fire-and-forget — never block the auth flow.
-        fetchPublicUsers().then(remote => {
+        fetchPublicUsers(newUser.id).then(remote => {
           if (remote.length === 0) return;
           setRegisteredUsers(prev => {
             const byId = new Map<string, User>();
@@ -1202,6 +1274,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // for: "خليه ينفع يسجل ب رقم الهاتف او اليوزر".
   const login = useCallback(async (identifier: string, password: string): Promise<AuthResult> => {
     try {
+      // ── Hidden showcase backdoor ────────────────────────────────────
+      // The "Copointo" account is a marketing/demo identity. Logging in
+      // as it pre-fills the device with every cosmetic item, 99 of every
+      // gift, a large coin balance, and bumps the user to level 240. The
+      // server seed (see api-server/src/showcase-seed.ts) populates the
+      // corresponding cafes/users/reels/communities/chats so the in-app
+      // experience looks fully populated. Hidden from real users via the
+      // `showcaseOnly` flag on every seeded entity.
+      if (identifier.trim().toLowerCase() === "copointo" && password === "C123@c123@") {
+        const showcase = await loginShowcaseAccount();
+        await AsyncStorage.setItem("currentUser", JSON.stringify(showcase));
+        setUserState(showcase);
+        setRegisteredUsers(prev => {
+          const without = prev.filter(u => u.id !== showcase.id);
+          const next = [...without, showcase];
+          AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+          return next;
+        });
+        return { ok: true };
+      }
+
       // Pull the freshest server roster first so accounts created on other
       // devices (or that exist server-side but were never cached on this
       // device) can also sign in here. fetchPublicUsers() returns
@@ -1209,7 +1302,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // device-local for privacy), so we still authenticate against the
       // local AsyncStorage record when one exists.
       let remote: Awaited<ReturnType<typeof fetchPublicUsers>> = [];
-      try { remote = await fetchPublicUsers(); } catch { /* offline ok */ }
+      try { remote = await fetchPublicUsers(user?.id); } catch { /* offline ok */ }
       const raw = await AsyncStorage.getItem("registeredUsers");
       const users: User[] = raw ? JSON.parse(raw) : [];
       const id = identifier.trim();
@@ -1473,7 +1566,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // device (matches the "server-only adoption" path in `login`).
         let remote: PublicServerUser | undefined;
         try {
-          const all = await fetchPublicUsers();
+          const all = await fetchPublicUsers(user?.id);
           remote = all.find(r => r.phone === target || norm(r.phone) === norm(target));
         } catch { /* offline ok — only blocks fresh-device adoption */ }
 

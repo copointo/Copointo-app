@@ -15,6 +15,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useApp } from "@/context/AppContext";
 import { CAFES } from "@/data/mockData";
 import { apiFetch, apiPost } from "@/constants/api";
 import { loadSavedOrderInfo, saveOrderInfo } from "@/lib/savedOrderInfo";
@@ -203,6 +204,7 @@ export default function CafeChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useApp();
   const cafeMock = CAFES.find((c) => c.id === id) ?? CAFES[0];
 
   const [cafe, setCafe] = useState<CafePublic>({
@@ -265,7 +267,7 @@ export default function CafeChatScreen() {
     setStateHydrated(false);
     hydratedForCafeIdRef.current = null;
     Promise.allSettled([
-      apiFetch<{ cafe: CafePublic }>(`/cafes/${id}`),
+      apiFetch<{ cafe: CafePublic }>(`/cafes/${id}${user ? `?userId=${encodeURIComponent(user.id)}` : ""}`),
       apiFetch<{ items: MenuItem[] }>(`/cafe/${id}/menu`),
       apiFetch<{ tables: Table[] }>(`/cafe/${id}/tables`),
       apiFetch<{ items: ChatInfoItem[] }>(`/cafe/${id}/chat`),
