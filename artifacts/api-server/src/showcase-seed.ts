@@ -76,12 +76,18 @@ function avatar(n: number): string {
 }
 
 // Pexels free coffee/cafe MP4s (stable CDN, no auth needed).
+// Public sample MP4s that allow direct hotlinking (no referer / cookie /
+// auth required, with Range support). The original Pexels URLs have started
+// returning 403 to non-pexels.com origins (Cloudflare/CloudFront hotlink
+// protection), which broke the showcase reels — players just saw a black
+// screen. samplelib.com and test-videos.co.uk both serve permissive
+// public MP4s with proper Content-Type and Range headers.
 const REEL_VIDEOS = [
-  "https://videos.pexels.com/video-files/3015527/3015527-hd_1920_1080_25fps.mp4",
-  "https://videos.pexels.com/video-files/4625744/4625744-hd_1920_1080_25fps.mp4",
-  "https://videos.pexels.com/video-files/5310974/5310974-hd_1920_1080_25fps.mp4",
-  "https://videos.pexels.com/video-files/3196243/3196243-hd_1920_1080_25fps.mp4",
-  "https://videos.pexels.com/video-files/6203597/6203597-hd_1920_1080_25fps.mp4",
+  "https://download.samplelib.com/mp4/sample-5s.mp4",
+  "https://download.samplelib.com/mp4/sample-10s.mp4",
+  "https://download.samplelib.com/mp4/sample-15s.mp4",
+  "https://download.samplelib.com/mp4/sample-20s.mp4",
+  "https://download.samplelib.com/mp4/sample-30s.mp4",
 ];
 
 // ── Showcase cafes ─────────────────────────────────────────────────────
@@ -565,14 +571,21 @@ export async function seedShowcaseData(): Promise<void> {
     }
   });
 
-  // 5) 10 reels
-  if (!reels.some(r => r.id === "sc-reel-10")) {
+  // 5) 10 reels — upsert so the source `videoUrl` is refreshed on every
+  // boot. Necessary because the original Pexels CDN URLs started 403'ing
+  // (hotlink protection) and we swapped to samplelib.com; existing seeded
+  // rows would otherwise keep the broken URL forever.
+  {
     const cafeRows = CAFE_SPECS.map(s => cafes.find(c => c.id === s.id)!).filter(Boolean);
     for (const r of buildReels(cafeRows)) {
-      if (!reels.some(x => x.id === r.id)) {
+      const idx = reels.findIndex(x => x.id === r.id);
+      if (idx === -1) {
         reels.push(r);
-        dirty = true;
+      } else {
+        const existing = reels[idx]!;
+        reels[idx] = { ...existing, videoUrl: r.videoUrl, showcaseOnly: true };
       }
+      dirty = true;
     }
   }
 
