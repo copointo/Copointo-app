@@ -241,8 +241,8 @@ function ReelCard({
         </TouchableOpacity>
       </View>
 
-      {/* Top-left info corner — cafe + "Read details" button + views chip + mute */}
-      <View style={[styles.bottomInfo, { paddingTop: insets.top + 12 }]}>
+      {/* Bottom-left info corner — cafe + "Read details" button + views chip + mute */}
+      <View style={[styles.bottomInfo, { paddingBottom: bottomPadding + 12 }]}>
         <View style={styles.cafeRow}>
           <View style={styles.cafeLogoBubble}>
             <Text style={{ color: PRIMARY, fontWeight: "700" }}>
@@ -696,11 +696,11 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: "rgba(255,255,255,0.25)",
   },
   bottomInfo: {
-    // Pinned to the TOP-LEFT corner of the reel (TikTok-style header) so
-    // the cafe name, "اقرأ التفاصيل" button, views chip and mute toggle
-    // all sit out of the way of the bottom tab bar and the right-rail
-    // action buttons. `paddingTop` is applied inline (uses safe-area inset).
-    position: "absolute", left: 0, right: 80, top: 0, padding: 16,
+    // Pinned to the BOTTOM-LEFT corner of the reel (TikTok-style footer)
+    // so the cafe name, "اقرأ التفاصيل" button, views chip and mute toggle
+    // sit just above the floating tab bar, opposite the right-rail action
+    // buttons. `paddingBottom` is applied inline (uses safe-area inset).
+    position: "absolute", left: 0, right: 80, bottom: 0, padding: 16,
     // Force LTR so children pin to the actual left edge of the screen
     // regardless of the app's RTL writing direction. Arabic text inside
     // each <Text> still renders correctly because RN handles bidi per text.
