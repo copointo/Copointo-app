@@ -1109,7 +1109,7 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     : items;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-start">
       {/* ── Always-visible sticky running total bar (full width on top) ── */}
       {cartLines.length > 0 && (
         <div className="lg:col-span-3 sticky top-2 z-30">
@@ -1153,8 +1153,8 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
         </div>
       )}
 
-      {/* ── Right column: menu picker (2/3) ── */}
-      <div className="lg:col-span-2 space-y-5">
+      {/* ── Right column: menu picker (2/3) — independent scroll on desktop ── */}
+      <div className="lg:col-span-2 space-y-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-2">
         {/* Quick search bar */}
         <Card className="p-3">
           <div className="relative">
@@ -1259,9 +1259,9 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
         })}
       </div>
 
-      {/* ── Left column: sticky summary (1/3) ── */}
-      <div className="lg:col-span-1">
-        <Card className="p-5 lg:sticky lg:top-4">
+      {/* ── Left column: summary (1/3) — independent scroll on desktop ── */}
+      <div className="lg:col-span-1 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-1">
+        <Card className="p-5">
           <h3 className="font-bold text-foreground mb-4 flex items-center gap-2">
             <ShoppingBag size={18} className="text-primary" />
             ملخص الطلب المباشر
@@ -1332,26 +1332,6 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
                 className="w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground resize-none"
               />
             </div>
-          </div>
-
-          <div className="border-t border-border pt-3 mb-3">
-            {cartLines.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                لم يتم اختيار منتجات بعد
-              </p>
-            ) : (
-              <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                {cartLines.map(l => (
-                  <div key={l.id} className="flex items-center justify-between text-sm gap-2">
-                    <span className="text-foreground truncate flex-1">{l.name}</span>
-                    <span className="text-muted-foreground text-xs">×{l.qty}</span>
-                    <span className="text-foreground font-medium tabular-nums shrink-0">
-                      {(Number(l.price) * l.qty).toFixed(3)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* ── Discount code + free toggle ── */}
