@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-  bottomRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  bottomRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginTop: 8, alignSelf: "flex-end" },
   muteBtn: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
   cafeRowRight: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 8 },
   descWrap: { marginBottom: 4 },
   readMore: { color: PRIMARY, fontSize: 13, fontWeight: "700", marginTop: 4 },
-  cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  cafeRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 8, alignSelf: "flex-end" },
   cafeLogoBubble: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: "#0A0606",
     borderWidth: 2, borderColor: PRIMARY, alignItems: "center", justifyContent: "center",
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
   cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
   description: { color: "#fff", fontSize: 14, lineHeight: 20, opacity: 0.95 },
   detailsBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
+    flexDirection: "row-reverse", alignItems: "center", gap: 6, alignSelf: "flex-end",
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
     backgroundColor: PRIMARY, marginBottom: 6,
   },
