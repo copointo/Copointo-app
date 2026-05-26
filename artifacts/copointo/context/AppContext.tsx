@@ -556,10 +556,25 @@ async function loginShowcaseAccount(): Promise<User> {
   // Varied per-cafe progress (sum of levels = 240, sum of drinks = 1680)
   // — mirrors the server-side seed in api-server/src/showcase-seed.ts so
   // the profile/game cafe breakdown looks realistic instead of "every
-  // cafe at level 24" uniformly.
-  const cafeDist = [50, 42, 35, 28, 24, 20, 15, 12, 8, 6];
+  // cafe at level 24" uniformly. Includes cafeId+cafeName so the profile
+  // per-cafe list shows real Arabic cafe names, not fallback ids.
+  const cafeDist: { id: string; name: string; level: number }[] = [
+    { id: "sc-cafe-1",  name: "مقهى المنارة",          level: 50 },
+    { id: "sc-cafe-2",  name: "بيت القهوة العماني",     level: 42 },
+    { id: "sc-cafe-3",  name: "كوفي لاونج",            level: 35 },
+    { id: "sc-cafe-4",  name: "روست هاوس",             level: 28 },
+    { id: "sc-cafe-5",  name: "إسبريسو بار",           level: 24 },
+    { id: "sc-cafe-6",  name: "قهوة الرواق",            level: 20 },
+    { id: "sc-cafe-7",  name: "مقهى الحارة",           level: 15 },
+    { id: "sc-cafe-8",  name: "The Daily Grind",       level: 12 },
+    { id: "sc-cafe-9",  name: "Coffee Bean House",     level: 8 },
+    { id: "sc-cafe-10", name: "Latte & Co",            level: 6 },
+  ];
   const cafeProgress = Object.fromEntries(
-    cafeDist.map((lvl, i) => [`sc-cafe-${i + 1}`, { totalOrders: lvl * 7, level: lvl }]),
+    cafeDist.map(c => [
+      c.id,
+      { cafeId: c.id, cafeName: c.name, totalOrders: c.level * 7, level: c.level },
+    ]),
   );
 
   return {
