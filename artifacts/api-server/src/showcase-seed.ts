@@ -192,7 +192,7 @@ function buildShowcaseUser(): AppUser {
     username: "Copointo",
     phone: SHOWCASE_USER_PHONE,
     level: 240,
-    totalOrders: 1680, // 240 levels * 7 drinks/level
+    totalOrders: 240, // 1 drink == 1 level for showcase data
     banned: false,
     joinedAt: new Date(Date.now() - 365 * 86_400_000).toISOString(),
     name: SHOWCASE_USER_NAME,
@@ -204,15 +204,15 @@ function buildShowcaseUser(): AppUser {
     equippedCharacter: "char-17",
     equippedUsernameColor: "uc-22",
     equippedTextStyle: "ts-14",
-    // Varied per-cafe progress that still adds up to the global totals
-    // (sum of levels = 240, sum of drinks = 1680). Top cafes look like
-    // long-time favourites; smaller ones like occasional visits.
+    // Varied per-cafe progress (sum of levels = sum of drinks = 240,
+    // matching the global level). Showcase data treats 1 coffee = 1 level
+    // for a cleaner per-cafe display.
     cafeProgress: (() => {
       const dist = [50, 42, 35, 28, 24, 20, 15, 12, 8, 6]; // sum = 240
       return Object.fromEntries(
         CAFE_SPECS.map((c, i) => {
           const lvl = dist[i] ?? 0;
-          return [c.id, { totalOrders: lvl * 7, level: lvl }];
+          return [c.id, { totalOrders: lvl, level: lvl }];
         }),
       );
     })(),
@@ -259,7 +259,8 @@ function buildCompetitors(count: number): AppUser[] {
     // each competitor's progress across the showcase cafes (instead of an
     // empty cafe list). We split each competitor's global `level` across
     // a deterministic subset of 3..10 cafes with decreasing weights, so
-    // sum(cafeProgress[].level) === level and sum(totalOrders) === level*7.
+    // sum(cafeProgress[].level) === level and sum(totalOrders) === level
+    // (1 coffee = 1 level in showcase data).
     const cafeIds = CAFE_SPECS.map(c => c.id);
     const n = cafeIds.length;
     const k = 3 + (i % 8); // 3..10 cafes per competitor
@@ -276,7 +277,7 @@ function buildCompetitors(count: number): AppUser[] {
     const cafeProgress: Record<string, { totalOrders: number; level: number }> = {};
     picked.forEach((id, idx) => {
       const lvl = lvls[idx] ?? 0;
-      if (lvl > 0) cafeProgress[id] = { totalOrders: lvl * 7, level: lvl };
+      if (lvl > 0) cafeProgress[id] = { totalOrders: lvl, level: lvl };
     });
 
     out.push({
@@ -284,7 +285,7 @@ function buildCompetitors(count: number): AppUser[] {
       username: `player_${i + 1}`,
       phone: `+9685${String(1000000 + i).padStart(7, "0")}`,
       level,
-      totalOrders: level * 7,
+      totalOrders: level, // 1 drink == 1 level for showcase data
       banned: false,
       joinedAt: new Date(Date.now() - (200 - i) * 86_400_000).toISOString(),
       name: `${fn} ${ln}`,
@@ -499,7 +500,12 @@ export async function seedShowcaseData(): Promise<void> {
       users.push(fresh);
     } else {
       const existing = users[idx]!;
-      users[idx] = { ...existing, cafeProgress: fresh.cafeProgress };
+      users[idx] = {
+        ...existing,
+        level: fresh.level,
+        totalOrders: fresh.totalOrders,
+        cafeProgress: fresh.cafeProgress,
+      };
     }
     dirty = true;
   }
@@ -521,6 +527,8 @@ export async function seedShowcaseData(): Promise<void> {
       const existing = users[idx]!;
       users[idx] = {
         ...existing,
+        level: u.level,
+        totalOrders: u.totalOrders,
         equippedFrame: u.equippedFrame,
         equippedBadge: u.equippedBadge,
         equippedBackground: u.equippedBackground,
