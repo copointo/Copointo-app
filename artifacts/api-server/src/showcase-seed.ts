@@ -17,8 +17,10 @@
 
 import {
   cafes, users, menuItems, reels, communities, chatMessages, friendships,
+  reelLikes, reelComments,
   flushNow, friendScope, type Cafe, type AppUser, type MenuItem, type Reel,
   type Community, type ChatMsg, type Friendship,
+  type ReelLike, type ReelComment,
 } from "./store.js";
 
 export const SHOWCASE_USER_ID = "copointo-showcase-user";
@@ -339,6 +341,85 @@ function buildReels(cafeRows: Cafe[]): Reel[] {
   }));
 }
 
+// ── Fake likes for the 10 showcase reels ───────────────────────────────
+// Each reel gets a varied number of likes from random competitor users
+// (sc-user-1..100). Counts grow from ~60 (reel 1) to ~520 (reel 10) so the
+// rail counter shows meaningful, varied numbers instead of "0 likes".
+function buildReelLikes(competitors: AppUser[]): ReelLike[] {
+  const out: ReelLike[] = [];
+  // Deterministic PRNG so the same boot reproduces the same fake data
+  // (no churn on every restart).
+  let s = 0x1a2b3c;
+  const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0xFFFFFFFF; };
+  for (let i = 0; i < 10; i++) {
+    const reelId = `sc-reel-${i + 1}`;
+    const target = 60 + i * 52;        // 60, 112, 164, … 528
+    const pool = [...competitors];
+    // Fisher–Yates shuffle (deterministic via `rand`)
+    for (let j = pool.length - 1; j > 0; j--) {
+      const k = Math.floor(rand() * (j + 1));
+      [pool[j], pool[k]] = [pool[k]!, pool[j]!];
+    }
+    const picked = pool.slice(0, Math.min(target, pool.length));
+    for (const u of picked) {
+      out.push({
+        reelId,
+        userId: u.id,
+        userName: u.gameUsername ?? u.name,
+        likedAt: new Date(Date.now() - Math.floor(rand() * 14) * 86_400_000).toISOString(),
+      });
+    }
+  }
+  return out;
+}
+
+// ── Fake Arabic comments for the showcase reels ────────────────────────
+function buildReelComments(competitors: AppUser[]): ReelComment[] {
+  const samples = [
+    "كوفي خرافي ❤️",
+    "متى افتتاح الفرع الجديد؟",
+    "اللاتيه عندكم الأفضل في عمان 🥛",
+    "جربت الموكا أمس — تحفة 🔥",
+    "أحب الأجواء عندكم 🌙",
+    "تخفيض ممتاز، شكراً!",
+    "ممكن قائمة الأسعار؟",
+    "وين موقعكم بالضبط؟",
+    "أسعاركم مناسبة جداً 👌",
+    "حبوب إثيوبيا الجديدة طعمها رهيب ☕",
+    "زاوية القراءة فكرة جميلة 📚",
+    "الكرواسون بالشوكولاتة لذيذ 🥐",
+    "بارستا محترف 👏",
+    "كأس مجاني؟ قادمين 🎁",
+    "أتمنى يكون عندكم خيارات نباتية 🌱",
+    "الخدمة سريعة والذوق رفيع",
+    "أفضل كابتشينو جربته 💯",
+    "الفن على اللاتيه فعلاً يدخل القلب 🎨",
+    "هل يوجد توصيل؟",
+    "الديكور جميل ومريح",
+  ];
+  const out: ReelComment[] = [];
+  let s = 0xC0FFEE;
+  const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0xFFFFFFFF; };
+  for (let i = 0; i < 10; i++) {
+    const reelId = `sc-reel-${i + 1}`;
+    // 3..10 comments per reel, deterministic
+    const n = 3 + Math.floor(rand() * 8);
+    for (let j = 0; j < n; j++) {
+      const u = competitors[Math.floor(rand() * competitors.length)]!;
+      const text = samples[Math.floor(rand() * samples.length)]!;
+      out.push({
+        id: `sc-cmt-${i + 1}-${j + 1}`,
+        reelId,
+        userId: u.id,
+        userName: u.gameUsername ?? u.name,
+        text,
+        createdAt: new Date(Date.now() - Math.floor(rand() * 10) * 86_400_000 - j * 3_600_000).toISOString(),
+      });
+    }
+  }
+  return out;
+}
+
 // ── 10 communities populated from the 100 competitors ──────────────────
 // Each community has its own distinct theme: name + matching emoji avatar
 // (rendered when the URL avatar fails) + a thematic Unsplash cover.
@@ -587,6 +668,28 @@ export async function seedShowcaseData(): Promise<void> {
       }
       dirty = true;
     }
+  }
+
+  // 5b) Fake likes + comments for the 10 showcase reels. We always rebuild
+  // these from scratch so the seed stays deterministic across boots — wipe
+  // any previously-seeded `sc-*` rows first, then re-insert. Real-user
+  // likes/comments on showcase reels (if any leaked through) are left alone.
+  {
+    for (let i = reelLikes.length - 1; i >= 0; i--) {
+      const l = reelLikes[i]!;
+      if (l.reelId.startsWith("sc-reel-") && l.userId.startsWith("sc-user-")) {
+        reelLikes.splice(i, 1);
+      }
+    }
+    for (let i = reelComments.length - 1; i >= 0; i--) {
+      const c = reelComments[i]!;
+      if (c.id.startsWith("sc-cmt-")) {
+        reelComments.splice(i, 1);
+      }
+    }
+    for (const l of buildReelLikes(competitors))    reelLikes.push(l);
+    for (const c of buildReelComments(competitors)) reelComments.push(c);
+    dirty = true;
   }
 
   // 6) 10 communities — upsert so updated themes (emoji-prefixed names,
