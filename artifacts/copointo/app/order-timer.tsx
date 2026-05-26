@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -23,15 +23,25 @@ const BORDER  = "rgba(232,184,109,0.25)";
 const PRIMARY = "#E8B86D";
 const CREAM   = "#F5E6CC";
 const SUCCESS = "#4ADE80";
+const TRACK   = "rgba(232,184,109,0.12)";
 
-function makeLevelsLabel(t: (k: string, p?: Record<string, string | number>) => string) {
-  return (n: number): string => {
-    if (n === 1) return t("timer.levelsOne");
-    if (n === 2) return t("timer.levelsTwo");
-    if (n >= 3 && n <= 10) return t("timer.levelsFew", { n });
-    return t("timer.levelsMany", { n });
-  };
-}
+// 4 ordered milestones in the customer-facing progress journey.
+// `pos` is the centre of each node along the bar (0..1) so the fill
+// can land exactly under the active icon.
+type StepKey = "received" | "preparing" | "ready" | "levelup";
+type StepDef = {
+  key: StepKey;
+  icon: React.ComponentProps<typeof Feather>["name"];
+  ar: string;
+  en: string;
+  pos: number;
+};
+const STEPS: StepDef[] = [
+  { key: "received",  icon: "inbox",         ar: "استلام الطلب",      en: "Received",  pos: 0.125 },
+  { key: "preparing", icon: "coffee",        ar: "تحضير الطلب",       en: "Preparing", pos: 0.375 },
+  { key: "ready",     icon: "check-circle",  ar: "جاهز للاستلام",     en: "Ready",     pos: 0.625 },
+  { key: "levelup",   icon: "trending-up",   ar: "زيادة المستوى",     en: "Level up",  pos: 0.875 },
+];
 
 interface ServerOrder {
   id: string;
@@ -48,8 +58,7 @@ export default function OrderTimerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, setActiveOrder, addCafeOrder } = useApp();
-  const { t } = useT();
-  const levelsLabel = makeLevelsLabel(t);
+  const { isAr } = useT();
   const params = useLocalSearchParams<{
     orderId: string; cafeId: string; cafeName?: string; minutes: string; drinks: string;
   }>();
@@ -57,57 +66,106 @@ export default function OrderTimerScreen() {
   const cafeId    = params.cafeId;
   const cafeName  = params.cafeName ?? "";
   const totalMin  = Math.max(1, Number(params.minutes ?? "3"));
-  // Drink-only count. Desserts/food orders send `drinks=0` — do NOT coerce to 1,
-  // otherwise the local level would inflate for non-drink orders.
   const drinkQty  = (() => { const n = Number(params.drinks ?? "0"); return Math.max(0, Number.isFinite(n) ? n : 0); })();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
-  // 100.0 → 0.0 in 0.1 decrements over (totalMin × 60s)
-  const [progress, setProgress] = useState(100.0);
-  const [order,    setOrder]    = useState<ServerOrder | null>(null);
-  const [confirmed,setConfirmed]= useState(false); // manager moved out of pending
-  const [completed,setCompleted]= useState(false); // manager pressed print → final
+  const [order,         setOrder]         = useState<ServerOrder | null>(null);
+  const [confirmed,     setConfirmed]     = useState(false); // cafe pressed "تأكيد التحضير"
+  const [completed,     setCompleted]     = useState(false); // cafe printed invoice → status:done
   const [pointsAwarded, setPointsAwarded] = useState(0);
   const awardedRef = useRef(false);
 
-  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const isReadyOrDone = order?.status === "ready" || order?.status === "done";
 
-  // Pulsing ring animation
+  // Active step index drives icon styling.
+  // Currently animating step = activeIdx (the latest one reached).
+  const activeIdx =
+    completed       ? 3 :
+    isReadyOrDone   ? 2 :
+    confirmed       ? 1 :
+                      0;
+
+  // ── Bar fill (0 .. 1) ──
+  // Smoothly progresses across the 4 step centres. While the order is
+  // being prepared the bar advances linearly with the prep-minutes timer
+  // (from step 2 centre toward — but not past — step 3 centre) so the
+  // customer sees real-time progress without the bar ever jumping back.
+  const fillAnim = useRef(new Animated.Value(STEPS[0].pos)).current;
+  useEffect(() => {
+    if (completed) {
+      Animated.timing(fillAnim, {
+        toValue: STEPS[3].pos,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+      return;
+    }
+    if (isReadyOrDone) {
+      Animated.timing(fillAnim, {
+        toValue: STEPS[2].pos,
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+      return;
+    }
+    if (confirmed) {
+      // Jump to step 2 centre, then crawl to just before step 3 centre
+      // over the full prep-time so the bar appears to "fill" with time.
+      Animated.sequence([
+        Animated.timing(fillAnim, {
+          toValue: STEPS[1].pos,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        Animated.timing(fillAnim, {
+          toValue: STEPS[2].pos - 0.03, // stop just shy of step 3
+          duration: Math.max(2000, totalMin * 60 * 1000),
+          easing: Easing.linear,
+          useNativeDriver: false,
+        }),
+      ]).start();
+      return;
+    }
+    // Pending — sit at step 1.
+    Animated.timing(fillAnim, {
+      toValue: STEPS[0].pos,
+      duration: 400,
+      useNativeDriver: false,
+    }).start();
+  }, [confirmed, isReadyOrDone, completed, totalMin, fillAnim]);
+
+  // ── Shimmer sweep ──
+  // A lighter gold band travels left-to-right across the whole bar over
+  // and over so it always feels alive — even while waiting.
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 2400,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ).start();
+  }, [shimmerAnim]);
+
+  // ── Pulse for the currently-active step icon ──
+  const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
+        Animated.timing(pulse, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]),
     ).start();
-  }, [pulseAnim]);
+  }, [pulse]);
 
-  // Countdown ticker — totalMin*60s split into 1000 ticks of 0.1.
-  // Stops as soon as the order is `ready` (manager pressed "طلبك جاهز")
-  // or `done` (manager printed the invoice). We also force progress → 0
-  // when the order reaches "ready" so the ring shows the order is fulfilled
-  // even if the simulated countdown hadn't reached zero yet.
-  const isReadyOrDone = order?.status === "ready" || order?.status === "done";
-  useEffect(() => {
-    if (completed || isReadyOrDone) return;
-    const tickMs = (totalMin * 60 * 1000) / 1000; // ms per 0.1 step
-    const id = setInterval(() => {
-      setProgress((p) => {
-        if (p <= 0) { clearInterval(id); return 0; }
-        return +(p - 0.1).toFixed(1);
-      });
-    }, tickMs);
-    return () => clearInterval(id);
-  }, [totalMin, completed, isReadyOrDone]);
-
-  // Snap progress to 0 the moment the order becomes ready.
-  useEffect(() => {
-    if (isReadyOrDone) setProgress(0);
-  }, [isReadyOrDone]);
-
-  // Poll server every 4s for status + pointsAwarded
+  // ── Server polling — drives status transitions ──
   useEffect(() => {
     if (completed || !orderId || !cafeId) return;
     let cancelled = false;
@@ -121,7 +179,6 @@ export default function OrderTimerScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         if (data.order.pointsAwarded && !awardedRef.current) {
-          // Manager confirmed → award per-café progress (drink count) immediately.
           awardedRef.current = true;
           setPointsAwarded(drinkQty);
           if (user && drinkQty > 0) {
@@ -129,8 +186,6 @@ export default function OrderTimerScreen() {
           }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
-        // Only switch to the "completed" screen when the order is fully done
-        // (manager printed / status === "done").
         if (data.order.status === "done" && !completed) {
           setCompleted(true);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -143,24 +198,181 @@ export default function OrderTimerScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, cafeId, completed, confirmed, drinkQty]);
 
-  const ringScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
-  const ringOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0] });
+  // ── Status pill text (top-right) ──
+  const pillText = useMemo(() => {
+    if (completed)     return isAr ? "اكتمل" : "Done";
+    if (isReadyOrDone) return isAr ? "جاهز للاستلام" : "Ready";
+    if (confirmed)     return isAr ? "قيد التحضير" : "Preparing";
+    return isAr ? "بانتظار التأكيد" : "Pending";
+  }, [completed, isReadyOrDone, confirmed, isAr]);
 
-  // ── Completed (final) view — shown after manager prints invoice ──
-  if (completed) {
+  // Big subtitle under the stepper.
+  const headlineAr =
+    completed       ? "تم استلام الطلب وارتفع تصنيفك 🎉" :
+    isReadyOrDone   ? "طلبك جاهز — توجّه لاستلامه ☕" :
+    confirmed       ? `جاري تحضير طلبك… (${totalMin} دقيقة تقريباً)` :
+                      "تم استلام طلبك — بانتظار تأكيد الكوفي";
+  const headlineEn =
+    completed       ? "Order picked up — your rank went up 🎉" :
+    isReadyOrDone   ? "Your order is ready — come pick it up ☕" :
+    confirmed       ? `Preparing your order… (~${totalMin} min)` :
+                      "Order received — waiting for cafe confirmation";
+  const headline = isAr ? headlineAr : headlineEn;
+
+  const goBackToMenu = () => {
+    if (cafeId) router.replace({ pathname: "/cafe/[id]/order", params: { id: cafeId } });
+    else router.back();
+  };
+
+  const goHome = () => { setActiveOrder(null); router.replace("/(tabs)"); };
+
+  // ── Step node with pulse on the active one ──
+  const renderNode = (i: number) => {
+    const s = STEPS[i];
+    const reached  = i <= activeIdx;
+    const current  = i === activeIdx;
+    const scale    = current ? pulse.interpolate({ inputRange: [0,1], outputRange: [1, 1.12] }) : 1;
+    const glow     = current ? pulse.interpolate({ inputRange: [0,1], outputRange: [0.35, 0.95] }) : 0.0;
+
     return (
-      <View style={[styles.container, { paddingTop: topPad }]}>
-        <View style={styles.center}>
-          <View style={styles.successIcon}>
-            <Text style={{ fontSize: 64 }}>✅</Text>
-          </View>
-          <Text style={styles.successTitle}>{t("timer.successTitle")}</Text>
-          <Text style={styles.successSub}>
-            {order?.type === "dine"
-              ? t("timer.successSubDine", { table: order.tableNumber ?? "" })
-              : t("timer.successSubCar", { plateNum: order?.plateNumber ?? "", plateSym: order?.plateSymbol ?? "" })}
-          </Text>
+      <View key={s.key} style={styles.iconCol}>
+        <Animated.View
+          style={[
+            styles.nodeShadow,
+            current && {
+              opacity: glow,
+              transform: [{ scale: current ? pulse.interpolate({ inputRange:[0,1], outputRange:[1, 1.45] }) : 1 }],
+            },
+          ]}
+          pointerEvents="none"
+        />
+        <Animated.View
+          style={[
+            styles.node,
+            reached ? styles.nodeReached : styles.nodeIdle,
+            { transform: [{ scale }] },
+          ]}
+        >
+          <Feather
+            name={s.icon}
+            size={20}
+            color={reached ? "#0B0604" : "rgba(245,230,204,0.55)"}
+          />
+        </Animated.View>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.stepLabel,
+            reached && styles.stepLabelReached,
+            current && styles.stepLabelCurrent,
+          ]}
+        >
+          {isAr ? s.ar : s.en}
+        </Text>
+      </View>
+    );
+  };
 
+  // Shimmer translate range — measured at runtime so it spans the full bar.
+  const [barWidth, setBarWidth] = useState(0);
+  const SHIMMER_WIDTH = 110;
+  const shimmerTx = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-SHIMMER_WIDTH, barWidth + SHIMMER_WIDTH],
+  });
+
+  // Animated fill width (in %) — converts 0..1 to "0%..100%".
+  const fillWidth = fillAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
+
+  return (
+    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={goBackToMenu} style={styles.backBtn} activeOpacity={0.85}>
+          <Feather name="arrow-right" size={18} color={CREAM} />
+          <Text style={styles.backBtnText}>{isAr ? "للقائمة" : "Menu"}</Text>
+        </TouchableOpacity>
+        <View style={[styles.statusPill, completed && { borderColor: "rgba(74,222,128,0.55)", backgroundColor: "rgba(74,222,128,0.10)" }]}>
+          <View style={[
+            styles.statusDot,
+            completed     ? { backgroundColor: SUCCESS } :
+            isReadyOrDone ? { backgroundColor: SUCCESS } :
+            confirmed     ? { backgroundColor: PRIMARY } :
+                            { backgroundColor: "rgba(245,230,204,0.45)" },
+          ]} />
+          <Text style={styles.statusText}>{pillText}</Text>
+        </View>
+      </View>
+
+      <View style={styles.center}>
+        <Text style={styles.title}>{isAr ? "متابعة طلبك" : "Tracking your order"}</Text>
+
+        {/* ── 4-step progress block ── */}
+        <View style={styles.stepperBlock}>
+          <View style={styles.iconsRow}>
+            {STEPS.map((_, i) => renderNode(i))}
+          </View>
+
+          <View
+            style={styles.barTrackWrap}
+            onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+          >
+            <View style={styles.barTrack} />
+
+            <Animated.View style={[styles.barFillWrap, { width: fillWidth }]}>
+              <LinearGradient
+                colors={[PRIMARY, "#FFD9A0", PRIMARY]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+
+            {/* Shimmer band sweeping across the full bar repeatedly. */}
+            {barWidth > 0 && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.shimmer,
+                  { width: SHIMMER_WIDTH, transform: [{ translateX: shimmerTx }, { skewX: "-18deg" }] },
+                ]}
+              >
+                <LinearGradient
+                  colors={["transparent", "rgba(255,232,180,0.55)", "transparent"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={{ flex: 1 }}
+                />
+              </Animated.View>
+            )}
+          </View>
+        </View>
+
+        <Text style={styles.headline}>{headline}</Text>
+
+        {/* ── Order details ── */}
+        <View style={styles.detailsBox}>
+          <View style={styles.detailRow}>
+            <Feather name="hash" size={14} color={PRIMARY} />
+            <Text style={styles.detailLabel}>{isAr ? "رقم الطلب" : "Order #"}</Text>
+            <Text style={styles.detailValue}>#{orderId?.slice(-6)}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.detailRow}>
+            <Feather name="coffee" size={14} color={PRIMARY} />
+            <Text style={styles.detailLabel}>{isAr ? "عدد المشروبات" : "Drinks"}</Text>
+            <Text style={styles.detailValue}>{drinkQty}</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.detailRow}>
+            <Feather name="clock" size={14} color={PRIMARY} />
+            <Text style={styles.detailLabel}>{isAr ? "زمن التحضير" : "Prep time"}</Text>
+            <Text style={styles.detailValue}>{totalMin} {isAr ? "د" : "min"}</Text>
+          </View>
+        </View>
+
+        {/* ── Level-up reward (step 4) ── */}
+        {completed && (
           <LinearGradient
             colors={[PRIMARY, "#C9985A"]}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -168,101 +380,33 @@ export default function OrderTimerScreen() {
           >
             <Text style={styles.pointsIcon}>🎮</Text>
             <View>
-              <Text style={styles.pointsLabel}>{t("timer.gameProgress")}</Text>
-              <Text style={styles.pointsValue}>{levelsLabel(pointsAwarded)}</Text>
-            </View>
-          </LinearGradient>
-
-          <TouchableOpacity
-            style={[styles.btn, { marginTop: 8 }]}
-            onPress={() => { setActiveOrder(null); router.replace("/(tabs)"); }}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.btnText}>{t("timer.backHome")}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ── Countdown view ──
-  const goBackToMenu = () => {
-    if (cafeId) router.replace({ pathname: "/cafe/[id]/order", params: { id: cafeId } });
-    else router.back();
-  };
-
-  return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
-      <View style={styles.headerRow}>
-        <TouchableOpacity onPress={goBackToMenu} style={styles.backBtn} activeOpacity={0.85}>
-          <Feather name="arrow-right" size={18} color={CREAM} />
-          <Text style={styles.backBtnText}>{t("timer.headerMenuBack")}</Text>
-        </TouchableOpacity>
-        <View style={styles.statusPill}>
-          <View style={[styles.statusDot, (confirmed || isReadyOrDone) && { backgroundColor: SUCCESS }]} />
-          <Text style={styles.statusText}>
-            {isReadyOrDone ? t("timer.pillReady") : confirmed ? t("timer.pillPreparing") : t("timer.pillPending")}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.center}>
-        <Text style={styles.ringLabel}>{t("timer.ringLabel")}</Text>
-
-        <View style={styles.ringWrap}>
-          {/* Pulse ring */}
-          <Animated.View
-            style={[
-              styles.pulseRing,
-              { transform: [{ scale: ringScale }], opacity: ringOpacity },
-            ]}
-          />
-          {/* Outer ring */}
-          <LinearGradient
-            colors={[PRIMARY, "#7A4F1F"]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.outerRing}
-          >
-            <View style={styles.innerRing}>
-              <Text style={styles.percentBig}>
-                {progress.toFixed(1)}
+              <Text style={styles.pointsLabel}>{isAr ? "ارتفع تصنيفك" : "Your rank rose"}</Text>
+              <Text style={styles.pointsValue}>
+                {isAr
+                  ? `+${pointsAwarded} ${pointsAwarded === 1 ? "مستوى" : "مستويات"}`
+                  : `+${pointsAwarded} level${pointsAwarded === 1 ? "" : "s"}`}
               </Text>
-              <Text style={styles.percentSign}>%</Text>
             </View>
           </LinearGradient>
-        </View>
+        )}
 
-        <Text style={styles.subline}>
-          {isReadyOrDone
-            ? t("timer.subReady")
-            : progress > 0
-              ? t("timer.subPreparing", { min: Math.ceil((progress / 100) * totalMin) })
-              : t("timer.subWaiting")}
-        </Text>
-
-        <View style={styles.detailsBox}>
-          <View style={styles.detailRow}>
-            <Feather name="hash" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>{t("timer.detailOrderId")}</Text>
-            <Text style={styles.detailValue}>#{orderId?.slice(-6)}</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.detailRow}>
-            <Feather name="coffee" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>{t("timer.detailDrinks")}</Text>
-            <Text style={styles.detailValue}>{drinkQty}</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.detailRow}>
-            <Feather name="clock" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>{t("timer.detailPrepTime")}</Text>
-            <Text style={styles.detailValue}>{t("timer.minuteUnit", { n: totalMin })}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.tip}>
-          {t("timer.tip")}
-        </Text>
+        {completed ? (
+          <TouchableOpacity style={styles.cta} onPress={goHome} activeOpacity={0.88}>
+            <LinearGradient
+              colors={[PRIMARY, "#C9985A"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.ctaGrad}
+            >
+              <Text style={styles.ctaText}>{isAr ? "العودة للرئيسية" : "Back home"}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.tip}>
+            {isAr
+              ? "اترك الشاشة مفتوحة — سيتحرك الشريط تلقائياً مع كل خطوة."
+              : "Keep this screen open — the bar moves with every step."}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -288,29 +432,99 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY },
   statusText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: CREAM },
 
-  center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 18 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, gap: 18 },
 
-  ringLabel: { fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)" },
-  ringWrap: { width: 240, height: 240, alignItems: "center", justifyContent: "center", marginVertical: 6 },
-  pulseRing: {
-    position: "absolute", width: 240, height: 240, borderRadius: 120,
-    borderWidth: 2, borderColor: PRIMARY,
+  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: CREAM, letterSpacing: 0.3 },
+
+  // ── Stepper block ──
+  stepperBlock: {
+    width: "100%",
+    backgroundColor: CARD,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 18,
+    paddingTop: 22,
+    paddingBottom: 18,
   },
-  outerRing: {
-    width: 220, height: 220, borderRadius: 110,
-    alignItems: "center", justifyContent: "center",
-    padding: 6,
-  },
-  innerRing: {
-    width: 208, height: 208, borderRadius: 104,
-    backgroundColor: "#0A0606",
-    alignItems: "center", justifyContent: "center",
+  iconsRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
-  percentBig: { fontSize: 64, fontFamily: "Inter_700Bold", color: PRIMARY, lineHeight: 72 },
-  percentSign:{ fontSize: 28, fontFamily: "Inter_700Bold", color: "rgba(232,184,109,0.55)", marginLeft: 4, marginTop: 8 },
+  iconCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+  },
+  nodeShadow: {
+    position: "absolute",
+    top: -4,
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: "rgba(232,184,109,0.35)",
+  },
+  node: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5,
+  },
+  nodeIdle: {
+    backgroundColor: "rgba(232,184,109,0.05)",
+    borderColor: "rgba(232,184,109,0.30)",
+  },
+  nodeReached: {
+    backgroundColor: PRIMARY,
+    borderColor: "#FFD9A0",
+    shadowColor: PRIMARY,
+    shadowOpacity: 0.55,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  stepLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(245,230,204,0.45)",
+    textAlign: "center",
+    lineHeight: 14,
+    minHeight: 28,
+  },
+  stepLabelReached: { color: CREAM, fontFamily: "Inter_600SemiBold" },
+  stepLabelCurrent: { color: PRIMARY, fontFamily: "Inter_700Bold" },
 
-  subline: { fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.7)", textAlign: "center" },
+  // ── Bar ──
+  barTrackWrap: {
+    width: "100%",
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: TRACK,
+    overflow: "hidden",
+    position: "relative",
+  },
+  barTrack: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: TRACK,
+  },
+  barFillWrap: {
+    position: "absolute",
+    left: 0, top: 0, bottom: 0,
+    borderRadius: 5,
+    overflow: "hidden",
+  },
+  shimmer: {
+    position: "absolute",
+    top: 0, bottom: 0,
+    left: 0,
+  },
+
+  headline: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(245,230,204,0.85)",
+    textAlign: "center",
+    lineHeight: 22,
+  },
 
   detailsBox: {
     width: "100%", backgroundColor: CARD, borderRadius: 18,
@@ -321,27 +535,18 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 14, fontFamily: "Inter_700Bold", color: CREAM },
   divider:     { height: 1, backgroundColor: BORDER },
 
-  tip: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center", lineHeight: 18 },
-
-  // Success view
-  successIcon: {
-    width: 120, height: 120, borderRadius: 60,
-    backgroundColor: "rgba(74,222,128,0.12)",
-    borderWidth: 1, borderColor: "rgba(74,222,128,0.4)",
-    alignItems: "center", justifyContent: "center",
-  },
-  successTitle: { fontSize: 26, fontFamily: "Inter_700Bold", color: SUCCESS },
-  successSub:   { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.7)", textAlign: "center", lineHeight: 22 },
-
   pointsBox: {
     flexDirection: "row", alignItems: "center", gap: 14,
     paddingHorizontal: 22, paddingVertical: 16,
-    borderRadius: 18, marginTop: 6,
+    borderRadius: 18,
   },
   pointsIcon:  { fontSize: 32 },
   pointsLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(0,0,0,0.6)" },
   pointsValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#000" },
 
-  btn: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: BORDER },
-  btnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: CREAM },
+  cta: { width: "100%", borderRadius: 16, overflow: "hidden" },
+  ctaGrad: { paddingVertical: 14, alignItems: "center", justifyContent: "center" },
+  ctaText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
+
+  tip: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center", lineHeight: 18 },
 });
