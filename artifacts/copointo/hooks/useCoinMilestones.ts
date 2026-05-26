@@ -16,10 +16,19 @@ export function useCoinMilestones(level: number) {
   const [hydrated, setHydrated] = useState(false);
   const [queue,    setQueue]    = useState<CoinMilestone[]>([]);
   const processedRef = useRef<Set<number>>(new Set());
+  // First-pass guard: on the very first effect run after hydration we
+  // silently ack every milestone the user has already passed (no popup,
+  // no coin re-credit). Only milestones crossed AFTER that — i.e. real
+  // live level-ups within the session — fire the celebration and grant
+  // coins. This prevents the showcase account (which jumps to level 240
+  // on login) from triggering a flood of "+25 coin" popups for prizes
+  // it already has.
+  const firstPassDoneRef = useRef(false);
 
   useEffect(() => {
     const off = registerAccountResetHandler(() => {
       processedRef.current.clear();
+      firstPassDoneRef.current = false;
       setAcked([]);
       setQueue([]);
     });
@@ -46,20 +55,33 @@ export function useCoinMilestones(level: number) {
   useEffect(() => {
     if (!hydrated || !coinsHydrated) return;
     const earned = getMilestonesUpToLevel(level);
+    const isFirstPass = !firstPassDoneRef.current;
     const newOnes: CoinMilestone[] = [];
+    const silentAcks: number[] = [];
     for (const m of earned) {
       if (processedRef.current.has(m.level)) continue;
       processedRef.current.add(m.level);
-      // Credit the wallet immediately so the user sees the new balance even
-      // if they dismiss the celebration modal without interacting.
+      if (isFirstPass) {
+        // Account-restoration pass — silently ack without granting coins
+        // or queuing a popup. The user either already received this
+        // milestone in a previous session (in which case AsyncStorage
+        // would normally hold the ack), or this is a pre-seeded
+        // showcase account whose wallet is already topped up.
+        if (!acked.includes(m.level)) silentAcks.push(m.level);
+        continue;
+      }
+      // Live level-up — credit the wallet and queue the celebration.
       addCoins(m.coins).catch(() => {});
-      // Persist this milestone as granted right away — the modal queue is
-      // only for the "🎉 you got X coins" celebration; the coins themselves
-      // must never be granted twice across app restarts.
       const nextAcked = Array.from(new Set([...acked, m.level]));
       setAcked(nextAcked);
       AsyncStorage.setItem(ACK_KEY, JSON.stringify(nextAcked)).catch(() => {});
       newOnes.push(m);
+    }
+    firstPassDoneRef.current = true;
+    if (silentAcks.length > 0) {
+      const nextAcked = Array.from(new Set([...acked, ...silentAcks]));
+      setAcked(nextAcked);
+      AsyncStorage.setItem(ACK_KEY, JSON.stringify(nextAcked)).catch(() => {});
     }
     if (newOnes.length > 0) {
       setQueue(prev => [...prev, ...newOnes]);
