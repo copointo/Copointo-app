@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
@@ -341,9 +342,23 @@ export default function OrderTimerScreen() {
   useEffect(() => {
     if (isReadyOrDone || completed) setSecondsLeft(0);
   }, [isReadyOrDone, completed]);
-  const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
-  const ss = String(secondsLeft % 60).padStart(2, "0");
   const timerActive = confirmed && !isReadyOrDone && !completed;
+  // ── Circular progress percentage ──
+  // 0% before the cafe confirms; ramps up linearly during prep based on
+  // elapsed time vs total prep minutes; locks at 100% once the order is
+  // ready or done.
+  const pct = (isReadyOrDone || completed)
+    ? 100
+    : confirmed
+      ? Math.min(100, Math.max(0, Math.round(((PREP_TOTAL_SEC - secondsLeft) / PREP_TOTAL_SEC) * 100)))
+      : 0;
+  // SVG ring geometry.
+  const RING_SIZE   = 168;
+  const RING_STROKE = 14;
+  const RING_R      = (RING_SIZE - RING_STROKE) / 2;
+  const RING_C      = 2 * Math.PI * RING_R;
+  const ringDashOffset = RING_C * (1 - pct / 100);
+  const ringColor = (isReadyOrDone || completed) ? SUCCESS : confirmed ? PRIMARY : "rgba(245,230,204,0.35)";
 
   // ── Status pill text (top-right) ──
   const pillText = useMemo(() => {
@@ -529,29 +544,54 @@ export default function OrderTimerScreen() {
 
         <Text style={styles.headline}>{headline}</Text>
 
-        {/* ── Live MM:SS countdown ── */}
+        {/* ── Circular progress ring with percentage ── */}
         <View style={[
           styles.timerCard,
           timerActive && styles.timerCardActive,
           (isReadyOrDone || completed) && styles.timerCardDone,
         ]}>
-          <Text style={styles.timerLabel}>
-            {completed || isReadyOrDone
-              ? (isAr ? "اكتمل التحضير" : "Preparation complete")
-              : confirmed
-                ? (isAr ? "الوقت المتبقي للتحضير" : "Time remaining")
-                : (isAr ? "سيبدأ المؤقت بعد التأكيد" : "Timer starts after confirmation")}
-          </Text>
-          <Text style={[
-            styles.timerValue,
-            (isReadyOrDone || completed) && { color: SUCCESS },
-            !confirmed && { color: "rgba(245,230,204,0.45)" },
-          ]}>
-            {mm}:{ss}
-          </Text>
-          <Text style={styles.timerSub}>
-            {isAr ? `من أصل ${totalMin} د` : `of ${totalMin} min total`}
-          </Text>
+          <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" }}>
+            <Svg width={RING_SIZE} height={RING_SIZE}>
+              {/* Track */}
+              <Circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                stroke="rgba(245,230,204,0.10)"
+                strokeWidth={RING_STROKE}
+                fill="none"
+              />
+              {/* Progress arc — rotated -90° so 0% starts at 12 o'clock */}
+              <Circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                stroke={ringColor}
+                strokeWidth={RING_STROKE}
+                fill="none"
+                strokeLinecap="round"
+                strokeDasharray={`${RING_C} ${RING_C}`}
+                strokeDashoffset={ringDashOffset}
+                transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+              />
+            </Svg>
+            <View style={styles.ringCenter}>
+              <Text style={[
+                styles.ringPct,
+                (isReadyOrDone || completed) && { color: SUCCESS },
+                !confirmed && { color: "rgba(245,230,204,0.45)" },
+              ]}>
+                {pct}%
+              </Text>
+              <Text style={styles.ringSub}>
+                {completed || isReadyOrDone
+                  ? (isAr ? "اكتمل" : "Complete")
+                  : confirmed
+                    ? (isAr ? "قيد التحضير" : "Preparing")
+                    : (isAr ? "بانتظار التأكيد" : "Pending")}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* ── Order details ── */}
@@ -774,25 +814,23 @@ const styles = StyleSheet.create({
     borderColor: "rgba(74,222,128,0.45)",
     backgroundColor: "rgba(74,222,128,0.08)",
   },
-  timerLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(245,230,204,0.70)",
-    marginBottom: 6,
-    textAlign: "center",
+  ringCenter: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  timerValue: {
-    fontSize: 44,
-    lineHeight: 52,
+  ringPct: {
+    fontSize: 36,
+    lineHeight: 42,
     fontFamily: "Inter_700Bold",
     color: PRIMARY,
     fontVariant: ["tabular-nums"],
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
-  timerSub: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(245,230,204,0.50)",
+  ringSub: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(245,230,204,0.65)",
     marginTop: 4,
   },
 
