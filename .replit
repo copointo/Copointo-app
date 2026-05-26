@@ -33,3 +33,19 @@ channel = "stable-25_05"
 
 [userenv.shared]
 TWILIO_FROM_NUMBER = "+18146664071"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 23297
+externalPort = 80
+
+[[ports]]
+localPort = 23744
+externalPort = 3000
