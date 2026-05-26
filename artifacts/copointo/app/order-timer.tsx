@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Notifications from "expo-notifications";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -16,6 +17,25 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { apiFetch } from "@/constants/api";
+
+// Ensure OS-level notifications still appear (with their default chime) even
+// while the order-timer screen is in the foreground. Module-level so the
+// handler is set once per app lifetime — idempotent across navigations.
+// We cast the handler shape because expo-notifications exposes two key
+// schemas across SDK versions (legacy `shouldShowAlert` vs the newer
+// `shouldShowBanner`/`shouldShowList`); we set both so the chime + banner
+// fire regardless of which SDK is in play.
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    } as any),
+  });
+} catch { /* never crash the screen because of a notification quirk */ }
 
 const BG      = "#000000";
 const CARD    = "#0A0606";
@@ -86,6 +106,89 @@ export default function OrderTimerScreen() {
     isReadyOrDone   ? 2 :
     confirmed       ? 1 :
                       0;
+
+  // ── Per-step toast banner + OS notification + sound ──
+  // We watch `activeIdx` and fire a celebratory chime/banner the FIRST time
+  // each milestone is reached. Initial mount (idx 0 → 0) is silent — only
+  // forward transitions count.
+  type BannerState = { title: string; sub: string; color: string; icon: React.ComponentProps<typeof Feather>["name"]; key: number } | null;
+  const [banner, setBanner] = useState<BannerState>(null);
+  const lastNotifiedIdxRef = useRef<number>(-1);
+  const bannerY = useRef(new Animated.Value(-140)).current;
+  const bannerHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Slide the banner in whenever a new one is set, then auto-hide.
+  useEffect(() => {
+    if (!banner) return;
+    Animated.spring(bannerY, { toValue: 0, useNativeDriver: true, friction: 8, tension: 80 }).start();
+    if (bannerHideTimer.current) clearTimeout(bannerHideTimer.current);
+    bannerHideTimer.current = setTimeout(() => {
+      Animated.timing(bannerY, { toValue: -160, duration: 260, easing: Easing.in(Easing.cubic), useNativeDriver: true })
+        .start(() => setBanner(null));
+    }, 3600);
+    return () => { if (bannerHideTimer.current) clearTimeout(bannerHideTimer.current); };
+  }, [banner, bannerY]);
+
+  useEffect(() => {
+    // First render — establish the baseline silently.
+    if (lastNotifiedIdxRef.current === -1) {
+      lastNotifiedIdxRef.current = activeIdx;
+      return;
+    }
+    if (activeIdx <= lastNotifiedIdxRef.current) return;
+    lastNotifiedIdxRef.current = activeIdx;
+
+    const COPY = [
+      { titleAr: "تم استلام طلبك 📥",    titleEn: "Order received 📥",      subAr: "بانتظار تأكيد الكوفي",                  subEn: "Waiting for cafe confirmation",     color: "#9CA3AF", icon: "inbox"        as const },
+      { titleAr: "بدأ تحضير طلبك ☕",   titleEn: "Preparation started ☕", subAr: `سيكون جاهزاً خلال ${totalMin} دقيقة تقريباً`, subEn: `Ready in ~${totalMin} min`,         color: PRIMARY,   icon: "coffee"       as const },
+      { titleAr: "طلبك جاهز للاستلام 🎉", titleEn: "Your order is ready 🎉", subAr: "توجّه للكاشير لاستلامه",                 subEn: "Head to the counter to pick it up", color: SUCCESS,   icon: "check-circle" as const },
+      { titleAr: "ارتفع تصنيفك 🏆",     titleEn: "Your rank rose 🏆",      subAr: "تمت إضافة تقدّمك في اللعبة",            subEn: "Game progress added",                color: PRIMARY,   icon: "trending-up"  as const },
+    ];
+    const c = COPY[activeIdx];
+    if (!c) return;
+
+    // 1) In-app banner from the top — works on every platform incl. web.
+    setBanner({
+      title: isAr ? c.titleAr : c.titleEn,
+      sub:   isAr ? c.subAr   : c.subEn,
+      color: c.color,
+      icon:  c.icon,
+      key:   Date.now(),
+    });
+
+    // 2) Haptic — same celebratory pattern across all steps.
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+
+    // 3) OS-level local notification with default chime. Native only — the
+    //    web stack throws on scheduleNotificationAsync without a service
+    //    worker registration, so we skip it there (the in-app banner is
+    //    enough on web).
+    if (Platform.OS !== "web") {
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: isAr ? c.titleAr : c.titleEn,
+          body:  isAr ? c.subAr   : c.subEn,
+          sound: "default",
+        },
+        trigger: null,
+      }).catch(() => { /* missing permission → silently skip */ });
+    }
+  }, [activeIdx, isAr, totalMin]);
+
+  // Request notification permission once on mount so the OS chime actually
+  // fires on the first transition. Best-effort — denied is fine, the
+  // in-app banner still works.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    (async () => {
+      try {
+        const perm = await Notifications.getPermissionsAsync();
+        if (perm.status !== "granted") {
+          await Notifications.requestPermissionsAsync();
+        }
+      } catch { /* never block the screen */ }
+    })();
+  }, []);
 
   // ── Bar fill (0 .. 1) ──
   // Smoothly progresses across the 4 step centres. While the order is
@@ -176,7 +279,8 @@ export default function OrderTimerScreen() {
         setOrder(data.order);
         if (data.order.status !== "pending" && !confirmed) {
           setConfirmed(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // Haptic intentionally omitted — the activeIdx effect below fires
+          // a single success haptic per milestone to avoid double-tapping.
         }
         if (data.order.pointsAwarded && !awardedRef.current) {
           awardedRef.current = true;
@@ -184,11 +288,9 @@ export default function OrderTimerScreen() {
           if (user && drinkQty > 0) {
             addCafeOrder(cafeId, cafeName, drinkQty);
           }
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
         if (data.order.status === "done" && !completed) {
           setCompleted(true);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       } catch {/* ignore transient */}
     };
@@ -289,6 +391,38 @@ export default function OrderTimerScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
+      {/* ── Top-of-screen toast banner — slides down on each step transition ── */}
+      {banner && (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.bannerWrap,
+            { top: topPad + 6, transform: [{ translateY: bannerY }] },
+          ]}
+        >
+          <View style={[styles.banner, { borderColor: `${banner.color}88` }]}>
+            <View style={[styles.bannerIcon, { backgroundColor: `${banner.color}22`, borderColor: `${banner.color}66` }]}>
+              <Feather name={banner.icon} size={20} color={banner.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerTitle} numberOfLines={1}>{banner.title}</Text>
+              <Text style={styles.bannerSub} numberOfLines={2}>{banner.sub}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                if (bannerHideTimer.current) clearTimeout(bannerHideTimer.current);
+                Animated.timing(bannerY, { toValue: -160, duration: 220, useNativeDriver: true })
+                  .start(() => setBanner(null));
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.bannerClose}
+            >
+              <Feather name="x" size={16} color="rgba(245,230,204,0.55)" />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={goBackToMenu} style={styles.backBtn} activeOpacity={0.85}>
           <Feather name="arrow-right" size={18} color={CREAM} />
@@ -549,4 +683,33 @@ const styles = StyleSheet.create({
   ctaText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
 
   tip: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center", lineHeight: 18 },
+
+  // ── Top-of-screen step toast banner ──
+  bannerWrap: {
+    position: "absolute",
+    left: 12, right: 12,
+    zIndex: 100, elevation: 12,
+  },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    backgroundColor: "rgba(15,8,4,0.96)",
+    shadowColor: "#000",
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  bannerIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1,
+  },
+  bannerTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: CREAM },
+  bannerSub:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.70)", marginTop: 2, lineHeight: 16 },
+  bannerClose: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 14 },
 });
