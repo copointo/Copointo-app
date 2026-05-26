@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-  bottomRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginTop: 8, alignSelf: "flex-end" },
+  bottomRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, alignSelf: "flex-start" },
   muteBtn: {
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -703,17 +703,19 @@ const styles = StyleSheet.create({
     // `paddingBottom` is applied inline (uses safe-area inset).
     position: "absolute", right: 0, left: 80, bottom: 0,
     paddingTop: 16, paddingLeft: 16, paddingRight: 6,
-    // Force LTR so layout math is predictable regardless of the app's
-    // RTL writing direction. `alignItems: flex-end` then pins the column
-    // to the right edge of the screen. Arabic text inside each <Text>
-    // still renders correctly because RN handles bidi per text.
-    direction: "ltr",
-    alignItems: "flex-end",
+    // The app runs in forced RTL mode (I18nManager.forceRTL(true)), so
+    // React Native automatically swaps `flex-start`/`flex-end` and
+    // `row`/`row-reverse` relative to the visual right edge. To pin
+    // children to the visual RIGHT side under RTL we use `flex-start`
+    // (NOT `flex-end`, which would resolve to the visual LEFT). The
+    // `direction` style key isn't supported by RN core and is ignored.
+    alignItems: "flex-start",
   },
-  cafeRowRight: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 8 },
   descWrap: { marginBottom: 4 },
   readMore: { color: PRIMARY, fontSize: 13, fontWeight: "700", marginTop: 4 },
-  cafeRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginBottom: 8, alignSelf: "flex-end" },
+  // Under RTL: `flexDirection: "row"` already renders right-to-left and
+  // `alignSelf: "flex-start"` pins the row to the visual right edge.
+  cafeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8, alignSelf: "flex-start" },
   cafeLogoBubble: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: "#0A0606",
     borderWidth: 2, borderColor: PRIMARY, alignItems: "center", justifyContent: "center",
@@ -721,7 +723,7 @@ const styles = StyleSheet.create({
   cafeName: { color: "#fff", fontWeight: "700", fontSize: 15, flexShrink: 1 },
   description: { color: "#fff", fontSize: 14, lineHeight: 20, opacity: 0.95 },
   detailsBtn: {
-    flexDirection: "row-reverse", alignItems: "center", gap: 6, alignSelf: "flex-end",
+    flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16,
     backgroundColor: PRIMARY, marginBottom: 6,
   },
