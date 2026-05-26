@@ -697,18 +697,13 @@ async function bootLoad(): Promise<void> {
     }
     // eslint-disable-next-line no-console
     console.log(`[store] loaded ${rows.length} collections from kv_store`);
-    // ── Demo seed (idempotent) ──
-    // Seeds only the demo user with a stable ID so the mobile demo-login
-    // button keeps working. The demo cafe + menu item are intentionally NOT
-    // seeded anymore (removed per user request); a one-time cleanup below
-    // purges any leftover demo cafe rows from previous boots.
-    try { await seedDemoData(); } catch (e) {
+    // ── Demo data cleanup (idempotent) ──
+    // All demo entities (user, cafe, menu) have been removed from the
+    // product. This purge runs every boot to clean any leftover demo rows
+    // from earlier seeds. No-op once the rows are gone.
+    try { await purgeDemoData(); } catch (e) {
       // eslint-disable-next-line no-console
-      console.warn(`[store] demo seed failed: ${(e as Error).message}`);
-    }
-    try { await purgeDemoCafe(); } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn(`[store] demo cafe purge failed: ${(e as Error).message}`);
+      console.warn(`[store] demo purge failed: ${(e as Error).message}`);
     }
   } catch (e) {
     // Do NOT mark bootLoadDone on failure — that would let the safety-net
@@ -1051,37 +1046,11 @@ export const DEMO_MENU_ID = "demo-menu-1";
 export const DEMO_USER_ID = "demo-user-1";
 export const DEMO_USER_PHONE = "+96890000000";
 
-async function seedDemoData(): Promise<void> {
-  let dirty = false;
-
-  // Only the demo user remains seeded — the demo login button needs a
-  // matching server-side row to avoid the 3-strike auto-logout. The demo
-  // cafe + menu item were intentionally removed.
-  if (!users.some(u => u.id === DEMO_USER_ID)) {
-    users.push({
-      id: DEMO_USER_ID,
-      username: "demo_player",
-      phone: DEMO_USER_PHONE,
-      level: 1,
-      totalOrders: 0,
-      banned: false,
-      joinedAt: new Date().toISOString(),
-      name: "مستخدم تجريبي",
-      gender: "male",
-    });
-    dirty = true;
-  }
-
-  if (dirty) {
-    try { await flushAll(); } catch { /* persist will retry */ }
-  }
-}
-
-/** One-time cleanup: removes the demo cafe + every menu item that belonged
- *  to it from any prior boot's seed. Idempotent — no-op once the rows are
- *  gone. Kept as a permanent step (cheap) so re-deploys against legacy DBs
- *  always end up clean. */
-async function purgeDemoCafe(): Promise<void> {
+/** One-time cleanup: purges the demo cafe + its menu items + the demo
+ *  user account from any prior boot's seed. Idempotent — no-op once the
+ *  rows are gone. Kept as a permanent step (cheap) so re-deploys against
+ *  legacy DBs always end up clean. */
+async function purgeDemoData(): Promise<void> {
   let dirty = false;
   const cafeIdx = cafes.findIndex(c => c.id === DEMO_CAFE_ID);
   if (cafeIdx !== -1) {
@@ -1093,6 +1062,11 @@ async function purgeDemoCafe(): Promise<void> {
       menuItems.splice(i, 1);
       dirty = true;
     }
+  }
+  const userIdx = users.findIndex(u => u.id === DEMO_USER_ID || u.phone === DEMO_USER_PHONE);
+  if (userIdx !== -1) {
+    users.splice(userIdx, 1);
+    dirty = true;
   }
   if (dirty) {
     try { await flushAll(); } catch { /* persist will retry */ }
