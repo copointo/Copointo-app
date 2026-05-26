@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
@@ -63,6 +63,198 @@ const STEPS: StepDef[] = [
   { key: "ready",     icon: "check-circle",  ar: "جاهز للاستلام",     en: "Ready",     pos: 0.625 },
   { key: "levelup",   icon: "trending-up",   ar: "زيادة المستوى",     en: "Level up",  pos: 0.875 },
 ];
+
+// ── Animated step icons ────────────────────────────────────────────────
+// Each milestone gets a bespoke micro-animation when it is the currently
+// active step, conveying the *meaning* of the stage visually:
+//   • received  → a checkmark draws itself into an inbox tray, fades, redraws
+//   • preparing → two ingredient drops fall into a coffee cup on loop
+//   • ready     → a checkmark draws inside a circle, fades, redraws
+//   • levelup   → an upward arrow rises from below and fades at the top
+// When the step is NOT the active one, the original Feather icon renders
+// (identical to the pre-animation look) so reached/unreached states are
+// indistinguishable from the previous design.
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
+type StepIconProps = {
+  kind: StepKey;
+  active: boolean;
+  color: string;
+  size?: number;
+};
+function StepIcon({ kind, active, color, size = 22 }: StepIconProps) {
+  // Animation drivers — only one set is used per kind, but allocating them
+  // unconditionally keeps the hook order stable across re-renders.
+  const draw   = useRef(new Animated.Value(1)).current; // 0 hidden → 1 drawn
+  const dropA  = useRef(new Animated.Value(0)).current; // 0 top → 1 inside cup
+  const dropB  = useRef(new Animated.Value(0)).current;
+  const arrowY = useRef(new Animated.Value(1)).current; // 0 below → 1 raised
+  const arrowO = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!active) return;
+    const loops: Animated.CompositeAnimation[] = [];
+
+    if (kind === "received" || kind === "ready") {
+      // Draw the checkmark in, hold, erase, brief pause, repeat — feels
+      // like the stamp is being applied over and over.
+      const l = Animated.loop(
+        Animated.sequence([
+          Animated.timing(draw, { toValue: 1, duration: 750, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+          Animated.delay(450),
+          Animated.timing(draw, { toValue: 0, duration: 400, easing: Easing.in(Easing.cubic),  useNativeDriver: false }),
+          Animated.delay(180),
+        ]),
+      );
+      // Start from "empty" so the first cycle visibly draws in.
+      draw.setValue(0);
+      loops.push(l);
+    } else if (kind === "preparing") {
+      // Two ingredient drops fall into the cup on staggered cadence.
+      const make = (v: Animated.Value, delay: number) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.timing(v, { toValue: 1, duration: 700, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+            Animated.timing(v, { toValue: 0, duration: 1, useNativeDriver: true }),
+            Animated.delay(Math.max(0, 700 - delay)),
+          ]),
+        );
+      loops.push(make(dropA, 0));
+      loops.push(make(dropB, 350));
+    } else if (kind === "levelup") {
+      // Arrow rises from the bottom, fades at the top, then resets and rises again.
+      arrowY.setValue(0);
+      arrowO.setValue(0);
+      const l = Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(arrowY, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            Animated.sequence([
+              Animated.timing(arrowO, { toValue: 1, duration: 220, useNativeDriver: true }),
+              Animated.delay(380),
+              Animated.timing(arrowO, { toValue: 0, duration: 300, useNativeDriver: true }),
+            ]),
+          ]),
+          Animated.timing(arrowY, { toValue: 0, duration: 1, useNativeDriver: true }),
+          Animated.delay(220),
+        ]),
+      );
+      loops.push(l);
+    }
+
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
+  }, [active, kind, draw, dropA, dropB, arrowY, arrowO]);
+
+  // ── Inactive: render the original Feather icon (no regression) ──
+  if (!active) {
+    const name =
+      kind === "received"  ? "inbox" :
+      kind === "preparing" ? "coffee" :
+      kind === "ready"     ? "check-circle" :
+                             "trending-up";
+    return <Feather name={name as React.ComponentProps<typeof Feather>["name"]} size={size} color={color} />;
+  }
+
+  // ── Active animated variants ──
+  const S = size;
+
+  if (kind === "received") {
+    // Checkmark path "M7 11 L11 15 L17 8" length ≈ √32 + √85 ≈ 14.88 — round
+    // up to 16 so the dasharray fully covers it for the draw-in effect.
+    const CHECK_LEN = 16;
+    const dashOffset = draw.interpolate({ inputRange: [0, 1], outputRange: [CHECK_LEN, 0] });
+    return (
+      <Svg width={S} height={S} viewBox="0 0 24 24">
+        {/* Inbox tray (static base) */}
+        <Path
+          d="M3 14 L3 19 A2 2 0 0 0 5 21 L19 21 A2 2 0 0 0 21 19 L21 14"
+          stroke={color}
+          strokeWidth={2}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={0.5}
+        />
+        {/* Checkmark that draws-in over and over */}
+        <AnimatedPath
+          d="M7 11 L11 15 L17 8"
+          stroke={color}
+          strokeWidth={2.6}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={`${CHECK_LEN} ${CHECK_LEN}`}
+          strokeDashoffset={dashOffset as unknown as number}
+        />
+      </Svg>
+    );
+  }
+
+  if (kind === "ready") {
+    // "M7 12 L11 16 L17 8" length ≈ √32 + √100 ≈ 15.66 — round up to 17.
+    const CHECK_LEN = 17;
+    const dashOffset = draw.interpolate({ inputRange: [0, 1], outputRange: [CHECK_LEN, 0] });
+    return (
+      <Svg width={S} height={S} viewBox="0 0 24 24">
+        <Circle cx={12} cy={12} r={10} stroke={color} strokeWidth={2} fill="none" opacity={0.55} />
+        <AnimatedPath
+          d="M7 12 L11 16 L17 8"
+          stroke={color}
+          strokeWidth={2.6}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={`${CHECK_LEN} ${CHECK_LEN}`}
+          strokeDashoffset={dashOffset as unknown as number}
+        />
+      </Svg>
+    );
+  }
+
+  if (kind === "preparing") {
+    // Two falling ingredient drops above a static coffee cup. Each drop
+    // translates from y=0 down to ~y=(S*0.45), fading out near the bottom
+    // as if it dissolves into the brew.
+    const dropMaxY = S * 0.45;
+    const txA = dropA.interpolate({ inputRange: [0, 1], outputRange: [0, dropMaxY] });
+    const opA = dropA.interpolate({ inputRange: [0, 0.85, 1], outputRange: [0, 1, 0] });
+    const txB = dropB.interpolate({ inputRange: [0, 1], outputRange: [0, dropMaxY] });
+    const opB = dropB.interpolate({ inputRange: [0, 0.85, 1], outputRange: [0, 1, 0] });
+    const dotSize = Math.max(3, Math.round(S * 0.15));
+    return (
+      <View style={{ width: S, height: S, alignItems: "center", justifyContent: "flex-end" }}>
+        <Animated.View
+          pointerEvents="none"
+          style={{ position: "absolute", top: 0, left: S * 0.30 - dotSize / 2, transform: [{ translateY: txA }], opacity: opA }}
+        >
+          <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize, backgroundColor: color }} />
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={{ position: "absolute", top: 0, left: S * 0.62 - dotSize / 2, transform: [{ translateY: txB }], opacity: opB }}
+        >
+          <View style={{ width: dotSize, height: dotSize, borderRadius: dotSize, backgroundColor: color }} />
+        </Animated.View>
+        <Feather name="coffee" size={S} color={color} />
+      </View>
+    );
+  }
+
+  if (kind === "levelup") {
+    const ty = arrowY.interpolate({ inputRange: [0, 1], outputRange: [S * 0.35, -S * 0.05] });
+    return (
+      <View style={{ width: S, height: S, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        <Animated.View style={{ transform: [{ translateY: ty }], opacity: arrowO }}>
+          <Feather name="arrow-up" size={S} color={color} />
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return null;
+}
 
 interface ServerOrder {
   id: string;
@@ -415,9 +607,10 @@ export default function OrderTimerScreen() {
             { transform: [{ scale }] },
           ]}
         >
-          <Feather
-            name={s.icon}
-            size={20}
+          <StepIcon
+            kind={s.key}
+            active={current}
+            size={22}
             color={reached ? "#0B0604" : "rgba(245,230,204,0.55)"}
           />
         </Animated.View>
