@@ -765,7 +765,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * devices, and harmless for everyone else.
    */
   const refreshAllUsers = useCallback(async () => {
-    const remote = await fetchPublicUsers(user?.id);
+    // Always use the LATEST signed-in user id (via ref) so the showcase
+    // viewer sees the showcase roster. `user?.id` from the closure would
+    // be undefined since this callback has an empty deps array.
+    const remote = await fetchPublicUsers(currentUserIdRef.current ?? undefined);
     setRegisteredUsers(prev => {
       // The server is the authoritative source of truth for who appears on
       // OTHER devices' leaderboards / friend lists, but local accounts that
@@ -1286,12 +1289,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const showcase = await loginShowcaseAccount();
         await AsyncStorage.setItem("currentUser", JSON.stringify(showcase));
         setUserState(showcase);
+        // Keep the local cache so login UI never blanks, then fire an
+        // immediate roster fetch as the showcase viewer so the 100 seeded
+        // competitors land in `registeredUsers` without waiting for the
+        // 10 s poll.
         setRegisteredUsers(prev => {
           const without = prev.filter(u => u.id !== showcase.id);
           const next = [...without, showcase];
           AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
           return next;
         });
+        currentUserIdRef.current = showcase.id;
+        refreshAllUsers().catch(() => {});
         return { ok: true };
       }
 
