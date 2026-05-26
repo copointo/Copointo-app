@@ -372,6 +372,58 @@ function todayKey(): string {
 
 export type AuthResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * Server-side cafeProgress payloads carry only `{ totalOrders, level }`
+ * (the cafeId is the dict key). The mobile `CafeProgress` type wants the
+ * id+name baked in. This helper rebuilds the rich shape for OTHER players
+ * shown on the leaderboard so the user-detail panel can render per-cafe
+ * rows for them, not just for the current device's own user.
+ *
+ * - `remote` may be undefined/null/empty → returns undefined.
+ * - When `local` already has a cafeName for a given id, reuse it; otherwise
+ *   look up CAFE_NAME_LOOKUP (seeded showcase cafes) and finally fall back
+ *   to the raw id so the row still renders.
+ */
+function enrichRemoteCafeProgress(
+  remote: Record<string, { totalOrders?: number; level?: number; cafeName?: string }> | null | undefined,
+  local: Record<string, CafeProgress> | undefined,
+): Record<string, CafeProgress> | undefined {
+  if (!remote || Object.keys(remote).length === 0) return undefined;
+  const out: Record<string, CafeProgress> = {};
+  for (const [cafeId, rp] of Object.entries(remote)) {
+    const name =
+      local?.[cafeId]?.cafeName ??
+      (rp as { cafeName?: string }).cafeName ??
+      CAFE_NAME_LOOKUP[cafeId] ??
+      cafeId;
+    out[cafeId] = {
+      cafeId,
+      cafeName: name,
+      totalOrders: rp.totalOrders ?? 0,
+      level: rp.level ?? 0,
+    };
+  }
+  return out;
+}
+
+/**
+ * Friendly Arabic names for the seeded showcase cafes so remote competitor
+ * cafeProgress rows render with a real name instead of "sc-cafe-3".
+ * Mirrors `CAFE_SPECS` in api-server/src/showcase-seed.ts.
+ */
+const CAFE_NAME_LOOKUP: Record<string, string> = {
+  "sc-cafe-1":  "مقهى المنارة",
+  "sc-cafe-2":  "بيت القهوة العماني",
+  "sc-cafe-3":  "كوفي لاونج",
+  "sc-cafe-4":  "روست هاوس",
+  "sc-cafe-5":  "إسبريسو بار",
+  "sc-cafe-6":  "قهوة الرواق",
+  "sc-cafe-7":  "مقهى الحارة",
+  "sc-cafe-8":  "The Daily Grind",
+  "sc-cafe-9":  "Coffee Bean House",
+  "sc-cafe-10": "Latte & Co",
+};
+
 export interface CartItem {
   id: string;
   /** Original menu-item id (without variant suffix). Used to look up stock, etc. */
@@ -840,6 +892,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             equippedCharacter:     "equippedCharacter"     in r ? r.equippedCharacter     ?? null : local.equippedCharacter     ?? null,
             equippedUsernameColor: "equippedUsernameColor" in r ? r.equippedUsernameColor ?? null : local.equippedUsernameColor ?? null,
             equippedTextStyle:     "equippedTextStyle"     in r ? r.equippedTextStyle     ?? null : local.equippedTextStyle     ?? null,
+            // Pull server's per-cafe breakdown into the registeredUsers list
+            // so the leaderboard panel can show "L{n} · {orders}" per cafe
+            // for OTHER players, not just the current device's own user.
+            // Server values are `{ totalOrders, level }`; enrich with the
+            // cafeId so the panel's `c.cafeId` key works, and keep any local
+            // cafeName when present (otherwise fall back to the id).
+            cafeProgress: enrichRemoteCafeProgress(r.cafeProgress, local.cafeProgress),
           };
           byId.set(r.id, merged);
         } else {
@@ -863,6 +922,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             equippedCharacter:     r.equippedCharacter     ?? null,
             equippedUsernameColor: r.equippedUsernameColor ?? null,
             equippedTextStyle:     r.equippedTextStyle     ?? null,
+            cafeProgress: enrichRemoteCafeProgress(r.cafeProgress, undefined),
           };
           byId.set(r.id, placeholder);
         }

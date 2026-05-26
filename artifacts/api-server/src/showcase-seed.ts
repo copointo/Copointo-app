@@ -255,6 +255,30 @@ function buildCompetitors(count: number): AppUser[] {
       : null;
     const uc    = themed ? UC_POOL[i % UC_POOL.length]! : null;
     const ts    = themed ? TS_POOL[i % TS_POOL.length]! : null;
+    // Per-cafe breakdown so the leaderboard "user detail" panel can show
+    // each competitor's progress across the showcase cafes (instead of an
+    // empty cafe list). We split each competitor's global `level` across
+    // a deterministic subset of 3..10 cafes with decreasing weights, so
+    // sum(cafeProgress[].level) === level and sum(totalOrders) === level*7.
+    const cafeIds = CAFE_SPECS.map(c => c.id);
+    const n = cafeIds.length;
+    const k = 3 + (i % 8); // 3..10 cafes per competitor
+    const startOffset = i % n;
+    const picked = Array.from({ length: k }, (_, j) => cafeIds[(startOffset + j) % n]!);
+    const weights = Array.from({ length: k }, (_, j) => k - j);
+    const wsum = weights.reduce((s, w) => s + w, 0);
+    const lvls = weights.map(w => Math.floor((level * w) / wsum));
+    let remainder = level - lvls.reduce((s, x) => s + x, 0);
+    for (let j = 0; remainder > 0; j = (j + 1) % k) {
+      lvls[j] = (lvls[j] ?? 0) + 1;
+      remainder--;
+    }
+    const cafeProgress: Record<string, { totalOrders: number; level: number }> = {};
+    picked.forEach((id, idx) => {
+      const lvl = lvls[idx] ?? 0;
+      if (lvl > 0) cafeProgress[id] = { totalOrders: lvl * 7, level: lvl };
+    });
+
     out.push({
       id: `sc-user-${i + 1}`,
       username: `player_${i + 1}`,
@@ -272,6 +296,7 @@ function buildCompetitors(count: number): AppUser[] {
       equippedCharacter: ch,
       equippedUsernameColor: uc,
       equippedTextStyle: ts,
+      cafeProgress,
       showcaseOnly: true,
     });
   }
@@ -490,7 +515,9 @@ export async function seedShowcaseData(): Promise<void> {
       dirty = true;
     } else {
       // Preserve runtime-mutable fields the player may have changed
-      // (level, totalOrders, joinedAt) but always refresh cosmetic theme.
+      // (level, totalOrders, joinedAt) but always refresh cosmetic theme
+      // and per-cafe progress (so leaderboard panels show real cafe rows
+      // for everyone, not just freshly-added competitors).
       const existing = users[idx]!;
       users[idx] = {
         ...existing,
@@ -500,6 +527,7 @@ export async function seedShowcaseData(): Promise<void> {
         equippedCharacter: u.equippedCharacter,
         equippedUsernameColor: u.equippedUsernameColor,
         equippedTextStyle: u.equippedTextStyle,
+        cafeProgress: u.cafeProgress,
         showcaseOnly: true,
       };
       dirty = true;
