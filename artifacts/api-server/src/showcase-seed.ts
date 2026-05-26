@@ -211,6 +211,18 @@ function buildShowcaseUser(): AppUser {
   };
 }
 
+// Cosmetic id pools used to theme each competitor differently. The higher
+// the user's rank, the more "premium" cosmetics they get (high ids tend to
+// be late-game / shop unlocks). Cycled deterministically per index so the
+// roster is stable across boots.
+const FRAME_POOL  = ["frame-28","frame-26","frame-25","frame-24","frame-22","frame-20","frame-18","frame-16","frame-14","frame-12","frame-10","frame-8","frame-6","frame-4","frame-2"];
+const BADGE_POOL  = ["badge-16","badge-15","badge-14","badge-13","badge-12","badge-11","badge-10","badge-9","badge-8","badge-7","badge-6","badge-5","badge-4","badge-3","badge-2"];
+const BG_POOL     = ["bg-31","bg-30","bg-29","bg-28","bg-27","bg-26","bg-24","bg-22","bg-20","bg-18","bg-16","bg-14","bg-12","bg-10","bg-8","bg-6"];
+const CHAR_M_POOL = ["char-17","char-15","char-13","char-11","char-9","char-7","char-5","char-3","char-1"];
+const CHAR_F_POOL = ["char-18","char-16","char-14","char-12","char-10","char-8","char-6","char-4","char-2"];
+const UC_POOL     = ["uc-25","uc-24","uc-23","uc-22","uc-21","uc-20","uc-19","uc-18","uc-17","uc-16","uc-15","uc-14","uc-12","uc-10","uc-8"];
+const TS_POOL     = ["ts-20","ts-19","ts-18","ts-17","ts-16","ts-14","ts-12","ts-10","ts-8","ts-6","ts-4","ts-2"];
+
 function buildCompetitors(count: number): AppUser[] {
   const out: AppUser[] = [];
   for (let i = 0; i < count; i++) {
@@ -218,18 +230,35 @@ function buildCompetitors(count: number): AppUser[] {
     const ln = LAST_NAMES[i % LAST_NAMES.length]!;
     const isFemale = i % FIRST_NAMES.length >= 20;
     // Levels 1..239 — never exceeds showcase user's 240. Top competitor at 239.
-    const level = 239 - Math.floor(i * 2.39);
+    const level = Math.max(1, 239 - Math.floor(i * 2.39));
+    // Theme every competitor with varied cosmetics. Top-ranked players
+    // (low index) get the most premium ids from each pool; mid/low-ranked
+    // players still get themed but with progressively earlier-unlock items.
+    const frame = FRAME_POOL[i % FRAME_POOL.length]!;
+    const badge = BADGE_POOL[i % BADGE_POOL.length]!;
+    const bg    = BG_POOL[i % BG_POOL.length]!;
+    const ch    = isFemale
+      ? CHAR_F_POOL[i % CHAR_F_POOL.length]!
+      : CHAR_M_POOL[i % CHAR_M_POOL.length]!;
+    const uc    = UC_POOL[i % UC_POOL.length]!;
+    const ts    = TS_POOL[i % TS_POOL.length]!;
     out.push({
       id: `sc-user-${i + 1}`,
       username: `player_${i + 1}`,
       phone: `+9685${String(1000000 + i).padStart(7, "0")}`,
-      level: Math.max(1, level),
-      totalOrders: Math.max(1, level) * 7,
+      level,
+      totalOrders: level * 7,
       banned: false,
       joinedAt: new Date(Date.now() - (200 - i) * 86_400_000).toISOString(),
       name: `${fn} ${ln}`,
       avatar: avatar(i + 2),
       gender: isFemale ? "female" : "male",
+      equippedFrame: frame,
+      equippedBadge: badge,
+      equippedBackground: bg,
+      equippedCharacter: ch,
+      equippedUsernameColor: uc,
+      equippedTextStyle: ts,
       showcaseOnly: true,
     });
   }
@@ -266,21 +295,23 @@ function buildReels(cafeRows: Cafe[]): Reel[] {
 }
 
 // ── 10 communities populated from the 100 competitors ──────────────────
+// Each community has its own distinct theme: name + matching emoji avatar
+// (rendered when the URL avatar fails) + a thematic Unsplash cover.
 function buildCommunities(competitors: AppUser[]): Community[] {
-  const names = [
-    { id: "sc-comm-1",  name: "محبي اللاتيه" },
-    { id: "sc-comm-2",  name: "عشاق الإسبريسو" },
-    { id: "sc-comm-3",  name: "مقاهي مسقط" },
-    { id: "sc-comm-4",  name: "باريستا عُمان" },
-    { id: "sc-comm-5",  name: "قهوة الصباح" },
-    { id: "sc-comm-6",  name: "جلسات المساء" },
-    { id: "sc-comm-7",  name: "القهوة المختصة" },
-    { id: "sc-comm-8",  name: "ذوّاقو القهوة" },
-    { id: "sc-comm-9",  name: "مزارع البن" },
-    { id: "sc-comm-10", name: "صانعو القهوة" },
+  const themes = [
+    { id: "sc-comm-1",  name: "محبي اللاتيه",        emoji: "🥛", img: "1497935586351-b67a49e012bf" },
+    { id: "sc-comm-2",  name: "عشاق الإسبريسو",      emoji: "☕", img: "1510707577719-ae7c14805e3a" },
+    { id: "sc-comm-3",  name: "مقاهي مسقط",          emoji: "🕌", img: "1518684079-3c830dcef090" },
+    { id: "sc-comm-4",  name: "باريستا عُمان",         emoji: "🎽", img: "1521017432531-fbd92d768814" },
+    { id: "sc-comm-5",  name: "قهوة الصباح",          emoji: "🌅", img: "1442550528053-c431ecb55509" },
+    { id: "sc-comm-6",  name: "جلسات المساء",         emoji: "🌙", img: "1559925393-8be0ec4767c8" },
+    { id: "sc-comm-7",  name: "القهوة المختصة",       emoji: "🏆", img: "1559496417950-9d35f4a96ad7" },
+    { id: "sc-comm-8",  name: "ذوّاقو القهوة",         emoji: "👃", img: "1495474472287-4d71bcdd2085" },
+    { id: "sc-comm-9",  name: "مزارع البن",            emoji: "🌱", img: "1611854779393-1b2da9d400fe" },
+    { id: "sc-comm-10", name: "صانعو القهوة",         emoji: "🧑‍🍳", img: "1453614512568-c4024d13c247" },
   ];
   const PER_GROUP = 12; // ~120 memberships across 100 users → overlap is fine
-  return names.map((n, i) => {
+  return themes.map((n, i) => {
     const start = (i * 10) % competitors.length;
     const members = [SHOWCASE_USER_ID];
     for (let j = 0; j < PER_GROUP; j++) {
@@ -294,8 +325,8 @@ function buildCommunities(competitors: AppUser[]): Community[] {
     if (members[2]) roles[members[2]] = "senior";
     return {
       id: n.id,
-      name: n.name,
-      avatar: unsplash(CAFE_LOGOS[i % CAFE_LOGOS.length]!, 200),
+      name: `${n.emoji} ${n.name}`,
+      avatar: unsplash(n.img, 300),
       members,
       createdBy: SHOWCASE_USER_ID,
       createdAt: Date.now() - (i + 1) * 7 * 86_400_000,
@@ -394,16 +425,30 @@ export async function seedShowcaseData(): Promise<void> {
     dirty = true;
   }
 
-  // 2) 100 competitors
+  // 2) 100 competitors — upsert so previously-seeded users pick up newly
+  // added cosmetic theme fields (frame/badge/bg/character/uc/ts).
   const wantCompetitors = 100;
-  const haveCompetitor = (i: number) => users.some(u => u.id === `sc-user-${i + 1}`);
-  if (!haveCompetitor(wantCompetitors - 1)) {
-    const fresh = buildCompetitors(wantCompetitors);
-    for (const u of fresh) {
-      if (!users.some(x => x.id === u.id)) {
-        users.push(u);
-        dirty = true;
-      }
+  const fresh = buildCompetitors(wantCompetitors);
+  for (const u of fresh) {
+    const idx = users.findIndex(x => x.id === u.id);
+    if (idx === -1) {
+      users.push(u);
+      dirty = true;
+    } else {
+      // Preserve runtime-mutable fields the player may have changed
+      // (level, totalOrders, joinedAt) but always refresh cosmetic theme.
+      const existing = users[idx]!;
+      users[idx] = {
+        ...existing,
+        equippedFrame: u.equippedFrame,
+        equippedBadge: u.equippedBadge,
+        equippedBackground: u.equippedBackground,
+        equippedCharacter: u.equippedCharacter,
+        equippedUsernameColor: u.equippedUsernameColor,
+        equippedTextStyle: u.equippedTextStyle,
+        showcaseOnly: true,
+      };
+      dirty = true;
     }
   }
   const competitors = users.filter(
@@ -441,14 +486,24 @@ export async function seedShowcaseData(): Promise<void> {
     }
   }
 
-  // 6) 10 communities
-  if (!communities.some(c => c.id === "sc-comm-10")) {
-    for (const c of buildCommunities(competitors)) {
-      if (!communities.some(x => x.id === c.id)) {
-        communities.push(c);
-        dirty = true;
-      }
+  // 6) 10 communities — upsert so updated themes (emoji-prefixed names,
+  // varied avatars) replace any older seeded rows.
+  for (const c of buildCommunities(competitors)) {
+    const idx = communities.findIndex(x => x.id === c.id);
+    if (idx === -1) {
+      communities.push(c);
+    } else {
+      const existing = communities[idx]!;
+      // Keep the existing members list (in case the player added/removed
+      // anyone) but refresh the visual theme.
+      communities[idx] = {
+        ...existing,
+        name: c.name,
+        avatar: c.avatar,
+        showcaseOnly: true,
+      };
     }
+    dirty = true;
   }
 
   // 7) Friendships + chat messages
