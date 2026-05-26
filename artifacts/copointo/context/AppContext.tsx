@@ -553,6 +553,15 @@ async function loginShowcaseAccount(): Promise<User> {
   ];
   await AsyncStorage.multiSet(prefill);
 
+  // Varied per-cafe progress (sum of levels = 240, sum of drinks = 1680)
+  // — mirrors the server-side seed in api-server/src/showcase-seed.ts so
+  // the profile/game cafe breakdown looks realistic instead of "every
+  // cafe at level 24" uniformly.
+  const cafeDist = [50, 42, 35, 28, 24, 20, 15, 12, 8, 6];
+  const cafeProgress = Object.fromEntries(
+    cafeDist.map((lvl, i) => [`sc-cafe-${i + 1}`, { totalOrders: lvl * 7, level: lvl }]),
+  );
+
   return {
     id: SHOWCASE_USER_ID,
     name: "Copointo",
@@ -570,6 +579,7 @@ async function loginShowcaseAccount(): Promise<User> {
     equippedCharacter: "char-17",
     equippedUsernameColor: "uc-22",
     equippedTextStyle: "ts-14",
+    cafeProgress,
   };
 }
 

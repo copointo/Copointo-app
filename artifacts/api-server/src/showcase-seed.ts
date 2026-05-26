@@ -204,9 +204,18 @@ function buildShowcaseUser(): AppUser {
     equippedCharacter: "char-17",
     equippedUsernameColor: "uc-22",
     equippedTextStyle: "ts-14",
-    cafeProgress: Object.fromEntries(
-      CAFE_SPECS.map(c => [c.id, { totalOrders: 168, level: 24 }]),
-    ),
+    // Varied per-cafe progress that still adds up to the global totals
+    // (sum of levels = 240, sum of drinks = 1680). Top cafes look like
+    // long-time favourites; smaller ones like occasional visits.
+    cafeProgress: (() => {
+      const dist = [50, 42, 35, 28, 24, 20, 15, 12, 8, 6]; // sum = 240
+      return Object.fromEntries(
+        CAFE_SPECS.map((c, i) => {
+          const lvl = dist[i] ?? 0;
+          return [c.id, { totalOrders: lvl * 7, level: lvl }];
+        }),
+      );
+    })(),
     showcaseOnly: true,
   };
 }
@@ -456,9 +465,17 @@ function buildChatsAndFriendships(
 export async function seedShowcaseData(): Promise<void> {
   let dirty = false;
 
-  // 1) Showcase user (level 240)
-  if (!users.some(u => u.id === SHOWCASE_USER_ID)) {
-    users.push(buildShowcaseUser());
+  // 1) Showcase user (level 240) — upsert so previously-seeded rows pick
+  // up newly added/changed fields like the varied cafeProgress.
+  {
+    const fresh = buildShowcaseUser();
+    const idx = users.findIndex(u => u.id === SHOWCASE_USER_ID);
+    if (idx === -1) {
+      users.push(fresh);
+    } else {
+      const existing = users[idx]!;
+      users[idx] = { ...existing, cafeProgress: fresh.cafeProgress };
+    }
     dirty = true;
   }
 
