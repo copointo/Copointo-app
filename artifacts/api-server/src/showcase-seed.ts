@@ -343,7 +343,7 @@ function buildChatsAndFriendships(
 ): { msgs: ChatMsg[]; fships: Friendship[] } {
   const msgs: ChatMsg[] = [];
   const fships: Friendship[] = [];
-  const friendIds = competitors.slice(0, 12).map(u => u.id); // 12 friends of showcase user
+  const friendIds = competitors.slice(0, 25).map(u => u.id); // 25 friends of showcase user
 
   // Friendships (showcase user ↔ first 12 competitors).
   for (const fid of friendIds) {
