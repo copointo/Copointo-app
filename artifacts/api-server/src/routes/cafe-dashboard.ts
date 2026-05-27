@@ -428,12 +428,16 @@ router.get("/lookup-user", (req: any, res): any => {
   const digits = (p: string) => String(p ?? "").replace(/\D+/g, "");
   const q = digits(phone);
   if (!q) return res.json({ user: null });
+  // Exclude showcase/demo users from the cashier's lookup — the Copointo
+  // demo account (and its seeded competitors) must NEVER appear when staff
+  // types a customer's phone in "اطلب مباشر".
+  const realUsers = users.filter(x => !x.showcaseOnly);
   const u =
-    users.find(x => digits(x.phone) === q) ||
+    realUsers.find(x => digits(x.phone) === q) ||
     (q.length >= 7
-      ? users.find(x => {
+      ? realUsers.find(x => {
           const d = digits(x.phone);
-          return d.endsWith(q) || q.endsWith(d);
+          return !!d && (d.endsWith(q) || q.endsWith(d));
         })
       : null);
   if (!u) return res.json({ user: null });
