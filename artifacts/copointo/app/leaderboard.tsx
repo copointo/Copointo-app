@@ -215,26 +215,13 @@ export default function LeaderboardScreen() {
     }
     return h;
   };
-  // A player counts as "decorated" when at least one cosmetic slot is
-  // equipped. Plain players (no frame/badge/background/character/colour)
-  // get a small deterministic positive jitter added to their effective
-  // sort score, so instead of all collapsing into one consecutive block
-  // at the same totalOrders value they spread throughout the surrounding
-  // ranks. Decorated players keep their exact totalOrders so the strict
-  // ranking is preserved for the "real" competitors.
-  const hasCosmetics = (e: Entry) =>
-    !!(e.equippedFrame || e.equippedBadge || e.equippedBackground
-       || e.equippedCharacter || e.equippedUsernameColor);
-  // Jitter range is wide on purpose (0..299): in the showcase world the
-  // 100 competitor sc-users sit at ~240 totalOrders each, so a small
-  // jitter (e.g. 80) would still leave every plain player below them all.
-  // 300 covers the full ordered range so no-cosmetics players genuinely
-  // spread throughout the leaderboard — some near the top, some middle,
-  // some at the bottom — instead of all collapsing under the competitors.
-  const scoreOf = (e: Entry) =>
-    e.totalOrders + (hasCosmetics(e) ? 0 : (hashId(e.id) % 300));
+  // Strict ranking by totalOrders (coffee count). Ties broken by a
+  // deterministic hash of `id` so that users at the same coffee count
+  // get a stable but scattered order (avoids a visible alphabetical
+  // clump). No cosmetics-based jitter — the user explicitly wants the
+  // list ordered purely by number of coffees.
   const sortDesc = (a: Entry, b: Entry) =>
-    (scoreOf(b) - scoreOf(a)) || (hashId(a.id) - hashId(b.id));
+    (b.totalOrders - a.totalOrders) || (hashId(a.id) - hashId(b.id));
 
   const entries = useMemo<Entry[]>(() => {
     if (activeTab === "oman") {
