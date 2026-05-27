@@ -790,6 +790,19 @@ router.post("/free-coffees/redeem", (req: any, res) => {
       order.freeCoffeeLevel = fc.earnedAtLevel;
     }
   }
+  // Notify the code owner that their free-coffee code was just used by the
+  // cashier — so they immediately see it's no longer redeemable from the app.
+  const owner = users.find(u => u.phone === fc.userPhone);
+  if (owner) {
+    void sendPushToUser(owner.id, {
+      title: "🎟️ تم استخدام كود القهوة المجانية",
+      body:  fc.earnedAtCafeName
+        ? `تم استخدام الكود ${fc.code} في "${fc.earnedAtCafeName}" — لا يمكن استعماله مرة أخرى`
+        : `تم استخدام الكود ${fc.code} — لا يمكن استعماله مرة أخرى`,
+      data:  { type: "free_coffee_redeemed", code: fc.code },
+    });
+  }
+  persistStore();
   res.json({ freeCoffee: fc });
 });
 

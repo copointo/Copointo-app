@@ -1589,6 +1589,11 @@ function OrdersTab({ id }: { id: string }) {
   // Per-order in-progress payment form: { cash, visa } as strings while editing.
   // Opening this form replaces the cash/visa choice buttons with inputs.
   const [payForms, setPayForms] = useState<Record<string, { cash: string; visa: string } | undefined>>({});
+  // Order currently open in the free-coffee redemption modal (cashier clicks
+  // "🎟️ كود كوفي مجاني" next to كاش/فيزا). When set, <FreeCoffeeModal/> opens
+  // for that order; on success the modal stamps the code onto the order,
+  // marks it printed/done, and notifies the code owner that it's been used.
+  const [freeCoffeeOrder, setFreeCoffeeOrder] = useState<any | null>(null);
   const openPayForm = (oid: string, prefer: "cash" | "visa") => {
     const o = orders.find(x => x.id === oid);
     const tot = Number(o?.total ?? 0).toFixed(3);
@@ -1917,6 +1922,13 @@ function OrdersTab({ id }: { id: string }) {
                     💳 فيزا
                   </button>
                   <button
+                    onClick={() => setFreeCoffeeOrder(o)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold hover:bg-purple-500/30"
+                    title="استخدام كود قهوة مجانية يملكه الزبون (من نظام المكافآت كل 7 مشروبات)"
+                  >
+                    🎟️ كود كوفي مجاني
+                  </button>
+                  <button
                     onClick={() => setFreePayment(o.id)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary/20 text-primary border border-primary/40 text-xs font-bold hover:bg-primary/30"
                   >
@@ -2019,6 +2031,16 @@ function OrdersTab({ id }: { id: string }) {
           </div>
         </Card>
       ))}
+      {freeCoffeeOrder && (
+        <FreeCoffeeModal
+          cafeId={id}
+          order={freeCoffeeOrder}
+          onClose={() => setFreeCoffeeOrder(null)}
+          onPrinted={(updated) => {
+            setOrders(prev => prev.map(o => o.id === updated.id ? { ...o, ...updated } : o));
+          }}
+        />
+      )}
     </div>
   );
 }
