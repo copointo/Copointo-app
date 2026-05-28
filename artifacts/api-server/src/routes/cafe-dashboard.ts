@@ -482,10 +482,24 @@ function awardOrderProgress(order: any) {
   const drinks = Array.isArray(order.items)
     ? order.items.reduce((s: number, it: any) => {
         const cat = String(it.category ?? "");
-        if (cat === "مشروب ساخن" || cat === "مشروبات باردة") {
-          return s + (Number(it.qty) || 0);
-        }
-        return s;
+        // Allow-list of drink categories. Includes both the singular
+        // "مشروب ساخن" (used by the admin MENU_CATEGORIES dropdown) AND
+        // the plural "مشروبات ساخنة" (used by the admin auto-detect/import
+        // helper) so a hot drink is counted regardless of which source set
+        // its category. Desserts (حلى), food (طعام), and any unknown
+        // category are never counted.
+        const isDrink = cat === "مشروب ساخن"
+          || cat === "مشروبات ساخنة"
+          || cat === "مشروبات باردة"
+          || cat === "مشروب بارد";
+        if (!isDrink) return s;
+        // Sanitize qty: must be a finite non-negative integer. Non-finite
+        // values (NaN, Infinity, "1e309") and negatives are clamped to 0
+        // so a malformed client payload can never inflate the tally.
+        // Also cap per-line at 99 to defend against absurd qty values.
+        const n = Number(it.qty);
+        const q = Number.isFinite(n) ? Math.min(99, Math.max(0, Math.floor(n))) : 0;
+        return s + q;
       }, 0)
     : 0;
   if (drinks > 0) {

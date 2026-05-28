@@ -338,8 +338,11 @@ router.get("/users/:id/cafe-breakdown", (req, res): any => {
     const drinks = Array.isArray(o.items)
       ? o.items.reduce((s: number, it: any) => {
           const cat = String(it.category ?? "");
-          if (cat === "مشروب ساخن" || cat === "مشروبات باردة") return s + (Number(it.qty) || 0);
-          return s;
+          const isDrink = cat === "مشروب ساخن" || cat === "مشروبات ساخنة"
+                       || cat === "مشروبات باردة" || cat === "مشروب بارد";
+          if (!isDrink) return s;
+          const n = Number(it.qty);
+          return s + (Number.isFinite(n) ? Math.min(99, Math.max(0, Math.floor(n))) : 0);
         }, 0)
       : 0;
     const cur = byCafe.get(o.cafeId) ?? { cafeId: o.cafeId, cafeName, ordersHere: 0, drinksHere: 0 };
@@ -515,8 +518,11 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
             const drinks = Array.isArray(o.items)
               ? o.items.reduce((s: number, it: any) => {
                   const cat = String(it.category ?? "");
-                  if (cat === "مشروب ساخن" || cat === "مشروبات باردة") return s + (Number(it.qty) || 0);
-                  return s;
+                  const isDrink = cat === "مشروب ساخن" || cat === "مشروبات ساخنة"
+                               || cat === "مشروبات باردة" || cat === "مشروب بارد";
+                  if (!isDrink) return s;
+                  const n = Number(it.qty);
+                  return s + (Number.isFinite(n) ? Math.min(99, Math.max(0, Math.floor(n))) : 0);
                 }, 0)
               : 0;
             counts.set(o.cafeId, (counts.get(o.cafeId) ?? 0) + drinks);

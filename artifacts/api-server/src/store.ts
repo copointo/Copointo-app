@@ -709,6 +709,34 @@ async function bootLoad(): Promise<void> {
     }
     // eslint-disable-next-line no-console
     console.log(`[store] loaded ${rows.length} collections from kv_store`);
+    // ── One-shot wipe of legacy free-coffee codes (idempotent) ──
+    // Per product request: clear any leftover FreeCoffee codes from
+    // before the redemption flow was finalised so old/confusing codes
+    // can't be used by mistake. Guarded by a DB-backed marker row in
+    // kv_store (NOT a local file — local disk is per-instance and would
+    // re-trigger the wipe on every new autoscale instance, eating
+    // legitimate newly-earned codes). The marker key is reserved with a
+    // leading underscore so it never collides with a real collection key.
+    try {
+      const MARKER_KEY = "_migration:free-coffees-wiped-v1";
+      const hasMarker = rows.some(r => r.key === MARKER_KEY);
+      if (!hasMarker) {
+        const n = freeCoffees.length;
+        if (n > 0) {
+          freeCoffees.length = 0;
+          await flushAll();
+        }
+        await db
+          .insert(kvStoreTable)
+          .values({ key: MARKER_KEY, value: { at: new Date().toISOString(), wiped: n } as any })
+          .onConflictDoNothing({ target: kvStoreTable.key });
+        // eslint-disable-next-line no-console
+        console.log(`[store] wiped ${n} legacy free-coffee code(s) (one-shot, DB-marker)`);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[store] free-coffee wipe failed: ${(e as Error).message}`);
+    }
     // ── Demo data cleanup (idempotent) ──
     // All demo entities (user, cafe, menu) have been removed from the
     // product. This purge runs every boot to clean any leftover demo rows
