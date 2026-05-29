@@ -463,12 +463,13 @@ function StatsTab({ id }: { id: string }) {
         <Card className="p-5">
           <h3 className="text-base font-semibold text-foreground mb-4">📈 الإيرادات اليومية</h3>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.chartData}>
+            <LineChart data={data.chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#2a3044" />
               <XAxis dataKey="date" tick={{ fill:"#888", fontSize:11 }} />
               <YAxis tick={{ fill:"#888", fontSize:11 }} />
               <Tooltip contentStyle={{ background:"#1a1f2e", border:"1px solid #2a3044", borderRadius:8 }} labelStyle={{ color:"#ccc" }} />
-              <Bar dataKey="revenue" fill="#C67C4E" radius={[6,6,0,0]} />
-            </BarChart>
+              <Line type="monotone" dataKey="revenue" stroke="#C67C4E" strokeWidth={2.5} dot={{ r: 3, fill: "#C67C4E" }} activeDot={{ r: 5 }} />
+            </LineChart>
           </ResponsiveContainer>
         </Card>
       )}
@@ -5652,32 +5653,36 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Order type pie */}
+        {/* Order type bar */}
         <SectionCard title="نوع الطلب" icon={<Coffee size={16} />}>
           {(o.dineIn + o.carOut) > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={orderTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+              <BarChart data={orderTypeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
+                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
+                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {orderTypeData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Pie>
-                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
-                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد طلبات بعد</p>}
         </SectionCard>
 
-        {/* Order source pie */}
+        {/* Order source bar */}
         <SectionCard title="مصدر الطلب (مباشر / شات)" icon={<MessageCircle size={16} />}>
           {(o.direct + o.viaChat) > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={orderSourceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+              <BarChart data={orderSourceData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
+                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
+                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {orderSourceData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Pie>
-                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
-                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد طلبات بعد</p>}
         </SectionCard>
@@ -5695,17 +5700,19 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
           </ResponsiveContainer>
         </SectionCard>
 
-        {/* Bookings status */}
+        {/* Bookings status bar */}
         <SectionCard title="حالة الحجوزات" icon={<Armchair size={16} />}>
           {b.total > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={bookingData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+              <BarChart data={bookingData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
+                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
+                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {bookingData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Pie>
-                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
-                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد حجوزات بعد</p>}
         </SectionCard>
@@ -5749,13 +5756,15 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         <SectionCard title="الفئة الأكثر طلباً" icon={<UtensilsCrossed size={16} />}>
           {data.topCategories.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={data.topCategories} dataKey="qty" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+              <BarChart data={data.topCategories}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
+                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
+                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
+                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
+                <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
                   {data.topCategories.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Pie>
-                <Legend wrapperStyle={{ color: "#F5E6CC" }} />
-                <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد بيانات</p>}
         </SectionCard>
