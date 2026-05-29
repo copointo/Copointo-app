@@ -384,81 +384,24 @@ export default function OrderTimerScreen() {
   }, []);
 
   // ── Bar fill (0 .. 1) ──
-  // The bar must always *look alive* until the final step. While waiting at
-  // any non-final milestone we run a looping fill animation: the bar grows
-  // from the current step's anchor toward the next step's anchor, then
-  // resets and grows again, over and over. Only the final "completed" step
-  // freezes the fill in place.
-  const fillAnim = useRef(new Animated.Value(STEPS[0].pos)).current;
-  useEffect(() => {
-    // Final step — freeze the bar fully filled.
-    if (completed) {
-      Animated.timing(fillAnim, {
-        toValue: STEPS[3].pos,
-        duration: 800,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-      return;
-    }
-
-    // For every non-final stage, build a [from → to] looping crawl. The
-    // `from` is the current step's anchor and `to` is the next step's
-    // anchor minus a hair so the next-step icon doesn't visually fill in
-    // before the server actually advances us.
-    let from: number;
-    let to: number;
-    let crawlMs: number;
-    if (isReadyOrDone) {
-      // Ready → done: short, brisk loop between step 3 and step 4.
-      from = STEPS[2].pos;
-      to   = STEPS[3].pos - 0.03;
-      crawlMs = 2200;
-    } else if (confirmed) {
-      // Preparing: loop between step 2 and step 3, paced by prep time but
-      // capped so the user always sees movement within a few seconds.
-      from = STEPS[1].pos;
-      to   = STEPS[2].pos - 0.03;
-      crawlMs = Math.min(Math.max(2500, totalMin * 60 * 1000), 12000);
-    } else {
-      // Pending: loop between step 1 and step 2 while waiting for the
-      // cafe to confirm — keeps the bar feeling alive from the very start.
-      from = STEPS[0].pos;
-      to   = STEPS[1].pos - 0.03;
-      crawlMs = 2400;
-    }
-
-    fillAnim.setValue(from);
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(fillAnim, {
-          toValue: to,
-          duration: crawlMs,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(fillAnim, {
-          toValue: from,
-          duration: 450,
-          easing: Easing.in(Easing.cubic),
-          useNativeDriver: false,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [confirmed, isReadyOrDone, completed, totalMin, fillAnim]);
+  // The fill is FIXED (determinate), not a back-and-forth crawl. It snaps
+  // to a fixed quarter for each milestone and stays there — the only thing
+  // that keeps moving is the transparent shimmer band (below). The target
+  // levels are computed further down (after the prep countdown is known)
+  // because the 50% step depends on the prep timer finishing.
+  const fillAnim = useRef(new Animated.Value(0)).current;
 
   // ── Shimmer sweep ──
-  // A lighter gold band travels left-to-right across the whole bar over
-  // and over so it always feels alive — even while waiting.
+  // A transparent band travels left-to-right across the whole bar to the
+  // end, then repeats — a clean, steady (linear) loop so the bar always
+  // feels alive while the fill itself stays fixed.
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
       Animated.timing(shimmerAnim, {
         toValue: 1,
-        duration: 2400,
-        easing: Easing.inOut(Easing.ease),
+        duration: 1800,
+        easing: Easing.linear,
         useNativeDriver: true,
       }),
     ).start();
@@ -551,6 +494,27 @@ export default function OrderTimerScreen() {
   const RING_C      = 2 * Math.PI * RING_R;
   const ringDashOffset = RING_C * (1 - pct / 100);
   const ringColor = (isReadyOrDone || completed) ? SUCCESS : confirmed ? PRIMARY : "rgba(245,230,204,0.35)";
+
+  // ── Fixed fill target (0 .. 1) ──
+  // The bar fills to a fixed quarter for each milestone and holds there:
+  //   • 25%  after the cafe confirms preparation        (status: preparing)
+  //   • 50%  after the prep countdown finishes           (preparing + 0:00)
+  //   • 75%  ready for pickup                            (status: ready)
+  //   • 100% after the order is done / level goes up     (status: done)
+  const fillTarget =
+    completed                               ? 1.0  : // done → level up
+    isReadyOrDone                           ? 0.75 : // ready for pickup
+    (confirmed && secondsLeft === 0)        ? 0.5  : // preparation finished
+    confirmed                               ? 0.25 : // preparing started
+                                              0.0;   // pending / received
+  useEffect(() => {
+    Animated.timing(fillAnim, {
+      toValue: fillTarget,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [fillTarget, fillAnim]);
 
   // ── Status pill text (top-right) ──
   const pillText = useMemo(() => {
@@ -715,6 +679,12 @@ export default function OrderTimerScreen() {
                 style={StyleSheet.absoluteFill}
               />
             </Animated.View>
+
+            {/* Quarter division ticks (25% / 50% / 75%) so the bar reads as
+                a fixed, divided track rather than a free-floating fill. */}
+            {[0.25, 0.5, 0.75].map((p) => (
+              <View key={p} pointerEvents="none" style={[styles.barTick, { left: `${p * 100}%` }]} />
+            ))}
 
             {/* Shimmer band sweeping across the full bar repeatedly. */}
             {barWidth > 0 && (
@@ -953,6 +923,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0, bottom: 0,
     left: 0,
+  },
+  barTick: {
+    position: "absolute",
+    top: 1.5, bottom: 1.5,
+    width: 2,
+    marginLeft: -1,
+    borderRadius: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
 
   headline: {
