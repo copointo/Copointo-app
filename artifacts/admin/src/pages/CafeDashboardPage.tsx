@@ -1674,6 +1674,12 @@ function OrdersTab({ id }: { id: string }) {
   const [freeCoffeeOrder, setFreeCoffeeOrder] = useState<any | null>(null);
   // Order currently open in the "تعديل الطلب" editor modal (add/remove items).
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  // Status filter for the orders list. The four states mirror orderTheme()'s
+  // label exactly: غير مستلم (pending) → تم الاستلام (preparing) → لم يُدفع بعد
+  // (ready/done, no payment) → تم الدفع (paymentMethod set). The cashier taps a
+  // button to view only that state; acting on an order moves it to the next
+  // state and it leaves the current view automatically.
+  const [statusFilter, setStatusFilter] = useState<string>("غير مستلم");
   const openPayForm = (oid: string, prefer: "cash" | "visa") => {
     const o = orders.find(x => x.id === oid);
     const tot = Number(o?.total ?? 0).toFixed(3);
@@ -1802,6 +1808,21 @@ function OrdersTab({ id }: { id: string }) {
     }
   };
 
+  // ── Status filter buttons ───────────────────────────────────────────
+  // Each order belongs to exactly one of the four states via orderTheme().label.
+  // We count per state for the badge above each button, and filter the list to
+  // the selected state.
+  const STATUS_DEFS: { t: string; dot: string; active: string; badge: string }[] = [
+    { t: "غير مستلم",   dot: "bg-red-500",     active: "border-red-500/60 bg-red-500/15 text-red-300",         badge: "bg-red-500 text-white" },
+    { t: "تم الاستلام", dot: "bg-orange-500",  active: "border-orange-500/60 bg-orange-500/15 text-orange-300", badge: "bg-orange-500 text-white" },
+    { t: "لم يُدفع بعد", dot: "bg-blue-500",    active: "border-blue-500/60 bg-blue-500/15 text-blue-300",       badge: "bg-blue-500 text-white" },
+    { t: "تم الدفع",    dot: "bg-emerald-500", active: "border-emerald-500/60 bg-emerald-500/15 text-emerald-300", badge: "bg-emerald-500 text-white" },
+  ];
+  const statusCounts: Record<string, number> = {};
+  orders.forEach(o => { const l = orderTheme(o).label; statusCounts[l] = (statusCounts[l] || 0) + 1; });
+  const filteredOrders = orders.filter(o => orderTheme(o).label === statusFilter);
+  const isFinalFilter = statusFilter === "تم الدفع";
+
   return (
     <div className="space-y-4">
       {orders.length > 0 && (
@@ -1822,23 +1843,40 @@ function OrdersTab({ id }: { id: string }) {
         </Card>
       )}
       {orders.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 rounded-2xl border border-[#E8B86D]/15 bg-gradient-to-b from-card to-[#0a0606] px-4 py-3">
-          <span className="text-[11px] font-bold text-muted-foreground ml-1">حالة الطلب:</span>
-          {[
-            { c: "bg-red-500",     t: "غير مستلم" },
-            { c: "bg-orange-500",  t: "تم الاستلام" },
-            { c: "bg-blue-500",    t: "لم يُدفع بعد" },
-            { c: "bg-emerald-500", t: "تم الدفع" },
-          ].map(s => (
-            <span key={s.t} className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/85">
-              <span className={`w-2.5 h-2.5 rounded-full ${s.c}`} aria-hidden />
-              {s.t}
-            </span>
-          ))}
+        <div className="rounded-2xl border border-[#E8B86D]/15 bg-gradient-to-b from-card to-[#0a0606] px-4 pt-5 pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+            {STATUS_DEFS.map(s => {
+              const count = statusCounts[s.t] ?? 0;
+              const active = statusFilter === s.t;
+              return (
+                <button
+                  key={s.t}
+                  onClick={() => setStatusFilter(s.t)}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 px-3 py-3 rounded-xl border transition-all ${active ? `${s.active} shadow-md` : "border-border/40 bg-card/60 text-foreground/70 hover:border-[#E8B86D]/40 hover:text-foreground"}`}
+                >
+                  <span className={`absolute -top-2.5 -left-2.5 min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-full text-xs font-extrabold tabular-nums shadow ${count > 0 ? s.badge : "bg-muted text-muted-foreground"}`}>
+                    {count}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs font-bold">
+                    <span className={`w-2.5 h-2.5 rounded-full ${s.dot}`} aria-hidden />
+                    {s.t}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className={`mt-3 rounded-xl border px-4 py-2.5 text-xs font-bold flex items-center gap-2 ${isFinalFilter ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-amber-500/40 bg-amber-500/10 text-amber-300"}`}>
+            {isFinalFilter
+              ? "✅ تم اتخاذ الإجراء النهائي لهذه الطلبات — للعرض فقط"
+              : "🔔 يرجى اتخاذ إجراء للطلبات في هذه الحالة"}
+          </div>
         </div>
       )}
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
-      {orders.map(o => { const th = orderTheme(o); return (
+      {orders.length > 0 && filteredOrders.length === 0 && (
+        <Empty icon="📭" text={`لا توجد طلبات في حالة «${statusFilter}»`} />
+      )}
+      {filteredOrders.map(o => { const th = orderTheme(o); return (
         <div key={o.id} className={`relative overflow-hidden p-5 pr-7 rounded-2xl border-2 ${th.ring} ${th.bg} ${th.glow} bg-card transition-shadow duration-200`}>
           <span className={`absolute top-0 bottom-0 right-0 w-1.5 ${th.bar}`} aria-hidden />
           {(o.status === "pending" || o.status === "preparing") && (
