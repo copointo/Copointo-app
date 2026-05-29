@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -63,6 +64,80 @@ const POSITIONS = [-90, 0, 90];
 
 const BEFORE = 12;
 const AFTER  = 48;
+
+interface FreeCoffeeItem {
+  id: string;
+  code: string;
+  earnedAtLevel: number;
+  earnedAt: string;
+  earnedAtCafeId?: string | null;
+  earnedAtCafeName?: string | null;
+  redeemedAt: string | null;
+}
+
+function FreeCoffeeModal({
+  visible, onClose, coffees,
+}: { visible: boolean; onClose: () => void; coffees: FreeCoffeeItem[] }) {
+  const available = coffees.filter(c => !c.redeemedAt);
+  const used      = coffees.filter(c => c.redeemedAt);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.fcOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.fcCard}>
+          <View style={styles.fcHeader}>
+            <Text style={styles.fcTitle}>🎁 الكوفي المجاني</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+              <Feather name="x" size={22} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.fcSubtitle}>
+            تحصل على كوب قهوة مجاني بعد كل ٧ مشروبات — استخدم الكود في نفس الكوفي الذي ربحته فيه.
+          </Text>
+
+          <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
+            {coffees.length === 0 && (
+              <View style={styles.fcEmptyWrap}>
+                <Text style={styles.fcEmptyIcon}>☕</Text>
+                <Text style={styles.fcEmptyText}>لا يوجد لديك كوفي مجاني بعد</Text>
+              </View>
+            )}
+
+            {available.map(c => (
+              <View key={`fc-av-${c.id}`} style={styles.fcCodeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fcCodeValue}>{c.code}</Text>
+                  <Text style={styles.fcCodeMeta}>
+                    {c.earnedAtCafeName ? `في ${c.earnedAtCafeName}` : "متاح للاستخدام"}
+                  </Text>
+                </View>
+                <View style={styles.fcStatusPillOk}>
+                  <Text style={styles.fcStatusPillOkText}>متاح</Text>
+                </View>
+              </View>
+            ))}
+
+            {used.map(c => (
+              <View key={`fc-us-${c.id}`} style={[styles.fcCodeRow, styles.fcCodeRowUsed]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.fcCodeValue, styles.fcCodeValueUsed]}>{c.code}</Text>
+                  <Text style={styles.fcCodeMeta}>
+                    {c.earnedAtCafeName ? `في ${c.earnedAtCafeName}` : "تم الاستخدام"}
+                  </Text>
+                </View>
+                <View style={styles.fcStatusPillUsed}>
+                  <Text style={styles.fcStatusPillUsedText}>مستعمل</Text>
+                </View>
+              </View>
+            ))}
+            <View style={{ height: 8 }} />
+          </ScrollView>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
 
 export default function GameScreen() {
   const insets    = useSafeAreaInsets();
@@ -202,6 +277,32 @@ export default function GameScreen() {
   const [unreadBroadcasts, setUnreadBroadcasts] = useState(0);
   // ── Unread free coffees (newly-earned, not yet seen on /notifications) ──
   const [unreadFreeCoffees, setUnreadFreeCoffees] = useState(0);
+  // ── Free-coffee codes button (modal lists all codes incl. redeemed) ──
+  const [fcOpen, setFcOpen] = useState(false);
+  const [fcList, setFcList] = useState<FreeCoffeeItem[]>([]);
+
+  useEffect(() => {
+    const phone = user?.phone?.trim();
+    if (!phone) { setFcList([]); return; }
+    let cancelled = false;
+    apiFetch<{ coffees: FreeCoffeeItem[] }>(
+      `/free-coffees?phone=${encodeURIComponent(phone)}`,
+    )
+      .then(r => {
+        if (cancelled) return;
+        const all = (r.coffees ?? []).slice().sort((a, b) => {
+          const au = a.redeemedAt ? 1 : 0;
+          const bu = b.redeemedAt ? 1 : 0;
+          if (au !== bu) return au - bu;
+          return (b.earnedAt ?? "").localeCompare(a.earnedAt ?? "");
+        });
+        setFcList(all);
+      })
+      .catch(() => { /* ignore network errors */ });
+    return () => { cancelled = true; };
+  }, [user?.phone, fcOpen]);
+
+  const fcAvailableCount = fcList.filter(c => !c.redeemedAt).length;
 
   const refreshBadges = useCallback(async () => {
     try {
@@ -689,6 +790,32 @@ export default function GameScreen() {
 
       </View>
 
+      {/* Free coffee (small) - sits directly above مستوى الكافيهات on the LEFT (gold) */}
+      <TouchableOpacity
+        style={[styles.fabFreeCoffee, {
+          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 84 + 84 + 84,
+        }]}
+        onPress={async () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setFcOpen(true);
+          // Mark free coffees as seen so the bell badge clears (these are now
+          // surfaced here + in profile instead of the notifications screen).
+          try {
+            await AsyncStorage.setItem("copointo_free_coffee_last_seen_v1", new Date().toISOString());
+            setUnreadFreeCoffees(0);
+          } catch { /* ignore */ }
+        }}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabFreeCoffeeIcon}>🎁</Text>
+        <Text style={styles.fabFreeCoffeeLabel}>الكوفي المجاني</Text>
+        {fcAvailableCount > 0 && (
+          <View style={styles.fabFreeCoffeeBadge}>
+            <Text style={styles.fabFreeCoffeeBadgeText}>{fcAvailableCount}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
       {/* My Cafés - sits directly above الهدايا المرسلة on the LEFT (orange) */}
       <TouchableOpacity
         style={[styles.fabSentGifts, {
@@ -756,6 +883,8 @@ export default function GameScreen() {
           the platform since the user's last visit to this page. Lives only
           on the Levels page so the rain never interrupts other screens. */}
       <GiftFeedRain />
+
+      <FreeCoffeeModal visible={fcOpen} onClose={() => setFcOpen(false)} coffees={fcList} />
 
       {/* Super-admin → user coin gifts. Polls /coin-gifts and shows a
           full-screen celebration modal that credits the local balance. */}
@@ -1168,6 +1297,73 @@ const styles = StyleSheet.create({
     fontSize: 10, fontFamily: "Inter_700Bold",
     color: "#000", textAlign: "center",
   },
+  // ── Small free-coffee FAB (above مستوى الكافيهات) ──
+  fabFreeCoffee: {
+    position: "absolute",
+    left: 28,
+    width: 56, height: 56, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", gap: 2,
+    paddingHorizontal: 3,
+    backgroundColor: "rgba(232,184,109,0.16)",
+    borderWidth: 1.5, borderColor: PRIMARY,
+    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6, shadowRadius: 12, elevation: 9,
+    zIndex: 60,
+  },
+  fabFreeCoffeeIcon: { fontSize: 16 },
+  fabFreeCoffeeLabel: {
+    fontSize: 8, fontFamily: "Inter_700Bold",
+    color: PRIMARY, textAlign: "center",
+  },
+  fabFreeCoffeeBadge: {
+    position: "absolute", top: -5, right: -5,
+    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
+    backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "#000",
+  },
+  fabFreeCoffeeBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+  // ── Free coffee codes modal ──
+  fcOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center", justifyContent: "center", padding: 20,
+  },
+  fcCard: {
+    width: "100%", maxWidth: 420, maxHeight: "80%",
+    backgroundColor: "#121212", borderRadius: 24,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+    padding: 20,
+  },
+  fcHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  fcTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: PRIMARY },
+  fcSubtitle: {
+    fontSize: 12, fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.55)", textAlign: "right", marginTop: 8, lineHeight: 18,
+  },
+  fcEmptyWrap: { alignItems: "center", paddingVertical: 30, gap: 8 },
+  fcEmptyIcon: { fontSize: 40 },
+  fcEmptyText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.5)" },
+  fcCodeRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: "rgba(232,184,109,0.08)", borderRadius: 14,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+    paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10,
+  },
+  fcCodeRowUsed: {
+    backgroundColor: "rgba(229,83,83,0.08)", borderColor: "rgba(229,83,83,0.4)",
+  },
+  fcCodeValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: PRIMARY, letterSpacing: 3, textAlign: "right" },
+  fcCodeValueUsed: { color: "#E55353", textDecorationLine: "line-through" },
+  fcCodeMeta: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)", marginTop: 3, textAlign: "right" },
+  fcStatusPillOk: {
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "rgba(232,184,109,0.18)", borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+  },
+  fcStatusPillOkText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
+  fcStatusPillUsed: {
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "rgba(229,83,83,0.18)", borderWidth: 1, borderColor: "rgba(229,83,83,0.5)",
+  },
+  fcStatusPillUsedText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#E55353" },
   freeHint: {
     marginTop: 5, marginBottom: 4,
     backgroundColor: PRIMARY_FAINT,
