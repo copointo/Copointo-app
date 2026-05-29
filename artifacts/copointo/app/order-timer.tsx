@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { apiFetch } from "@/constants/api";
+import { playLevelUpSound } from "@/lib/notification-sound";
 
 // Ensure OS-level notifications still appear (with their default chime) even
 // while the order-timer screen is in the foreground. Module-level so the
@@ -349,8 +350,13 @@ export default function OrderTimerScreen() {
       key:   Date.now(),
     });
 
-    // 2) Haptic — same celebratory pattern across all steps.
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    // 2) Haptic — same celebratory pattern across all steps EXCEPT the final
+    //    level-up step (activeIdx 3): the auto-redirect-to-hub effect already
+    //    fires its own success haptic + level-up sound there, so we skip here
+    //    to avoid a double buzz on completion.
+    if (activeIdx !== 3) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
 
     // 3) OS-level local notification with default chime. Native only — the
     //    web stack throws on scheduleNotificationAsync without a service
@@ -548,12 +554,12 @@ export default function OrderTimerScreen() {
 
   // Big subtitle under the stepper.
   const headlineAr =
-    completed       ? "تم استلام الطلب وارتفع تصنيفك 🎉" :
+    completed       ? "تم الدفع — زاد مستواك في اللعبة 🎮" :
     isReadyOrDone   ? "طلبك جاهز — توجّه لاستلامه ☕" :
     confirmed       ? `جاري تحضير طلبك… (${totalMin} دقيقة تقريباً)` :
                       "تم استلام طلبك — بانتظار تأكيد الكوفي";
   const headlineEn =
-    completed       ? "Order picked up — your rank went up 🎉" :
+    completed       ? "Paid — your game level went up 🎮" :
     isReadyOrDone   ? "Your order is ready — come pick it up ☕" :
     confirmed       ? `Preparing your order… (~${totalMin} min)` :
                       "Order received — waiting for cafe confirmation";
@@ -565,6 +571,27 @@ export default function OrderTimerScreen() {
   };
 
   const goHome = () => { setActiveOrder(null); router.replace("/(tabs)"); };
+
+  // After payment (order done), clear the active order so it disappears from
+  // the customer's side and send them straight to the Copointo hub (game tab).
+  const goHub = () => { setActiveOrder(null); router.replace("/(tabs)/game"); };
+
+  // ── Auto-redirect to the Copointo hub once the order is paid/done ──
+  // Plays the level-up sound + a success haptic, shows the "your game level
+  // went up" celebration briefly, then routes to the game tab and clears the
+  // active order so it no longer shows for the customer.
+  const redirectedRef = useRef(false);
+  useEffect(() => {
+    if (!completed || redirectedRef.current) return;
+    redirectedRef.current = true;
+    playLevelUpSound();
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    }
+    const t = setTimeout(() => { goHub(); }, 3200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completed]);
 
   // ── Step node with pulse on the active one ──
   const renderNode = (i: number) => {
@@ -809,7 +836,7 @@ export default function OrderTimerScreen() {
           >
             <Text style={styles.pointsIcon}>🎮</Text>
             <View>
-              <Text style={styles.pointsLabel}>{isAr ? "ارتفع تصنيفك" : "Your rank rose"}</Text>
+              <Text style={styles.pointsLabel}>{isAr ? "زاد مستواك في اللعبة" : "Your game level went up"}</Text>
               <Text style={styles.pointsValue}>
                 {isAr
                   ? `+${pointsAwarded} ${pointsAwarded === 1 ? "مستوى" : "مستويات"}`
@@ -820,13 +847,13 @@ export default function OrderTimerScreen() {
         )}
 
         {completed ? (
-          <TouchableOpacity style={styles.cta} onPress={goHome} activeOpacity={0.88}>
+          <TouchableOpacity style={styles.cta} onPress={goHub} activeOpacity={0.88}>
             <LinearGradient
               colors={[PRIMARY, "#C9985A"]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.ctaGrad}
             >
-              <Text style={styles.ctaText}>{isAr ? "العودة للرئيسية" : "Back home"}</Text>
+              <Text style={styles.ctaText}>{isAr ? "اذهب إلى كوبوينتو هَب 🎮" : "Go to Copointo Hub 🎮"}</Text>
             </LinearGradient>
           </TouchableOpacity>
         ) : (
