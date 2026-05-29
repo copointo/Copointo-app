@@ -397,16 +397,66 @@ const STATUS_AR: Record<string, string> = {
   done:"تم", confirmed:"مؤكد", cancelled:"ملغي",
 };
 
+// Full-card colour theme for a coffee order, driven by its lifecycle stage:
+//   • not received yet (pending)          → RED
+//   • received / being prepared           → ORANGE
+//   • ready/done but not paid yet         → BLUE
+//   • paid (any payment method set)       → GREEN
+// Paid always wins, so a finished+paid order reads green regardless of stage.
+type OrderTheme = {
+  ring: string; bg: string; glow: string; bar: string;
+  pill: string; dot: string; label: string;
+};
+function orderTheme(o: any): OrderTheme {
+  if (o?.paymentMethod) return {
+    ring: "border-emerald-500/55",
+    bg: "bg-gradient-to-bl from-emerald-500/12 via-emerald-500/[0.03] to-transparent",
+    glow: "shadow-lg shadow-emerald-500/10",
+    bar: "bg-gradient-to-b from-emerald-400 to-emerald-600",
+    pill: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/45",
+    dot: "bg-emerald-400",
+    label: "تم الدفع",
+  };
+  if (o?.status === "pending") return {
+    ring: "border-red-500/55",
+    bg: "bg-gradient-to-bl from-red-500/12 via-red-500/[0.03] to-transparent",
+    glow: "shadow-lg shadow-red-500/10",
+    bar: "bg-gradient-to-b from-red-400 to-red-600",
+    pill: "bg-red-500/20 text-red-300 border border-red-500/45",
+    dot: "bg-red-400",
+    label: "غير مستلم",
+  };
+  if (o?.status === "preparing") return {
+    ring: "border-orange-500/55",
+    bg: "bg-gradient-to-bl from-orange-500/12 via-orange-500/[0.03] to-transparent",
+    glow: "shadow-lg shadow-orange-500/10",
+    bar: "bg-gradient-to-b from-orange-400 to-orange-600",
+    pill: "bg-orange-500/20 text-orange-300 border border-orange-500/45",
+    dot: "bg-orange-400",
+    label: "تم الاستلام",
+  };
+  // ready / done but no payment recorded yet
+  return {
+    ring: "border-blue-500/55",
+    bg: "bg-gradient-to-bl from-blue-500/12 via-blue-500/[0.03] to-transparent",
+    glow: "shadow-lg shadow-blue-500/10",
+    bar: "bg-gradient-to-b from-blue-400 to-blue-600",
+    pill: "bg-blue-500/20 text-blue-300 border border-blue-500/45",
+    dot: "bg-blue-400",
+    label: "لم يُدفع بعد",
+  };
+}
+
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-card border border-border rounded-2xl ${className}`}>{children}</div>;
+  return <div className={`bg-gradient-to-b from-card to-[#0a0606] border border-[#E8B86D]/15 rounded-2xl shadow-lg shadow-black/40 ${className}`}>{children}</div>;
 }
 function StatBox({ label, value, Icon }: { label:string; value:any; Icon: any }) {
   return (
-    <Card className="p-5 flex items-start gap-4">
-      <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-primary/15 border border-primary/30">
-        <Icon size={20} className="text-primary" strokeWidth={1.75} />
+    <Card className="group p-5 flex items-start gap-4 transition-all duration-200 hover:border-[#E8B86D]/40 hover:shadow-[#E8B86D]/10">
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 bg-gradient-to-br from-primary/25 to-primary/5 border border-primary/40 shadow-inner shadow-primary/10 transition-transform duration-200 group-hover:scale-105">
+        <Icon size={21} className="text-primary" strokeWidth={1.9} />
       </div>
-      <div><p className="text-muted-foreground text-sm">{label}</p><p className="text-2xl font-bold text-foreground mt-0.5">{value}</p></div>
+      <div><p className="text-muted-foreground text-sm">{label}</p><p className="text-2xl font-extrabold text-foreground mt-0.5 tracking-tight">{value}</p></div>
     </Card>
   );
 }
@@ -1744,9 +1794,26 @@ function OrdersTab({ id }: { id: string }) {
           </button>
         </Card>
       )}
+      {orders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 rounded-2xl border border-[#E8B86D]/15 bg-gradient-to-b from-card to-[#0a0606] px-4 py-3">
+          <span className="text-[11px] font-bold text-muted-foreground ml-1">حالة الطلب:</span>
+          {[
+            { c: "bg-red-500",     t: "غير مستلم" },
+            { c: "bg-orange-500",  t: "تم الاستلام" },
+            { c: "bg-blue-500",    t: "لم يُدفع بعد" },
+            { c: "bg-emerald-500", t: "تم الدفع" },
+          ].map(s => (
+            <span key={s.t} className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/85">
+              <span className={`w-2.5 h-2.5 rounded-full ${s.c}`} aria-hidden />
+              {s.t}
+            </span>
+          ))}
+        </div>
+      )}
       {orders.length === 0 && <Empty icon="📦" text="لا توجد طلبات قهوة بعد" />}
-      {orders.map(o => (
-        <Card key={o.id} className="p-5 relative">
+      {orders.map(o => { const th = orderTheme(o); return (
+        <div key={o.id} className={`relative overflow-hidden p-5 pr-7 rounded-2xl border-2 ${th.ring} ${th.bg} ${th.glow} bg-card transition-shadow duration-200`}>
+          <span className={`absolute top-0 bottom-0 right-0 w-1.5 ${th.bar}`} aria-hidden />
           {(o.status === "pending" || o.status === "preparing") && (
             <OrderTimer createdAt={o.createdAt} prepMinutes={o.prepMinutes} />
           )}
@@ -1775,7 +1842,10 @@ function OrdersTab({ id }: { id: string }) {
                   مباشر
                 </span>
               )}
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_COLORS[o.status]}`}>{STATUS_AR[o.status]}</span>
+              <span className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${th.pill}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${th.dot} animate-pulse`} aria-hidden />
+                {th.label}
+              </span>
             </div>
           </div>
           <div className="space-y-1.5 mb-3">
@@ -2044,8 +2114,8 @@ function OrdersTab({ id }: { id: string }) {
               )}
             </div>
           </div>
-        </Card>
-      ))}
+        </div>
+      ); })}
       {freeCoffeeOrder && (
         <FreeCoffeeModal
           cafeId={id}
@@ -5308,13 +5378,14 @@ export default function CafeDashboardPage() {
   return (
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
-      <header className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-border bg-card shrink-0">
+      <header className="relative flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8B86D]/25 bg-gradient-to-l from-[#E8B86D]/12 via-card to-card shrink-0 shadow-lg shadow-black/30">
+        <span className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-l from-transparent via-[#E8B86D]/50 to-transparent" aria-hidden />
         {/* Copointo brand mark — NOT a link: super-admin must only be
             reached by typing the root URL deliberately, never from a cafe
             dashboard or user page. */}
         <img
           src={copointoLogoUrl}
-          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shrink-0"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-contain shrink-0 ring-1 ring-[#E8B86D]/30 shadow-md shadow-[#E8B86D]/20"
           alt="Copointo"
           title="كوبوينتو / Copointo"
         />
@@ -5440,7 +5511,7 @@ export default function CafeDashboardPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 bg-[radial-gradient(ellipse_120%_60%_at_50%_-10%,rgba(232,184,109,0.06),transparent_70%)]">
         {tab === "stats"    && <StatsTab    id={id} />}
         {tab === "orders"   && <OrdersTab   id={id} />}
         {tab === "direct"   && <DirectOrderTab id={id} onCreated={() => setTab("orders")} />}
