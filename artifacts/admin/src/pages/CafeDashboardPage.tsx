@@ -1820,7 +1820,9 @@ function OrdersTab({ id }: { id: string }) {
   ];
   const statusCounts: Record<string, number> = {};
   orders.forEach(o => { const l = orderTheme(o).label; statusCounts[l] = (statusCounts[l] || 0) + 1; });
-  const filteredOrders = orders.filter(o => orderTheme(o).label === statusFilter);
+  const filteredOrders = statusFilter === "الكل"
+    ? orders
+    : orders.filter(o => orderTheme(o).label === statusFilter);
   const isFinalFilter = statusFilter === "تم الدفع";
 
   return (
@@ -1844,7 +1846,24 @@ function OrdersTab({ id }: { id: string }) {
       )}
       {orders.length > 0 && (
         <div className="rounded-2xl border border-[#E8B86D]/15 bg-gradient-to-b from-card to-[#0a0606] px-4 pt-5 pb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3">
+            {(() => {
+              const active = statusFilter === "الكل";
+              return (
+                <button
+                  onClick={() => setStatusFilter("الكل")}
+                  className={`relative flex flex-col items-center justify-center gap-1.5 px-3 py-3 rounded-xl border transition-all ${active ? "border-[#E8B86D]/60 bg-[#E8B86D]/15 text-[#E8B86D] shadow-md" : "border-border/40 bg-card/60 text-foreground/70 hover:border-[#E8B86D]/40 hover:text-foreground"}`}
+                >
+                  <span className={`absolute -top-2.5 -left-2.5 min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-full text-xs font-extrabold tabular-nums shadow ${orders.length > 0 ? "bg-[#E8B86D] text-black" : "bg-muted text-muted-foreground"}`}>
+                    {orders.length}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs font-bold">
+                    <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-red-500 via-blue-500 to-emerald-500" aria-hidden />
+                    الكل
+                  </span>
+                </button>
+              );
+            })()}
             {STATUS_DEFS.map(s => {
               const count = statusCounts[s.t] ?? 0;
               const active = statusFilter === s.t;
