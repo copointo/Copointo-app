@@ -10,7 +10,7 @@ import {
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
-  QrCode, Copy, Download, Share2, Search,
+  QrCode, Copy, Download, Share2, Search, Banknote, CreditCard,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -5555,7 +5555,7 @@ function GoldStat({ label, value, sub, icon, accent = "#E8B86D" }:
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold text-[#E8B86D]/70 uppercase tracking-wider">{label}</p>
-          <p className="text-2xl font-extrabold text-[#F5E6CC] mt-1 truncate">{value}</p>
+          <p className="text-base sm:text-lg lg:text-xl font-extrabold text-[#F5E6CC] mt-1 leading-tight break-words tabular-nums" style={{ overflowWrap: "anywhere" }}>{value}</p>
           {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
         </div>
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
@@ -5600,6 +5600,12 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         <GoldStat label="الإيرادات الشهرية"  value={`${r.month.toFixed(3)} OMR`}  icon={<CalendarRange size={18} />} />
         <GoldStat label="الإيرادات السنوية"  value={`${r.year.toFixed(3)} OMR`}   icon={<BarChart3 size={18} />} />
         <GoldStat label="الإيرادات الكلية"  value={`${r.total.toFixed(3)} OMR`}  icon={<Trophy size={18} />} accent="#FFD700" />
+      </div>
+
+      {/* Cash / Visa breakdown */}
+      <div className="grid grid-cols-2 gap-3">
+        <GoldStat label="إجمالي المبيعات كاش" value={`${(r.cash ?? 0).toFixed(3)} OMR`} sub="مدفوعات الطلبات فقط" icon={<Banknote size={18} />} accent="#10B981" />
+        <GoldStat label="إجمالي المبيعات فيزا" value={`${(r.visa ?? 0).toFixed(3)} OMR`} sub="مدفوعات الطلبات فقط" icon={<CreditCard size={18} />} accent="#60A5FA" />
       </div>
 
       {/* Revenue chart with period switcher */}

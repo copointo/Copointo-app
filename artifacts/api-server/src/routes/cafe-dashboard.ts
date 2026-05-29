@@ -1404,6 +1404,16 @@ router.post("/advanced-stats", (req: any, res): any => {
   const yearlyRevenue  = Object.entries(revByYear) .map(([year, revenue]) => ({ year,  revenue: +revenue.toFixed(3) })).sort((a,b)=>a.year.localeCompare(b.year));
 
   const totalRevenue   = cInv.reduce((s,i) => s + i.total, 0);
+
+  // ── Cash vs Visa split (from order payments) ──
+  // cashAmount/visaAmount are stamped when the cashier settles each order.
+  // "split" orders contribute to both buckets; "free" orders contribute 0.
+  let cashTotal = 0, visaTotal = 0;
+  cOrders.forEach(o => {
+    cashTotal += Number(o.cashAmount) || 0;
+    visaTotal += Number(o.visaAmount) || 0;
+  });
+
   const todayKey       = new Date().toISOString().substring(0,10);
   const monthKey       = new Date().toISOString().substring(0,7);
   const yearKey        = new Date().toISOString().substring(0,4);
@@ -1499,6 +1509,8 @@ router.post("/advanced-stats", (req: any, res): any => {
       daily:   dailyRevenue,
       monthly: monthlyRevenue,
       yearly:  yearlyRevenue,
+      cash:    +cashTotal.toFixed(3),
+      visa:    +visaTotal.toFixed(3),
     },
     orders: {
       total:    cOrders.length,
