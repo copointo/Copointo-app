@@ -2,9 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  findNodeHandle,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -40,18 +41,18 @@ type OrderType = "dine" | "car" | null;
 type Step      = "cart" | "type" | "form" | "done";
 
 // ─── Field Row ────────────────────────────────────────────────
-function Field({
-  label, icon, value, onChange, placeholder, keyboardType, maxLength,
-}: {
+const Field = React.forwardRef<View, {
   label: string; icon: string; value: string;
   onChange: (v: string) => void; placeholder: string;
-  keyboardType?: any; maxLength?: number;
-}) {
+  keyboardType?: any; maxLength?: number; error?: boolean;
+}>(function Field({
+  label, icon, value, onChange, placeholder, keyboardType, maxLength, error,
+}, ref) {
   return (
-    <View style={fStyles.wrap}>
+    <View style={fStyles.wrap} ref={ref}>
       <Text style={fStyles.label}>{icon}  {label}</Text>
       <TextInput
-        style={fStyles.input}
+        style={[fStyles.input, error && fStyles.inputError]}
         value={value}
         onChangeText={onChange}
         placeholder={placeholder}
@@ -60,9 +61,12 @@ function Field({
         maxLength={maxLength}
         selectionColor={PRIMARY}
       />
+      {error && <Text style={fStyles.errText}>الحقل مطلوب</Text>}
     </View>
   );
-}
+});
+
+const ERROR_COLOR = "#E5484D";
 
 const fStyles = StyleSheet.create({
   wrap:  { gap: 6 },
@@ -72,6 +76,8 @@ const fStyles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
     fontSize: 15, fontFamily: "Inter_500Medium", color: "#FFF",
   },
+  inputError: { borderColor: ERROR_COLOR, borderWidth: 1.5 },
+  errText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: ERROR_COLOR, marginTop: 2 },
 });
 
 // ─── Cart Item Row ─────────────────────────────────────────────
@@ -144,16 +150,41 @@ export default function CartScreen() {
 
   // Dine-in form
   const [dineName,   setDineName]   = useState("");
-  const [dineNameEn, setDineNameEn] = useState("");
   const [dinePhone,  setDinePhone]  = useState("");
   const [dineTable, setDineTable] = useState("");
 
   // Car form
   const [carName,      setCarName]      = useState("");
-  const [carNameEn,    setCarNameEn]    = useState("");
   const [carPhone,     setCarPhone]     = useState("");
   const [carPlateNum,  setCarPlateNum]  = useState("");
   const [carPlateChar, setCarPlateChar] = useState("");
+
+  // Per-field validation errors (cleared on edit). Keys: name, phone, table, plateNum, plateChar
+  const [errors, setErrors] = useState<{
+    name?: boolean; phone?: boolean; table?: boolean; plateNum?: boolean; plateChar?: boolean;
+  }>({});
+  const clearError = (k: "name" | "phone" | "table" | "plateNum" | "plateChar") =>
+    setErrors((e) => (e[k] ? { ...e, [k]: false } : e));
+
+  // Refs for scroll-to-field on validation failure
+  const formScrollRef = useRef<ScrollView>(null);
+  const nameRef  = useRef<View>(null);
+  const phoneRef = useRef<View>(null);
+  const tableRef = useRef<View>(null);
+  const plateRef = useRef<View>(null);
+
+  const scrollToField = (ref: React.RefObject<View | null>) => {
+    const node = ref.current;
+    const scroll = formScrollRef.current;
+    if (!node || !scroll) return;
+    const scrollHandle = findNodeHandle(scroll);
+    if (scrollHandle == null) return;
+    node.measureLayout(
+      scrollHandle,
+      (_x, y) => scroll.scrollTo({ y: Math.max(0, y - 24), animated: true }),
+      () => {},
+    );
+  };
 
   // Optional free-text notes — bean type, extra heat, customizations, etc.
   const [notes, setNotes] = useState("");
@@ -219,11 +250,9 @@ export default function CartScreen() {
     loadSavedOrderInfo().then((s) => {
       if (cancelled) return;
       if (s.dineName)     setDineName(s.dineName);
-      if (s.dineNameEn)   setDineNameEn(s.dineNameEn);
       if (s.dinePhone)    setDinePhone(s.dinePhone);
       if (s.dineTable)    setDineTable(s.dineTable);
       if (s.carName)      setCarName(s.carName);
-      if (s.carNameEn)    setCarNameEn(s.carNameEn);
       if (s.carPhone)     setCarPhone(s.carPhone);
       if (s.carPlateNum)  setCarPlateNum(s.carPlateNum);
       if (s.carPlateChar) setCarPlateChar(s.carPlateChar);
@@ -293,15 +322,28 @@ export default function CartScreen() {
 
   const submitOrder = async () => {
     const isDine = orderType === "dine";
+    const nextErrors: typeof errors = {};
     if (isDine) {
-      if (!dineName.trim() || !dinePhone.trim() || !dineTable.trim()) {
-        Alert.alert("تنبيه", "يرجى تعبئة جميع الحقول"); return;
-      }
+      if (!dineName.trim())  nextErrors.name  = true;
+      if (!dinePhone.trim()) nextErrors.phone = true;
+      if (!dineTable.trim()) nextErrors.table = true;
     } else {
-      if (!carName.trim() || !carPhone.trim() || !carPlateNum.trim() || !carPlateChar.trim()) {
-        Alert.alert("تنبيه", "يرجى تعبئة جميع الحقول"); return;
-      }
+      if (!carName.trim())      nextErrors.name      = true;
+      if (!carPhone.trim())     nextErrors.phone     = true;
+      if (!carPlateNum.trim())  nextErrors.plateNum  = true;
+      if (!carPlateChar.trim()) nextErrors.plateChar = true;
     }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      // Jump to the first invalid field in visual order
+      if (nextErrors.name) scrollToField(nameRef);
+      else if (nextErrors.phone) scrollToField(phoneRef);
+      else if (nextErrors.table) scrollToField(tableRef);
+      else if (nextErrors.plateNum || nextErrors.plateChar) scrollToField(plateRef);
+      return;
+    }
+    setErrors({});
     setSubmitting(true);
     try {
       const cafeId   = cart[0].cafeId;
@@ -315,11 +357,9 @@ export default function CartScreen() {
       );
       const prepMin  = totalQty * 3; // 3 minutes per item
       const customerName   = isDine ? dineName.trim() : carName.trim();
-      const customerNameEn = isDine ? dineNameEn.trim() : carNameEn.trim();
       const customerPhone  = isDine ? dinePhone.trim() : carPhone.trim();
       const payload: any = {
         customerName,
-        ...(customerNameEn ? { customerNameEn } : {}),
         customerPhone,
         items: cart.map(i => {
           const bonus = (i.promoBuyQty && i.promoGetQty)
@@ -373,14 +413,12 @@ export default function CartScreen() {
       if (isDine) {
         saveOrderInfo({
           dineName:   dineName.trim(),
-          dineNameEn: dineNameEn.trim(),
           dinePhone:  dinePhone.trim(),
           dineTable:  dineTable.trim(),
         });
       } else {
         saveOrderInfo({
           carName:      carName.trim(),
-          carNameEn:    carNameEn.trim(),
           carPhone:     carPhone.trim(),
           carPlateNum:  carPlateNum.trim(),
           carPlateChar: carPlateChar.trim(),
@@ -487,6 +525,7 @@ export default function CartScreen() {
         </View>
 
         <ScrollView
+          ref={formScrollRef}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.formContent, { paddingBottom: botPad + 30 }]}
         >
@@ -506,46 +545,46 @@ export default function CartScreen() {
           {/* Fields */}
           <View style={styles.fields}>
             <Field
+              ref={nameRef}
               label="الاسم الكامل" icon="👤"
               value={isDine ? dineName : carName}
-              onChange={isDine ? setDineName : setCarName}
+              onChange={(v) => { (isDine ? setDineName : setCarName)(v); clearError("name"); }}
               placeholder="أدخل اسمك الكامل"
+              error={errors.name}
             />
             <Field
-              label="Full Name (English)" icon="🔤"
-              value={isDine ? dineNameEn : carNameEn}
-              onChange={isDine ? setDineNameEn : setCarNameEn}
-              placeholder="Enter your name in English"
-            />
-            <Field
+              ref={phoneRef}
               label="رقم الهاتف" icon="📞"
               value={isDine ? dinePhone : carPhone}
-              onChange={isDine ? setDinePhone : setCarPhone}
+              onChange={(v) => { (isDine ? setDinePhone : setCarPhone)(v); clearError("phone"); }}
               placeholder="9XXXXXXXX"
               keyboardType="phone-pad"
               maxLength={12}
+              error={errors.phone}
             />
             {isDine ? (
               <Field
+                ref={tableRef}
                 label="رقم الطاولة" icon="🪑"
                 value={dineTable}
-                onChange={setDineTable}
+                onChange={(v) => { setDineTable(v); clearError("table"); }}
                 placeholder="مثال: 12"
                 keyboardType="number-pad"
                 maxLength={3}
+                error={errors.table}
               />
             ) : (
               /* License plate: number + arabic chars */
-              <View style={styles.plateWrap}>
+              <View style={styles.plateWrap} ref={plateRef}>
                 <Text style={styles.plateLabel}>🚗  رقم لوحة السيارة</Text>
                 <View style={styles.plateRow}>
                   {/* Number part */}
                   <View style={[styles.plateBox, { flex: 1.2 }]}>
                     <Text style={styles.plateBoxLabel}>الأرقام</Text>
                     <TextInput
-                      style={styles.plateInput}
+                      style={[styles.plateInput, errors.plateNum && fStyles.inputError]}
                       value={carPlateNum}
-                      onChangeText={setCarPlateNum}
+                      onChangeText={(v) => { setCarPlateNum(v); clearError("plateNum"); }}
                       placeholder="12345"
                       placeholderTextColor="rgba(255,255,255,0.28)"
                       keyboardType="number-pad"
@@ -559,9 +598,9 @@ export default function CartScreen() {
                   <View style={[styles.plateBox, { flex: 1 }]}>
                     <Text style={styles.plateBoxLabel}>الحروف</Text>
                     <TextInput
-                      style={[styles.plateInput, { fontSize: 20 }]}
+                      style={[styles.plateInput, { fontSize: 20 }, errors.plateChar && fStyles.inputError]}
                       value={carPlateChar}
-                      onChangeText={setCarPlateChar}
+                      onChangeText={(v) => { setCarPlateChar(v); clearError("plateChar"); }}
                       placeholder="ب ق ر"
                       placeholderTextColor="rgba(255,255,255,0.28)"
                       maxLength={5}
@@ -573,6 +612,9 @@ export default function CartScreen() {
                     <Text style={{ fontSize: 22 }}>🇴🇲</Text>
                   </View>
                 </View>
+                {(errors.plateNum || errors.plateChar) && (
+                  <Text style={fStyles.errText}>الحقل مطلوب</Text>
+                )}
               </View>
             )}
 
