@@ -478,15 +478,37 @@ export default function OrderTimerScreen() {
     if (isReadyOrDone || completed) setSecondsLeft(0);
   }, [isReadyOrDone, completed]);
   const timerActive = confirmed && !isReadyOrDone && !completed;
+  // ── High-resolution prep progress (0 .. 100, float) ──
+  // Updated ~20×/sec so the on-ring number ticks smoothly in hundredths
+  // (e.g. 99.99 → 99.98 → 99.97 …) instead of jumping by whole numbers.
+  // Anchored on the same `prepStartedAtRef` as the MM:SS clock so it stays
+  // consistent across polling refreshes.
+  const [prepProgress, setPrepProgress] = useState<number>(0);
+  useEffect(() => {
+    if (isReadyOrDone || completed) { setPrepProgress(100); return; }
+    if (!confirmed) { setPrepProgress(0); return; }
+    if (prepStartedAtRef.current == null) prepStartedAtRef.current = Date.now();
+    const tick = () => {
+      const elapsedMs = Date.now() - (prepStartedAtRef.current ?? Date.now());
+      const p = (elapsedMs / (PREP_TOTAL_SEC * 1000)) * 100;
+      setPrepProgress(Math.min(100, Math.max(0, p)));
+    };
+    tick();
+    const id = setInterval(tick, 50);
+    return () => clearInterval(id);
+  }, [confirmed, isReadyOrDone, completed, PREP_TOTAL_SEC]);
   // ── Circular progress percentage ──
-  // 0% before the cafe confirms; ramps up linearly during prep based on
-  // elapsed time vs total prep minutes; locks at 100% once the order is
-  // ready or done.
-  const pct = (isReadyOrDone || completed)
-    ? 100
+  // The arc fills up (0 → 100) as prep time elapses and locks at 100% once
+  // the order is ready or done.
+  const pct = (isReadyOrDone || completed) ? 100 : confirmed ? prepProgress : 0;
+  // The big number is a fine-grained COUNTDOWN of the remaining prep share —
+  // starts at 100.00 the moment prep begins and ticks down toward 0.00 in
+  // hundredths; shows a clean "100" once the order is complete.
+  const pctLabel = (isReadyOrDone || completed)
+    ? "100"
     : confirmed
-      ? Math.min(100, Math.max(0, Math.round(((PREP_TOTAL_SEC - secondsLeft) / PREP_TOTAL_SEC) * 100)))
-      : 0;
+      ? (100 - prepProgress).toFixed(2)
+      : "0";
   // SVG ring geometry.
   const RING_SIZE   = 168;
   const RING_STROKE = 14;
@@ -744,7 +766,7 @@ export default function OrderTimerScreen() {
                 (isReadyOrDone || completed) && { color: SUCCESS },
                 !confirmed && { color: "rgba(245,230,204,0.45)" },
               ]}>
-                {pct}%
+                {pctLabel}%
               </Text>
               <Text style={styles.ringSub}>
                 {completed || isReadyOrDone
@@ -991,12 +1013,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ringPct: {
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 30,
+    lineHeight: 36,
     fontFamily: "Inter_700Bold",
     color: PRIMARY,
     fontVariant: ["tabular-nums"],
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   ringSub: {
     fontSize: 12,
