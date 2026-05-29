@@ -44,6 +44,11 @@ export const api = {
     req<{ breakdown: Array<{ cafeId: string; cafeName: string; ordersHere: number; drinksHere: number }>; freeCoffees: { total: number; redeemed: number } }>(
       "GET", `${A}/users/${id}/cafe-breakdown`,
     ),
+  // ── Super-admin: coins / cosmetics / free-coffee sync ──
+  setUserCoins:        (id: string, coins: number) => req<any>("POST", `${A}/users/${id}/set-coins`, { coins }),
+  setUserItems:        (id: string, ownedItems: Record<string, string[]>) => req<any>("POST", `${A}/users/${id}/set-items`, { ownedItems }),
+  deleteUserFreeCoffees: (id: string, codeId?: string) => req<any>("POST", `${A}/users/${id}/delete-free-coffees`, codeId ? { id: codeId } : {}),
+  wipeUserEarnings:    (id: string) => req<any>("POST", `${A}/users/${id}/wipe-earnings`),
   // User-submitted reports (problem / cafe complaint)
   getReports:        ()              => req<any>("GET",    `${A}/reports`),
   resolveReport:     (id: string, status: "open" | "resolved") =>

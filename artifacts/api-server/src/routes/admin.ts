@@ -6,6 +6,7 @@ import {
   purgeUserData, purgeCafeData, reels, wipeAllData,
   communities, communityInvites, orders, freeCoffees, progressAdjustments,
   type Cafe, type Broadcast, type ChatMsg, type Report, type ProgressAdjustment,
+  type AppUser,
 } from "../store";
 import { awardMilestoneCoffees } from "./cafe-dashboard";
 import { deleteReelFile } from "../lib/objectStorage";
@@ -23,6 +24,32 @@ const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
 export const COPOINTO_ADMIN_ID = "copointo-admin";
 
 const router = Router();
+
+const emptyOwnedItems = (): NonNullable<AppUser["ownedItems"]> => ({
+  frames: [], badges: [], backgrounds: [],
+  characters: [], usernameColors: [], textStyles: [],
+});
+
+const normPhone = (p: unknown): string => String(p ?? "").replace(/\D+/g, "");
+
+/** Wipe a user's "earnings": coins → 0, owned cosmetics → empty, and ALL of
+ *  their free coffees (redeemed + unredeemed). Bumps `syncVersion` so the
+ *  mobile client overwrites its local AsyncStorage on the next status poll.
+ *  Returns the number of free coffees removed. */
+function wipeUserEarnings(user: AppUser): number {
+  user.coins = 0;
+  user.ownedItems = emptyOwnedItems();
+  user.syncVersion = (user.syncVersion ?? 0) + 1;
+  const phoneN = normPhone(user.phone);
+  let removed = 0;
+  for (let i = freeCoffees.length - 1; i >= 0; i--) {
+    if (normPhone(freeCoffees[i].userPhone) === phoneN) {
+      freeCoffees.splice(i, 1);
+      removed++;
+    }
+  }
+  return removed;
+}
 
 // ── GET /api/admin/cafes ────────────────────
 router.get("/cafes", (_req, res) => {
@@ -221,7 +248,78 @@ router.post("/wipe-everything", async (req, res): Promise<any> => {
 
 // ── GET /api/admin/users ────────────────────
 router.get("/users", (_req, res) => {
-  res.json({ users });
+  // `freeCoffees` is returned alongside so the admin UI can group every
+  // user's earned coffees (redeemed + unredeemed) by phone without a
+  // second round-trip. `coins`/`ownedItems` already live on each user.
+  res.json({ users, freeCoffees });
+});
+
+// ── POST /api/admin/users/:id/set-coins ──
+// Super-admin sets a user's coin balance to an ABSOLUTE value and bumps
+// syncVersion so the mobile client overwrites its local balance on the
+// next status poll.
+router.post("/users/:id/set-coins", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const coins = Math.floor(Number(req.body?.coins ?? NaN));
+  if (!Number.isFinite(coins)) return res.status(400).json({ error: "coins required" });
+  user.coins = Math.max(0, coins);
+  user.syncVersion = (user.syncVersion ?? 0) + 1;
+  persistStore();
+  res.json({ ok: true, user });
+});
+
+// ── POST /api/admin/users/:id/set-items ──
+// Super-admin replaces a user's owned cosmetics wholesale (per category)
+// and bumps syncVersion.
+router.post("/users/:id/set-items", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const body = req.body?.ownedItems ?? {};
+  const arr = (v: unknown): string[] =>
+    Array.isArray(v) ? Array.from(new Set(v.map(String))) : [];
+  user.ownedItems = {
+    frames:         arr(body.frames),
+    badges:         arr(body.badges),
+    backgrounds:    arr(body.backgrounds),
+    characters:     arr(body.characters),
+    usernameColors: arr(body.usernameColors),
+    textStyles:     arr(body.textStyles),
+  };
+  user.syncVersion = (user.syncVersion ?? 0) + 1;
+  persistStore();
+  res.json({ ok: true, user });
+});
+
+// ── POST /api/admin/users/:id/delete-free-coffees ──
+// Deletes a user's free coffees. With `{ id }` removes a single coffee;
+// without it removes ALL of the user's coffees (redeemed + unredeemed).
+router.post("/users/:id/delete-free-coffees", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const phoneN = normPhone(user.phone);
+  const codeId = typeof req.body?.id === "string" ? req.body.id : null;
+  let removed = 0;
+  for (let i = freeCoffees.length - 1; i >= 0; i--) {
+    const f = freeCoffees[i];
+    if (normPhone(f.userPhone) !== phoneN) continue;
+    if (codeId && f.id !== codeId) continue;
+    freeCoffees.splice(i, 1);
+    removed++;
+  }
+  persistStore();
+  res.json({ ok: true, removed });
+});
+
+// ── POST /api/admin/users/:id/wipe-earnings ──
+// Explicit "delete all earnings" button: coins → 0, owned cosmetics →
+// empty, free coffees → deleted. Bumps syncVersion.
+router.post("/users/:id/wipe-earnings", (req, res): any => {
+  const user = users.find(u => u.id === req.params.id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const removed = wipeUserEarnings(user);
+  persistStore();
+  res.json({ ok: true, removed, user });
 });
 
 // ── DELETE /api/admin/users/:id ────────────
@@ -457,6 +555,13 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
         );
       }
     }
+    // Editing a user's level / cafe count WIPES their earnings (coins +
+    // owned cosmetics + every free coffee). The milestone-award block above
+    // may have queued new coffees on an increase; wiping deletes those too
+    // so the final state is a clean slate. syncVersion is bumped inside
+    // wipeUserEarnings so the mobile client overwrites local storage.
+    const wipedFreeCoffeesSet = wipeUserEarnings(user);
+    newlyAwardedSet = 0;
     const adjSet: ProgressAdjustment = {
       id:          `pa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       userId:      user.id,
@@ -471,7 +576,7 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     };
     progressAdjustments.unshift(adjSet);
     persistStore();
-    return res.json({ user, newlyAwardedFreeCoffees: newlyAwardedSet, adjustment: adjSet });
+    return res.json({ user, newlyAwardedFreeCoffees: 0, wipedFreeCoffees: wipedFreeCoffeesSet, adjustment: adjSet });
   }
 
   // ── Legacy delta mode (kept for backward compat) ──────────────────────
@@ -553,8 +658,11 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     claimedAt:   null,
   };
   progressAdjustments.unshift(adj);
+  // Same earnings-wipe policy as set mode: any change to level/orders nukes
+  // coins + cosmetics + free coffees and bumps syncVersion.
+  const wipedFreeCoffees = wipeUserEarnings(user);
   persistStore();
-  res.json({ user, newlyAwardedFreeCoffees: newlyAwarded, adjustment: adj });
+  res.json({ user, newlyAwardedFreeCoffees: 0, wipedFreeCoffees, adjustment: adj });
 });
 
 // ── POST /api/admin/users/:id/message ──────

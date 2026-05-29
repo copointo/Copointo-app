@@ -49,6 +49,20 @@ export async function grantBonusCoinsOnce(delta: number, markerKey: string) {
   broadcast(next);
 }
 
+/**
+ * Push-down apply: overwrite the local balance with a server-authoritative
+ * value (used by the inventory sync when a super-admin edited the user).
+ * Writes AsyncStorage + broadcasts so live `useCoins()` consumers re-render.
+ * Also stamps the signup-grant marker so the next hydrate doesn't re-add the
+ * 200-coin bonus on top of the admin-set value.
+ */
+export async function applyCoinsFromServer(n: number) {
+  const v = Math.max(0, Math.floor(n));
+  await AsyncStorage.setItem(KEY, String(v));
+  await AsyncStorage.setItem(GRANT_KEY, "1");
+  broadcast(v);
+}
+
 export function useCoins() {
   const [balance, setBalance] = useState<number>(_cache ?? 0);
   const [hydrated, setHydrated] = useState<boolean>(_cache !== null);

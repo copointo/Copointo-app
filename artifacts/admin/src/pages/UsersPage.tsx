@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins, Gift, Package, Gem } from "lucide-react";
 import { api } from "@/lib/api";
 
+interface OwnedItems {
+  frames: string[]; badges: string[]; backgrounds: string[];
+  characters: string[]; usernameColors: string[]; textStyles: string[];
+}
 interface AppUser {
   id: string; username: string; phone: string;
   level: number; totalOrders: number; banned: boolean; joinedAt: string;
@@ -10,10 +14,32 @@ interface AppUser {
   // Per-cafe progress (server-side). Used by the adjust modal so the admin
   // can see and absolute-set each cafe's level / coffee count independently.
   cafeProgress?: Record<string, { totalOrders: number; level: number }>;
+  // Super-admin sync: the player's coin balance and owned cosmetics mirrored
+  // up from the mobile app so the dashboard can see and edit them.
+  coins?: number;
+  ownedItems?: OwnedItems;
+  syncVersion?: number;
 }
+interface FreeCoffeeRow {
+  id: string; code?: string | null; userPhone?: string | null;
+  cafeId?: string | null; cafeName?: string | null;
+  redeemed?: boolean; redeemedAt?: string | null; createdAt?: string | null;
+}
+const ITEM_CATS: Array<{ key: keyof OwnedItems; label: string; icon: string }> = [
+  { key: "frames",         label: "الإطارات",      icon: "🖼️" },
+  { key: "badges",         label: "الشارات",       icon: "🎖️" },
+  { key: "backgrounds",    label: "الخلفيات",      icon: "🌅" },
+  { key: "characters",     label: "الشخصيات",      icon: "🧍" },
+  { key: "usernameColors", label: "ألوان الاسم",   icon: "🎨" },
+  { key: "textStyles",     label: "أنماط الخط",    icon: "🔤" },
+];
+const normalizePhone = (p?: string | null) => String(p ?? "").replace(/\D+/g, "");
+const itemsTotal = (o?: OwnedItems) =>
+  o ? ITEM_CATS.reduce((n, c) => n + (o[c.key]?.length ?? 0), 0) : 0;
 
 export default function UsersPage() {
   const [users,   setUsers]   = useState<AppUser[]>([]);
+  const [allFreeCoffees, setAllFreeCoffees] = useState<FreeCoffeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query,   setQuery]   = useState("");
 
@@ -27,7 +53,11 @@ export default function UsersPage() {
     let cancelled = false;
     const load = () => {
       api.getUsers()
-        .then(d => { if (!cancelled) setUsers(d.users); })
+        .then(d => {
+          if (cancelled) return;
+          setUsers(d.users);
+          setAllFreeCoffees(Array.isArray(d.freeCoffees) ? d.freeCoffees : []);
+        })
         .catch(() => {})
         .finally(() => { if (!cancelled) setLoading(false); });
     };
@@ -218,6 +248,129 @@ export default function UsersPage() {
     setBd([]); setBdFc({ total: 0, redeemed: 0 }); setAwardCafeId("");
   };
 
+  // ─── Manage-earnings modal (coins + cosmetics + free coffees) ──────────
+  // Super-admin can SEE and EDIT a player's coin balance, owned cosmetics
+  // (comma-separated ids per category) and their earned free-coffee codes.
+  const [earnTarget, setEarnTarget] = useState<AppUser | null>(null);
+  const [coinStr,    setCoinStr]    = useState("");
+  const [itemsDraft, setItemsDraft] = useState<Record<keyof OwnedItems, string>>(
+    { frames: "", badges: "", backgrounds: "", characters: "", usernameColors: "", textStyles: "" },
+  );
+  const [earnSaving, setEarnSaving] = useState(false);
+  const [earnErr,    setEarnErr]    = useState("");
+  const [earnOk,     setEarnOk]     = useState("");
+
+  const earnFreeCoffees = earnTarget
+    ? allFreeCoffees.filter(f => normalizePhone(f.userPhone) === normalizePhone(earnTarget.phone))
+    : [];
+
+  const openEarnings = (u: AppUser) => {
+    setEarnTarget(u);
+    setCoinStr(String(u.coins ?? 0));
+    const o = u.ownedItems;
+    setItemsDraft({
+      frames:         (o?.frames         ?? []).join(", "),
+      badges:         (o?.badges         ?? []).join(", "),
+      backgrounds:    (o?.backgrounds    ?? []).join(", "),
+      characters:     (o?.characters     ?? []).join(", "),
+      usernameColors: (o?.usernameColors ?? []).join(", "),
+      textStyles:     (o?.textStyles     ?? []).join(", "),
+    });
+    setEarnErr(""); setEarnOk("");
+  };
+  const closeEarnings = () => { if (earnSaving) return; setEarnTarget(null); setEarnErr(""); setEarnOk(""); };
+
+  const parseIds = (s: string) =>
+    Array.from(new Set(s.split(",").map(x => x.trim()).filter(Boolean)));
+
+  const patchUserLocal = (id: string, patch: Partial<AppUser>) => {
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...patch } : u));
+    setEarnTarget(t => t && t.id === id ? { ...t, ...patch } : t);
+  };
+
+  const saveCoins = async () => {
+    if (!earnTarget) return;
+    const coins = Math.trunc(Number(coinStr));
+    if (!Number.isFinite(coins) || coins < 0) { setEarnErr("أدخل رصيد عملات صحيح (0 أو أكثر)."); return; }
+    setEarnSaving(true); setEarnErr(""); setEarnOk("");
+    try {
+      const res = await api.setUserCoins(earnTarget.id, coins);
+      patchUserLocal(earnTarget.id, { coins: res.user?.coins ?? coins, syncVersion: res.user?.syncVersion });
+      setEarnOk(`✓ تم ضبط الرصيد إلى ${coins} عملة.`);
+    } catch (e: any) {
+      setEarnErr(e?.message?.substring(0, 200) || "تعذّر حفظ العملات");
+    } finally { setEarnSaving(false); }
+  };
+
+  const saveItems = async () => {
+    if (!earnTarget) return;
+    const ownedItems: OwnedItems = {
+      frames:         parseIds(itemsDraft.frames),
+      badges:         parseIds(itemsDraft.badges),
+      backgrounds:    parseIds(itemsDraft.backgrounds),
+      characters:     parseIds(itemsDraft.characters),
+      usernameColors: parseIds(itemsDraft.usernameColors),
+      textStyles:     parseIds(itemsDraft.textStyles),
+    };
+    setEarnSaving(true); setEarnErr(""); setEarnOk("");
+    try {
+      const res = await api.setUserItems(earnTarget.id, ownedItems as unknown as Record<string, string[]>);
+      patchUserLocal(earnTarget.id, { ownedItems: res.user?.ownedItems ?? ownedItems, syncVersion: res.user?.syncVersion });
+      setEarnOk(`✓ تم حفظ العناصر (${itemsTotal(ownedItems)} عنصر).`);
+    } catch (e: any) {
+      setEarnErr(e?.message?.substring(0, 200) || "تعذّر حفظ العناصر");
+    } finally { setEarnSaving(false); }
+  };
+
+  const deleteOneFreeCoffee = async (codeId: string) => {
+    if (!earnTarget) return;
+    if (!confirm("حذف هذه القهوة المجانية؟")) return;
+    setEarnSaving(true); setEarnErr(""); setEarnOk("");
+    try {
+      await api.deleteUserFreeCoffees(earnTarget.id, codeId);
+      setAllFreeCoffees(prev => prev.filter(f => f.id !== codeId));
+      setEarnOk("✓ تم حذف القهوة المجانية.");
+    } catch (e: any) {
+      setEarnErr(e?.message?.substring(0, 200) || "تعذّر الحذف");
+    } finally { setEarnSaving(false); }
+  };
+
+  const deleteAllFreeCoffees = async () => {
+    if (!earnTarget) return;
+    if (!confirm(`حذف جميع القهوات المجانية للاعب "${earnTarget.username}"؟`)) return;
+    setEarnSaving(true); setEarnErr(""); setEarnOk("");
+    try {
+      const res = await api.deleteUserFreeCoffees(earnTarget.id);
+      const ph = normalizePhone(earnTarget.phone);
+      setAllFreeCoffees(prev => prev.filter(f => normalizePhone(f.userPhone) !== ph));
+      setEarnOk(`✓ تم حذف ${Number(res.removed) || 0} قهوة مجانية.`);
+    } catch (e: any) {
+      setEarnErr(e?.message?.substring(0, 200) || "تعذّر الحذف");
+    } finally { setEarnSaving(false); }
+  };
+
+  const wipeAllEarnings = async () => {
+    if (!earnTarget) return;
+    if (!confirm(`تصفير كل أرباح "${earnTarget.username}"؟\n\nسيتم: تصفير العملات + حذف كل العناصر + حذف كل القهوات المجانية.`)) return;
+    setEarnSaving(true); setEarnErr(""); setEarnOk("");
+    try {
+      const res = await api.wipeUserEarnings(earnTarget.id);
+      const emptyItems: OwnedItems = { frames: [], badges: [], backgrounds: [], characters: [], usernameColors: [], textStyles: [] };
+      patchUserLocal(earnTarget.id, {
+        coins: res.user?.coins ?? 0,
+        ownedItems: res.user?.ownedItems ?? emptyItems,
+        syncVersion: res.user?.syncVersion,
+      });
+      const ph = normalizePhone(earnTarget.phone);
+      setAllFreeCoffees(prev => prev.filter(f => normalizePhone(f.userPhone) !== ph));
+      setCoinStr("0");
+      setItemsDraft({ frames: "", badges: "", backgrounds: "", characters: "", usernameColors: "", textStyles: "" });
+      setEarnOk(`✓ تم تصفير كل الأرباح${Number(res.removed) ? ` (حُذفت ${res.removed} قهوة مجانية)` : ""}.`);
+    } catch (e: any) {
+      setEarnErr(e?.message?.substring(0, 200) || "تعذّر التصفير");
+    } finally { setEarnSaving(false); }
+  };
+
   // Independent fields — no coupling, no multiplication. The exact number
   // the admin types is the exact number stored on the user's account.
   const onLevelChange  = (v: string) => setSetLvlStr(v);
@@ -245,11 +398,14 @@ export default function UsersPage() {
       setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
       setAdjTarget(t => t ? { ...t, ...res.user } : t);
       const cafeName = bd.find(b => b.cafeId === awardCafeId)?.cafeName || "الكوفي المختار";
-      const newFc = Number(res.newlyAwardedFreeCoffees) || 0;
+      const wiped = Number(res.wipedFreeCoffees) || 0;
       setAdjOk(
         `✓ تم ضبط ${cafeName} → المستوى ${lvl} • ${ord} كوب` +
-        (newFc > 0 ? ` — ربح ${newFc} قهوة مجانية 🎁` : ""),
+        ` — وتم تصفير العملات والعناصر${wiped > 0 ? ` وحذف ${wiped} قهوة مجانية` : ""} 🧹`,
       );
+      // The user list also carries the freshly wiped coins/items; refresh both
+      // the per-cafe breakdown and the free-coffee roster.
+      setAllFreeCoffees(prev => prev.filter(f => normalizePhone(f.userPhone) !== normalizePhone(adjTarget.phone)));
       void loadBreakdown(adjTarget.id);
     } catch (e: any) {
       setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");
@@ -299,6 +455,7 @@ export default function UsersPage() {
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">رقم الهاتف</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">المستوى</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الطلبات</th>
+                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">العملات والعناصر</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">تاريخ الانضمام</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الحالة</th>
                 <th className="text-right text-muted-foreground font-medium px-5 py-3.5">إجراء</th>
@@ -322,6 +479,26 @@ export default function UsersPage() {
                     </span>
                   </td>
                   <td className="px-5 py-4 text-foreground font-semibold">{user.totalOrders}</td>
+                  <td className="px-5 py-4">
+                    {(() => {
+                      const ph = normalizePhone(user.phone);
+                      const fcAll = allFreeCoffees.filter(f => normalizePhone(f.userPhone) === ph);
+                      const fcLeft = fcAll.filter(f => !f.redeemed).length;
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-400 rounded-lg px-2 py-0.5 text-xs font-bold" title="العملات">
+                            <Gem size={12} /> {user.coins ?? 0}
+                          </span>
+                          <span className="inline-flex items-center gap-1 bg-primary/15 text-primary rounded-lg px-2 py-0.5 text-xs font-bold" title="العناصر المملوكة">
+                            <Package size={12} /> {itemsTotal(user.ownedItems)}
+                          </span>
+                          <span className="inline-flex items-center gap-1 bg-green-500/15 text-green-400 rounded-lg px-2 py-0.5 text-xs font-bold" title="قهوة مجانية (متاحة / إجمالي)">
+                            <Gift size={12} /> {fcLeft}/{fcAll.length}
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="px-5 py-4 text-muted-foreground text-xs">{fmtDate(user.joinedAt)}</td>
                   <td className="px-5 py-4">
                     <div className="flex flex-col gap-1">
@@ -351,6 +528,13 @@ export default function UsersPage() {
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors"
                       >
                         <SlidersHorizontal size={14} /> تعديل
+                      </button>
+                      <button
+                        onClick={() => openEarnings(user)}
+                        title="إدارة العملات والعناصر والقهوة المجانية"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+                      >
+                        <Gem size={14} /> الأرباح
                       </button>
                       <button
                         onClick={() => user.banned ? unban(user.id) : openBan(user)}
@@ -685,6 +869,158 @@ export default function UsersPage() {
                   {adjSaving ? "جاري الحفظ..." : "💾 حفظ التعديل"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Manage-earnings modal (coins + cosmetics + free coffees) ── */}
+      {earnTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeEarnings} />
+          <div className="relative bg-card border border-emerald-500/40 rounded-2xl w-full max-w-lg shadow-2xl z-10 overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-emerald-900/30 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Gem size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground">أرباح {earnTarget.username}</p>
+                  <p className="text-xs text-muted-foreground" dir="ltr">{earnTarget.phone}</p>
+                </div>
+              </div>
+              <button onClick={closeEarnings} className="text-muted-foreground hover:text-foreground" disabled={earnSaving}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
+              {earnErr && (
+                <div className="px-3 py-2 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 text-xs">{earnErr}</div>
+              )}
+              {earnOk && (
+                <div className="px-3 py-2 rounded-lg bg-green-500/15 border border-green-500/30 text-green-400 text-xs">{earnOk}</div>
+              )}
+
+              {/* Coins */}
+              <div className="border border-amber-500/30 rounded-xl p-4 bg-amber-500/5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Gem size={16} className="text-amber-400" />
+                  <p className="font-bold text-foreground text-sm">رصيد العملات</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={coinStr}
+                    onChange={e => setCoinStr(e.target.value)}
+                    disabled={earnSaving}
+                    className="flex-1 bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
+                  />
+                  <button
+                    onClick={saveCoins}
+                    disabled={earnSaving}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 text-black font-semibold text-sm hover:bg-amber-400 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    💾 حفظ الرصيد
+                  </button>
+                </div>
+              </div>
+
+              {/* Owned cosmetics */}
+              <div className="border border-border rounded-xl p-4 bg-muted/10 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Package size={16} className="text-primary" />
+                  <p className="font-bold text-foreground text-sm">العناصر المملوكة</p>
+                  <span className="text-[10px] text-muted-foreground">معرّفات مفصولة بفاصلة</span>
+                </div>
+                {ITEM_CATS.map(c => (
+                  <div key={c.key}>
+                    <label className="block text-[11px] text-muted-foreground mb-1">{c.icon} {c.label}</label>
+                    <input
+                      type="text"
+                      value={itemsDraft[c.key]}
+                      onChange={e => setItemsDraft(d => ({ ...d, [c.key]: e.target.value }))}
+                      placeholder="frame-1, frame-2 ..."
+                      disabled={earnSaving}
+                      dir="ltr"
+                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-60 font-mono"
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={saveItems}
+                  disabled={earnSaving}
+                  className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  💾 حفظ العناصر
+                </button>
+              </div>
+
+              {/* Free coffees */}
+              <div className="border border-emerald-500/30 rounded-xl p-4 bg-emerald-500/5 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Gift size={16} className="text-emerald-400" />
+                    <p className="font-bold text-foreground text-sm">القهوة المجانية</p>
+                  </div>
+                  {earnFreeCoffees.length > 0 && (
+                    <button
+                      onClick={deleteAllFreeCoffees}
+                      disabled={earnSaving}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+                    >
+                      🗑️ حذف الكل
+                    </button>
+                  )}
+                </div>
+                {earnFreeCoffees.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-3 bg-card rounded-lg border border-border">لا توجد قهوة مجانية لهذا المستخدم.</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                    {earnFreeCoffees.map(f => (
+                      <div key={f.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2 text-xs gap-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="font-mono font-bold text-foreground" dir="ltr">{f.code || f.id}</span>
+                          {f.cafeName && <span className="text-muted-foreground truncate">• {f.cafeName}</span>}
+                          {f.redeemed
+                            ? <span className="bg-red-500/15 text-red-400 rounded px-1.5 py-0.5 font-bold shrink-0">مستعمل</span>
+                            : <span className="bg-green-500/15 text-green-400 rounded px-1.5 py-0.5 font-bold shrink-0">متاح</span>}
+                        </div>
+                        <button
+                          onClick={() => deleteOneFreeCoffee(f.id)}
+                          disabled={earnSaving}
+                          className="text-red-400 hover:text-red-300 disabled:opacity-50 shrink-0"
+                          title="حذف"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Wipe everything */}
+              <div className="border border-red-500/30 rounded-xl p-4 bg-red-500/5">
+                <p className="text-[11px] text-muted-foreground mb-2 leading-relaxed">
+                  ⚠️ تصفير كل الأرباح يحذف العملات والعناصر والقهوة المجانية دفعة واحدة، ويُطبّق على التطبيق تلقائياً.
+                </p>
+                <button
+                  onClick={wipeAllEarnings}
+                  disabled={earnSaving}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 size={14} /> {earnSaving ? "جاري..." : "تصفير كل الأرباح"}
+                </button>
+              </div>
+
+              <button
+                onClick={closeEarnings}
+                disabled={earnSaving}
+                className="w-full px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+              >
+                إغلاق
+              </button>
             </div>
           </div>
         </div>

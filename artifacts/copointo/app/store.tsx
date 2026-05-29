@@ -28,6 +28,7 @@ import { useCharacters, ensureDefaultCharacterEquipped } from "../hooks/useChara
 import Character from "../components/Character";
 import FadeInItem from "../components/FadeInItem";
 import { useApp } from "../context/AppContext";
+import { pushInventoryToServer } from "../lib/inventorySync";
 import { getDefaultAvatarSource } from "../lib/defaultAvatar";
 import { getRank } from "../data/mockData";
 
@@ -257,6 +258,18 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
   const { owned: ownedCharacters, grantCharacter, equipCharacter } = useCharacters();
   const { balance, addCoins } = useCoins();
   const { user } = useApp();
+  // Push-up: whenever the user buys something (coins drop / owned list grows)
+  // mirror the new inventory to the server so the super-admin dashboard stays
+  // current. Skips the initial mount (the session boot-poll already pushes).
+  const didInitialInvPush = React.useRef(false);
+  useEffect(() => {
+    if (!didInitialInvPush.current) { didInitialInvPush.current = true; return; }
+    if (user?.id) void pushInventoryToServer(user.id);
+  }, [
+    user?.id, balance,
+    ownedBadges.length, ownedBackgrounds.length, ownedFrames.length,
+    ownedUsernameColors.length, ownedTextStyles.length, ownedCharacters.length,
+  ]);
   const avatarUri = user?.avatar ?? null;
   const username = user?.gameUsername || user?.name || "guest";
   const avatarSource = avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender);

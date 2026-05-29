@@ -810,6 +810,13 @@ router.get("/users/:id/status", (req, res): any => {
     banned: !!u.banned,
     banReason: u.banReason ?? null,
     bannedAt:  u.bannedAt  ?? null,
+    // Inventory mirror for the mobile push-down sync. The client compares
+    // `syncVersion` against its locally-applied version and overwrites its
+    // AsyncStorage coins/owned-items only when the server's is newer (i.e.
+    // a super-admin edit happened). `null` syncVersion ⇒ never admin-edited.
+    coins:       typeof u.coins === "number" ? u.coins : null,
+    ownedItems:  u.ownedItems ?? null,
+    syncVersion: typeof u.syncVersion === "number" ? u.syncVersion : null,
   });
 });
 
@@ -1025,6 +1032,47 @@ router.post("/users/profile", (req, res): any => {
     const v = String(req.body.gender ?? "").trim();
     if (v === "male" || v === "female") u.gender = v;
     else delete u.gender;
+  }
+  persistStore();
+  res.json({ ok: true });
+});
+
+// ─── Inventory push-up (coins + owned cosmetics) ─────────────────────────
+// The mobile client mirrors its LOCAL coin balance + owned-item lists here
+// so the super-admin can SEE them in the admin dashboard. This is a plain
+// snapshot write and does NOT bump syncVersion — only admin edits bump it,
+// so the client's own push-up can never trigger a self push-down.
+router.post("/users/inventory", (req, res): any => {
+  const id = String(req.body?.id ?? "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "id required" });
+  const u = users.find(x => x.id === id);
+  if (!u) return res.status(404).json({ ok: false, error: "user not found" });
+  // Version-gate the push-up: if an admin edited this account AFTER the device
+  // last reconciled, the server's syncVersion is newer than the version the
+  // device reports as applied. Reject the (stale) push so it can't clobber the
+  // fresh admin edit — the device will pull the edit on its next status poll
+  // and only then push again with the matching version.
+  const serverVersion = u.syncVersion ?? 0;
+  const clientVersion = Math.floor(Number(req.body?.clientSyncVersion ?? serverVersion));
+  if (Number.isFinite(clientVersion) && clientVersion < serverVersion) {
+    return res.json({ ok: false, stale: true, syncVersion: serverVersion });
+  }
+  if ("coins" in (req.body ?? {})) {
+    const c = Math.floor(Number(req.body.coins));
+    if (Number.isFinite(c)) u.coins = Math.max(0, c);
+  }
+  if (req.body?.ownedItems && typeof req.body.ownedItems === "object") {
+    const body = req.body.ownedItems;
+    const arr = (v: unknown): string[] =>
+      Array.isArray(v) ? Array.from(new Set(v.map(String))) : [];
+    u.ownedItems = {
+      frames:         arr(body.frames),
+      badges:         arr(body.badges),
+      backgrounds:    arr(body.backgrounds),
+      characters:     arr(body.characters),
+      usernameColors: arr(body.usernameColors),
+      textStyles:     arr(body.textStyles),
+    };
   }
   persistStore();
   res.json({ ok: true });

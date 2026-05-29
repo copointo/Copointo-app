@@ -207,6 +207,19 @@ export async function ensureDefaultCharacterEquipped(
   }
 }
 
+/** Push-down apply: overwrite owned characters with a server-authoritative
+ *  list (super-admin edit). Always merges the gender-neutral default-owned
+ *  starters back in so the user is never left with no character. Clears the
+ *  equipped character if it's no longer owned. */
+export async function applyCharactersOwnedFromServer(owned: string[]) {
+  const list = Array.from(new Set([...owned.map(String), ...DEFAULT_OWNED]));
+  await AsyncStorage.setItem(KEY_OWNED, JSON.stringify(list));
+  const curEq = _cache?.equipped ?? null;
+  const equipped = curEq && list.includes(curEq) ? curEq : null;
+  if (!equipped) await AsyncStorage.setItem(KEY_EQUIPPED, "");
+  broadcast({ owned: list, equipped });
+}
+
 registerAccountResetHandler(() => {
   broadcast({ owned: [], equipped: null });
 });

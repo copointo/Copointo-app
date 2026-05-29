@@ -47,6 +47,24 @@ export interface AppUser {
    *  admin adjusts progress with an `awardCafeId`; the mobile client merges
    *  via Math.max so device-side progress is never rolled back. */
   cafeProgress?: Record<string, { totalOrders: number; level: number }>;
+  /** Coin balance mirrored from the mobile app (AsyncStorage is authoritative
+   *  on the origin device; this mirror lets super-admin SEE/EDIT it). */
+  coins?: number;
+  /** Owned cosmetic IDs per category, mirrored from mobile so super-admin can
+   *  see/edit a player's inventory. */
+  ownedItems?: {
+    frames: string[];
+    badges: string[];
+    backgrounds: string[];
+    characters: string[];
+    usernameColors: string[];
+    textStyles: string[];
+  };
+  /** Monotonic counter bumped whenever super-admin edits coins/ownedItems (or
+   *  wipes earnings via adjust-progress). The mobile client compares this with
+   *  its last-applied version and overwrites local AsyncStorage when the server
+   *  version is newer — this is how admin edits "push down" to the device. */
+  syncVersion?: number;
   /** Showcase/demo flag — see Cafe.showcaseOnly. */
   showcaseOnly?: boolean;
 }

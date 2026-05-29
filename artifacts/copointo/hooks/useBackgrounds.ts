@@ -89,6 +89,17 @@ export function useBackgrounds() {
   };
 }
 
+/** Push-down apply: overwrite owned backgrounds with a server-authoritative
+ *  list (super-admin edit). Clears equipped if it's no longer owned. */
+export async function applyBackgroundsOwnedFromServer(owned: string[]) {
+  const list = Array.from(new Set(owned.map(String)));
+  await AsyncStorage.setItem(KEY_OWNED, JSON.stringify(list));
+  const curEq = _cache?.equipped ?? null;
+  const equipped = curEq && list.includes(curEq) ? curEq : null;
+  if (!equipped) await AsyncStorage.setItem(KEY_EQUIPPED, "");
+  broadcast({ owned: list, equipped });
+}
+
 registerAccountResetHandler(() => {
   broadcast({ owned: DEFAULT_OWNED, equipped: null });
 });

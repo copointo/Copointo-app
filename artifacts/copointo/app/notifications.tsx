@@ -22,15 +22,6 @@ import { getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 
 interface Broadcast { id: string; message: string; createdAt: string; }
-interface FreeCoffeeNotif {
-  id: string;
-  code: string;
-  earnedAtLevel: number;
-  earnedAt: string;
-  earnedAtCafeId?: string | null;
-  earnedAtCafeName?: string | null;
-  redeemedAt: string | null;
-}
 interface BookingNotif {
   id: string;
   cafeId: string;
@@ -48,7 +39,6 @@ interface BookingNotif {
 }
 
 const BROADCAST_LAST_SEEN_KEY    = "copointo_broadcast_last_seen_v1";
-const FREE_COFFEE_LAST_SEEN_KEY  = "copointo_free_coffee_last_seen_v1";
 const BOOKING_LAST_SEEN_KEY      = "copointo_booking_last_seen_v1";
 
 const buildFmtRelative = (t: (k: string, v?: Record<string, string>) => string) => (iso: string): string => {
@@ -93,8 +83,6 @@ export default function NotificationsScreen() {
   // Copointo system broadcasts from super-admin
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
 
-  // Held free coffees (earned-but-still-redeemable) for this signed-in phone
-  const [freeCoffees, setFreeCoffees] = useState<FreeCoffeeNotif[]>([]);
 
   // Recent table bookings for this phone — show pending + confirmed/cancelled
   // updates from the last week so the user gets the cafe's response.
@@ -112,26 +100,6 @@ export default function NotificationsScreen() {
       /* ignore network errors — show whatever is cached */
     }
   }, []);
-
-  const loadFreeCoffees = useCallback(async () => {
-    const phone = user?.phone?.trim();
-    if (!phone) { setFreeCoffees([]); return; }
-    try {
-      const r = await apiFetch<{ coffees: FreeCoffeeNotif[] }>(
-        `/free-coffees?phone=${encodeURIComponent(phone)}`,
-      );
-      // Show only currently-redeemable ones (unredeemed) — newest first.
-      const open = (r.coffees ?? [])
-        .filter(c => !c.redeemedAt)
-        .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
-      setFreeCoffees(open);
-      // Mark as seen so the bell badge clears.
-      const newest = open[0]?.earnedAt;
-      if (newest) await AsyncStorage.setItem(FREE_COFFEE_LAST_SEEN_KEY, newest);
-    } catch {
-      /* ignore */
-    }
-  }, [user?.phone]);
 
   const loadBookings = useCallback(async () => {
     const phone = user?.phone?.trim();
@@ -163,9 +131,8 @@ export default function NotificationsScreen() {
 
   useEffect(() => {
     loadBroadcasts();
-    loadFreeCoffees();
     loadBookings();
-  }, [loadBroadcasts, loadFreeCoffees, loadBookings]);
+  }, [loadBroadcasts, loadBookings]);
 
   // Whenever this screen comes into focus, re-pull friend/request data from
   // storage in case another logged-in user on the same device sent something,
@@ -176,12 +143,11 @@ export default function NotificationsScreen() {
       refreshFriendData();
       refreshCommunities();
       loadBroadcasts();
-      loadFreeCoffees();
       loadBookings();
       if (!user?.phone) return;
       const handle = setInterval(loadBookings, 8000);
       return () => clearInterval(handle);
-    }, [refreshFriendData, refreshCommunities, loadBroadcasts, loadFreeCoffees, loadBookings, user?.phone])
+    }, [refreshFriendData, refreshCommunities, loadBroadcasts, loadBookings, user?.phone])
   );
 
   // Track community-invite decisions for the brief "accepted/declined" chip.
@@ -257,7 +223,7 @@ export default function NotificationsScreen() {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
-        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && freeCoffees.length === 0 && bookings.length === 0 && rejectionNotifications.length === 0 && incomingInvites.length === 0 && (
+        {rows.length === 0 && recentlyDecided.length === 0 && broadcasts.length === 0 && bookings.length === 0 && rejectionNotifications.length === 0 && incomingInvites.length === 0 && (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyIcon}>🔔</Text>
             <Text style={styles.emptyTitle}>{t("notif.empty")}</Text>
@@ -384,41 +350,8 @@ export default function NotificationsScreen() {
           );
         })}
 
-        {/* Free coffees the user has earned but not yet redeemed */}
-        {freeCoffees.map(c => (
-          <View key={`fc-${c.id}`} style={styles.freeCoffeeCard}>
-            <View style={styles.freeCoffeeHeader}>
-              <View style={styles.freeCoffeeBadge}>
-                <Text style={styles.freeCoffeeBadgeIcon}>🎁</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.freeCoffeeTitle}>{t("notif.freeCoffeeTitle")}</Text>
-                <Text style={styles.freeCoffeeTime}>
-                  {t("notif.freeCoffeeMeta", { rel: fmtRelative(c.earnedAt), level: String(c.earnedAtLevel) })}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.freeCoffeeBody}>
-              {c.earnedAtCafeName
-                ? t("notif.freeCoffeeAt", { cafe: c.earnedAtCafeName })
-                : t("notif.freeCoffeeAtFallback")}
-            </Text>
-            <View style={styles.freeCoffeeRulesBox}>
-              <Text style={styles.freeCoffeeRule}>
-                {c.earnedAtCafeName
-                  ? t("notif.freeCoffeeRule1", { cafe: c.earnedAtCafeName })
-                  : t("notif.freeCoffeeRule1Fallback")}
-              </Text>
-              <Text style={styles.freeCoffeeRule}>{t("notif.freeCoffeeRule2")}</Text>
-              <Text style={styles.freeCoffeeRule}>{t("notif.freeCoffeeRule3")}</Text>
-              <Text style={styles.freeCoffeeRule}>{t("notif.freeCoffeeRule4")}</Text>
-            </View>
-            <View style={styles.freeCoffeeCodeBox}>
-              <Text style={styles.freeCoffeeCodeLabel}>{t("notif.freeCoffeeCodeLabel")}</Text>
-              <Text style={styles.freeCoffeeCode}>{c.code}</Text>
-            </View>
-          </View>
-        ))}
+        {/* Free coffees moved to the dedicated "الكوفي المجاني" button in the
+            profile screen — they are no longer shown here. */}
 
         {/* Copointo system broadcasts */}
         {broadcasts.map(b => (

@@ -8,6 +8,11 @@ import React, {
   useState,
 } from "react";
 import { API_BASE } from "@/constants/api";
+import {
+  pushInventoryToServer,
+  reconcileInventory,
+  type OwnedItems,
+} from "../lib/inventorySync";
 import { backfillEquipmentToServer } from "@/lib/equipmentSync";
 import { runAccountResetHandlers } from "@/lib/accountResetRegistry";
 // Side-effect imports: ensure each cosmetic/coin/inventory hook module is
@@ -304,7 +309,14 @@ export async function syncUserToServer(args: {
  *  transient failure doesn't accidentally clear a previously-cached ban. */
 export async function fetchUserStatus(
   userId: string,
-): Promise<{ exists: boolean; banned: boolean; banReason?: string | null } | null> {
+): Promise<{
+  exists: boolean;
+  banned: boolean;
+  banReason?: string | null;
+  coins?: number | null;
+  ownedItems?: Partial<OwnedItems> | null;
+  syncVersion?: number | null;
+} | null> {
   try {
     const r = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/status`);
     if (!r.ok) return null;
@@ -314,6 +326,9 @@ export async function fetchUserStatus(
       exists: data.exists !== false,
       banned: !!data.banned,
       banReason: data.banReason ?? null,
+      coins: typeof data.coins === "number" ? data.coins : null,
+      ownedItems: data.ownedItems ?? null,
+      syncVersion: typeof data.syncVersion === "number" ? data.syncVersion : null,
     };
   } catch {
     return null;
@@ -716,6 +731,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // accidentally log out a freshly-registered user. A single "exists:true"
     // resets the counter.
     let missCount = 0;
+    // Push the device's inventory (coins + owned cosmetics) up to the server
+    // exactly once per session — AFTER the first push-down reconcile — so the
+    // super-admin dashboard reflects the device's real values without a stale
+    // local snapshot clobbering a pending admin edit.
+    let pushedInventoryOnce = false;
     // Prime from cache so a previously-banned user is gated INSTANTLY on
     // cold-start even before the first network poll resolves.
     AsyncStorage.getItem(cacheKey).then(raw => {
@@ -764,6 +784,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Server confirmed user exists — reset the miss counter so a single
       // good reading wipes out any prior transient misses.
       missCount = 0;
+      // Push-down: apply any super-admin coin/cosmetic edit when the
+      // server's syncVersion is newer than what we last applied. No-op
+      // otherwise (the common case), so this is cheap to run every poll.
+      await reconcileInventory({
+        coins: status.coins ?? null,
+        ownedItems: status.ownedItems ?? null,
+        syncVersion: status.syncVersion ?? null,
+      }).catch(() => false);
+      // Push-up (once): mirror the now-reconciled local inventory up so the
+      // admin dashboard sees the device's real coins + owned cosmetics.
+      if (!pushedInventoryOnce) {
+        pushedInventoryOnce = true;
+        pushInventoryToServer(uid).catch(() => {});
+      }
       if (status.banned) {
         const reason = status.banReason || "تم حظر هذا الحساب من قِبل إدارة كوبوينتو";
         setBannedInfo({ reason });
