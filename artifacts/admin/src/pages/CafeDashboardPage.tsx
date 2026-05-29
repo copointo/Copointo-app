@@ -502,6 +502,8 @@ function StatsTab({ id }: { id: string }) {
           const row = (data.chartData || []).find((d: any) => d.date === today);
           return (Number(row?.revenue) || 0).toFixed(3);
         })()} OMR`} Icon={Wallet} />
+        <StatBox label="إجمالي المبيعات كاش" value={`${(data.salesCash ?? 0).toFixed(3)} OMR`} Icon={Wallet} />
+        <StatBox label="إجمالي المبيعات فيزا" value={`${(data.salesVisa ?? 0).toFixed(3)} OMR`} Icon={CreditCard} />
         <StatBox label="طلبات بانتظار"    value={data.pendingOrders}  Icon={Clock} />
         <StatBox label="حجوزات مؤكدة"    value={data.confirmedBookings} Icon={CheckCircle} />
         <StatBox label="القسائم الشرائية"        value={data.totalVouchers ?? 0} Icon={Gift} />

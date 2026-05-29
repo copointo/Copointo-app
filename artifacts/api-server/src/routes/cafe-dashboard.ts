@@ -141,11 +141,22 @@ router.get("/stats", (req: any, res) => {
   const voucherRevenue = confirmedVouchers.reduce((s, v) => s + (Number(v.amount) || 0), 0);
   const pendingVouchers = cafeVouchers.filter(v => v.status === "pending").length;
 
+  // ── Cash vs Visa sales totals ─────────────────────────────────────
+  // cashAmount/visaAmount are stamped on each order when the cashier settles
+  // it (cash | visa | split). Sum them across the (non-archived) day so the
+  // stats tab can show "إجمالي المبيعات كاش" and "إجمالي المبيعات فيزا".
+  let salesCash = 0, salesVisa = 0;
+  cafeOrders.forEach(o => {
+    salesCash += Number(o.cashAmount) || 0;
+    salesVisa += Number(o.visaAmount) || 0;
+  });
+
   res.json({
     totalOrders: cafeOrders.length, totalBookings: cafeBookings.length,
     totalMenuItems: cafeMenu.length, totalRevenue: +totalRevenue.toFixed(3),
     pendingOrders: cafeOrders.filter(o => o.status === "pending").length,
     confirmedBookings: cafeBookings.filter(b => b.status === "confirmed").length,
+    salesCash: +salesCash.toFixed(3), salesVisa: +salesVisa.toFixed(3),
     chartData,
     topItems: cafeOrders.flatMap(o => o.items)
       .reduce((acc: Record<string, number>, item) => { acc[item.name] = (acc[item.name] || 0) + item.qty; return acc; }, {}),
