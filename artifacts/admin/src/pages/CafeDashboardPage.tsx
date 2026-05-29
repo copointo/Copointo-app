@@ -5715,18 +5715,32 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="المنتجات الأكثر طلباً" icon={<Trophy size={16} />}>
           {data.topProducts.length > 0 ? (
-            <div className="space-y-2">
-              {data.topProducts.map((p: any, i: number) => (
-                <div key={p.name} className="flex items-center gap-3 p-2.5 rounded-xl bg-black/40 border border-[#E8B86D]/15">
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-extrabold"
-                    style={{ background: i === 0 ? "#E8B86D" : i === 1 ? "#C99654" : "#7A4F1E", color: "#000" }}>
-                    {i + 1}
-                  </div>
-                  <span className="flex-1 text-[#F5E6CC] font-semibold text-sm truncate">{p.name}</span>
-                  <span className="text-[#E8B86D] text-xs font-bold">{p.qty}× </span>
-                  <span className="text-muted-foreground text-xs">{p.revenue} OMR</span>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[11px] uppercase tracking-wider text-[#E8B86D]/70 border-b border-[#E8B86D]/20">
+                    <th className="text-right py-2 px-2 font-bold">#</th>
+                    <th className="text-right py-2 px-2 font-bold">المنتج</th>
+                    <th className="text-right py-2 px-2 font-bold">الكمية</th>
+                    <th className="text-left py-2 px-2 font-bold">الإيراد</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.topProducts.map((p: any, i: number) => (
+                    <tr key={p.name} className="border-b border-[#E8B86D]/10 hover:bg-[#E8B86D]/5">
+                      <td className="py-2.5 px-2">
+                        <span className="inline-flex w-6 h-6 rounded-md items-center justify-center text-[11px] font-extrabold"
+                          style={{ background: i === 0 ? "#E8B86D" : i === 1 ? "#C99654" : "#3A2410", color: i < 2 ? "#000" : "#E8B86D" }}>
+                          {i + 1}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-2 text-[#F5E6CC] font-semibold">{p.name}</td>
+                      <td className="py-2.5 px-2 text-[#E8B86D] font-bold whitespace-nowrap">{p.qty}×</td>
+                      <td className="py-2.5 px-2 text-left text-muted-foreground whitespace-nowrap tabular-nums">{p.revenue} OMR</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : <p className="text-center text-muted-foreground py-6 text-sm">لا توجد بيانات</p>}
         </SectionCard>
