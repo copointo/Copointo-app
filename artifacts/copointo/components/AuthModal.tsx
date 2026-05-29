@@ -498,43 +498,63 @@ export function AuthModal({
                   </View>
                 </View>
 
-                {/* Inline OTP row — code input + send/resend button. The
-                    code field stays disabled until the first send so it's
-                    clear which order to use. */}
-                <View style={styles.otpRow}>
-                  <View style={{ flex: 1, opacity: regOtpSent ? 1 : 0.5 }}>
-                    <AuthField
-                      icon="hash"
-                      placeholder="الرمز"
-                      value={otpCode}
-                      onChange={(v) => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
-                      keyboardType="phone-pad"
-                    />
-                  </View>
-                  <TouchableOpacity
-                    onPress={sendRegisterOtp}
-                    disabled={busy || resendIn > 0}
-                    activeOpacity={0.85}
-                    style={[
-                      styles.otpSendBtn,
-                      (busy || resendIn > 0) && { opacity: 0.55 },
-                    ]}
-                  >
-                    <Feather name="send" size={13} color="#FFF" />
-                    <Text style={styles.otpSendText} numberOfLines={1}>
-                      {resendIn > 0
-                        ? `${resendIn}s`
-                        : regOtpSent
-                          ? "إعادة"
-                          : "إرسال"}
+                {/* OTP section. Before the first send we show a clear, full-width
+                    "press here to get the code" button. After sending, the code
+                    input appears with a smaller resend button. */}
+                {!regOtpSent ? (
+                  <View style={{ gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={sendRegisterOtp}
+                      disabled={busy || resendIn > 0}
+                      activeOpacity={0.85}
+                      style={[
+                        styles.getCodeBtn,
+                        (busy || resendIn > 0) && { opacity: 0.55 },
+                      ]}
+                    >
+                      <Feather name="message-circle" size={16} color="#000" />
+                      <Text style={styles.getCodeText} numberOfLines={1}>
+                        {busy ? "جارٍ الإرسال…" : "اضغط هنا للحصول على الكود"}
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={styles.getCodeHint}>
+                      سيصلك رمز تحقق برسالة نصية على رقم هاتفك، أدخله في الخانة لإكمال التسجيل
                     </Text>
-                  </TouchableOpacity>
-                </View>
-                {regOtpSent && regOtpPhone === phone.trim() && (
-                  <Text style={styles.otpHintInline}>
-                    تم إرسال الرمز إلى{" "}
-                    <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{regOtpPhone}</Text>
-                  </Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={styles.otpRow}>
+                      <View style={{ flex: 1 }}>
+                        <AuthField
+                          icon="hash"
+                          placeholder="أدخل رمز التحقق"
+                          value={otpCode}
+                          onChange={(v) => setOtpCode(v.replace(/\D/g, "").slice(0, 6))}
+                          keyboardType="phone-pad"
+                        />
+                      </View>
+                      <TouchableOpacity
+                        onPress={sendRegisterOtp}
+                        disabled={busy || resendIn > 0}
+                        activeOpacity={0.85}
+                        style={[
+                          styles.otpSendBtn,
+                          (busy || resendIn > 0) && { opacity: 0.55 },
+                        ]}
+                      >
+                        <Feather name="refresh-cw" size={13} color="#FFF" />
+                        <Text style={styles.otpSendText} numberOfLines={1}>
+                          {resendIn > 0 ? `${resendIn}s` : "إعادة"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {regOtpPhone === phone.trim() && (
+                      <Text style={styles.otpHintInline}>
+                        تم إرسال الرمز إلى{" "}
+                        <Text style={{ color: PRIMARY, fontFamily: "Inter_700Bold" }}>{regOtpPhone}</Text>
+                      </Text>
+                    )}
+                  </>
                 )}
 
                 <View>
@@ -750,6 +770,16 @@ const styles = StyleSheet.create({
     shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
   },
   otpSendText: { color: "#FFF", fontSize: 12, fontFamily: "Inter_700Bold" },
+  getCodeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: PRIMARY, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12,
+    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+  },
+  getCodeText: { color: "#000", fontSize: 14, fontFamily: "Inter_700Bold" },
+  getCodeHint: {
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.55)", textAlign: "right", lineHeight: 16,
+  },
   otpHintInline: {
     fontSize: 11, fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.65)", textAlign: "right",
