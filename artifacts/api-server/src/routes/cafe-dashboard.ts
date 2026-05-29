@@ -705,6 +705,81 @@ router.patch("/orders/:orderId/discount", (req: any, res): any => {
   return res.json({ order });
 });
 
+// Edit the items of an existing order from the cafe dashboard ("تعديل الطلب").
+// The cashier can add a product from the cafe menu or remove an existing line.
+// Body shape: { items: OrderItem[] } — the FULL replacement list. The server
+// recomputes `subtotal` from the new lines and re-derives `total` while keeping
+// any active discount / free-coffee redemption intact. Editing is refused once
+// a payment method is locked in (the order is then financially closed) or after
+// the order is archived/done, mirroring the discount endpoint's guard.
+router.patch("/orders/:orderId/items", (req: any, res): any => {
+  // Scope by cafeId too (matches DELETE /orders/:orderId) so an order can only
+  // be edited from its own cafe dashboard, never via another cafe's route.
+  const order = orders.find(o => o.id === req.params.orderId && o.cafeId === req.params.cafeId);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.archivedAt) return res.status(409).json({ error: "تم أرشفة الطلب — لا يمكن تعديله" });
+  if (order.paymentMethod) {
+    return res.status(400).json({ error: "لا يمكن تعديل الطلب بعد تثبيت طريقة الدفع" });
+  }
+  if (order.status === "done") {
+    return res.status(400).json({ error: "لا يمكن تعديل طلب مكتمل" });
+  }
+
+  const rawItems = req.body?.items;
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    return res.status(400).json({ error: "يجب أن يحتوي الطلب على منتج واحد على الأقل" });
+  }
+
+  const cleanItems: any[] = [];
+  for (const it of rawItems) {
+    const name = typeof it?.name === "string" ? it.name.trim() : "";
+    const qty = Math.floor(Number(it?.qty));
+    const price = Number(it?.price);
+    if (!name) return res.status(400).json({ error: "اسم المنتج مطلوب" });
+    if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "الكمية يجب أن تكون رقماً موجباً" });
+    if (!Number.isFinite(price) || price < 0) return res.status(400).json({ error: "السعر يجب أن يكون رقماً موجباً" });
+    const clean: any = { name, qty, price: +price.toFixed(3) };
+    if (typeof it.category === "string") clean.category = it.category;
+    if (typeof it.selectedBean === "string") clean.selectedBean = it.selectedBean;
+    if (typeof it.selectedSize === "string") clean.selectedSize = it.selectedSize;
+    if (Number.isFinite(Number(it.sizeExtraPrice))) clean.sizeExtraPrice = +Number(it.sizeExtraPrice).toFixed(3);
+    if (Number.isFinite(Number(it.originalPrice))) clean.originalPrice = +Number(it.originalPrice).toFixed(3);
+    if (Number.isFinite(Number(it.promoBuyQty))) clean.promoBuyQty = Math.floor(Number(it.promoBuyQty));
+    if (Number.isFinite(Number(it.promoGetQty))) clean.promoGetQty = Math.floor(Number(it.promoGetQty));
+    if (Number.isFinite(Number(it.bonusQty))) clean.bonusQty = Math.floor(Number(it.bonusQty));
+    cleanItems.push(clean);
+  }
+
+  const subtotal = +cleanItems.reduce((s, it) => s + it.price * it.qty, 0).toFixed(3);
+  const freeCoffeeDisc = Math.min(Number(order.freeCoffeeDiscount ?? 0), subtotal);
+
+  // Preserve an active discount: percentage codes re-scale to the new subtotal,
+  // fixed-amount discounts are kept but clamped so they never exceed the order.
+  let discountAmount = Number(order.discountAmount ?? 0);
+  if (order.discountPercent) {
+    discountAmount = +(subtotal * Number(order.discountPercent) / 100).toFixed(3);
+  }
+  discountAmount = Math.min(discountAmount, Math.max(0, subtotal - freeCoffeeDisc));
+
+  order.items = cleanItems;
+  order.subtotal = subtotal;
+  order.discountAmount = +discountAmount.toFixed(3);
+  order.total = +Math.max(0, subtotal - discountAmount - freeCoffeeDisc).toFixed(3);
+
+  // Keep the linked invoice in sync. An invoice is finalised the first time the
+  // order leaves "pending" (see PATCH /status), so an order edited while
+  // "preparing"/"ready" already has one — its items/total must reflect the edit
+  // or the invoices list and revenue analytics would diverge from the order.
+  const inv = invoices.find(i => i.orderId === order.id);
+  if (inv) {
+    inv.items = order.items;
+    inv.total = order.total;
+  }
+
+  persistStore();
+  return res.json({ order });
+});
+
 // Mark invoice printed → completes order. Drink progress was already awarded at
 // confirmation time (see PATCH /status); this still calls the helper so any
 // edge-case order that was printed without going through confirmation is awarded.

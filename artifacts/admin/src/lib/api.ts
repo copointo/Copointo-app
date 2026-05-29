@@ -77,6 +77,9 @@ export const api = {
     body: { paymentMethod: "cash"|"visa"|"split"|"free"; cashAmount?: number; visaAmount?: number }
   ) => req<any>("PATCH", `${C(id)}/orders/${oid}/payment`, body),
   cafeOrderDiscount:(id:string,oid:string,body:{code?:string;amount?:number}) => req<any>("PATCH", `${C(id)}/orders/${oid}/discount`, body),
+  // Replace the full items list of an order ("تعديل الطلب"): add/remove products.
+  // Server recomputes subtotal/total and keeps any active discount intact.
+  cafeOrderItems:(id:string,oid:string,items:any[]) => req<any>("PATCH", `${C(id)}/orders/${oid}/items`, { items }),
   cafeLookupUser: (id: string, phone: string) =>
     req<{ user: null | { id: string; username: string; phone: string; level: number; totalOrders: number; banned: boolean; gameBanned: boolean } }>(
       "GET", `${C(id)}/lookup-user?phone=${encodeURIComponent(phone)}`

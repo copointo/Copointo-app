@@ -1595,6 +1595,8 @@ function OrdersTab({ id }: { id: string }) {
   // for that order; on success the modal stamps the code onto the order,
   // marks it printed/done, and notifies the code owner that it's been used.
   const [freeCoffeeOrder, setFreeCoffeeOrder] = useState<any | null>(null);
+  // Order currently open in the "تعديل الطلب" editor modal (add/remove items).
+  const [editingOrder, setEditingOrder] = useState<any | null>(null);
   const openPayForm = (oid: string, prefer: "cash" | "visa") => {
     const o = orders.find(x => x.id === oid);
     const tot = Number(o?.total ?? 0).toFixed(3);
@@ -1876,6 +1878,18 @@ function OrdersTab({ id }: { id: string }) {
                 </span>
               )}
 
+              {/* Edit order — add/remove items. Allowed while no payment is
+                  locked and the order isn't done. Recomputes total + invoice. */}
+              {!o.paymentMethod && o.status !== "done" && (
+                <button
+                  onClick={() => setEditingOrder(o)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/40 text-xs font-bold hover:bg-amber-500/25"
+                  title="إضافة منتج للطلب أو حذف منتج — يتعدّل المبلغ والفاتورة"
+                >
+                  <Pencil size={14}/> التعديل على الطلب
+                </button>
+              )}
+
               {/* Step 1 — pending: confirm-prep + delete (delete vanishes once confirmed) */}
               {o.status === "pending" && (
                 <>
@@ -2042,6 +2056,213 @@ function OrdersTab({ id }: { id: string }) {
           }}
         />
       )}
+      {editingOrder && (
+        <OrderEditor
+          cafeId={id}
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSaved={(updated) => {
+            setOrders(prev => prev.map(o => o.id === updated.id ? { ...o, ...updated } : o));
+            setEditingOrder(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Order Editor Modal ("التعديل على الطلب") ──────────────────────
+// Lets the cashier add a product from the cafe menu or remove/adjust an
+// existing line on a not-yet-paid order. The running total is computed live;
+// on save it PATCHes the full items list to the server, which recomputes the
+// order total (and rescales any active discount) and returns the updated order
+// — so the printed invoice reflects the edit automatically.
+function OrderEditor({
+  cafeId, order, onClose, onSaved,
+}: {
+  cafeId: string;
+  order: any;
+  onClose: () => void;
+  onSaved: (updated: any) => void;
+}) {
+  const [menu, setMenu] = useState<any[]>([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [items, setItems] = useState<any[]>(
+    () => (order.items ?? []).map((it: any) => ({ ...it })),
+  );
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    api.cafeMenu(cafeId)
+      .then(d => { if (alive) setMenu((d.items ?? []).filter((m: any) => m.available !== false)); })
+      .catch(() => { if (alive) setMenu([]); })
+      .finally(() => { if (alive) setMenuLoading(false); });
+    return () => { alive = false; };
+  }, [cafeId]);
+
+  // A line is "plain" (mergeable) when it has no variant/promo specifics — so
+  // tapping the same menu item twice just bumps the qty instead of duplicating.
+  const isPlain = (it: any) =>
+    !it.selectedBean && !it.selectedSize && !it.originalPrice && !it.bonusQty;
+
+  const addFromMenu = (m: any) => {
+    setItems(prev => {
+      const idx = prev.findIndex(it => it.name === m.name && Number(it.price) === Number(m.price) && isPlain(it));
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], qty: Number(next[idx].qty) + 1 };
+        return next;
+      }
+      return [...prev, { name: m.name, price: Number(m.price), qty: 1, category: m.category }];
+    });
+  };
+  const incQty = (i: number, delta: number) => {
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, qty: Math.max(1, Number(it.qty) + delta) } : it));
+  };
+  const removeLine = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i));
+
+  const subtotal = items.reduce((s, it) => s + Number(it.price) * Number(it.qty), 0);
+  const freeCoffeeDisc = Math.min(Number(order.freeCoffeeDiscount ?? 0), subtotal);
+  const discountAmount = order.discountPercent
+    ? Math.min(+(subtotal * Number(order.discountPercent) / 100), Math.max(0, subtotal - freeCoffeeDisc))
+    : Math.min(Number(order.discountAmount ?? 0), Math.max(0, subtotal - freeCoffeeDisc));
+  const total = Math.max(0, subtotal - discountAmount - freeCoffeeDisc);
+
+  const filteredMenu = menu.filter(m =>
+    !search.trim() || String(m.name).toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
+  const save = async () => {
+    if (items.length === 0) {
+      window.alert("❌ يجب أن يحتوي الطلب على منتج واحد على الأقل");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { order: updated } = await api.cafeOrderItems(cafeId, order.id, items);
+      onSaved(updated);
+    } catch (e: any) {
+      window.alert(`❌ ${e?.message ?? "تعذّر حفظ التعديل"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-card border border-border shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-5 py-4 border-b border-border bg-card">
+          <h3 className="font-bold text-foreground flex items-center gap-2">
+            <Pencil size={16} className="text-primary"/> التعديل على الطلب — {order.customerName}
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Current items */}
+          <div>
+            <p className="text-xs font-bold text-foreground mb-2">🧾 منتجات الطلب الحالية</p>
+            {items.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-3 text-center border border-dashed border-border rounded-lg">
+                لا توجد منتجات — أضف منتجاً من القائمة بالأسفل
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {items.map((it, i) => (
+                  <div key={i} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/50 px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground truncate">{it.name}</p>
+                      <div className="text-[11px] text-muted-foreground">
+                        {Number(it.price).toFixed(3)} ر.ع
+                        {(it.selectedBean || it.selectedSize) && (
+                          <span className="text-primary/85">
+                            {" • "}{[it.selectedBean ? `☕ ${it.selectedBean}` : "", it.selectedSize ? `📏 ${it.selectedSize}` : ""].filter(Boolean).join(" • ")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={() => incQty(i, -1)} className="w-7 h-7 rounded-md bg-muted text-foreground font-bold hover:bg-muted/70">−</button>
+                      <span className="w-8 text-center text-sm font-bold text-foreground tabular-nums">{it.qty}</span>
+                      <button onClick={() => incQty(i, +1)} className="w-7 h-7 rounded-md bg-muted text-foreground font-bold hover:bg-muted/70">+</button>
+                      <span className="w-16 text-right text-sm font-semibold text-foreground tabular-nums">{(Number(it.price) * Number(it.qty)).toFixed(3)}</span>
+                      <button onClick={() => removeLine(i)} title="حذف المنتج" className="w-7 h-7 rounded-md bg-red-500/15 text-red-400 border border-red-500/40 hover:bg-red-500/25 flex items-center justify-center">
+                        <Trash2 size={13}/>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Add product from menu */}
+          <div>
+            <p className="text-xs font-bold text-foreground mb-2">➕ إضافة منتج من قائمة الكوفي</p>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="🔍 ابحث عن منتج…"
+              className="w-full mb-2 px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground"
+            />
+            {menuLoading ? (
+              <p className="text-xs text-muted-foreground py-3 text-center">جارٍ تحميل القائمة…</p>
+            ) : filteredMenu.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-3 text-center">لا توجد منتجات مطابقة</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                {filteredMenu.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => addFromMenu(m)}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-background/50 px-3 py-2 text-right hover:border-primary/50 hover:bg-primary/5"
+                  >
+                    <span className="min-w-0 flex-1 text-sm text-foreground truncate">{m.name}</span>
+                    <span className="text-xs text-primary font-semibold shrink-0">{Number(m.price).toFixed(3)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer — live total + save */}
+        <div className="sticky bottom-0 z-10 px-5 py-4 border-t border-border bg-card space-y-3">
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>المجموع الفرعي</span><span className="tabular-nums">{subtotal.toFixed(3)} ر.ع</span>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-amber-400">
+                <span>الخصم</span><span className="tabular-nums">−{discountAmount.toFixed(3)} ر.ع</span>
+              </div>
+            )}
+            {freeCoffeeDisc > 0 && (
+              <div className="flex justify-between text-emerald-400">
+                <span>كوفي مجاني</span><span className="tabular-nums">−{freeCoffeeDisc.toFixed(3)} ر.ع</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-primary text-base pt-1 border-t border-border">
+              <span>الإجمالي الجديد</span><span className="tabular-nums">{total.toFixed(3)} ر.ع</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-lg bg-muted text-foreground text-sm font-bold hover:bg-muted/70">إلغاء</button>
+            <button
+              onClick={save}
+              disabled={saving || items.length === 0}
+              className="flex-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? "جارٍ الحفظ…" : "✔ حفظ التعديل"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
