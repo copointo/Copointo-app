@@ -689,7 +689,7 @@ export default function GameScreen() {
         <TouchableOpacity
           style={[styles.goBackBtn, {
             left: 20,
-            bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 72 + 12,
+            bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 58 + 12,
           }]}
           onPress={goToCurrent}
           activeOpacity={0.85}
@@ -730,7 +730,7 @@ export default function GameScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
           activeOpacity={0.85}
         >
-          <Feather name="users" size={22} color="#FFF" />
+          <Feather name="users" size={18} color="#FFF" />
           <Text style={styles.fabThemedLabel}>انشاء مجتمع</Text>
           {incomingInvites.length > 0 && (
             <View style={styles.badge}>
@@ -748,19 +748,19 @@ export default function GameScreen() {
           <View style={styles.storeIconWrap}>
             <FontAwesome5
               name="user-astronaut"
-              size={18}
+              size={16}
               color="#FFF"
               style={styles.storeIconChar}
             />
             <Feather
               name="gift"
-              size={13}
+              size={11}
               color="#FFF"
               style={styles.storeIconGift}
             />
             <Feather
               name="image"
-              size={13}
+              size={11}
               color="#FFF"
               style={styles.storeIconBg}
             />
@@ -774,7 +774,7 @@ export default function GameScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
           activeOpacity={0.85}
         >
-          <Feather name="package" size={22} color="#FFF" />
+          <Feather name="package" size={18} color="#FFF" />
           <Text style={styles.fabThemedLabel}>اغراضي</Text>
         </TouchableOpacity>
 
@@ -784,7 +784,7 @@ export default function GameScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/leaderboard"); }}
           activeOpacity={0.85}
         >
-          <FontAwesome5 name="trophy" size={26} color="#FFF" />
+          <FontAwesome5 name="trophy" size={22} color="#FFF" />
           <Text style={styles.fabLeaderboardLabel}>التصنيف</Text>
         </TouchableOpacity>
 
@@ -793,7 +793,7 @@ export default function GameScreen() {
       {/* Free coffee (small) - sits directly above مستوى الكافيهات on the LEFT (gold) */}
       <TouchableOpacity
         style={[styles.fabFreeCoffee, {
-          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 84 + 84 + 84,
+          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70 + 70 + 70,
         }]}
         onPress={async () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -821,12 +821,12 @@ export default function GameScreen() {
         style={[styles.fabSentGifts, {
           backgroundColor: "#FF8A3D",
           shadowColor: "#FF8A3D",
-          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 84 + 84,
+          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70 + 70,
         }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/my-cafes"); }}
         activeOpacity={0.85}
       >
-        <Feather name="coffee" size={22} color="#FFF" />
+        <Feather name="coffee" size={18} color="#FFF" />
         <Text style={styles.fabSentGiftsLabel}>مستوى الكافيهات</Text>
         {cafeIds.length > 0 && (
           <View style={styles.cafeCountBadge}>
@@ -838,12 +838,12 @@ export default function GameScreen() {
       {/* Sent Gifts - sits directly above المستويات on the LEFT */}
       <TouchableOpacity
         style={[styles.fabSentGifts, {
-          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 84,
+          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70,
         }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/sent-gifts"); }}
         activeOpacity={0.85}
       >
-        <Feather name="gift" size={22} color="#FFF" />
+        <Feather name="gift" size={18} color="#FFF" />
         <Text style={styles.fabSentGiftsLabel}>الهدايا المرسلة</Text>
         {unseenSentGifts > 0 && (
           <View style={styles.sentGiftsBadge}>
@@ -860,7 +860,7 @@ export default function GameScreen() {
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
         activeOpacity={0.85}
       >
-        <Feather name="award" size={22} color="#000" />
+        <Feather name="award" size={18} color="#000" />
         <Text style={styles.fabLevelsLabel}>المستويات</Text>
       </TouchableOpacity>
      </View>
@@ -1098,15 +1098,15 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   fabThemed: {
-    width: 58, height: 58, borderRadius: 16,
+    width: 48, height: 48, borderRadius: 14,
     alignItems: "center", justifyContent: "center", gap: 2,
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
     borderWidth: 1.2, borderColor: "rgba(255,255,255,0.18)",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6, shadowRadius: 10, elevation: 6,
   },
   fabThemedLabel: {
-    fontSize: 8, fontFamily: "Inter_700Bold",
+    fontSize: 7, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabSmall: {
@@ -1255,23 +1255,23 @@ const styles = StyleSheet.create({
     color: PRIMARY,
   },
   fabLeaderboard: {
-    width: 88, height: 88, borderRadius: 22,
-    alignItems: "center", justifyContent: "center", gap: 4,
+    width: 70, height: 70, borderRadius: 18,
+    alignItems: "center", justifyContent: "center", gap: 3,
     backgroundColor: PURPLE,
     borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
     shadowColor: PURPLE, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
   },
   fabLeaderboardLabel: {
-    fontSize: 11, fontFamily: "Inter_700Bold",
+    fontSize: 9, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabSentGifts: {
     position: "absolute",
     left: 20,
-    width: 72, height: 72, borderRadius: 20,
-    alignItems: "center", justifyContent: "center", gap: 3,
-    paddingHorizontal: 4,
+    width: 58, height: 58, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", gap: 2,
+    paddingHorizontal: 3,
     backgroundColor: "#E8484C",
     borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
     shadowColor: "#E8484C", shadowOffset: { width: 0, height: 0 },
@@ -1279,14 +1279,14 @@ const styles = StyleSheet.create({
     zIndex: 60,
   },
   fabSentGiftsLabel: {
-    fontSize: 10, fontFamily: "Inter_700Bold",
+    fontSize: 8, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabLevels: {
     position: "absolute",
     left: 20,
-    width: 72, height: 72, borderRadius: 20,
-    alignItems: "center", justifyContent: "center", gap: 3,
+    width: 58, height: 58, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", gap: 2,
     backgroundColor: PRIMARY,
     borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
@@ -1294,25 +1294,25 @@ const styles = StyleSheet.create({
     zIndex: 60,
   },
   fabLevelsLabel: {
-    fontSize: 10, fontFamily: "Inter_700Bold",
+    fontSize: 8, fontFamily: "Inter_700Bold",
     color: "#000", textAlign: "center",
   },
   // ── Small free-coffee FAB (above مستوى الكافيهات) ──
   fabFreeCoffee: {
     position: "absolute",
-    left: 28,
-    width: 56, height: 56, borderRadius: 16,
-    alignItems: "center", justifyContent: "center", gap: 2,
-    paddingHorizontal: 3,
+    left: 25,
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: "center", justifyContent: "center", gap: 1,
+    paddingHorizontal: 2,
     backgroundColor: "rgba(232,184,109,0.16)",
     borderWidth: 1.5, borderColor: PRIMARY,
     shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6, shadowRadius: 12, elevation: 9,
     zIndex: 60,
   },
-  fabFreeCoffeeIcon: { fontSize: 16 },
+  fabFreeCoffeeIcon: { fontSize: 14 },
   fabFreeCoffeeLabel: {
-    fontSize: 8, fontFamily: "Inter_700Bold",
+    fontSize: 7, fontFamily: "Inter_700Bold",
     color: PRIMARY, textAlign: "center",
   },
   fabFreeCoffeeBadge: {
