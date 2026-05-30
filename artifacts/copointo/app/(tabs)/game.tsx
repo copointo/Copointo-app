@@ -724,6 +724,16 @@ export default function GameScreen() {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
       }]}>
 
+        {/* Play & Win — العب واربح (orange, distinctive mini-game) */}
+        <TouchableOpacity
+          style={styles.fabPlayWin}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/play-win"); }}
+          activeOpacity={0.85}
+        >
+          <FontAwesome5 name="gamepad" size={24} color="#FFF" />
+          <Text style={styles.fabPlayWinLabel}>العب واربح</Text>
+        </TouchableOpacity>
+
         {/* Communities — انشاء مجتمع (blue) */}
         <TouchableOpacity
           style={[styles.fabThemed, { backgroundColor: "#4A90E2", shadowColor: "#4A90E2" }]}
@@ -1253,6 +1263,18 @@ const styles = StyleSheet.create({
   dailyCapText: {
     fontSize: 11, fontFamily: "Inter_600SemiBold",
     color: PRIMARY,
+  },
+  fabPlayWin: {
+    width: 70, height: 70, borderRadius: 18,
+    alignItems: "center", justifyContent: "center", gap: 3,
+    backgroundColor: "#FF7A1A",
+    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.22)",
+    shadowColor: "#FF7A1A", shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8, shadowRadius: 16, elevation: 10,
+  },
+  fabPlayWinLabel: {
+    fontSize: 9, fontFamily: "Inter_700Bold",
+    color: "#FFF", textAlign: "center",
   },
   fabLeaderboard: {
     width: 70, height: 70, borderRadius: 18,
