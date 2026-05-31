@@ -579,7 +579,7 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
       </div>
 
       <ResponsiveContainer width="100%" height={130}>
-        <AreaChart data={todayPoint} margin={{ top: 8, right: -14, left: 12, bottom: 0 }}>
+        <AreaChart data={todayPoint} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
           <defs>
             <linearGradient id={theme.gradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={theme.accent} stopOpacity={0.35} />
@@ -587,8 +587,8 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={theme.grid} />
-          <XAxis dataKey="label" reversed tick={{ fill: theme.accentDim, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} />
-          <YAxis orientation="right" tick={{ fill: theme.accentDim, fontSize: 11 }} allowDecimals={money} axisLine={false} tickLine={false} width={money ? 44 : 32} />
+          <XAxis dataKey="label" tick={false} axisLine={{ stroke: theme.grid }} tickLine={false} height={0} />
+          <YAxis tick={{ fill: theme.accentDim, fontSize: 11 }} allowDecimals={money} axisLine={false} tickLine={false} width={money ? 44 : 32} />
           <Tooltip
             contentStyle={{ background: "#0A0606", border: `1px solid ${theme.accent}`, borderRadius: 8 }}
             labelStyle={{ color: theme.accent }}
