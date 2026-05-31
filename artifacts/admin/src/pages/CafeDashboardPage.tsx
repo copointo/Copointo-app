@@ -5638,17 +5638,19 @@ export default function CafeDashboardPage() {
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const { counts: notifCounts, markSeen: markTabSeen } = useTabNotifications(id, tab);
 
-  // Sequential 3D spin: each tab button rotates one after another every 5s
-  const [spinIdx, setSpinIdx] = useState<number>(-1);
+  // Random glossy shine: every 3s a random button (manager analytics = -1,
+  // tabs = 0..TABS.length-1) gets a light-sweep. Cleared after the animation
+  // so the same button can shine again later.
+  const [shineIdx, setShineIdx] = useState<number>(-99);
   useEffect(() => {
-    let i = 0;
+    const total = TABS.length + 1; // +1 for the manager-analytics button
     const tick = () => {
-      setSpinIdx(i);
-      i = (i + 1) % TABS.length;
+      const r = Math.floor(Math.random() * total) - 1; // -1 .. TABS.length-1
+      setShineIdx(r);
+      setTimeout(() => setShineIdx(s => (s === r ? -99 : s)), 1000);
     };
-    const timer = setTimeout(tick, 800); // first spin ~0.8s after mount
-    const interval = setInterval(tick, 5000);
-    return () => { clearTimeout(timer); clearInterval(interval); };
+    const interval = setInterval(tick, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -5732,7 +5734,6 @@ export default function CafeDashboardPage() {
         >
         <div
           className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5"
-          style={{ perspective: "900px" }}
         >
           {/* Manager analytics — special king button (now opens full page) */}
           <Link
@@ -5751,6 +5752,11 @@ export default function CafeDashboardPage() {
                 alt="إحصائيات المدير"
                 className="w-full h-full object-cover"
               />
+              {shineIdx === -1 && (
+                <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
+                  <span className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-tab-shine" />
+                </span>
+              )}
               <span className="absolute bottom-0.5 left-0.5 w-4 h-4 rounded-md bg-black/55 flex items-center justify-center">
                 <Lock size={9} className="text-[#D8B4FE]" />
               </span>
@@ -5762,7 +5768,6 @@ export default function CafeDashboardPage() {
           </Link>
           {TABS.map(({ id: tid, label, icon: Icon }, i) => {
             const active     = tab === tid;
-            const isSpinning = spinIdx === i;
             const notifCount = notifCounts[tid] ?? 0;
             const tabImg = TAB_IMAGES[tid];
             if (tabImg) {
@@ -5780,6 +5785,11 @@ export default function CafeDashboardPage() {
                         : "border-[#E8B86D]/30 hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/20 group-hover:scale-[1.04]"}`}
                   >
                     <img src={tabImg} alt={label} className="w-full h-full object-cover" />
+                    {shineIdx === i && (
+                      <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
+                        <span className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-tab-shine" />
+                      </span>
+                    )}
                     {active && (
                       <span className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#E8B86D] pointer-events-none" />
                     )}
@@ -5800,7 +5810,6 @@ export default function CafeDashboardPage() {
                 key={tid}
                 onClick={() => { setTab(tid); markTabSeen(tid); }}
                 className="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
-                style={{ perspective: "800px" }}
                 title={label}
               >
                 {notifCount > 0 && (
@@ -5809,17 +5818,19 @@ export default function CafeDashboardPage() {
                   </span>
                 )}
                 <div
-                  key={isSpinning ? `spin-${spinIdx}` : "idle"}
-                  className={`relative w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5
+                  className={`relative w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5 overflow-hidden
                     border transition-all duration-200
                     ${active
                       ? "bg-gradient-to-br from-[#E8B86D] via-[#D4A35A] to-[#B8884A] border-[#E8B86D] shadow-md shadow-[#E8B86D]/30 text-black"
-                      : "bg-gradient-to-br from-[#0A0606] via-[#050303] to-black border-[#E8B86D]/30 text-[#E8B86D] hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/15 group-hover:scale-[1.04]"}
-                    ${isSpinning ? "animate-spinY" : ""}`}
-                  style={{ transformStyle: "preserve-3d" }}
+                      : "bg-gradient-to-br from-[#0A0606] via-[#050303] to-black border-[#E8B86D]/30 text-[#E8B86D] hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/15 group-hover:scale-[1.04]"}`}
                 >
                   {/* Inner gold accent ring */}
                   <div className={`absolute inset-0.5 rounded-lg pointer-events-none ${active ? "ring-1 ring-black/20" : "ring-1 ring-[#E8B86D]/15"}`} />
+                  {shineIdx === i && (
+                    <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
+                      <span className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-tab-shine" />
+                    </span>
+                  )}
 
                   <Icon size={20} strokeWidth={1.75} className={active ? "text-black" : "text-[#E8B86D]"} />
                   <span className={`text-[9px] font-bold leading-tight text-center px-0.5 ${active ? "text-black" : "text-[#F5E6CC]"}`}>
