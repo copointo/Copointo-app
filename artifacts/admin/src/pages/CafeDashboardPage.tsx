@@ -22,6 +22,7 @@ import copointoLogoUrl from "@/assets/copointo-logo.png";
 import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_44_45_PM_1780267519003.png";
 import statsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_45_50_PM_1780267556237.png";
 import ordersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_47_49_PM_1780267690004.png";
+import directTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_48_30_PM_1780267733809.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -383,6 +384,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
 const TAB_IMAGES: Partial<Record<Tab, string>> = {
   stats:  statsTabIconUrl,
   orders: ordersTabIconUrl,
+  direct: directTabIconUrl,
 };
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
