@@ -6,7 +6,7 @@ import {
 import {
   ArrowLeft, ArrowRight, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
   MessageCircle, Armchair, Receipt, Plus, Trash2, CheckCircle, Clock, ChevronDown, ChevronUp,
-  Lock, ShieldCheck, X, TrendingUp, Eye, Users, Crown, Trophy, Coffee, Car,
+  Lock, ShieldCheck, X, TrendingUp, Eye, EyeOff, Users, Crown, Trophy, Coffee, Car,
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
@@ -5383,6 +5383,12 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
   const dashboardUrl = `${PROD_DOMAIN}/admin/cafe/${safeId}${nameQs}`;
   const cafePageUrl  = `${PROD_DOMAIN}/cafe/${safeId}${nameQs}`;
   const [copied, setCopied] = useState<string | null>(null);
+  // Per-barcode hide toggle — staff can hide either QR (e.g. on a shared
+  // screen) and bring it back any time. State is local to this tab.
+  const [hidden, setHidden] = useState<{ cafe: boolean; dashboard: boolean }>({
+    cafe: false,
+    dashboard: false,
+  });
 
   const copy = async (label: string, text: string) => {
     try {
@@ -5451,7 +5457,31 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
 
   const QrCard = ({ title, subtitle, url, accent, kind }: {
     title: string; subtitle: string; url: string; accent: string; kind: "cafe" | "dashboard";
-  }) => (
+  }) => {
+    const isHidden = hidden[kind];
+    // Hidden state — collapse the card down to its title plus a single
+    // "show" button so staff can bring the QR back instantly.
+    if (isHidden) {
+      return (
+        <div
+          className="p-6 flex flex-col items-center justify-center gap-4 bg-card border-2 border-dashed rounded-2xl min-h-[220px]"
+          style={{ borderColor: accent }}
+        >
+          <div className="text-center">
+            <h3 className="font-extrabold text-foreground text-lg opacity-70">{title}</h3>
+            <p className="text-xs text-muted-foreground mt-1">الباركود مخفي</p>
+          </div>
+          <button
+            onClick={() => setHidden(h => ({ ...h, [kind]: false }))}
+            className="px-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5"
+            style={{ background: accent, color: "#000" }}
+          >
+            <Eye size={14} /> إظهار الباركود
+          </button>
+        </div>
+      );
+    }
+    return (
     <div className="p-6 flex flex-col items-center gap-4 bg-card border-2 rounded-2xl" style={{ borderColor: accent }}>
       <div className="text-center">
         <h3 className="font-extrabold text-foreground text-lg">{title}</h3>
@@ -5506,9 +5536,17 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
         >
           <Share2 size={12} /> مشاركة
         </button>
+        <button
+          onClick={() => setHidden(h => ({ ...h, [kind]: true }))}
+          className="flex-1 min-w-[80px] px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 border-2 border-border text-muted-foreground hover:bg-muted"
+          title="إخفاء الباركود"
+        >
+          <EyeOff size={12} /> إخفاء
+        </button>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
