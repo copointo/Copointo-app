@@ -195,6 +195,39 @@ router.get("/stats", (req: any, res) => {
     salesVisa += Number(o.visaAmount) || 0;
   });
 
+  // ── Daily series for the money / status panels (same 7-day window) ──
+  const revenueByDay: Record<string, number> = {};
+  const cashByDay: Record<string, number> = {};
+  const visaByDay: Record<string, number> = {};
+  const pendingByDay: Record<string, number> = {};
+  cafeOrders.forEach(o => {
+    const day = omanDayKey(o.createdAt);
+    if (!day) return;
+    revenueByDay[day] = (revenueByDay[day] || 0) + (Number(o.total) || 0);
+    cashByDay[day]    = (cashByDay[day]    || 0) + (Number(o.cashAmount) || 0);
+    visaByDay[day]    = (visaByDay[day]    || 0) + (Number(o.visaAmount) || 0);
+    if (o.status === "pending") pendingByDay[day] = (pendingByDay[day] || 0) + 1;
+  });
+  const confirmedBookingsByDay: Record<string, number> = {};
+  cafeBookings.forEach(b => {
+    if (b.status !== "confirmed") return;
+    const day = omanDayKey(b.createdAt);
+    if (day) confirmedBookingsByDay[day] = (confirmedBookingsByDay[day] || 0) + 1;
+  });
+  const vouchersByDay: Record<string, number> = {};
+  cafeVouchers.forEach(v => {
+    const day = omanDayKey(v.createdAt);
+    if (day) vouchersByDay[day] = (vouchersByDay[day] || 0) + 1;
+  });
+  const round3 = (n: number) => +n.toFixed(3);
+  const revenueSeries           = last7.map(d => ({ ...d, count: round3(revenueByDay[d.date] || 0) }));
+  const cashSeries              = last7.map(d => ({ ...d, count: round3(cashByDay[d.date] || 0) }));
+  const visaSeries              = last7.map(d => ({ ...d, count: round3(visaByDay[d.date] || 0) }));
+  const pendingOrdersSeries     = last7.map(d => ({ ...d, count: pendingByDay[d.date] || 0 }));
+  const confirmedBookingsSeries = last7.map(d => ({ ...d, count: confirmedBookingsByDay[d.date] || 0 }));
+  const vouchersSeries          = last7.map(d => ({ ...d, count: vouchersByDay[d.date] || 0 }));
+  const todaySales = revenueSeries.length ? revenueSeries[revenueSeries.length - 1].count : 0;
+
   res.json({
     totalOrders: cafeOrders.length, totalBookings: cafeBookings.length,
     totalMenuItems: cafeMenu.length, totalRevenue: +totalRevenue.toFixed(3),
@@ -206,6 +239,13 @@ router.get("/stats", (req: any, res) => {
     bookingsSeries,
     menuItemsSeries,
     totalItemsSold,
+    revenueSeries,
+    todaySales,
+    cashSeries,
+    visaSeries,
+    pendingOrdersSeries,
+    confirmedBookingsSeries,
+    vouchersSeries,
     topItems: cafeOrders.flatMap(o => o.items)
       .reduce((acc: Record<string, number>, item) => { acc[item.name] = (acc[item.name] || 0) + item.qty; return acc; }, {}),
     totalVouchers: cafeVouchers.length,

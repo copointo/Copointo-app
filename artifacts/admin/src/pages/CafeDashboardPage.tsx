@@ -539,19 +539,22 @@ function MiniStat({ label, value, theme, Icon }: {
   );
 }
 
-function StatChartPanel({ title, total, series, theme, Icon }: {
+function StatChartPanel({ title, total, series, theme, Icon, money = false }: {
   title: string;
   total: number;
   series: { date: string; label: string; count: number }[];
   theme: ChartTheme;
   Icon: any;
+  money?: boolean;
 }) {
   const counts = (series || []).map(d => d.count);
   const max = counts.length ? Math.max(...counts) : 0;
   const min = counts.length ? Math.min(...counts) : 0;
-  const avg = counts.length ? Math.round(counts.reduce((s, n) => s + n, 0) / counts.length) : 0;
+  const avgRaw = counts.length ? counts.reduce((s, n) => s + n, 0) / counts.length : 0;
+  const avg = money ? avgRaw : Math.round(avgRaw);
   const todayLabel = series?.length ? series[series.length - 1].label : "—";
-  const fmt = (n: number) => Number(n || 0).toLocaleString("en-US");
+  const fmt = (n: number) => money ? Number(n || 0).toFixed(3) : Number(n || 0).toLocaleString("en-US");
+  const headline = money ? `${fmt(total)} OMR` : fmt(total);
   return (
     <div
       className="relative rounded-2xl p-4 sm:p-6 border-2 overflow-hidden"
@@ -572,7 +575,7 @@ function StatChartPanel({ title, total, series, theme, Icon }: {
       >
         <div className="text-center">
           <p className="text-[11px] font-semibold mb-0.5" style={{ color: theme.accentDim }}>{title}</p>
-          <p className="text-3xl sm:text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(total)}</p>
+          <p className="text-3xl sm:text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{headline}</p>
         </div>
         <TrendingUp size={28} style={{ color: theme.accent }} />
       </div>
@@ -587,11 +590,11 @@ function StatChartPanel({ title, total, series, theme, Icon }: {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke={theme.grid} />
           <XAxis dataKey="label" tick={{ fill: theme.accentDim, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} />
-          <YAxis tick={{ fill: theme.accentDim, fontSize: 11 }} allowDecimals={false} axisLine={false} tickLine={false} width={32} />
+          <YAxis tick={{ fill: theme.accentDim, fontSize: 11 }} allowDecimals={money} axisLine={false} tickLine={false} width={money ? 44 : 32} />
           <Tooltip
             contentStyle={{ background: "#0A0606", border: `1px solid ${theme.accent}`, borderRadius: 8 }}
             labelStyle={{ color: theme.accent }}
-            formatter={(v: any) => [`${v}`, "العدد"]}
+            formatter={(v: any) => [money ? `${fmt(Number(v))} OMR` : `${v}`, money ? "المبلغ" : "العدد"]}
           />
           <Area type="monotone" dataKey="count" stroke={theme.accent} strokeWidth={2.5} fill={`url(#${theme.gradId})`} dot={{ r: 3, fill: theme.accent }} activeDot={{ r: 5 }} />
         </AreaChart>
@@ -631,6 +634,54 @@ const MENU_CHART_THEME: ChartTheme = {
   grid: "rgba(193,140,240,0.12)",
   gradId: "menuChartFill",
 };
+const TODAY_SALES_CHART_THEME: ChartTheme = {
+  accent: "#5BD98A",
+  accentDim: "#46B36E",
+  glow: "rgba(91,217,138,0.28)",
+  panelBg: "linear-gradient(135deg,#04120B 0%,#020A06 60%,#000 100%)",
+  grid: "rgba(91,217,138,0.12)",
+  gradId: "todaySalesChartFill",
+};
+const CASH_CHART_THEME: ChartTheme = {
+  accent: "#7FD1F5",
+  accentDim: "#5FA9CC",
+  glow: "rgba(127,209,245,0.28)",
+  panelBg: "linear-gradient(135deg,#04101A 0%,#02080F 60%,#000 100%)",
+  grid: "rgba(127,209,245,0.12)",
+  gradId: "cashChartFill",
+};
+const VISA_CHART_THEME: ChartTheme = {
+  accent: "#F0A6D6",
+  accentDim: "#CC83B2",
+  glow: "rgba(240,166,214,0.28)",
+  panelBg: "linear-gradient(135deg,#160913 0%,#0C050B 60%,#000 100%)",
+  grid: "rgba(240,166,214,0.12)",
+  gradId: "visaChartFill",
+};
+const PENDING_CHART_THEME: ChartTheme = {
+  accent: "#F0B45B",
+  accentDim: "#CC9446",
+  glow: "rgba(240,180,91,0.28)",
+  panelBg: "linear-gradient(135deg,#16100A 0%,#0C0905 60%,#000 100%)",
+  grid: "rgba(240,180,91,0.12)",
+  gradId: "pendingChartFill",
+};
+const CONFIRMED_BOOK_CHART_THEME: ChartTheme = {
+  accent: "#8FE0C4",
+  accentDim: "#6BB89E",
+  glow: "rgba(143,224,196,0.28)",
+  panelBg: "linear-gradient(135deg,#05130F 0%,#020A07 60%,#000 100%)",
+  grid: "rgba(143,224,196,0.12)",
+  gradId: "confirmedBookChartFill",
+};
+const VOUCHERS_CHART_THEME: ChartTheme = {
+  accent: "#D7A0F5",
+  accentDim: "#B27FCC",
+  glow: "rgba(215,160,245,0.28)",
+  panelBg: "linear-gradient(135deg,#100716 0%,#08040B 60%,#000 100%)",
+  grid: "rgba(215,160,245,0.12)",
+  gradId: "vouchersChartFill",
+};
 
 // ── Stats Tab ─────────────────────────────────────────────────
 function StatsTab({ id }: { id: string }) {
@@ -666,6 +717,51 @@ function StatsTab({ id }: { id: string }) {
           series={data.menuItemsSeries ?? []}
           theme={MENU_CHART_THEME}
           Icon={UtensilsCrossed}
+        />
+        <StatChartPanel
+          title="إجمالي مبيعات اليوم"
+          total={data.todaySales ?? 0}
+          series={data.revenueSeries ?? []}
+          theme={TODAY_SALES_CHART_THEME}
+          Icon={Wallet}
+          money
+        />
+        <StatChartPanel
+          title="إجمالي المبيعات كاش"
+          total={data.salesCash ?? 0}
+          series={data.cashSeries ?? []}
+          theme={CASH_CHART_THEME}
+          Icon={Banknote}
+          money
+        />
+        <StatChartPanel
+          title="إجمالي المبيعات فيزا"
+          total={data.salesVisa ?? 0}
+          series={data.visaSeries ?? []}
+          theme={VISA_CHART_THEME}
+          Icon={CreditCard}
+          money
+        />
+        <StatChartPanel
+          title="طلبات بانتظار"
+          total={data.pendingOrders ?? 0}
+          series={data.pendingOrdersSeries ?? []}
+          theme={PENDING_CHART_THEME}
+          Icon={Clock}
+        />
+        <StatChartPanel
+          title="حجوزات مؤكدة"
+          total={data.confirmedBookings ?? 0}
+          series={data.confirmedBookingsSeries ?? []}
+          theme={CONFIRMED_BOOK_CHART_THEME}
+          Icon={CheckCircle}
+        />
+        <StatChartPanel
+          title="القسائم الشرائية"
+          total={data.totalVouchers ?? 0}
+          series={data.vouchersSeries ?? []}
+          theme={VOUCHERS_CHART_THEME}
+          Icon={Gift}
         />
       </div>
 
