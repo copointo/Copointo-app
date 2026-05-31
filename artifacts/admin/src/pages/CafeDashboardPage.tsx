@@ -698,7 +698,7 @@ function StatsTab({ id }: { id: string }) {
           Icon={ShoppingBag}
         />
         <StatChartPanel
-          title="الحجوزات"
+          title="حجوزات الطاولات"
           series={data.bookingsSeries ?? []}
           theme={BOOKINGS_CHART_THEME}
           Icon={CalendarDays}
