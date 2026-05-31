@@ -705,14 +705,14 @@ function StatsTab({ id }: { id: string }) {
           money
         />
         <StatChartPanel
-          title="إجمالي المبيعات كاش"
+          title="اجمالي المبيعات نقدا"
           series={data.cashSeries ?? []}
           theme={CASH_CHART_THEME}
           Icon={Banknote}
           money
         />
         <StatChartPanel
-          title="إجمالي المبيعات فيزا"
+          title="اجمالي المبيعات Visa"
           series={data.visaSeries ?? []}
           theme={VISA_CHART_THEME}
           Icon={CreditCard}
