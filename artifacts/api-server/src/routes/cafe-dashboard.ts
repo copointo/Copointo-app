@@ -565,8 +565,10 @@ router.patch("/orders/:orderId/status", (req, res): any => {
   const prevStatus = order.status;
   const next = req.body.status;
   order.status = next;
-  // First time the order leaves "pending" → finalise invoice AND award drink progress
-  // immediately (no longer waits for the manager to print the invoice).
+  // First time the order leaves "pending" → finalise the invoice record only.
+  // Drink/level progress is intentionally NOT awarded here — it is awarded
+  // exclusively when the cashier prints the invoice (POST /print). Confirming
+  // receipt of the order must never advance the customer's level on its own.
   if (prevStatus === "pending" && next !== "pending") {
     order.confirmedAt = new Date().toISOString();
     if (!invoices.some(i => i.orderId === order.id)) {
@@ -582,7 +584,6 @@ router.patch("/orders/:orderId/status", (req, res): any => {
       };
       invoices.push(inv);
     }
-    awardOrderProgress(order);
   }
   // Push: notify the customer when the order moves to preparing / ready /
   // done. We look up the user by phone (orders carry customerPhone, not
@@ -791,9 +792,10 @@ router.patch("/orders/:orderId/items", (req: any, res): any => {
   return res.json({ order });
 });
 
-// Mark invoice printed → completes order. Drink progress was already awarded at
-// confirmation time (see PATCH /status); this still calls the helper so any
-// edge-case order that was printed without going through confirmation is awarded.
+// Mark invoice printed → completes order AND awards drink/level progress.
+// Printing the invoice is the ONLY moment progress is credited — confirming
+// receipt of the order (PATCH /status) deliberately does not. The helper is
+// idempotent (guards on order.pointsAwarded) so repeat prints never double-credit.
 router.post("/orders/:orderId/print", (req, res): any => {
   const order = orders.find(o => o.id === req.params.orderId);
   if (!order) return res.status(404).json({ error: "Not found" });
