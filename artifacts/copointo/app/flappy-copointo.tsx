@@ -30,6 +30,7 @@ const PIPE_SPEED = 165;     // px / s
 const PIPE_SPACING = 240;   // horizontal distance between pipes
 const BIRD_SIZE = 40;
 const DAILY_GAME_CAP = 100; // max coins earnable per day from this game
+const FIXED_DT = 1 / 120;   // physics sub-step (decoupled from refresh rate)
 
 const HI_KEY = "copointo_flappy_hi_v1";
 const DAY_KEY = "copointo_flappy_day_v1";
@@ -64,6 +65,7 @@ export default function FlappyCopointoScreen() {
     score: 0,
     status: "idle" as Status,
     last: 0,
+    acc: 0,
     raf: 0 as number,
     overAt: 0,
     earnedToday: 0,
@@ -165,58 +167,74 @@ export default function FlappyCopointoScreen() {
     }
   };
 
+  // One deterministic physics sub-step. Running the simulation at a fixed
+  // timestep (decoupled from the display refresh rate) keeps motion perfectly
+  // consistent and jitter-free even when individual frames are dropped — the
+  // game "catches up" with several small steps instead of one big lurch.
+  const step = (dt: number) => {
+    S.birdV += GRAVITY * dt;
+    S.birdY += S.birdV * dt;
+
+    for (const p of S.pipes) p.x -= PIPE_SPEED * dt;
+
+    const lastP = S.pipes[S.pipes.length - 1];
+    if (!lastP || lastP.x < S.W - PIPE_SPACING) spawnPipe();
+    // Drop fully off-screen pipes in place (no per-frame array allocation).
+    while (S.pipes.length && S.pipes[0]!.x + PIPE_W <= -20) S.pipes.shift();
+
+    for (const p of S.pipes) {
+      if (!p.scored && p.x + PIPE_W < S.birdX) {
+        p.scored = true;
+        S.score += 1;
+        // Reward 1 coin per pipe passed, immediately, while under the
+        // daily cap — so quitting mid-run never loses earned coins.
+        if (S.earnedToday < DAILY_GAME_CAP) {
+          S.earnedToday += 1;
+          S.runReward += 1;
+          addCoins(1);
+          persistDaily();
+          setEarnedToday(S.earnedToday);
+        }
+        try {
+          Haptics.selectionAsync();
+        } catch {
+          /* ignore */
+        }
+      }
+      const within = S.birdX + BIRD_SIZE > p.x && S.birdX < p.x + PIPE_W;
+      if (within) {
+        const gapTop = p.gapY - PIPE_GAP / 2;
+        const gapBottom = p.gapY + PIPE_GAP / 2;
+        if (S.birdY < gapTop || S.birdY + BIRD_SIZE > gapBottom) {
+          endGame();
+          return;
+        }
+      }
+    }
+
+    if (S.birdY < 0) {
+      S.birdY = 0;
+      S.birdV = 0;
+    }
+    if (S.birdY + BIRD_SIZE >= S.H) {
+      S.birdY = S.H - BIRD_SIZE;
+      endGame();
+    }
+  };
+
   const frame = (t: number) => {
     if (!S.last) S.last = t;
-    let dt = (t - S.last) / 1000;
+    let elapsed = (t - S.last) / 1000;
     S.last = t;
-    if (dt > 0.045) dt = 0.045; // clamp big gaps (tab switches etc.)
+    // Cap accumulated time after a long pause (tab switch, GC) so we never
+    // try to simulate hundreds of catch-up steps in one frame.
+    if (elapsed > 0.25) elapsed = 0.25;
 
     if (S.status === "playing") {
-      S.birdV += GRAVITY * dt;
-      S.birdY += S.birdV * dt;
-
-      for (const p of S.pipes) p.x -= PIPE_SPEED * dt;
-
-      const lastP = S.pipes[S.pipes.length - 1];
-      if (!lastP || lastP.x < S.W - PIPE_SPACING) spawnPipe();
-      S.pipes = S.pipes.filter((p) => p.x + PIPE_W > -20);
-
-      for (const p of S.pipes) {
-        if (!p.scored && p.x + PIPE_W < S.birdX) {
-          p.scored = true;
-          S.score += 1;
-          // Reward 1 coin per pipe passed, immediately, while under the
-          // daily cap — so quitting mid-run never loses earned coins.
-          if (S.earnedToday < DAILY_GAME_CAP) {
-            S.earnedToday += 1;
-            S.runReward += 1;
-            addCoins(1);
-            persistDaily();
-            setEarnedToday(S.earnedToday);
-          }
-          try {
-            Haptics.selectionAsync();
-          } catch {
-            /* ignore */
-          }
-        }
-        const within = S.birdX + BIRD_SIZE > p.x && S.birdX < p.x + PIPE_W;
-        if (within) {
-          const gapTop = p.gapY - PIPE_GAP / 2;
-          const gapBottom = p.gapY + PIPE_GAP / 2;
-          if (S.birdY < gapTop || S.birdY + BIRD_SIZE > gapBottom) {
-            endGame();
-          }
-        }
-      }
-
-      if (S.birdY < 0) {
-        S.birdY = 0;
-        S.birdV = 0;
-      }
-      if (S.birdY + BIRD_SIZE >= S.H) {
-        S.birdY = S.H - BIRD_SIZE;
-        endGame();
+      S.acc += elapsed;
+      while (S.acc >= FIXED_DT && S.status === "playing") {
+        step(FIXED_DT);
+        S.acc -= FIXED_DT;
       }
     }
 
@@ -238,6 +256,7 @@ export default function FlappyCopointoScreen() {
     S.birdV = 0;
     S.pipes = [];
     S.score = 0;
+    S.acc = 0;
     S.runReward = 0;
     S.status = "playing";
     S.last = 0;
