@@ -730,7 +730,7 @@ export default function GameScreen() {
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/play-win"); }}
           activeOpacity={0.85}
         >
-          <FontAwesome5 name="gamepad" size={24} color="#FFF" />
+          <FontAwesome5 name="gamepad" size={18} color="#FFF" />
           <Text style={styles.fabPlayWinLabel}>العب واربح</Text>
         </TouchableOpacity>
 
@@ -1265,15 +1265,15 @@ const styles = StyleSheet.create({
     color: PRIMARY,
   },
   fabPlayWin: {
-    width: 70, height: 70, borderRadius: 18,
-    alignItems: "center", justifyContent: "center", gap: 3,
+    width: 54, height: 54, borderRadius: 15,
+    alignItems: "center", justifyContent: "center", gap: 2,
     backgroundColor: "#FF7A1A",
     borderWidth: 1.5, borderColor: "rgba(255,255,255,0.22)",
     shadowColor: "#FF7A1A", shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8, shadowRadius: 16, elevation: 10,
   },
   fabPlayWinLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
+    fontSize: 8, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabLeaderboard: {
