@@ -19,6 +19,7 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 import copointoLogoUrl from "@/assets/copointo-logo.png";
+import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_37_12_PM_1780267039126.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -5715,7 +5716,11 @@ export default function CafeDashboardPage() {
               style={{ transformStyle: "preserve-3d" }}
             >
               <div className="absolute inset-0.5 rounded-lg ring-1 ring-black/15 pointer-events-none" />
-              <Crown size={16} className="text-black drop-shadow" />
+              <img
+                src={managerStatsIconUrl}
+                alt="إحصائيات المدير"
+                className="w-7 h-7 sm:w-9 sm:h-9 rounded-md object-cover ring-1 ring-black/20 shadow-sm"
+              />
               <Lock size={10} className="text-black/70" />
               <span className="text-[8px] font-extrabold text-center px-0.5 leading-tight text-black">
                 إحصائيات المدير
