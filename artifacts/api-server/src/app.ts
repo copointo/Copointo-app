@@ -38,7 +38,17 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json({ limit: "300mb" }));
+app.use(
+  express.json({
+    limit: "300mb",
+    // Capture the raw request body so webhook signature verification
+    // (e.g. OMPay) can HMAC the exact bytes OMPay signed, not a re-serialized
+    // version. Harmless for every other route.
+    verify: (req, _res, buf) => {
+      (req as any).rawBody = buf.toString("utf8");
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "60mb" }));
 
 // Make sure the in-memory cache mirrors the latest DB state before any

@@ -239,6 +239,53 @@ export const discountCodes: DiscountCode[] = [];
 export const expenses:         Expense[]         = [];
 export const invoiceTemplates: InvoiceTemplate[] = [];
 
+// ─── Online payments (OMPay) ────────────────────────────────────────────
+/** What a payment is paying for. Each purpose has a distinct fulfilment
+ *  path once the payment is confirmed (order created / booking placed /
+ *  coins credited). */
+export type PaymentPurpose = "order" | "booking" | "coins";
+/** pending → user redirected to OMPay hosted page; paid/failed/canceled set
+ *  by the webhook (or the status-poll reconciliation). */
+export type PaymentStatus  = "pending" | "paid" | "failed" | "canceled";
+
+export interface Payment {
+  id: string;
+  /** Merchant reference we send to OMPay and echo back from the webhook. */
+  reference: string;
+  purpose: PaymentPurpose;
+  status: PaymentStatus;
+  /** Amount in OMR major units (e.g. 3.500). OMR has 3 decimals. */
+  amount: number;
+  currency: string;            // always "OMR" for now
+  cafeId?: string | null;
+  userId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  description?: string | null;
+  /** Purpose-specific payload captured at session-create time so the
+   *  webhook can fulfil without trusting the client a second time:
+   *   - order   → the full order draft to POST once paid
+   *   - booking → the booking draft
+   *   - coins   → { packId, coins } to credit */
+  metadata?: Record<string, unknown>;
+  /** Random capability token returned to the creating client and required
+   *  to read this payment's status — prevents id-enumeration of others'
+   *  payments without building full per-user auth. Never returned by reads. */
+  accessToken?: string;
+  /** OMPay session/transaction id returned by the hosted-page create call. */
+  providerSessionId?: string | null;
+  /** Hosted payment page URL the client opens. */
+  checkoutUrl?: string | null;
+  /** Fulfilment results, filled in once status flips to "paid". */
+  resultOrderId?: string | null;
+  resultBookingId?: string | null;
+  coinsCredited?: number | null;
+  createdAt: string;
+  updatedAt: string;
+  paidAt?: string | null;
+}
+export const payments: Payment[] = [];
+
 export interface FreeCoffee {
   id: string;
   code: string;             // unique 6-char uppercase code
@@ -682,7 +729,7 @@ const COLLECTIONS: Record<string, any[]> = {
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
   reports, coinGifts, giftVouchers, pushTokens, webPushSubscriptions, monthlySeasons,
-  communities, communityInvites, progressAdjustments,
+  communities, communityInvites, progressAdjustments, payments,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 
@@ -1008,6 +1055,15 @@ export function purgeUserData(id: string): boolean {
     if (norm(b.customerPhone) === phoneN) {
       b.customerName  = "مستخدم محذوف";
       b.customerPhone = "";
+    }
+  }
+  // Drop this user's payment records (they carry name/phone + a metadata
+  // draft that can contain PII). Revenue history is preserved via the
+  // anonymized orders/bookings above, so payments can be hard-removed.
+  for (let i = payments.length - 1; i >= 0; i--) {
+    const p = payments[i]!;
+    if (p.userId === id || (p.customerPhone && norm(p.customerPhone) === phoneN)) {
+      payments.splice(i, 1);
     }
   }
   persistStore();

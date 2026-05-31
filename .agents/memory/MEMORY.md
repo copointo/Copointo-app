@@ -1,0 +1,1 @@
+- [OMPay payment gateway](ompay-payment-gateway.md) — server backbone done & gated behind OMPAY_* secrets; two CONFIRM-AGAINST-PORTAL seams + client-driven fulfilment.
