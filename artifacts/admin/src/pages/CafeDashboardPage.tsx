@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LabelList,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import {
   ArrowLeft, ArrowRight, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
@@ -605,6 +605,66 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
   );
 }
 
+// Menu-items panel: instead of a trend chart, list each product sold TODAY
+// with its quantity (the user wants names + per-product counts for today).
+function MenuSoldPanel({ items, series, theme, Icon }: {
+  items: { name: string; qty: number }[];
+  series: { date: string; label: string; count: number }[];
+  theme: ChartTheme;
+  Icon: any;
+}) {
+  const rows = (items || []).slice().sort((a, b) => b.qty - a.qty);
+  const total = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+  const todayPoint = (series || []).slice(-1);
+  const todayLabel = todayPoint.length ? todayPoint[0].label : "—";
+  const fmt = (n: number) => Number(n || 0).toLocaleString("en-US");
+  return (
+    <div
+      className="relative rounded-xl p-3 border-2 overflow-hidden"
+      style={{
+        borderColor: theme.accent,
+        background: theme.panelBg,
+        boxShadow: `0 0 18px ${theme.glow}, inset 0 0 28px ${theme.glow}`,
+      }}
+    >
+      <div className="flex flex-col items-center gap-0.5 mb-2.5">
+        <Icon size={20} style={{ color: theme.accent }} />
+        <h3 className="text-sm font-extrabold text-center leading-tight" style={{ color: theme.accent }}>عناصر القائمة المباعة</h3>
+      </div>
+
+      <div
+        className="mx-auto mb-3 w-fit min-w-[120px] rounded-lg border px-3 py-1.5 flex items-center justify-center gap-2"
+        style={{ borderColor: theme.accent, background: `${theme.accent}14`, boxShadow: `0 0 10px ${theme.glow}` }}
+      >
+        <p className="text-2xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(total)}</p>
+        <TrendingUp size={20} style={{ color: theme.accent }} />
+      </div>
+
+      <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
+        {rows.length === 0 ? (
+          <p className="text-center text-xs py-4" style={{ color: theme.accentDim }}>لا توجد مبيعات اليوم</p>
+        ) : rows.map((r, i) => (
+          <div
+            key={`${r.name}-${i}`}
+            className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5"
+            style={{ borderColor: `${theme.accent}33`, background: `${theme.accent}0D` }}
+          >
+            <span className="text-xs font-semibold truncate" style={{ color: "#EADCC8" }} title={r.name}>{r.name}</span>
+            <span
+              className="text-xs font-black tabular-nums shrink-0 rounded-md px-2 py-0.5"
+              style={{ color: theme.accent, background: `${theme.accent}1A` }}
+            >{fmt(r.qty)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3">
+        <MiniStat label="اليوم" value={todayLabel} theme={theme} Icon={CalendarDays} />
+      </div>
+    </div>
+  );
+}
+
 const ORDERS_CHART_THEME: ChartTheme = {
   accent: "#E8B86D",
   accentDim: "#C9A063",
@@ -724,8 +784,8 @@ function StatsTab({ id }: { id: string }) {
           theme={BOOKINGS_CHART_THEME}
           Icon={CalendarDays}
         />
-        <StatChartPanel
-          title="عناصر القائمة المباعة"
+        <MenuSoldPanel
+          items={data.todayItemsSold ?? []}
           series={data.menuItemsSeries ?? []}
           theme={MENU_CHART_THEME}
           Icon={UtensilsCrossed}

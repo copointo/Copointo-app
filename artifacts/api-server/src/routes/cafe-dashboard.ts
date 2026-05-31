@@ -179,6 +179,20 @@ router.get("/stats", (req: any, res) => {
   const ordersSeries    = last7.map(d => ({ ...d, count: ordersByDayCount[d.date] || 0 }));
   const bookingsSeries  = last7.map(d => ({ ...d, count: bookingsByDayCount[d.date] || 0 }));
   const menuItemsSeries = last7.map(d => ({ ...d, count: menuItemsByDayCount[d.date] || 0 }));
+  // Per-product quantities sold TODAY (Oman-day) — drives the menu-items panel
+  // which lists each product name with how many were sold today.
+  const todayKey = last7.length ? last7[last7.length - 1].date : "";
+  const todayItemsMap: Record<string, number> = {};
+  cafeOrders.forEach(o => {
+    if (omanDayKey(o.createdAt) !== todayKey) return;
+    (o.items || []).forEach(it => {
+      const name = (it.name || "").trim() || "—";
+      todayItemsMap[name] = (todayItemsMap[name] || 0) + (Number(it.qty) || 0);
+    });
+  });
+  const todayItemsSold = Object.entries(todayItemsMap)
+    .map(([name, qty]) => ({ name, qty }))
+    .sort((a, b) => b.qty - a.qty);
   // ── Gift voucher stats (separate from regular orders) ─────────────
   const cafeVouchers = giftVouchers.filter(v => v.cafeId === id);
   const confirmedVouchers = cafeVouchers.filter(v => v.status === "confirmed");
@@ -239,6 +253,7 @@ router.get("/stats", (req: any, res) => {
     bookingsSeries,
     menuItemsSeries,
     totalItemsSold,
+    todayItemsSold,
     revenueSeries,
     todaySales,
     cashSeries,
