@@ -6,11 +6,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -41,18 +43,31 @@ function UnoCardFace({
   card,
   size = "md",
   active,
+  width,
+  height,
+  radius,
+  fontSize: fontSizeProp,
 }: {
   card: UnoCard;
   size?: "sm" | "md" | "lg";
   active?: UnoColor | null;
+  /** Optional explicit dimensions so hand cards can shrink to fit on screen. */
+  width?: number;
+  height?: number;
+  radius?: number;
+  fontSize?: number;
 }) {
-  const dims = size === "lg" ? CARD.lg : size === "sm" ? CARD.sm : CARD.md;
-  const fontSize = size === "lg" ? CARD_FONT.lg : size === "sm" ? CARD_FONT.sm : CARD_FONT.md;
+  const preset = size === "lg" ? CARD.lg : size === "sm" ? CARD.sm : CARD.md;
+  const w = width ?? preset.width;
+  const h = height ?? preset.height;
+  const br = radius ?? preset.borderRadius;
+  const fontSize =
+    fontSizeProp ?? (size === "lg" ? CARD_FONT.lg : size === "sm" ? CARD_FONT.sm : CARD_FONT.md);
   const fill = cardFill(card, active);
   const dark = card.color === "yellow";
   const fg = dark ? "#1A1320" : "#FFF";
   return (
-    <View style={[styles.card, dims, { backgroundColor: fill }]}>
+    <View style={[styles.card, { width: w, height: h, borderRadius: br }, { backgroundColor: fill }]}>
       <View style={styles.cardOval} />
       <Text style={[styles.cardLabel, { color: fg, fontSize }]}>{cardLabel(card)}</Text>
       {isWild(card) && !active ? <Text style={styles.cardWildHint}>WILD</Text> : null}
@@ -80,6 +95,14 @@ export default function UnoRoomScreen() {
   const [friends, setFriends] = useState<{ id: string; name: string }[]>([]);
   const [invited, setInvited] = useState<Set<string>>(new Set());
   const [rewarded, setRewarded] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
+  const [drewN, setDrewN] = useState(0);
+
+  const { width: winW } = useWindowDimensions();
+  const drawFlash = useRef(new Animated.Value(0)).current;
+  const prevHandLen = useRef(0);
+  const deadlineAt = useRef(0);
 
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
@@ -139,6 +162,35 @@ export default function UnoRoomScreen() {
       }
     })();
   }, [view, sessionId, rewarded, addCoins]);
+
+  // ── Local 250ms clock so the turn timer counts down smoothly between polls ──
+  useEffect(() => {
+    const t = setInterval(() => setClock(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+
+  // Re-anchor the absolute turn deadline to the client clock on every fresh view.
+  useEffect(() => {
+    if (view && view.status === "playing") {
+      deadlineAt.current = Date.now() + view.actDeadlineMs;
+    }
+  }, [view?.seq, view?.turnSeat, view?.actDeadlineMs, view?.status, view]);
+
+  // Flash a "+N" badge whenever the player's hand grows (drawn / forced cards).
+  useEffect(() => {
+    if (!view) return;
+    const len = view.yourHand.length;
+    if (prevHandLen.current !== 0 && len > prevHandLen.current) {
+      setDrewN(len - prevHandLen.current);
+      drawFlash.setValue(0);
+      Animated.sequence([
+        Animated.timing(drawFlash, { toValue: 1, duration: 220, useNativeDriver: false }),
+        Animated.delay(750),
+        Animated.timing(drawFlash, { toValue: 0, duration: 350, useNativeDriver: false }),
+      ]).start();
+    }
+    prevHandLen.current = len;
+  }, [view?.yourHand.length, drawFlash, view]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
   const refreshNow = (next: UnoView) => setView(next);
@@ -215,7 +267,7 @@ export default function UnoRoomScreen() {
     }
   };
 
-  const leave = async () => {
+  const doLeave = async () => {
     if (id && sessionId) {
       try {
         await unoApi.leave(sessionId, id);
@@ -224,6 +276,15 @@ export default function UnoRoomScreen() {
       }
     }
     router.back();
+  };
+
+  const leave = () => {
+    // Leaving an in-progress match is a forfeit (counts as a loss) — confirm first.
+    if (view?.status === "playing") {
+      setConfirmLeave(true);
+      return;
+    }
+    doLeave();
   };
 
   const openInvite = async () => {
@@ -266,6 +327,33 @@ export default function UnoRoomScreen() {
   }
 
   const others = view.players.filter((p) => !p.isYou);
+
+  // Dynamic hand sizing: shrink cards (and overlap them when there are many) so
+  // the whole hand always fits across the screen instead of scrolling.
+  const handCount = view.yourHand.length;
+  const HAND_GAP = 6;
+  const CARD_MAX_W = 56;
+  const CARD_MIN_W = 30;
+  const avail = winW - 28;
+  let cardW = CARD_MAX_W;
+  let overlap = 0;
+  if (handCount > 0) {
+    const ideal = (avail - (handCount - 1) * HAND_GAP) / handCount;
+    if (ideal >= CARD_MIN_W) {
+      cardW = Math.min(CARD_MAX_W, ideal);
+    } else {
+      cardW = CARD_MIN_W;
+      overlap = (handCount * CARD_MIN_W - avail) / Math.max(1, handCount - 1);
+    }
+  }
+  const cardH = Math.round(cardW * (84 / 58));
+  const cardFontSize = Math.max(12, Math.round(cardW * (26 / 58)));
+  const cardRadius = Math.max(6, Math.round(cardW * (11 / 58)));
+
+  // Turn countdown (counts down locally between server polls).
+  const remainMs = view.status === "playing" ? Math.max(0, deadlineAt.current - clock) : 0;
+  const remainSec = Math.ceil(remainMs / 1000);
+  const timerLow = remainSec <= 3;
 
   return (
     <View style={styles.root}>
@@ -336,6 +424,9 @@ export default function UnoRoomScreen() {
                   <Text style={styles.handCountTxt}>{p.handCount}</Text>
                 </View>
                 {p.handCount === 1 ? <Text style={styles.unoTag}>UNO</Text> : null}
+                {view.turnSeat === p.seat ? (
+                  <Text style={[styles.oppTimer, timerLow && styles.oppTimerLow]}>⏱ {remainSec}</Text>
+                ) : null}
               </View>
             ))}
           </View>
@@ -369,6 +460,10 @@ export default function UnoRoomScreen() {
             <Text style={styles.turnText}>
               {view.isYourTurn ? "دورك الآن" : `دور ${view.players[view.turnSeat]?.name ?? ""}`}
             </Text>
+            <View style={[styles.timerPill, timerLow && styles.timerPillLow]}>
+              <Feather name="clock" size={13} color={timerLow ? "#FFF" : PRIMARY} />
+              <Text style={[styles.timerPillTxt, timerLow && { color: "#FFF" }]}>{remainSec} ث</Text>
+            </View>
           </View>
 
           {/* Latest log line */}
@@ -380,9 +475,30 @@ export default function UnoRoomScreen() {
 
           {/* Your hand */}
           <View style={[styles.handArea, { paddingBottom: insets.bottom + 12 }]}>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.drawFlash,
+                {
+                  opacity: drawFlash,
+                  transform: [
+                    { translateY: drawFlash.interpolate({ inputRange: [0, 1], outputRange: [12, -4] }) },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.drawFlashTxt}>🃏 +{drewN} ورقة</Text>
+            </Animated.View>
+
             <View style={styles.handTopRow}>
               <Text style={styles.handTitle}>أوراقك ({view.yourHand.length})</Text>
               <View style={{ flexDirection: "row", gap: 8 }}>
+                {view.isYourTurn && !view.canPass ? (
+                  <Pressable style={styles.drawBtn} onPress={onDraw} disabled={busy}>
+                    <Feather name="download" size={14} color={PRIMARY} />
+                    <Text style={styles.drawBtnTxt}>اسحب ورقة</Text>
+                  </Pressable>
+                ) : null}
                 {view.yourHand.length === 2 ? (
                   <Pressable style={styles.unoBtn} onPress={onSayUno}>
                     <Text style={styles.unoBtnTxt}>UNO!</Text>
@@ -396,21 +512,32 @@ export default function UnoRoomScreen() {
               </View>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.handScroll}>
-              {view.yourHand.map((c) => {
+            <View style={styles.handRow}>
+              {view.yourHand.map((c, i) => {
                 const playable = view.playableCardIds.includes(c.id);
+                const isDrawn = view.drawnCardId === c.id;
                 return (
                   <Pressable
                     key={c.id}
                     onPress={() => onPlay(c)}
                     disabled={!playable || busy}
-                    style={[styles.handCardWrap, playable ? styles.handCardOn : styles.handCardOff]}
+                    style={[
+                      { marginLeft: i === 0 ? 0 : overlap > 0 ? -overlap : HAND_GAP },
+                      playable ? styles.handCardOn : styles.handCardOff,
+                      isDrawn && styles.handCardDrawn,
+                    ]}
                   >
-                    <UnoCardFace card={c} size="md" />
+                    <UnoCardFace
+                      card={c}
+                      width={cardW}
+                      height={cardH}
+                      radius={cardRadius}
+                      fontSize={cardFontSize}
+                    />
                   </Pressable>
                 );
               })}
-            </ScrollView>
+            </View>
           </View>
         </View>
       )}
@@ -496,6 +623,38 @@ export default function UnoRoomScreen() {
             </Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* ── Confirm forfeit on leave ─────────────────────────────────── */}
+      <Modal
+        transparent
+        visible={confirmLeave}
+        animationType="fade"
+        onRequestClose={() => setConfirmLeave(false)}
+      >
+        <View style={styles.modalBg}>
+          <View style={styles.confirmSheet}>
+            <Text style={styles.confirmTitle}>مغادرة المباراة؟</Text>
+            <Text style={styles.confirmSub}>إذا غادرت الآن ستُحتسب خسارة لك ولفريقك.</Text>
+            <View style={styles.confirmRow}>
+              <Pressable
+                style={[styles.confirmBtn, styles.confirmStay]}
+                onPress={() => setConfirmLeave(false)}
+              >
+                <Text style={styles.confirmStayTxt}>البقاء</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmBtn, styles.confirmLeaveBtn]}
+                onPress={() => {
+                  setConfirmLeave(false);
+                  doLeave();
+                }}
+              >
+                <Text style={styles.confirmLeaveTxt}>مغادرة وخسارة</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -707,6 +866,90 @@ const styles = StyleSheet.create({
     borderColor: "rgba(232,184,109,0.5)",
   },
   passTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  drawBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "rgba(232,184,109,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.5)",
+  },
+  drawBtnTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  handRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    minHeight: 96,
+  },
+  handCardDrawn: {
+    borderWidth: 2,
+    borderColor: "#FFF",
+    borderRadius: 13,
+    zIndex: 20,
+  },
+  drawFlash: { position: "absolute", top: -6, left: 0, right: 0, alignItems: "center", zIndex: 30 },
+  drawFlashTxt: {
+    backgroundColor: "rgba(232,184,109,0.95)",
+    color: "#1A1320",
+    fontFamily: "Inter_700Bold",
+    fontSize: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+
+  // Timers
+  oppTimer: { fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY, marginTop: 3 },
+  oppTimerLow: { color: "#E0584C" },
+  timerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "rgba(232,184,109,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.4)",
+  },
+  timerPillLow: { backgroundColor: "#E0584C", borderColor: "#E0584C" },
+  timerPillTxt: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Confirm-leave sheet
+  confirmSheet: {
+    width: "82%",
+    backgroundColor: "#16100A",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.3)",
+    padding: 22,
+  },
+  confirmTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  confirmSub: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  confirmRow: { flexDirection: "row", gap: 10, marginTop: 20 },
+  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center" },
+  confirmStay: {
+    backgroundColor: "rgba(232,184,109,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(232,184,109,0.5)",
+  },
+  confirmStayTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
+  confirmLeaveBtn: { backgroundColor: "#E0584C" },
+  confirmLeaveTxt: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF" },
 
   // Card faces
   card: { alignItems: "center", justifyContent: "center", overflow: "hidden" },

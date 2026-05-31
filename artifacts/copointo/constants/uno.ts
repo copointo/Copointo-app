@@ -45,6 +45,8 @@ export interface UnoView {
   drawCount: number;
   turnSeat: number;
   dir: 1 | -1;
+  actDeadlineMs: number;
+  turnTotalMs: number;
   players: UnoViewPlayer[];
   winnerSeat: number | null;
   winnerTeam: 0 | 1 | null;

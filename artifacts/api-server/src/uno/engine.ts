@@ -75,12 +75,19 @@ export interface UnoGame {
 }
 
 export const WAIT_MS = 60_000;
-const BOT_DELAY_MS = 1_200;
-const HUMAN_TIMEOUT_MS = 40_000;
+// Bots act within ~3s of their turn; a human gets a 10s turn timer before a bot
+// auto-plays for them (so the table never stalls on an absent/idle player).
+const BOT_DELAY_MS = 3_000;
+const HUMAN_TIMEOUT_MS = 10_000;
 const MAX_LOG = 14;
 
 const COLORS: UnoColor[] = ["red", "yellow", "green", "blue"];
-const BOT_NAMES = ["بوت ١", "بوت ٢", "بوت ٣", "بوت ٤"];
+// Realistic-looking names so bots blend in as ordinary players.
+const BOT_NAME_POOL = [
+  "سارة", "خالد", "نورة", "عبدالله", "ريم", "فهد", "لمى", "سعود",
+  "جواهر", "ماجد", "هند", "تركي", "أمل", "بدر", "شهد", "ناصر",
+  "دانة", "يوسف", "غادة", "سلطان",
+];
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function shuffle<T>(arr: T[]): T[] {
@@ -283,14 +290,17 @@ export function joinGame(
 }
 
 function startGame(g: UnoGame, now: number) {
-  // Fill remaining seats with bots.
+  // Fill remaining seats with bots using random, human-looking names that don't
+  // collide with the names already seated.
+  const usedNames = new Set(g.players.map(p => p.name));
+  const botNames = shuffle([...BOT_NAME_POOL]).filter(n => !usedNames.has(n));
   let bi = 0;
   while (g.players.length < g.capacity) {
     const seat = g.players.length;
     g.players.push({
       seat,
       userId: null,
-      name: BOT_NAMES[bi++ % BOT_NAMES.length]!,
+      name: botNames[bi++ % botNames.length] ?? `لاعب ${seat + 1}`,
       isBot: true,
       team: 0,
       hand: [],
@@ -563,6 +573,10 @@ export interface UnoView {
   drawCount: number;
   turnSeat: number;
   dir: 1 | -1;
+  /** ms remaining before the current player is auto-advanced (0 when not playing). */
+  actDeadlineMs: number;
+  /** Total length of the current turn timer (10s human, ~3s bot). */
+  turnTotalMs: number;
   players: Array<{
     seat: number;
     name: string;
@@ -612,6 +626,11 @@ export function redact(g: UnoGame, userId: string, now: number = Date.now()): Un
     drawCount: g.drawPile.length,
     turnSeat: g.turnSeat,
     dir: g.dir,
+    actDeadlineMs: g.status === "playing" ? Math.max(0, g.actDeadline - now) : 0,
+    turnTotalMs:
+      g.status === "playing"
+        ? (g.players[g.turnSeat]?.isBot ? BOT_DELAY_MS : HUMAN_TIMEOUT_MS)
+        : 0,
     players: g.players.map(p => ({
       seat: p.seat,
       name: p.name,
@@ -641,11 +660,18 @@ export function leaveGame(g: UnoGame, userId: string): { deleted: boolean } {
     if (g.hostUserId === userId && g.players[0]?.userId) g.hostUserId = g.players[0].userId;
     return { deleted: false };
   }
-  // Mid-game: hand over to a bot so the match continues.
-  const p = g.players[idx]!;
-  p.isBot = true;
-  p.userId = null;
-  p.connected = false;
-  pushLog(g, `🤖 ${p.name} انسحب — تولّى مكانه بوت`);
+  if (g.status === "finished") return { deleted: false };
+  // Mid-game: leaving is a forfeit — the leaver (and their team) loses, the
+  // opposing side is declared the winner and the match ends immediately.
+  const leaver = g.players[idx]!;
+  leaver.connected = false;
+  const winningTeam = (leaver.team === 0 ? 1 : 0) as 0 | 1;
+  const winner = g.players.find(p => p.team === winningTeam) ?? null;
+  g.status = "finished";
+  g.winnerTeam = winningTeam;
+  g.winnerSeat = winner ? winner.seat : null;
+  g.actDeadline = Number.MAX_SAFE_INTEGER;
+  pushLog(g, `🚪 انسحب ${leaver.name} وخسر المباراة`);
+  g.seq++;
   return { deleted: false };
 }
