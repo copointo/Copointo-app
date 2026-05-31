@@ -5724,9 +5724,9 @@ export default function CafeDashboardPage() {
           >
             <div
               className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden
-                border-2 border-[#FFE0A8] shadow-md shadow-[#E8B86D]/40
-                hover:shadow-lg hover:shadow-[#E8B86D]/60 group-hover:scale-[1.05] transition-all duration-200
-                group-focus:ring-2 group-focus:ring-[#E8B86D]/60"
+                border-2 border-[#A855F7] shadow-md shadow-[#7C3AED]/50
+                hover:shadow-lg hover:shadow-[#A855F7]/70 group-hover:scale-[1.05] transition-all duration-200
+                group-focus:ring-2 group-focus:ring-[#A855F7]/60"
             >
               <img
                 src={managerStatsIconUrl}
@@ -5734,11 +5734,11 @@ export default function CafeDashboardPage() {
                 className="w-full h-full object-cover"
               />
               <span className="absolute bottom-0.5 left-0.5 w-4 h-4 rounded-md bg-black/55 flex items-center justify-center">
-                <Lock size={9} className="text-[#FFE0A8]" />
+                <Lock size={9} className="text-[#D8B4FE]" />
               </span>
               <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 border-2 border-card animate-pulse" />
             </div>
-            <span className="text-[9px] sm:text-[10px] font-extrabold text-center leading-tight text-[#F5E6CC]">
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-center leading-tight text-[#D8B4FE]">
               إحصائيات المدير
             </span>
           </Link>
