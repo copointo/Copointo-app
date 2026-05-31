@@ -581,7 +581,7 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
         <TrendingUp size={20} style={{ color: theme.accent }} />
       </div>
 
-      <ResponsiveContainer width="100%" height={130}>
+      <ResponsiveContainer width="100%" height={72}>
         <AreaChart data={todayLine} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
           <defs>
             <linearGradient id={theme.gradId} x1="0" y1="0" x2="0" y2="1">
