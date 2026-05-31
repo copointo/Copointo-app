@@ -5704,29 +5704,28 @@ export default function CafeDashboardPage() {
           {/* Manager analytics — special king button (now opens full page) */}
           <Link
             href={`/cafe/${id}/analytics`}
-            className="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0 focus:outline-none focus:ring-2 focus:ring-[#E8B86D]/60"
-            style={{ perspective: "800px" }}
+            className="group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
             title="إحصائيات المدير"
           >
             <div
-              className="relative w-full h-full rounded-xl flex flex-col items-center justify-center gap-0.5
-                bg-gradient-to-br from-[#E8B86D] via-[#C99654] to-[#7A4F1E]
-                border-2 border-[#FFE0A8] shadow-md shadow-[#E8B86D]/40 text-black
-                hover:shadow-lg hover:shadow-[#E8B86D]/60 group-hover:scale-[1.05] transition-all duration-200"
-              style={{ transformStyle: "preserve-3d" }}
+              className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden
+                border-2 border-[#FFE0A8] shadow-md shadow-[#E8B86D]/40
+                hover:shadow-lg hover:shadow-[#E8B86D]/60 group-hover:scale-[1.05] transition-all duration-200
+                group-focus:ring-2 group-focus:ring-[#E8B86D]/60"
             >
-              <div className="absolute inset-0.5 rounded-lg ring-1 ring-black/15 pointer-events-none" />
               <img
                 src={managerStatsIconUrl}
                 alt="إحصائيات المدير"
-                className="w-7 h-7 sm:w-9 sm:h-9 rounded-md object-cover ring-1 ring-black/20 shadow-sm"
+                className="w-full h-full object-cover"
               />
-              <Lock size={10} className="text-black/70" />
-              <span className="text-[8px] font-extrabold text-center px-0.5 leading-tight text-black">
-                إحصائيات المدير
+              <span className="absolute bottom-0.5 left-0.5 w-4 h-4 rounded-md bg-black/55 flex items-center justify-center">
+                <Lock size={9} className="text-[#FFE0A8]" />
               </span>
               <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-red-500 border-2 border-card animate-pulse" />
             </div>
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-center leading-tight text-[#F5E6CC]">
+              إحصائيات المدير
+            </span>
           </Link>
           {TABS.map(({ id: tid, label, icon: Icon }, i) => {
             const active     = tab === tid;
