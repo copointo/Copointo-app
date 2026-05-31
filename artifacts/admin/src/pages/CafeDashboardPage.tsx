@@ -764,21 +764,6 @@ function StatsTab({ id }: { id: string }) {
         />
       </div>
 
-      {data.chartData?.length > 0 && (
-        <Card className="p-5">
-          <h3 className="text-base font-semibold text-foreground mb-4">📈 الإيرادات اليومية</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={data.chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a3044" />
-              <XAxis dataKey="date" tick={{ fill:"#888", fontSize:11 }} />
-              <YAxis tick={{ fill:"#888", fontSize:11 }} />
-              <Tooltip contentStyle={{ background:"#1a1f2e", border:"1px solid #2a3044", borderRadius:8 }} labelStyle={{ color:"#ccc" }} />
-              <Line type="monotone" dataKey="revenue" stroke="#C67C4E" strokeWidth={2.5} dot={{ r: 3, fill: "#C67C4E" }} activeDot={{ r: 5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
-
       {topItems.length > 0 && (
         <Card className="p-5">
           <h3 className="text-base font-semibold text-foreground mb-4">🏆 أكثر العناصر طلباً</h3>
