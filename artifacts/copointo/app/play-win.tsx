@@ -29,7 +29,6 @@ const PRIMARY = "#E8B86D";
 const LOGO = require("../assets/images/copointo-logo.png");
 const COIN_IMG = require("../assets/images/copointo-coin.png");
 const FLAPPY_COVER = require("../assets/images/flappy-btn.png");
-const UNO_COVER = require("../assets/images/uno-cover.png");
 
 type GameDef = {
   id: string;
@@ -47,14 +46,6 @@ const GAMES: GameDef[] = [
     name: "Flappy Copointo",
     cover: FLAPPY_COVER,
     route: "/flappy-copointo",
-    available: true,
-  },
-  {
-    id: "uno",
-    name: "UNO",
-    cover: UNO_COVER,
-    gradient: ["#E0584C", "#C9974F", "#4C7FE0"],
-    route: "/uno",
     available: true,
   },
 ];

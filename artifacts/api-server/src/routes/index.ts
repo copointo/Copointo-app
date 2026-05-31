@@ -8,7 +8,6 @@ import adminRouter from "./admin";
 import cafeDashRouter from "./cafe-dashboard";
 import authOtpRouter, { consumeOtpToken } from "./auth-otp";
 import paymentsRouter from "./payments";
-import unoRouter from "./uno";
 import { isShowcaseViewer } from "../showcase-seed";
 
 const REELS_DIR = path.join(process.cwd(), "uploads", "reels");
@@ -46,7 +45,6 @@ router.use("/admin", adminRouter);
 router.use("/cafe/:cafeId", cafeDashRouter);
 router.use("/auth/otp", authOtpRouter);
 router.use("/payments", paymentsRouter);
-router.use("/uno", unoRouter);
 
 // Public cafes endpoint for mobile app
 router.get("/cafes", async (req, res) => {
