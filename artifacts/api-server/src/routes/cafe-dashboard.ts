@@ -167,8 +167,18 @@ router.get("/stats", (req: any, res) => {
     const date = d.toISOString().substring(0, 10);
     return { date, label: AR_WEEKDAYS[d.getUTCDay()] };
   });
-  const ordersSeries   = last7.map(d => ({ ...d, count: ordersByDayCount[d.date] || 0 }));
-  const bookingsSeries = last7.map(d => ({ ...d, count: bookingsByDayCount[d.date] || 0 }));
+  // Menu items SOLD per day (sum of item quantities across orders that day).
+  const menuItemsByDayCount: Record<string, number> = {};
+  let totalItemsSold = 0;
+  cafeOrders.forEach(o => {
+    const qtySum = (o.items || []).reduce((s, it) => s + (Number(it.qty) || 0), 0);
+    totalItemsSold += qtySum;
+    const day = omanDayKey(o.createdAt);
+    if (day) menuItemsByDayCount[day] = (menuItemsByDayCount[day] || 0) + qtySum;
+  });
+  const ordersSeries    = last7.map(d => ({ ...d, count: ordersByDayCount[d.date] || 0 }));
+  const bookingsSeries  = last7.map(d => ({ ...d, count: bookingsByDayCount[d.date] || 0 }));
+  const menuItemsSeries = last7.map(d => ({ ...d, count: menuItemsByDayCount[d.date] || 0 }));
   // ── Gift voucher stats (separate from regular orders) ─────────────
   const cafeVouchers = giftVouchers.filter(v => v.cafeId === id);
   const confirmedVouchers = cafeVouchers.filter(v => v.status === "confirmed");
@@ -194,6 +204,8 @@ router.get("/stats", (req: any, res) => {
     chartData,
     ordersSeries,
     bookingsSeries,
+    menuItemsSeries,
+    totalItemsSold,
     topItems: cafeOrders.flatMap(o => o.items)
       .reduce((acc: Record<string, number>, item) => { acc[item.name] = (acc[item.name] || 0) + item.qty; return acc; }, {}),
     totalVouchers: cafeVouchers.length,

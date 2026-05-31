@@ -623,6 +623,14 @@ const BOOKINGS_CHART_THEME: ChartTheme = {
   grid: "rgba(94,200,194,0.12)",
   gradId: "bookingsChartFill",
 };
+const MENU_CHART_THEME: ChartTheme = {
+  accent: "#C18CF0",
+  accentDim: "#A06FCF",
+  glow: "rgba(193,140,240,0.28)",
+  panelBg: "linear-gradient(135deg,#0C0712 0%,#070309 60%,#000 100%)",
+  grid: "rgba(193,140,240,0.12)",
+  gradId: "menuChartFill",
+};
 
 // ── Stats Tab ─────────────────────────────────────────────────
 function StatsTab({ id }: { id: string }) {
@@ -657,7 +665,7 @@ function StatsTab({ id }: { id: string }) {
         <StatBox label="منها قسائم (مُحتسبة بالإيرادات)" value={`${(data.voucherRevenue ?? 0).toFixed(3)} OMR`} Icon={Gift} />
       </div>
 
-      {/* Weekly themed panels — total orders (gold) & bookings (teal) */}
+      {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <StatChartPanel
           title="إجمالي الطلبات"
@@ -672,6 +680,13 @@ function StatsTab({ id }: { id: string }) {
           series={data.bookingsSeries ?? []}
           theme={BOOKINGS_CHART_THEME}
           Icon={CalendarDays}
+        />
+        <StatChartPanel
+          title="عناصر القائمة المباعة"
+          total={data.totalItemsSold ?? 0}
+          series={data.menuItemsSeries ?? []}
+          theme={MENU_CHART_THEME}
+          Icon={UtensilsCrossed}
         />
       </div>
 
