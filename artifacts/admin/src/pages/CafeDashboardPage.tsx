@@ -512,6 +512,118 @@ function Sel({ value, onChange, options }: { value: string; onChange: (v: string
   );
 }
 
+// ── Themed weekly chart panel (neon-style, used for orders & bookings) ──
+type ChartTheme = {
+  accent: string;     // main line / number color
+  accentDim: string;  // softer label color
+  glow: string;       // rgba used for the panel glow
+  panelBg: string;    // panel background gradient
+  grid: string;       // chart grid stroke
+  gradId: string;     // unique <linearGradient> id
+};
+
+function MiniStat({ label, value, theme, Icon }: {
+  label: string; value: string; theme: ChartTheme; Icon: any;
+}) {
+  return (
+    <div
+      className="rounded-xl border px-3 py-2.5 flex items-center gap-2"
+      style={{ borderColor: `${theme.accent}55`, background: `${theme.accent}12` }}
+    >
+      <Icon size={16} style={{ color: theme.accent }} className="shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold truncate" style={{ color: theme.accentDim }}>{label}</p>
+        <p className="text-sm font-extrabold tabular-nums truncate" style={{ color: theme.accent }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function StatChartPanel({ title, total, series, theme, Icon }: {
+  title: string;
+  total: number;
+  series: { date: string; label: string; count: number }[];
+  theme: ChartTheme;
+  Icon: any;
+}) {
+  const counts = (series || []).map(d => d.count);
+  const max = counts.length ? Math.max(...counts) : 0;
+  const min = counts.length ? Math.min(...counts) : 0;
+  const avg = counts.length ? Math.round(counts.reduce((s, n) => s + n, 0) / counts.length) : 0;
+  const todayLabel = series?.length ? series[series.length - 1].label : "—";
+  const fmt = (n: number) => Number(n || 0).toLocaleString("en-US");
+  return (
+    <div
+      className="relative rounded-2xl p-4 sm:p-6 border-2 overflow-hidden"
+      style={{
+        borderColor: theme.accent,
+        background: theme.panelBg,
+        boxShadow: `0 0 22px ${theme.glow}, inset 0 0 36px ${theme.glow}`,
+      }}
+    >
+      <div className="flex flex-col items-center gap-1 mb-4">
+        <Icon size={26} style={{ color: theme.accent }} />
+        <h3 className="text-lg sm:text-xl font-extrabold text-center" style={{ color: theme.accent }}>{title}</h3>
+      </div>
+
+      <div
+        className="mx-auto mb-5 w-fit min-w-[180px] rounded-xl border px-5 py-2.5 flex items-center justify-center gap-3"
+        style={{ borderColor: theme.accent, background: `${theme.accent}14`, boxShadow: `0 0 12px ${theme.glow}` }}
+      >
+        <div className="text-center">
+          <p className="text-[11px] font-semibold mb-0.5" style={{ color: theme.accentDim }}>{title}</p>
+          <p className="text-3xl sm:text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(total)}</p>
+        </div>
+        <TrendingUp size={28} style={{ color: theme.accent }} />
+      </div>
+
+      <ResponsiveContainer width="100%" height={200}>
+        <AreaChart data={series} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
+          <defs>
+            <linearGradient id={theme.gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={theme.accent} stopOpacity={0.35} />
+              <stop offset="100%" stopColor={theme.accent} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.grid} />
+          <XAxis dataKey="label" tick={{ fill: theme.accentDim, fontSize: 11 }} axisLine={{ stroke: theme.grid }} tickLine={false} />
+          <YAxis tick={{ fill: theme.accentDim, fontSize: 11 }} allowDecimals={false} axisLine={false} tickLine={false} width={32} />
+          <Tooltip
+            contentStyle={{ background: "#0A0606", border: `1px solid ${theme.accent}`, borderRadius: 8 }}
+            labelStyle={{ color: theme.accent }}
+            formatter={(v: any) => [`${v}`, "العدد"]}
+          />
+          <Area type="monotone" dataKey="count" stroke={theme.accent} strokeWidth={2.5} fill={`url(#${theme.gradId})`} dot={{ r: 3, fill: theme.accent }} activeDot={{ r: 5 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
+        <MiniStat label="الأقل" value={fmt(min)} theme={theme} Icon={BarChart3} />
+        <MiniStat label="المتوسط" value={fmt(avg)} theme={theme} Icon={Coffee} />
+        <MiniStat label="الأعلى" value={fmt(max)} theme={theme} Icon={TrendingUp} />
+        <MiniStat label="اليوم" value={todayLabel} theme={theme} Icon={CalendarDays} />
+      </div>
+    </div>
+  );
+}
+
+const ORDERS_CHART_THEME: ChartTheme = {
+  accent: "#E8B86D",
+  accentDim: "#C9A063",
+  glow: "rgba(232,184,109,0.30)",
+  panelBg: "linear-gradient(135deg,#0A0706 0%,#050302 60%,#000 100%)",
+  grid: "rgba(232,184,109,0.12)",
+  gradId: "ordersChartFill",
+};
+const BOOKINGS_CHART_THEME: ChartTheme = {
+  accent: "#5EC8C2",
+  accentDim: "#4FA6A1",
+  glow: "rgba(94,200,194,0.28)",
+  panelBg: "linear-gradient(135deg,#04100F 0%,#020807 60%,#000 100%)",
+  grid: "rgba(94,200,194,0.12)",
+  gradId: "bookingsChartFill",
+};
+
 // ── Stats Tab ─────────────────────────────────────────────────
 function StatsTab({ id }: { id: string }) {
   const [data, setData] = useState<any>(null);
@@ -543,6 +655,24 @@ function StatsTab({ id }: { id: string }) {
         <StatBox label="القسائم الشرائية"        value={data.totalVouchers ?? 0} Icon={Gift} />
         <StatBox label="قسائم بانتظار"           value={data.pendingVouchers ?? 0} Icon={Clock} />
         <StatBox label="منها قسائم (مُحتسبة بالإيرادات)" value={`${(data.voucherRevenue ?? 0).toFixed(3)} OMR`} Icon={Gift} />
+      </div>
+
+      {/* Weekly themed panels — total orders (gold) & bookings (teal) */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <StatChartPanel
+          title="إجمالي الطلبات"
+          total={data.totalOrders ?? 0}
+          series={data.ordersSeries ?? []}
+          theme={ORDERS_CHART_THEME}
+          Icon={ShoppingBag}
+        />
+        <StatChartPanel
+          title="الحجوزات"
+          total={data.totalBookings ?? 0}
+          series={data.bookingsSeries ?? []}
+          theme={BOOKINGS_CHART_THEME}
+          Icon={CalendarDays}
+        />
       </div>
 
       {data.chartData?.length > 0 && (

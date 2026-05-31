@@ -135,6 +135,40 @@ router.get("/stats", (req: any, res) => {
     byDay[day] = (byDay[day] || 0) + o.total;
   });
   const chartData = Object.entries(byDay).map(([date, revenue]) => ({ date, revenue })).slice(-7);
+
+  // ── Last-7-days count series for orders & bookings ───────────────
+  // Fixed 7-day window (today and the previous 6 days) so the stats charts
+  // always render a full week even on days with no activity. Each entry
+  // carries the ISO date plus the Arabic weekday name for the x-axis label.
+  const AR_WEEKDAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+  const DAY_MS = 86400000;
+  // Oman is UTC+4 year-round (no DST). Shift instants by this offset and use
+  // UTC accessors so both the day-bucket keys and weekday labels are computed
+  // in Oman-local time consistently, regardless of the server's timezone.
+  const OMAN_OFFSET_MS = 4 * 3600000;
+  const omanDayKey = (iso: string | undefined) => {
+    const t = Date.parse(iso || "");
+    return Number.isNaN(t) ? "" : new Date(t + OMAN_OFFSET_MS).toISOString().substring(0, 10);
+  };
+  const ordersByDayCount: Record<string, number> = {};
+  cafeOrders.forEach(o => {
+    const day = omanDayKey(o.createdAt);
+    if (day) ordersByDayCount[day] = (ordersByDayCount[day] || 0) + 1;
+  });
+  const bookingsByDayCount: Record<string, number> = {};
+  cafeBookings.forEach(b => {
+    const day = omanDayKey(b.createdAt);
+    if (day) bookingsByDayCount[day] = (bookingsByDayCount[day] || 0) + 1;
+  });
+  const omanMidnightToday = new Date(Date.now() + OMAN_OFFSET_MS);
+  omanMidnightToday.setUTCHours(0, 0, 0, 0);
+  const last7 = Array.from({ length: 7 }, (_, idx) => {
+    const d = new Date(omanMidnightToday.getTime() - (6 - idx) * DAY_MS);
+    const date = d.toISOString().substring(0, 10);
+    return { date, label: AR_WEEKDAYS[d.getUTCDay()] };
+  });
+  const ordersSeries   = last7.map(d => ({ ...d, count: ordersByDayCount[d.date] || 0 }));
+  const bookingsSeries = last7.map(d => ({ ...d, count: bookingsByDayCount[d.date] || 0 }));
   // ── Gift voucher stats (separate from regular orders) ─────────────
   const cafeVouchers = giftVouchers.filter(v => v.cafeId === id);
   const confirmedVouchers = cafeVouchers.filter(v => v.status === "confirmed");
@@ -158,6 +192,8 @@ router.get("/stats", (req: any, res) => {
     confirmedBookings: cafeBookings.filter(b => b.status === "confirmed").length,
     salesCash: +salesCash.toFixed(3), salesVisa: +salesVisa.toFixed(3),
     chartData,
+    ordersSeries,
+    bookingsSeries,
     topItems: cafeOrders.flatMap(o => o.items)
       .reduce((acc: Record<string, number>, item) => { acc[item.name] = (acc[item.name] || 0) + item.qty; return acc; }, {}),
     totalVouchers: cafeVouchers.length,
