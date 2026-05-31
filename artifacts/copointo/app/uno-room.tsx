@@ -28,6 +28,7 @@ import {
   type UnoColor,
   type UnoIdentity,
   type UnoView,
+  type UnoViewPlayer,
 } from "@/constants/uno";
 
 const BG = "#07060A";
@@ -355,6 +356,86 @@ export default function UnoRoomScreen() {
   const remainSec = Math.ceil(remainMs / 1000);
   const timerLow = remainSec <= 3;
 
+  // ── Seat layout: place opponents around the table relative to YOU (bottom) ──
+  // offset 1 = next in turn order (right), 2 = across the table (top),
+  // 3 = previous (left). In 2v2 your teammate sits directly across from you.
+  const yourSeat = view.yourSeat ?? 0;
+  const oppAt = (offset: number): UnoViewPlayer | null =>
+    view.players.find(
+      (p) => !p.isYou && (p.seat - yourSeat + view.capacity) % view.capacity === offset,
+    ) ?? null;
+  const rightOpp = oppAt(1);
+  const topOpp = oppAt(2);
+  const leftOpp = oppAt(3);
+
+  const renderOpp = (p: UnoViewPlayer, compact = false) => {
+    const isMate = view.mode === "2v2" && view.yourTeam != null && p.team === view.yourTeam;
+    return (
+      <View
+        key={p.seat}
+        style={[
+          styles.oppCard,
+          compact && styles.oppCardCompact,
+          isMate && styles.oppCardMate,
+          view.turnSeat === p.seat && styles.oppCardTurn,
+        ]}
+      >
+        <View style={styles.seatAvatar}>
+          <Text style={styles.seatAvatarTxt}>{p.name.slice(0, 1)}</Text>
+        </View>
+        <Text style={styles.oppName} numberOfLines={1}>
+          {p.name}
+          {view.mode === "2v2" ? ` · ف${p.team + 1}` : ""}
+        </Text>
+        {isMate ? <Text style={styles.mateTag}>🤝 زميلك</Text> : null}
+        <View style={styles.handCountPill}>
+          <Feather name="layers" size={11} color={PRIMARY} />
+          <Text style={styles.handCountTxt}>{p.handCount}</Text>
+        </View>
+        {p.handCount === 1 ? <Text style={styles.unoTag}>UNO</Text> : null}
+        {view.turnSeat === p.seat ? (
+          <Text style={[styles.oppTimer, timerLow && styles.oppTimerLow]}>⏱ {remainSec}</Text>
+        ) : null}
+      </View>
+    );
+  };
+
+  const centerBlock = (
+    <View style={styles.center}>
+      <View style={styles.tableRow}>
+        <Pressable onPress={onDraw} disabled={!view.isYourTurn || busy} style={styles.drawPile}>
+          <View style={[styles.card, CARD.md, styles.drawBack]}>
+            <Text style={styles.drawBackTxt}>UNO</Text>
+          </View>
+          <Text style={styles.drawCount}>{view.drawCount}</Text>
+        </Pressable>
+
+        <View style={{ width: 26 }} />
+
+        {view.topCard ? (
+          <UnoCardFace card={view.topCard} size="lg" active={view.activeColor} />
+        ) : (
+          <View style={[styles.card, CARD.lg, { backgroundColor: "#1A1320" }]} />
+        )}
+      </View>
+
+      {view.activeColor ? (
+        <View style={styles.colorChip}>
+          <View style={[styles.colorDot, { backgroundColor: UNO_COLORS[view.activeColor] }]} />
+          <Text style={styles.colorChipTxt}>اللون المطلوب</Text>
+        </View>
+      ) : null}
+
+      <Text style={styles.turnText}>
+        {view.isYourTurn ? "دورك الآن" : `دور ${view.players[view.turnSeat]?.name ?? ""}`}
+      </Text>
+      <View style={[styles.timerPill, timerLow && styles.timerPillLow]}>
+        <Feather name="clock" size={13} color={timerLow ? "#FFF" : PRIMARY} />
+        <Text style={[styles.timerPillTxt, timerLow && { color: "#FFF" }]}>{remainSec} ث</Text>
+      </View>
+    </View>
+  );
+
   return (
     <View style={styles.root}>
       <View pointerEvents="none" style={styles.glowTop} />
@@ -405,66 +486,23 @@ export default function UnoRoomScreen() {
       {/* ── Game table ───────────────────────────────────────────────── */}
       {view.status === "playing" && (
         <View style={{ flex: 1, paddingTop: insets.top + 80 }}>
-          {/* Opponents */}
-          <View style={styles.oppRow}>
-            {others.map((p) => (
-              <View
-                key={p.seat}
-                style={[styles.oppCard, view.turnSeat === p.seat && styles.oppCardTurn]}
-              >
-                <View style={styles.seatAvatar}>
-                  <Text style={styles.seatAvatarTxt}>{p.name.slice(0, 1)}</Text>
-                </View>
-                <Text style={styles.oppName} numberOfLines={1}>
-                  {p.name}
-                  {view.mode === "2v2" ? ` · ف${p.team + 1}` : ""}
-                </Text>
-                <View style={styles.handCountPill}>
-                  <Feather name="layers" size={11} color={PRIMARY} />
-                  <Text style={styles.handCountTxt}>{p.handCount}</Text>
-                </View>
-                {p.handCount === 1 ? <Text style={styles.unoTag}>UNO</Text> : null}
-                {view.turnSeat === p.seat ? (
-                  <Text style={[styles.oppTimer, timerLow && styles.oppTimerLow]}>⏱ {remainSec}</Text>
-                ) : null}
+          {/* Opponents + table — 2v2 seats players around the table so
+              teammates face each other; 1v1 keeps the single top opponent. */}
+          {view.mode === "2v2" && view.capacity === 4 ? (
+            <>
+              <View style={styles.oppTopWrap}>{topOpp ? renderOpp(topOpp, true) : null}</View>
+              <View style={styles.midRow}>
+                <View style={styles.sideCol}>{leftOpp ? renderOpp(leftOpp, true) : null}</View>
+                <View style={styles.centerCol}>{centerBlock}</View>
+                <View style={styles.sideCol}>{rightOpp ? renderOpp(rightOpp, true) : null}</View>
               </View>
-            ))}
-          </View>
-
-          {/* Center: discard + draw */}
-          <View style={styles.center}>
-            <View style={styles.tableRow}>
-              <Pressable onPress={onDraw} disabled={!view.isYourTurn || busy} style={styles.drawPile}>
-                <View style={[styles.card, CARD.md, styles.drawBack]}>
-                  <Text style={styles.drawBackTxt}>UNO</Text>
-                </View>
-                <Text style={styles.drawCount}>{view.drawCount}</Text>
-              </Pressable>
-
-              <View style={{ width: 26 }} />
-
-              {view.topCard ? (
-                <UnoCardFace card={view.topCard} size="lg" active={view.activeColor} />
-              ) : (
-                <View style={[styles.card, CARD.lg, { backgroundColor: "#1A1320" }]} />
-              )}
-            </View>
-
-            {view.activeColor ? (
-              <View style={styles.colorChip}>
-                <View style={[styles.colorDot, { backgroundColor: UNO_COLORS[view.activeColor] }]} />
-                <Text style={styles.colorChipTxt}>اللون المطلوب</Text>
-              </View>
-            ) : null}
-
-            <Text style={styles.turnText}>
-              {view.isYourTurn ? "دورك الآن" : `دور ${view.players[view.turnSeat]?.name ?? ""}`}
-            </Text>
-            <View style={[styles.timerPill, timerLow && styles.timerPillLow]}>
-              <Feather name="clock" size={13} color={timerLow ? "#FFF" : PRIMARY} />
-              <Text style={[styles.timerPillTxt, timerLow && { color: "#FFF" }]}>{remainSec} ث</Text>
-            </View>
-          </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.oppRow}>{others.map((p) => renderOpp(p))}</View>
+              {centerBlock}
+            </>
+          )}
 
           {/* Latest log line */}
           {view.log.length > 0 ? (
@@ -764,6 +802,13 @@ const styles = StyleSheet.create({
 
   // Opponents
   oppRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 10, paddingHorizontal: 14 },
+  oppTopWrap: { alignItems: "center", paddingTop: 2, minHeight: 88 },
+  midRow: { flex: 1, flexDirection: "row", alignItems: "center" },
+  sideCol: { width: 92, alignItems: "center", justifyContent: "center" },
+  centerCol: { flex: 1, alignItems: "center", justifyContent: "center" },
+  oppCardCompact: { minWidth: 0, paddingHorizontal: 8, paddingVertical: 8 },
+  oppCardMate: { borderColor: "rgba(76,175,115,0.5)", backgroundColor: "rgba(76,175,115,0.08)" },
+  mateTag: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#4CAF73", marginTop: 3 },
   oppCard: {
     alignItems: "center",
     paddingVertical: 10,
