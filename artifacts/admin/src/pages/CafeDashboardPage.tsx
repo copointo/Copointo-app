@@ -5771,9 +5771,9 @@ export default function CafeDashboardPage() {
     const tick = () => {
       const r = Math.floor(Math.random() * total) - 1; // -1 .. TABS.length-1
       setShineIdx(r);
-      setTimeout(() => setShineIdx(s => (s === r ? -99 : s)), 1000);
+      setTimeout(() => setShineIdx(s => (s === r ? -99 : s)), 750);
     };
-    const interval = setInterval(tick, 3000);
+    const interval = setInterval(tick, 2000);
     return () => clearInterval(interval);
   }, []);
 
