@@ -1679,13 +1679,27 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
           </div>
 
           <div className="border-t border-border pt-3 mb-4 space-y-1">
+            {/* Selected products (name × qty + line price) */}
+            {cartLines.length > 0 ? (
+              <div className="space-y-1 mb-2">
+                {cartLines.map(l => (
+                  <div key={l.id} className="flex justify-between gap-2 text-xs">
+                    <span className="text-foreground flex-1 min-w-0 truncate">
+                      {l.name}
+                      <span className="text-muted-foreground"> × {l.qty}</span>
+                    </span>
+                    <span className="tabular-nums text-muted-foreground shrink-0">
+                      {((Number(l.price) || 0) * l.qty).toFixed(3)} OMR
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground mb-2">اختر منتجاً من القائمة لإضافته للطلب.</p>
+            )}
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>عدد القطع</span>
               <span className="tabular-nums">{itemCount}</span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>المجموع الفرعي</span>
-              <span className="tabular-nums">{subtotal.toFixed(3)} OMR</span>
             </div>
             {appliedDiscount && (
               <div className="flex justify-between text-xs text-emerald-400">
