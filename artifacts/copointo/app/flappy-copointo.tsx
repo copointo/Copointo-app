@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Image,
   LayoutChangeEvent,
@@ -11,6 +11,13 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useFrameCallback,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCoins } from "@/hooks/useCoins";
 
@@ -23,7 +30,7 @@ const COIN_IMG = require("../assets/images/copointo-coin.png");
 
 // ── Physics / layout tuning ──
 const GRAVITY = 1500;       // px / s²
-const FLAP_V = -440;        // px / s (negative = up)
+const FLAP_V = -500;        // px / s (negative = up) — stronger flap
 const PIPE_W = 66;
 const PIPE_GAP = 205;       // vertical opening between pipes
 const PIPE_SPEED = 165;     // px / s
@@ -31,6 +38,7 @@ const PIPE_SPACING = 240;   // horizontal distance between pipes
 const BIRD_SIZE = 40;
 const DAILY_GAME_CAP = 100; // max coins earnable per day from this game
 const FIXED_DT = 1 / 120;   // physics sub-step (decoupled from refresh rate)
+const MAX_PIPES = 5;        // recycled pool of on-screen pipe pairs
 
 const HI_KEY = "copointo_flappy_hi_v1";
 const DAY_KEY = "copointo_flappy_day_v1";
@@ -40,39 +48,85 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-type Pipe = { id: number; x: number; gapY: number; scored: boolean };
+type PipeS = { x: number; gapY: number; scored: boolean };
 type Status = "idle" | "playing" | "over";
+
+// A single recycled pipe pair (top + bottom). Both halves are full-screen-tall
+// and positioned purely with transforms on the UI thread, so only translate
+// values change per frame — no layout passes, no JS-thread work, zero stutter.
+function PipePair({
+  index,
+  pipes,
+  worldH,
+}: {
+  index: number;
+  pipes: SharedValue<PipeS[]>;
+  worldH: SharedValue<number>;
+}) {
+  const topStyle = useAnimatedStyle(() => {
+    const p = pipes.value[index];
+    if (!p) return { opacity: 0, transform: [{ translateX: -9999 }, { translateY: 0 }] };
+    const gapTop = p.gapY - PIPE_GAP / 2;
+    return {
+      opacity: 1,
+      transform: [{ translateX: p.x }, { translateY: gapTop - worldH.value }],
+    };
+  });
+  const bottomStyle = useAnimatedStyle(() => {
+    const p = pipes.value[index];
+    if (!p) return { opacity: 0, transform: [{ translateX: -9999 }, { translateY: 0 }] };
+    const gapBottom = p.gapY + PIPE_GAP / 2;
+    return {
+      opacity: 1,
+      transform: [{ translateX: p.x }, { translateY: gapBottom }],
+    };
+  });
+  return (
+    <>
+      <Animated.View pointerEvents="none" style={[styles.pipe, styles.pipeFull, topStyle]}>
+        <View style={styles.pipeCapBottom} />
+      </Animated.View>
+      <Animated.View pointerEvents="none" style={[styles.pipe, styles.pipeFull, bottomStyle]}>
+        <View style={styles.pipeCapTop} />
+      </Animated.View>
+    </>
+  );
+}
 
 export default function FlappyCopointoScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { balance, addCoins } = useCoins();
 
-  const [, forceRender] = useReducer((x: number) => x + 1, 0);
   const [hi, setHi] = useState(0);
   const [earnedToday, setEarnedToday] = useState(0);
   const [lastReward, setLastReward] = useState(0);
   const [ready, setReady] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [score, setScore] = useState(0);
+
+  // ── UI-thread animation state (Reanimated shared values) ──
+  const birdX = useSharedValue(0);
+  const birdY = useSharedValue(0);
+  const birdV = useSharedValue(0);
+  const acc = useSharedValue(0);
+  const running = useSharedValue(0); // 1 while the simulation should advance
+  const worldW = useSharedValue(0);
+  const worldH = useSharedValue(0);
+  const pipes = useSharedValue<PipeS[]>([]);
 
   const S = useRef({
     W: 0,
     H: 0,
-    birdX: 0,
-    birdY: 0,
-    birdV: 0,
-    pipes: [] as Pipe[],
-    pipeId: 1,
     score: 0,
     status: "idle" as Status,
-    last: 0,
-    acc: 0,
-    raf: 0 as number,
     overAt: 0,
     earnedToday: 0,
     runReward: 0,
     hi: 0,
     hydrated: false,
     dayStr: todayStr(),
+    laidOut: false,
   }).current;
 
   // ── Load persisted high score + today's earned coins ──
@@ -102,42 +156,7 @@ export default function FlappyCopointoScreen() {
         S.hydrated = true;
       }
     })();
-    return () => {
-      if (S.raf) cancelAnimationFrame(S.raf);
-    };
   }, []);
-
-  // ── Stop the loop when the screen loses focus ──
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        if (S.raf) cancelAnimationFrame(S.raf);
-        if (S.status === "playing") {
-          S.status = "over";
-          forceRender();
-        }
-      };
-    }, []),
-  );
-
-  const onLayout = (e: LayoutChangeEvent) => {
-    const { width, height } = e.nativeEvent.layout;
-    const first = S.W === 0;
-    S.W = width;
-    S.H = height;
-    S.birdX = Math.round(width * 0.28);
-    if (first) {
-      S.birdY = height * 0.42;
-      setReady(true);
-    }
-    forceRender();
-  };
-
-  const spawnPipe = () => {
-    const margin = PIPE_GAP / 2 + 48;
-    const gapY = margin + Math.random() * Math.max(1, S.H - margin * 2);
-    S.pipes.push({ id: S.pipeId++, x: S.W, gapY, scored: false });
-  };
 
   const persistDaily = () => {
     AsyncStorage.multiSet([
@@ -149,11 +168,33 @@ export default function FlappyCopointoScreen() {
     AsyncStorage.setItem(HI_KEY, String(S.hi)).catch(() => {});
   };
 
-  const endGame = () => {
+  // Called from the UI thread (via runOnJS) once per pipe cleared.
+  const handleScore = () => {
+    S.score += 1;
+    setScore(S.score);
+    // Reward 1 coin per pipe passed, immediately, while under the daily cap —
+    // so quitting mid-run never loses earned coins.
+    if (S.earnedToday < DAILY_GAME_CAP) {
+      S.earnedToday += 1;
+      S.runReward += 1;
+      addCoins(1);
+      persistDaily();
+      setEarnedToday(S.earnedToday);
+    }
+    try {
+      Haptics.selectionAsync();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // Called from the UI thread (via runOnJS) when the bird crashes.
+  const handleEnd = () => {
     if (S.status !== "playing") return;
     S.status = "over";
     S.overAt = Date.now();
-    // Coins were already granted per-pipe during the run; just settle the UI.
+    tick.setActive(false);
+    setStatus("over");
     if (S.score > S.hi) {
       S.hi = S.score;
       persistHi();
@@ -167,79 +208,98 @@ export default function FlappyCopointoScreen() {
     }
   };
 
-  // One deterministic physics sub-step. Running the simulation at a fixed
-  // timestep (decoupled from the display refresh rate) keeps motion perfectly
-  // consistent and jitter-free even when individual frames are dropped — the
-  // game "catches up" with several small steps instead of one big lurch.
-  const step = (dt: number) => {
-    S.birdV += GRAVITY * dt;
-    S.birdY += S.birdV * dt;
+  // The entire simulation runs inside this worklet on the UI thread. Using a
+  // fixed timestep accumulator keeps motion perfectly deterministic and
+  // jitter-free regardless of the device refresh rate, and because nothing
+  // here touches the JS thread per frame the motion never stutters.
+  const tick = useFrameCallback((info) => {
+    "worklet";
+    if (running.value !== 1) return;
+    let elapsed = (info.timeSincePreviousFrame ?? FIXED_DT * 1000) / 1000;
+    if (elapsed > 0.25) elapsed = 0.25; // clamp after a long pause
+    acc.value += elapsed;
 
-    for (const p of S.pipes) p.x -= PIPE_SPEED * dt;
+    let guard = 0;
+    while (acc.value >= FIXED_DT && running.value === 1 && guard < 16) {
+      guard += 1;
+      acc.value -= FIXED_DT;
 
-    const lastP = S.pipes[S.pipes.length - 1];
-    if (!lastP || lastP.x < S.W - PIPE_SPACING) spawnPipe();
-    // Drop fully off-screen pipes in place (no per-frame array allocation).
-    while (S.pipes.length && S.pipes[0]!.x + PIPE_W <= -20) S.pipes.shift();
+      birdV.value += GRAVITY * FIXED_DT;
+      birdY.value += birdV.value * FIXED_DT;
 
-    for (const p of S.pipes) {
-      if (!p.scored && p.x + PIPE_W < S.birdX) {
-        p.scored = true;
-        S.score += 1;
-        // Reward 1 coin per pipe passed, immediately, while under the
-        // daily cap — so quitting mid-run never loses earned coins.
-        if (S.earnedToday < DAILY_GAME_CAP) {
-          S.earnedToday += 1;
-          S.runReward += 1;
-          addCoins(1);
-          persistDaily();
-          setEarnedToday(S.earnedToday);
+      // Rebuild the pipe list (new array so dependent styles recompute).
+      let next: PipeS[] = [];
+      for (let i = 0; i < pipes.value.length; i++) {
+        const p = pipes.value[i]!;
+        next.push({ x: p.x - PIPE_SPEED * FIXED_DT, gapY: p.gapY, scored: p.scored });
+      }
+      const lastP = next.length ? next[next.length - 1]! : null;
+      if (!lastP || lastP.x < worldW.value - PIPE_SPACING) {
+        const margin = PIPE_GAP / 2 + 48;
+        const gapY = margin + Math.random() * Math.max(1, worldH.value - margin * 2);
+        next.push({ x: worldW.value, gapY, scored: false });
+      }
+      next = next.filter((p) => p.x + PIPE_W > -20);
+      if (next.length > MAX_PIPES) next = next.slice(next.length - MAX_PIPES);
+
+      for (let i = 0; i < next.length; i++) {
+        const p = next[i]!;
+        if (!p.scored && p.x + PIPE_W < birdX.value) {
+          p.scored = true;
+          runOnJS(handleScore)();
         }
-        try {
-          Haptics.selectionAsync();
-        } catch {
-          /* ignore */
+        const within = birdX.value + BIRD_SIZE > p.x && birdX.value < p.x + PIPE_W;
+        if (within) {
+          const gapTop = p.gapY - PIPE_GAP / 2;
+          const gapBottom = p.gapY + PIPE_GAP / 2;
+          if (birdY.value < gapTop || birdY.value + BIRD_SIZE > gapBottom) {
+            running.value = 0;
+            runOnJS(handleEnd)();
+          }
         }
       }
-      const within = S.birdX + BIRD_SIZE > p.x && S.birdX < p.x + PIPE_W;
-      if (within) {
-        const gapTop = p.gapY - PIPE_GAP / 2;
-        const gapBottom = p.gapY + PIPE_GAP / 2;
-        if (S.birdY < gapTop || S.birdY + BIRD_SIZE > gapBottom) {
-          endGame();
-          return;
+
+      if (birdY.value < 0) {
+        birdY.value = 0;
+        birdV.value = 0;
+      }
+      if (birdY.value + BIRD_SIZE >= worldH.value) {
+        birdY.value = worldH.value - BIRD_SIZE;
+        running.value = 0;
+        runOnJS(handleEnd)();
+      }
+
+      pipes.value = next;
+    }
+  }, false);
+
+  // ── Stop the loop when the screen loses focus ──
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        running.value = 0;
+        tick.setActive(false);
+        if (S.status === "playing") {
+          S.status = "over";
+          setStatus("over");
         }
-      }
-    }
+      };
+    }, []),
+  );
 
-    if (S.birdY < 0) {
-      S.birdY = 0;
-      S.birdV = 0;
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    const first = !S.laidOut;
+    S.W = width;
+    S.H = height;
+    worldW.value = width;
+    worldH.value = height;
+    birdX.value = Math.round(width * 0.28);
+    if (first) {
+      S.laidOut = true;
+      birdY.value = height * 0.42;
+      setReady(true);
     }
-    if (S.birdY + BIRD_SIZE >= S.H) {
-      S.birdY = S.H - BIRD_SIZE;
-      endGame();
-    }
-  };
-
-  const frame = (t: number) => {
-    if (!S.last) S.last = t;
-    let elapsed = (t - S.last) / 1000;
-    S.last = t;
-    // Cap accumulated time after a long pause (tab switch, GC) so we never
-    // try to simulate hundreds of catch-up steps in one frame.
-    if (elapsed > 0.25) elapsed = 0.25;
-
-    if (S.status === "playing") {
-      S.acc += elapsed;
-      while (S.acc >= FIXED_DT && S.status === "playing") {
-        step(FIXED_DT);
-        S.acc -= FIXED_DT;
-      }
-    }
-
-    forceRender();
-    if (S.status === "playing") S.raf = requestAnimationFrame(frame);
   };
 
   const startGame = () => {
@@ -252,17 +312,18 @@ export default function FlappyCopointoScreen() {
       persistDaily();
       setEarnedToday(0);
     }
-    S.birdY = S.H * 0.42;
-    S.birdV = 0;
-    S.pipes = [];
+    birdY.value = S.H * 0.42;
+    birdV.value = 0;
+    acc.value = 0;
+    pipes.value = [];
     S.score = 0;
-    S.acc = 0;
     S.runReward = 0;
-    S.status = "playing";
-    S.last = 0;
+    setScore(0);
     setLastReward(0);
-    if (S.raf) cancelAnimationFrame(S.raf);
-    S.raf = requestAnimationFrame(frame);
+    S.status = "playing";
+    setStatus("playing");
+    running.value = 1;
+    tick.setActive(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {
@@ -277,7 +338,7 @@ export default function FlappyCopointoScreen() {
       return;
     }
     if (S.status === "playing") {
-      S.birdV = FLAP_V;
+      birdV.value = FLAP_V;
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch {
@@ -286,8 +347,16 @@ export default function FlappyCopointoScreen() {
     }
   };
 
-  const status = S.status;
-  const birdAngle = Math.max(-22, Math.min(70, S.birdV * 0.06));
+  const birdStyle = useAnimatedStyle(() => {
+    const angle = Math.max(-22, Math.min(70, birdV.value * 0.06));
+    return {
+      transform: [
+        { translateX: birdX.value },
+        { translateY: birdY.value },
+        { rotate: `${angle}deg` },
+      ],
+    };
+  });
 
   return (
     <View style={styles.root} onLayout={onLayout}>
@@ -296,59 +365,22 @@ export default function FlappyCopointoScreen() {
         <View pointerEvents="none" style={styles.glowTop} />
         <View pointerEvents="none" style={styles.glowBottom} />
 
-        {/* Pipes */}
-        {S.pipes.map((p) => {
-          const gapTop = p.gapY - PIPE_GAP / 2;
-          const gapBottom = p.gapY + PIPE_GAP / 2;
-          return (
-            <View key={p.id} pointerEvents="none">
-              <View
-                style={[
-                  styles.pipe,
-                  { left: p.x, top: 0, height: Math.max(0, gapTop), width: PIPE_W },
-                ]}
-              >
-                <View style={styles.pipeCapBottom} />
-              </View>
-              <View
-                style={[
-                  styles.pipe,
-                  {
-                    left: p.x,
-                    top: gapBottom,
-                    height: Math.max(0, S.H - gapBottom),
-                    width: PIPE_W,
-                  },
-                ]}
-              >
-                <View style={styles.pipeCapTop} />
-              </View>
-            </View>
-          );
-        })}
+        {/* Pipes (recycled pool, animated entirely on the UI thread) */}
+        {ready &&
+          Array.from({ length: MAX_PIPES }).map((_, i) => (
+            <PipePair key={i} index={i} pipes={pipes} worldH={worldH} />
+          ))}
 
         {/* Bird */}
         {ready && (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.bird,
-              {
-                left: S.birdX,
-                top: S.birdY,
-                width: BIRD_SIZE,
-                height: BIRD_SIZE,
-                transform: [{ rotate: `${birdAngle}deg` }],
-              },
-            ]}
-          >
+          <Animated.View pointerEvents="none" style={[styles.bird, styles.birdBox, birdStyle]}>
             <Image source={BIRD_LOGO} style={styles.birdImg} />
-          </View>
+          </Animated.View>
         )}
 
         {/* Live score */}
         {status === "playing" && (
-          <Text style={[styles.scoreBig, { top: insets.top + 64 }]}>{S.score}</Text>
+          <Text style={[styles.scoreBig, { top: insets.top + 64 }]}>{score}</Text>
         )}
       </Pressable>
 
@@ -457,6 +489,8 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 6,
   },
+  // Full-screen-tall halves positioned via transform (top:0/left:0 anchor).
+  pipeFull: { top: 0, left: 0, width: PIPE_W, height: "100%" },
   pipeCapBottom: {
     position: "absolute",
     bottom: -2,
@@ -491,6 +525,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 9,
   },
+  birdBox: { top: 0, left: 0, width: BIRD_SIZE, height: BIRD_SIZE },
   birdImg: { width: "100%", height: "100%", resizeMode: "contain" },
 
   scoreBig: {

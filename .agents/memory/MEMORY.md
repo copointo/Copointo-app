@@ -1,3 +1,4 @@
 - [OMPay payment gateway](ompay-payment-gateway.md) — server backbone done & gated behind OMPAY_* secrets; two CONFIRM-AGAINST-PORTAL seams + client-driven fulfilment.
+- [RN game-loop smoothness](rn-game-loop-smoothness.md) — frame-driven RN games must run physics in a Reanimated worklet on the UI thread, not RAF+forceRender, to never stutter.
 - [RN-web style coercion crash](rn-web-style-coercion.md) — numeric/shorthand style keys (e.g. `font`) spread into a <View> crash only on react-native-web; native ignores them.
 - [UNO online game](uno-game.md) — lazy-tick (no bg loop, advances on each request+client poll); +4 legality MUST be enforced in bot AI too or tick() stalls; 25-coin reward is client-trusted.
