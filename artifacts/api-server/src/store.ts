@@ -712,6 +712,14 @@ export interface CommunityInvite {
 }
 export const communityInvites: CommunityInvite[] = [];
 
+// ─── UNO online game sessions ────────────────────────────────────────────
+// Server-authoritative UNO matches (lobby + live game). Persisted like any
+// other collection so all instances share the same sessions; bot/countdown
+// advancement happens lazily inside the request handlers (see routes/uno.ts).
+import type { UnoGame } from "./uno/engine";
+export type { UnoGame };
+export const unoSessions: UnoGame[] = [];
+
 // ─── PostgreSQL persistence (autoscale-safe) ─────────────────────────────
 // Previous versions snapshotted the whole store to a local JSON file. That
 // broke on autoscale deployments because each instance had its own disk and
@@ -730,6 +738,7 @@ const COLLECTIONS: Record<string, any[]> = {
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
   reports, coinGifts, giftVouchers, pushTokens, webPushSubscriptions, monthlySeasons,
   communities, communityInvites, progressAdjustments, payments,
+  unoSessions,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 
@@ -1064,6 +1073,27 @@ export function purgeUserData(id: string): boolean {
     const p = payments[i]!;
     if (p.userId === id || (p.customerPhone && norm(p.customerPhone) === phoneN)) {
       payments.splice(i, 1);
+    }
+  }
+  // UNO sessions: drop invites to this user, then either remove them from a
+  // waiting lobby (deleting now-empty sessions) or hand their seat to a bot in
+  // a live game so it can finish. No revenue/PII to preserve — these are
+  // ephemeral matches keyed by name only.
+  for (let i = unoSessions.length - 1; i >= 0; i--) {
+    const g = unoSessions[i]!;
+    g.invites = g.invites.filter(iv => iv.toUserId !== id);
+    const seat = g.players.findIndex(p => p.userId === id);
+    if (seat < 0) continue;
+    if (g.status === "waiting") {
+      g.players.splice(seat, 1);
+      g.players.forEach((p, j) => (p.seat = j));
+      if (g.players.length === 0) { unoSessions.splice(i, 1); continue; }
+      if (g.hostUserId === id && g.players[0]?.userId) g.hostUserId = g.players[0].userId;
+    } else {
+      const p = g.players[seat]!;
+      p.isBot = true;
+      p.userId = null;
+      p.connected = false;
     }
   }
   persistStore();

@@ -1,1 +1,2 @@
 - [OMPay payment gateway](ompay-payment-gateway.md) — server backbone done & gated behind OMPAY_* secrets; two CONFIRM-AGAINST-PORTAL seams + client-driven fulfilment.
+- [UNO online game](uno-game.md) — lazy-tick (no bg loop, advances on each request+client poll); +4 legality MUST be enforced in bot AI too or tick() stalls; 25-coin reward is client-trusted.

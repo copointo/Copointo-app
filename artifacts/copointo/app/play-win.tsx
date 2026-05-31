@@ -33,7 +33,9 @@ const FLAPPY_COVER = require("../assets/images/flappy-cover.png");
 type GameDef = {
   id: string;
   name: string;
-  cover: any;
+  cover: any | null;
+  /** Gradient cover used when there is no cover image. */
+  gradient?: readonly [string, string, ...string[]];
   route: string;
   available: boolean;
 };
@@ -44,6 +46,14 @@ const GAMES: GameDef[] = [
     name: "Flappy Copointo",
     cover: FLAPPY_COVER,
     route: "/flappy-copointo",
+    available: true,
+  },
+  {
+    id: "uno",
+    name: "أونو أونلاين",
+    cover: null,
+    gradient: ["#E0584C", "#C9974F", "#4C7FE0"],
+    route: "/uno",
     available: true,
   },
 ];
@@ -83,7 +93,20 @@ function GameTile({ game, size }: { game: GameDef; size: number }) {
       style={({ pressed }) => [{ width: size, opacity: pressed ? 0.9 : 1 }]}
     >
       <View style={[styles.tile, { width: size, height: size }]}>
-        <Image source={game.cover} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {game.cover ? (
+          <Image source={game.cover} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <LinearGradient
+            colors={game.gradient ?? ["#1A1320", "#100B07"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          >
+            <Text style={styles.gradientLabel} numberOfLines={2}>
+              {game.name}
+            </Text>
+          </LinearGradient>
+        )}
 
         {/* Bottom darkening so a play badge reads clearly */}
         <LinearGradient
@@ -249,6 +272,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 18,
     elevation: 10,
+  },
+  gradientLabel: {
+    flex: 1,
+    textAlign: "center",
+    textAlignVertical: "center",
+    paddingHorizontal: 14,
+    paddingBottom: 16,
+    fontSize: 22,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    textShadowColor: "rgba(0,0,0,0.4)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   tileShade: {
     position: "absolute",
