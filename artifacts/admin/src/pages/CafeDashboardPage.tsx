@@ -23,6 +23,7 @@ import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_44_45_PM
 import statsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_45_50_PM_1780267556237.png";
 import ordersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_47_49_PM_1780267690004.png";
 import directTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_48_30_PM_1780267733809.png";
+import bookingsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_51_05_PM_1780267870319.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -382,9 +383,10 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
 // Tabs that use a custom image as their button face (instead of a lucide icon).
 // The image fills the square button; the label sits below it.
 const TAB_IMAGES: Partial<Record<Tab, string>> = {
-  stats:  statsTabIconUrl,
-  orders: ordersTabIconUrl,
-  direct: directTabIconUrl,
+  stats:    statsTabIconUrl,
+  orders:   ordersTabIconUrl,
+  direct:   directTabIconUrl,
+  bookings: bookingsTabIconUrl,
 };
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
