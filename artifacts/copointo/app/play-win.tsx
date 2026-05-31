@@ -28,7 +28,7 @@ const PRIMARY = "#E8B86D";
 
 const LOGO = require("../assets/images/copointo-logo.png");
 const COIN_IMG = require("../assets/images/copointo-coin.png");
-const FLAPPY_COVER = require("../assets/images/flappy-cover-2.jpg");
+const FLAPPY_COVER = require("../assets/images/flappy-cover-game.png");
 
 type GameDef = {
   id: string;

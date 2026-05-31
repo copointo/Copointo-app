@@ -42,3 +42,9 @@ id = "EqiZv5mOHZrBlfH62ytAP"
 uri = "file://artifacts/copointo/assets/images/avatar-female.png"
 type = "image"
 title = "female default avatar amber theme"
+
+[[generated]]
+id = "v9Evt3WPdNGtoApz3Xm3i"
+uri = "file://artifacts/copointo/assets/images/flappy-cover-game.png"
+type = "image"
+title = "flappy copointo game scene"
