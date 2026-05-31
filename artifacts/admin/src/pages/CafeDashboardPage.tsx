@@ -27,6 +27,7 @@ import bookingsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_53_32_PM_
 import menuTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_52_42_PM_1780267968603.png";
 import chatTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_56_47_PM_1780268212312.png";
 import tablesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_58_17_PM_1780268301865.png";
+import expensesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_01_39_PM_1780268503577.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -393,6 +394,7 @@ const TAB_IMAGES: Partial<Record<Tab, string>> = {
   menu:     menuTabIconUrl,
   chat:     chatTabIconUrl,
   tables:   tablesTabIconUrl,
+  expenses: expensesTabIconUrl,
 };
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
