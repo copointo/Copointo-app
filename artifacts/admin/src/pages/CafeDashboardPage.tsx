@@ -539,22 +539,21 @@ function MiniStat({ label, value, theme, Icon }: {
   );
 }
 
-function StatChartPanel({ title, total, series, theme, Icon, money = false }: {
+function StatChartPanel({ title, series, theme, Icon, money = false }: {
   title: string;
-  total: number;
   series: { date: string; label: string; count: number }[];
   theme: ChartTheme;
   Icon: any;
   money?: boolean;
 }) {
-  const counts = (series || []).map(d => d.count);
-  const max = counts.length ? Math.max(...counts) : 0;
-  const min = counts.length ? Math.min(...counts) : 0;
-  const avgRaw = counts.length ? counts.reduce((s, n) => s + n, 0) / counts.length : 0;
-  const avg = money ? avgRaw : Math.round(avgRaw);
-  const todayLabel = series?.length ? series[series.length - 1].label : "—";
+  // Charts intentionally show only the current Oman-day (last point of the
+  // 7-day series). The user wants per-day stats, not a weekly trend — so the
+  // headline, chart, and mini-stat all reflect today only.
+  const todayPoint = (series || []).slice(-1);
+  const todayCount = todayPoint.length ? todayPoint[0].count : 0;
+  const todayLabel = todayPoint.length ? todayPoint[0].label : "—";
   const fmt = (n: number) => money ? Number(n || 0).toFixed(3) : Number(n || 0).toLocaleString("en-US");
-  const headline = money ? `${fmt(total)} OMR` : fmt(total);
+  const headline = money ? `${fmt(todayCount)} OMR` : fmt(todayCount);
   return (
     <div
       className="relative rounded-xl p-3 border-2 overflow-hidden"
@@ -580,7 +579,7 @@ function StatChartPanel({ title, total, series, theme, Icon, money = false }: {
       </div>
 
       <ResponsiveContainer width="100%" height={130}>
-        <AreaChart data={series} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
+        <AreaChart data={todayPoint} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
           <defs>
             <linearGradient id={theme.gradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={theme.accent} stopOpacity={0.35} />
@@ -599,10 +598,7 @@ function StatChartPanel({ title, total, series, theme, Icon, money = false }: {
         </AreaChart>
       </ResponsiveContainer>
 
-      <div className="grid grid-cols-2 gap-2 mt-3">
-        <MiniStat label="الأقل" value={fmt(min)} theme={theme} Icon={BarChart3} />
-        <MiniStat label="المتوسط" value={fmt(avg)} theme={theme} Icon={Coffee} />
-        <MiniStat label="الأعلى" value={fmt(max)} theme={theme} Icon={TrendingUp} />
+      <div className="mt-3">
         <MiniStat label="اليوم" value={todayLabel} theme={theme} Icon={CalendarDays} />
       </div>
     </div>
@@ -691,35 +687,30 @@ function StatsTab({ id }: { id: string }) {
   }, [id]);
   if (err) return <div className="p-8 text-center text-muted-foreground text-sm">تعذّر تحميل الإحصائيات.</div>;
   if (!data) return <Loader />;
-  const topItems = Object.entries(data.topItems || {}).map(([name, qty]) => ({ name, qty }));
   return (
     <div className="space-y-6">
       {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
       <div className="grid grid-cols-2 gap-3">
         <StatChartPanel
           title="إجمالي الطلبات"
-          total={data.totalOrders ?? 0}
           series={data.ordersSeries ?? []}
           theme={ORDERS_CHART_THEME}
           Icon={ShoppingBag}
         />
         <StatChartPanel
           title="الحجوزات"
-          total={data.totalBookings ?? 0}
           series={data.bookingsSeries ?? []}
           theme={BOOKINGS_CHART_THEME}
           Icon={CalendarDays}
         />
         <StatChartPanel
           title="عناصر القائمة المباعة"
-          total={data.totalItemsSold ?? 0}
           series={data.menuItemsSeries ?? []}
           theme={MENU_CHART_THEME}
           Icon={UtensilsCrossed}
         />
         <StatChartPanel
           title="إجمالي مبيعات اليوم"
-          total={data.todaySales ?? 0}
           series={data.revenueSeries ?? []}
           theme={TODAY_SALES_CHART_THEME}
           Icon={Wallet}
@@ -727,7 +718,6 @@ function StatsTab({ id }: { id: string }) {
         />
         <StatChartPanel
           title="إجمالي المبيعات كاش"
-          total={data.salesCash ?? 0}
           series={data.cashSeries ?? []}
           theme={CASH_CHART_THEME}
           Icon={Banknote}
@@ -735,29 +725,13 @@ function StatsTab({ id }: { id: string }) {
         />
         <StatChartPanel
           title="إجمالي المبيعات فيزا"
-          total={data.salesVisa ?? 0}
           series={data.visaSeries ?? []}
           theme={VISA_CHART_THEME}
           Icon={CreditCard}
           money
         />
         <StatChartPanel
-          title="طلبات بانتظار"
-          total={data.pendingOrders ?? 0}
-          series={data.pendingOrdersSeries ?? []}
-          theme={PENDING_CHART_THEME}
-          Icon={Clock}
-        />
-        <StatChartPanel
-          title="حجوزات مؤكدة"
-          total={data.confirmedBookings ?? 0}
-          series={data.confirmedBookingsSeries ?? []}
-          theme={CONFIRMED_BOOK_CHART_THEME}
-          Icon={CheckCircle}
-        />
-        <StatChartPanel
           title="القسائم الشرائية"
-          total={data.totalVouchers ?? 0}
           series={data.vouchersSeries ?? []}
           theme={VOUCHERS_CHART_THEME}
           Icon={Gift}
