@@ -698,18 +698,6 @@ function StatsTab({ id }: { id: string }) {
           Icon={ShoppingBag}
         />
         <StatChartPanel
-          title="حجوزات الطاولات"
-          series={data.bookingsSeries ?? []}
-          theme={BOOKINGS_CHART_THEME}
-          Icon={CalendarDays}
-        />
-        <StatChartPanel
-          title="عناصر القائمة المباعة"
-          series={data.menuItemsSeries ?? []}
-          theme={MENU_CHART_THEME}
-          Icon={UtensilsCrossed}
-        />
-        <StatChartPanel
           title="إجمالي مبيعات اليوم"
           series={data.revenueSeries ?? []}
           theme={TODAY_SALES_CHART_THEME}
@@ -729,6 +717,18 @@ function StatsTab({ id }: { id: string }) {
           theme={VISA_CHART_THEME}
           Icon={CreditCard}
           money
+        />
+        <StatChartPanel
+          title="حجوزات الطاولات"
+          series={data.bookingsSeries ?? []}
+          theme={BOOKINGS_CHART_THEME}
+          Icon={CalendarDays}
+        />
+        <StatChartPanel
+          title="عناصر القائمة المباعة"
+          series={data.menuItemsSeries ?? []}
+          theme={MENU_CHART_THEME}
+          Icon={UtensilsCrossed}
         />
         <StatChartPanel
           title="القسائم الشرائية"
