@@ -10,7 +10,7 @@ import {
   CalendarRange, BarChart3, Tag, Percent, Pencil, ImagePlus,
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
-  QrCode, Copy, Download, Share2, Search, Banknote, CreditCard,
+  QrCode, Copy, Download, Share2, Search, Banknote, CreditCard, Phone,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -1674,6 +1674,9 @@ function OrdersTab({ id }: { id: string }) {
   const [freeCoffeeOrder, setFreeCoffeeOrder] = useState<any | null>(null);
   // Order currently open in the "تعديل الطلب" editor modal (add/remove items).
   const [editingOrder, setEditingOrder] = useState<any | null>(null);
+  // Order currently open in the "إضافة رقم الهاتف" modal (attach a player phone
+  // to a direct in-cafe order so they get loyalty/game points at print time).
+  const [phoneOrder, setPhoneOrder] = useState<any | null>(null);
   // Status filter for the orders list. The four states mirror orderTheme()'s
   // label exactly: غير مستلم (pending) → تم الاستلام (preparing) → لم يُدفع بعد
   // (ready/done, no payment) → تم الدفع (paymentMethod set). The cashier taps a
@@ -2044,6 +2047,19 @@ function OrdersTab({ id }: { id: string }) {
                 </button>
               )}
 
+              {/* Add a phone to an order that has none (e.g. a direct in-cafe
+                  order placed without one) so the customer is credited points.
+                  Shown only before the invoice is printed (no payment, not done). */}
+              {!o.customerPhone && !o.paymentMethod && o.status !== "done" && (
+                <button
+                  onClick={() => setPhoneOrder(o)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/40 text-xs font-bold hover:bg-emerald-500/25"
+                  title="أضف رقم هاتف الزبون ليُسجَّل الطلب باسمه ويستلم نقاط اللعبة"
+                >
+                  <Phone size={14}/> إضافة رقم الهاتف
+                </button>
+              )}
+
               {/* Step 1 — pending: confirm-prep + delete (delete vanishes once confirmed) */}
               {o.status === "pending" && (
                 <>
@@ -2221,6 +2237,140 @@ function OrdersTab({ id }: { id: string }) {
           }}
         />
       )}
+      {phoneOrder && (
+        <AddPhoneModal
+          cafeId={id}
+          order={phoneOrder}
+          onClose={() => setPhoneOrder(null)}
+          onSaved={(updated) => {
+            setOrders(prev => prev.map(o => o.id === updated.id ? { ...o, ...updated } : o));
+            setPhoneOrder(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Add Phone Modal ("إضافة رقم الهاتف") ──────────────────────────
+// Lets the cashier attach a registered player's phone to an order that has none
+// (typically a direct in-cafe order). Looks the number up live (debounced) and
+// shows the matched player's name before saving. On save, the server registers
+// the order under that player and credits loyalty/game points when the invoice
+// is printed. An unmatched number cannot be saved (it would award nothing).
+function AddPhoneModal({
+  cafeId, order, onClose, onSaved,
+}: {
+  cafeId: string;
+  order: any;
+  onClose: () => void;
+  onSaved: (updated: any) => void;
+}) {
+  const [phone, setPhone] = useState("");
+  const [matched, setMatched] = useState<null | { id: string; username: string; phone: string; level: number; banned: boolean; gameBanned: boolean }>(null);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupTried, setLookupTried] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  // Debounced auto-lookup (mirrors the "اطلب مباشر" tab behaviour).
+  useEffect(() => {
+    const p = phone.trim();
+    if (!p) { setMatched(null); setLookupTried(false); return; }
+    setLookingUp(true);
+    const t = window.setTimeout(async () => {
+      try {
+        const { user } = await api.cafeLookupUser(cafeId, p);
+        setMatched(user);
+      } catch {
+        setMatched(null);
+      } finally {
+        setLookingUp(false);
+        setLookupTried(true);
+      }
+    }, 400);
+    return () => { window.clearTimeout(t); setLookingUp(false); };
+  }, [phone, cafeId]);
+
+  const save = async () => {
+    setErr("");
+    const p = phone.trim();
+    if (!p) { setErr("أدخل رقم هاتف الزبون"); return; }
+    if (!matched) { setErr("الرقم غير مسجَّل في Copointo Hub — تأكد من الرقم"); return; }
+    setSaving(true);
+    try {
+      const { order: updated } = await api.cafeOrderPhone(cafeId, order.id, p);
+      onSaved(updated);
+    } catch (e: any) {
+      setErr(e?.message ? String(e.message).slice(0, 200) : "تعذّر إضافة الرقم");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-card border border-border shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
+          <h3 className="font-bold text-foreground flex items-center gap-2">
+            <Phone size={16} className="text-emerald-400"/> إضافة رقم الهاتف
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            أضف رقم هاتف الزبون المسجَّل في Copointo ليُسجَّل الطلب باسمه ويستلم نقاط اللعبة عند طباعة الفاتورة.
+          </p>
+
+          <div>
+            <label className="text-xs font-bold text-foreground mb-1.5 block">رقم الهاتف</label>
+            <input
+              type="tel"
+              inputMode="tel"
+              dir="ltr"
+              autoFocus
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="9XXXXXXX"
+              className="w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground text-left placeholder:text-muted-foreground focus:border-emerald-500/60 outline-none"
+            />
+            <div className="mt-2 min-h-[1.25rem] text-xs">
+              {lookingUp ? (
+                <span className="text-muted-foreground">⏳ جارٍ البحث…</span>
+              ) : matched ? (
+                <span className="text-emerald-400 font-semibold">
+                  ✓ {matched.username} — المستوى {matched.level}
+                  {matched.banned ? " ⛔ محظور" : ""}
+                </span>
+              ) : phone.trim() && lookupTried ? (
+                <span className="text-amber-400">⚠️ الرقم غير مسجَّل في Copointo Hub</span>
+              ) : null}
+            </div>
+          </div>
+
+          {err && <p className="text-xs text-red-400">{err}</p>}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-lg border border-border text-foreground text-sm font-semibold hover:bg-background"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={save}
+              disabled={saving || !matched}
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-bold disabled:opacity-50 hover:opacity-90"
+            >
+              <CheckCircle size={15}/> {saving ? "…" : "حفظ الرقم"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

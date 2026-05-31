@@ -792,6 +792,59 @@ router.patch("/orders/:orderId/items", (req: any, res): any => {
   return res.json({ order });
 });
 
+// Attach (or correct) the customer phone on an existing order from the cafe
+// dashboard. The primary use is a direct in-cafe order ("اطلب مباشر") that was
+// created WITHOUT a phone: the cashier can later add the customer's number so
+// the order is registered under their game account and loyalty/game progress is
+// credited when the invoice is printed (awardOrderProgress already credits a
+// direct order once it carries a matched phone). The phone MUST belong to a
+// registered Copointo player — an unmatched number is rejected so it never
+// becomes dead weight that awards nothing. Refused once a payment method is
+// locked, the order is archived, it is already done, or progress was already
+// awarded (i.e. the invoice was printed). Mirrors the lookup-user matching so
+// the short 8-digit Oman form matches a +968-registered account, and stores the
+// user's EXACT registered phone so awardOrderProgress (exact-match) credits them.
+router.patch("/orders/:orderId/phone", (req: any, res): any => {
+  const cafeId = req.params.cafeId;
+  const order = orders.find(o => o.id === req.params.orderId && o.cafeId === cafeId);
+  if (!order) return res.status(404).json({ error: "Not found" });
+  if (order.archivedAt) return res.status(409).json({ error: "تم أرشفة الطلب — لا يمكن تعديله" });
+  if (order.paymentMethod) return res.status(400).json({ error: "لا يمكن تعديل الطلب بعد تثبيت طريقة الدفع" });
+  if (order.status === "done") return res.status(400).json({ error: "لا يمكن تعديل طلب مكتمل" });
+  if (order.pointsAwarded) return res.status(400).json({ error: "تم احتساب نقاط هذا الطلب مسبقاً" });
+
+  const digits = (p: string) => String(p ?? "").replace(/\D+/g, "");
+  const q = digits(req.body?.phone);
+  if (!q) return res.status(400).json({ error: "أدخل رقم هاتف صحيح" });
+
+  // Same matching strategy as GET /lookup-user (exact digits, then suffix),
+  // excluding showcase/demo accounts.
+  const realUsers = users.filter(x => !x.showcaseOnly);
+  const matched =
+    realUsers.find(x => digits(x.phone) === q) ||
+    (q.length >= 7
+      ? realUsers.find(x => {
+          const d = digits(x.phone);
+          return !!d && (d.endsWith(q) || q.endsWith(d));
+        })
+      : null);
+  if (!matched) {
+    return res.status(404).json({ error: "الرقم غير مسجَّل في Copointo Hub — تأكد من الرقم" });
+  }
+
+  // Register the order under the matched player: store their exact phone (so
+  // awardOrderProgress credits them at print time), link userId, and show their
+  // game username as the customer name.
+  order.customerPhone = matched.phone;
+  order.userId = matched.id;
+  order.customerName = matched.username;
+  persistStore();
+  return res.json({
+    order,
+    user: { id: matched.id, username: matched.username, phone: matched.phone, level: matched.level },
+  });
+});
+
 // Mark invoice printed → completes order AND awards drink/level progress.
 // Printing the invoice is the ONLY moment progress is credited — confirming
 // receipt of the order (PATCH /status) deliberately does not. The helper is

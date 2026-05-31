@@ -85,6 +85,13 @@ export const api = {
   // Replace the full items list of an order ("تعديل الطلب"): add/remove products.
   // Server recomputes subtotal/total and keeps any active discount intact.
   cafeOrderItems:(id:string,oid:string,items:any[]) => req<any>("PATCH", `${C(id)}/orders/${oid}/items`, { items }),
+  // Attach a phone to an existing order (mainly a direct in-cafe order created
+  // without one) so the matched player is credited loyalty/game points at print
+  // time. Server requires the phone to match a registered player.
+  cafeOrderPhone:(id:string,oid:string,phone:string) =>
+    req<{ order:any; user:{ id:string; username:string; phone:string; level:number } }>(
+      "PATCH", `${C(id)}/orders/${oid}/phone`, { phone }
+    ),
   cafeLookupUser: (id: string, phone: string) =>
     req<{ user: null | { id: string; username: string; phone: string; level: number; totalOrders: number; banned: boolean; gameBanned: boolean } }>(
       "GET", `${C(id)}/lookup-user?phone=${encodeURIComponent(phone)}`
