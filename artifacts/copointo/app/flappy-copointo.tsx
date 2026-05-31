@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -29,16 +30,26 @@ const BIRD_LOGO = require("../assets/images/copointo-logo.png");
 const COIN_IMG = require("../assets/images/copointo-coin.png");
 
 // ── Physics / layout tuning ──
-const GRAVITY = 1500;       // px / s²
-const FLAP_V = -500;        // px / s (negative = up) — stronger flap
-const PIPE_W = 66;
-const PIPE_GAP = 205;       // vertical opening between pipes
-const PIPE_SPEED = 165;     // px / s
-const PIPE_SPACING = 240;   // horizontal distance between pipes
-const BIRD_SIZE = 40;
+// Tuned for a floaty, forgiving, "smooth" feel: gentle gravity + soft flap so
+// the bird glides rather than snaps, a roomy gap, and a calm starting speed
+// that ramps up very gradually as the score climbs.
+const GRAVITY = 1350;       // px / s²
+const FLAP_V = -460;        // px / s (negative = up) — soft, controllable flap
+const PIPE_W = 68;
+const PIPE_GAP = 224;       // vertical opening between pipes (forgiving)
+const PIPE_SPEED = 148;     // px / s — calm starting speed
+const PIPE_SPEED_MAX = 224; // cap for the gradual difficulty ramp
+const PIPE_SPEED_STEP = 2.4;// added per pipe cleared
+const PIPE_SPACING = 252;   // horizontal distance between pipes
+const BIRD_SIZE = 42;
+const HITBOX_INSET = 7;     // forgiving collision padding around the bird
 const DAILY_GAME_CAP = 100; // max coins earnable per day from this game
 const FIXED_DT = 1 / 120;   // physics sub-step (decoupled from refresh rate)
 const MAX_PIPES = 5;        // recycled pool of on-screen pipe pairs
+
+// Glossy amber "tube" gradient (horizontal: dark edge → bright highlight → dark edge).
+const PIPE_BODY = ["#6E461B", "#C9974F", "#FBEAC6", "#E8B86D", "#7A4E1E"] as const;
+const PIPE_CAP = ["#7A4E1E", "#F2D9A4", "#E8B86D", "#6E461B"] as const;
 
 const HI_KEY = "copointo_flappy_hi_v1";
 const DAY_KEY = "copointo_flappy_day_v1";
@@ -83,11 +94,43 @@ function PipePair({
   });
   return (
     <>
-      <Animated.View pointerEvents="none" style={[styles.pipe, styles.pipeFull, topStyle]}>
-        <View style={styles.pipeCapBottom} />
+      <Animated.View pointerEvents="none" style={[styles.pipeWrap, topStyle]}>
+        <View style={styles.pipeBody}>
+          <LinearGradient
+            colors={PIPE_BODY}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.pipeGloss} />
+        </View>
+        <View style={styles.pipeCapBottom}>
+          <LinearGradient
+            colors={PIPE_CAP}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.capFill}
+          />
+        </View>
       </Animated.View>
-      <Animated.View pointerEvents="none" style={[styles.pipe, styles.pipeFull, bottomStyle]}>
-        <View style={styles.pipeCapTop} />
+      <Animated.View pointerEvents="none" style={[styles.pipeWrap, bottomStyle]}>
+        <View style={styles.pipeBody}>
+          <LinearGradient
+            colors={PIPE_BODY}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.pipeGloss} />
+        </View>
+        <View style={styles.pipeCapTop}>
+          <LinearGradient
+            colors={PIPE_CAP}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.capFill}
+          />
+        </View>
       </Animated.View>
     </>
   );
@@ -110,6 +153,7 @@ export default function FlappyCopointoScreen() {
   const birdY = useSharedValue(0);
   const birdV = useSharedValue(0);
   const acc = useSharedValue(0);
+  const speed = useSharedValue(PIPE_SPEED); // ramps up gently as score climbs
   const running = useSharedValue(0); // 1 while the simulation should advance
   const worldW = useSharedValue(0);
   const worldH = useSharedValue(0);
@@ -231,7 +275,7 @@ export default function FlappyCopointoScreen() {
       let next: PipeS[] = [];
       for (let i = 0; i < pipes.value.length; i++) {
         const p = pipes.value[i]!;
-        next.push({ x: p.x - PIPE_SPEED * FIXED_DT, gapY: p.gapY, scored: p.scored });
+        next.push({ x: p.x - speed.value * FIXED_DT, gapY: p.gapY, scored: p.scored });
       }
       const lastP = next.length ? next[next.length - 1]! : null;
       if (!lastP || lastP.x < worldW.value - PIPE_SPACING) {
@@ -242,17 +286,25 @@ export default function FlappyCopointoScreen() {
       next = next.filter((p) => p.x + PIPE_W > -20);
       if (next.length > MAX_PIPES) next = next.slice(next.length - MAX_PIPES);
 
+      // Forgiving hitbox: shrink the bird's collision rect slightly so near
+      // misses feel fair and the game plays smoothly.
+      const bx = birdX.value + HITBOX_INSET;
+      const bw = BIRD_SIZE - HITBOX_INSET * 2;
+      const by = birdY.value + HITBOX_INSET;
+      const bh = BIRD_SIZE - HITBOX_INSET * 2;
       for (let i = 0; i < next.length; i++) {
         const p = next[i]!;
         if (!p.scored && p.x + PIPE_W < birdX.value) {
           p.scored = true;
+          // Gentle difficulty ramp, capped so it never becomes frantic.
+          speed.value = Math.min(PIPE_SPEED_MAX, speed.value + PIPE_SPEED_STEP);
           runOnJS(handleScore)();
         }
-        const within = birdX.value + BIRD_SIZE > p.x && birdX.value < p.x + PIPE_W;
+        const within = bx + bw > p.x && bx < p.x + PIPE_W;
         if (within) {
           const gapTop = p.gapY - PIPE_GAP / 2;
           const gapBottom = p.gapY + PIPE_GAP / 2;
-          if (birdY.value < gapTop || birdY.value + BIRD_SIZE > gapBottom) {
+          if (by < gapTop || by + bh > gapBottom) {
             running.value = 0;
             runOnJS(handleEnd)();
           }
@@ -315,6 +367,7 @@ export default function FlappyCopointoScreen() {
     birdY.value = S.H * 0.42;
     birdV.value = 0;
     acc.value = 0;
+    speed.value = PIPE_SPEED;
     pipes.value = [];
     S.score = 0;
     S.runReward = 0;
@@ -348,7 +401,7 @@ export default function FlappyCopointoScreen() {
   };
 
   const birdStyle = useAnimatedStyle(() => {
-    const angle = Math.max(-22, Math.min(70, birdV.value * 0.06));
+    const angle = Math.max(-20, Math.min(62, birdV.value * 0.05));
     return {
       transform: [
         { translateX: birdX.value },
@@ -360,6 +413,12 @@ export default function FlappyCopointoScreen() {
 
   return (
     <View style={styles.root} onLayout={onLayout}>
+      {/* Depth background for a richer, clearer scene */}
+      <LinearGradient
+        colors={["#0E0B14", "#08070C", "#040308"]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
       {/* Tap surface (idle taps pass through to start/flap) */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
         <View pointerEvents="none" style={styles.glowTop} />
@@ -374,6 +433,7 @@ export default function FlappyCopointoScreen() {
         {/* Bird */}
         {ready && (
           <Animated.View pointerEvents="none" style={[styles.bird, styles.birdBox, birdStyle]}>
+            <View style={styles.birdGlow} pointerEvents="none" />
             <Image source={BIRD_LOGO} style={styles.birdImg} />
           </Animated.View>
         )}
@@ -477,42 +537,54 @@ const styles = StyleSheet.create({
   },
 
   // ── Pipes ──
-  pipe: {
-    position: "absolute",
-    backgroundColor: PRIMARY,
-    borderRadius: 10,
+  // Full-screen-tall wrapper positioned via transform (top:0/left:0 anchor).
+  pipeWrap: { position: "absolute", top: 0, left: 0, width: PIPE_W, height: "100%" },
+  // Glossy tube body — rounded, bordered, clips the gradient + shine.
+  pipeBody: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: PRIMARY_DARK,
+    overflow: "hidden",
     shadowColor: PRIMARY,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
     elevation: 6,
   },
-  // Full-screen-tall halves positioned via transform (top:0/left:0 anchor).
-  pipeFull: { top: 0, left: 0, width: PIPE_W, height: "100%" },
+  // Wet highlight stripe down the left third of the tube.
+  pipeGloss: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: PIPE_W * 0.2,
+    width: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
   pipeCapBottom: {
     position: "absolute",
     bottom: -2,
-    left: -6,
-    width: PIPE_W + 12,
-    height: 18,
-    borderRadius: 8,
-    backgroundColor: PRIMARY,
+    left: -7,
+    width: PIPE_W + 14,
+    height: 20,
+    borderRadius: 9,
     borderWidth: 2,
     borderColor: PRIMARY_DARK,
+    overflow: "hidden",
   },
   pipeCapTop: {
     position: "absolute",
     top: -2,
-    left: -6,
-    width: PIPE_W + 12,
-    height: 18,
-    borderRadius: 8,
-    backgroundColor: PRIMARY,
+    left: -7,
+    width: PIPE_W + 14,
+    height: 20,
+    borderRadius: 9,
     borderWidth: 2,
     borderColor: PRIMARY_DARK,
+    overflow: "hidden",
   },
+  capFill: { ...StyleSheet.absoluteFillObject },
 
   // ── Bird ──
   bird: {
@@ -526,6 +598,15 @@ const styles = StyleSheet.create({
     elevation: 9,
   },
   birdBox: { top: 0, left: 0, width: BIRD_SIZE, height: BIRD_SIZE },
+  birdGlow: {
+    position: "absolute",
+    top: -7,
+    left: -7,
+    right: -7,
+    bottom: -7,
+    borderRadius: (BIRD_SIZE + 14) / 2,
+    backgroundColor: "rgba(232,184,109,0.2)",
+  },
   birdImg: { width: "100%", height: "100%", resizeMode: "contain" },
 
   scoreBig: {
