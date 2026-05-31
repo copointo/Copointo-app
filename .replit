@@ -33,6 +33,7 @@ channel = "stable-25_05"
 
 [userenv.shared]
 TWILIO_FROM_NUMBER = "+18146664071"
+PUBLIC_API_BASE_URL = "https://copointo.com"
 
 [[ports]]
 localPort = 8080
