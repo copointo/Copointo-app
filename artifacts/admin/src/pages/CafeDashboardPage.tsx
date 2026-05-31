@@ -21,6 +21,7 @@ import { Link } from "wouter";
 import copointoLogoUrl from "@/assets/copointo-logo.png";
 import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_44_45_PM_1780267519003.png";
 import statsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_45_50_PM_1780267556237.png";
+import ordersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_47_49_PM_1780267690004.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -376,6 +377,13 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"barcode",   label:"الباركود",          icon: QrCode           },
   { id:"vouchers",  label:"القسائم الشرائية",  icon: Gift             },
 ];
+
+// Tabs that use a custom image as their button face (instead of a lucide icon).
+// The image fills the square button; the label sits below it.
+const TAB_IMAGES: Partial<Record<Tab, string>> = {
+  stats:  statsTabIconUrl,
+  orders: ordersTabIconUrl,
+};
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
   order:   "فواتير الطلبات",
@@ -5732,7 +5740,8 @@ export default function CafeDashboardPage() {
             const active     = tab === tid;
             const isSpinning = spinIdx === i;
             const notifCount = notifCounts[tid] ?? 0;
-            if (tid === "stats") {
+            const tabImg = TAB_IMAGES[tid];
+            if (tabImg) {
               return (
                 <button
                   key={tid}
@@ -5746,7 +5755,7 @@ export default function CafeDashboardPage() {
                         ? "border-[#E8B86D] shadow-md shadow-[#E8B86D]/40"
                         : "border-[#E8B86D]/30 hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/20 group-hover:scale-[1.04]"}`}
                   >
-                    <img src={statsTabIconUrl} alt={label} className="w-full h-full object-cover" />
+                    <img src={tabImg} alt={label} className="w-full h-full object-cover" />
                     {active && (
                       <span className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#E8B86D] pointer-events-none" />
                     )}
