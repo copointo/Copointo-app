@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 import { Link } from "wouter";
 import copointoLogoUrl from "@/assets/copointo-logo.png";
 import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_37_12_PM_1780267039126.png";
+import statsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_41_15_PM_1780267336305.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -5731,6 +5732,36 @@ export default function CafeDashboardPage() {
             const active     = tab === tid;
             const isSpinning = spinIdx === i;
             const notifCount = notifCounts[tid] ?? 0;
+            if (tid === "stats") {
+              return (
+                <button
+                  key={tid}
+                  onClick={() => { setTab(tid); markTabSeen(tid); }}
+                  className="group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
+                  title={label}
+                >
+                  <div
+                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all duration-200
+                      ${active
+                        ? "border-[#E8B86D] shadow-md shadow-[#E8B86D]/40"
+                        : "border-[#E8B86D]/30 hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/20 group-hover:scale-[1.04]"}`}
+                  >
+                    <img src={statsTabIconUrl} alt={label} className="w-full h-full object-cover" />
+                    {active && (
+                      <span className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#E8B86D] pointer-events-none" />
+                    )}
+                    {notifCount > 0 && (
+                      <span className="absolute -top-1 -right-1 z-10 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-card shadow shadow-red-500/40 animate-pulse">
+                        {notifCount > 9 ? "9+" : notifCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[9px] sm:text-[10px] font-extrabold leading-tight text-center ${active ? "text-[#E8B86D]" : "text-[#F5E6CC]"}`}>
+                    {label}
+                  </span>
+                </button>
+              );
+            }
             return (
               <button
                 key={tid}
