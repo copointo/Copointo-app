@@ -552,6 +552,9 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
   const todayPoint = (series || []).slice(-1);
   const todayCount = todayPoint.length ? todayPoint[0].count : 0;
   const todayLabel = todayPoint.length ? todayPoint[0].label : "—";
+  // Render today's value as a flat horizontal line by duplicating the single
+  // point into start/end entries at the same value (a lone point shows no line).
+  const todayLine = [{ label: "", count: todayCount }, { label: todayLabel, count: todayCount }];
   const fmt = (n: number) => money ? Number(n || 0).toFixed(3) : Number(n || 0).toLocaleString("en-US");
   const headline = money ? `${fmt(todayCount)} OMR` : fmt(todayCount);
   return (
@@ -579,7 +582,7 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
       </div>
 
       <ResponsiveContainer width="100%" height={130}>
-        <AreaChart data={todayPoint} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
+        <AreaChart data={todayLine} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
           <defs>
             <linearGradient id={theme.gradId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={theme.accent} stopOpacity={0.35} />
