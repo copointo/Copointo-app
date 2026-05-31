@@ -764,45 +764,6 @@ function StatsTab({ id }: { id: string }) {
         />
       </div>
 
-      {topItems.length > 0 && (
-        <Card className="p-5">
-          <h3 className="text-base font-semibold text-foreground mb-4">🏆 أكثر العناصر طلباً</h3>
-          <ResponsiveContainer width="100%" height={Math.max(220, [...topItems].sort((a, b) => Number(b.qty) - Number(a.qty)).slice(0, 8).length * 44)}>
-            <BarChart
-              data={[...topItems].sort((a, b) => Number(b.qty) - Number(a.qty)).slice(0, 8)}
-              layout="vertical"
-              margin={{ top: 8, right: 36, bottom: 8, left: 12 }}
-              barCategoryGap="28%"
-            >
-              <defs>
-                <linearGradient id="topItemsBar" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#C99654" />
-                  <stop offset="100%" stopColor="#E8B86D" />
-                </linearGradient>
-              </defs>
-              <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="#2a3044" />
-              <XAxis type="number" tick={{ fill:"#888", fontSize:11 }} allowDecimals={false} />
-              <YAxis
-                type="category"
-                dataKey="name"
-                width={110}
-                tick={{ fill:"#ccc", fontSize:12 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip
-                cursor={{ fill:"rgba(232,184,109,0.08)" }}
-                contentStyle={{ background:"#1a1f2e", border:"1px solid #2a3044", borderRadius:8 }}
-                labelStyle={{ color:"#E8B86D" }}
-                formatter={(v: any) => [`${v} طلب`, "الكمية"]}
-              />
-              <Bar dataKey="qty" fill="url(#topItemsBar)" radius={[0, 6, 6, 0]} maxBarSize={26}>
-                <LabelList dataKey="qty" position="right" fill="#E8B86D" fontSize={12} fontWeight={600} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
     </div>
   );
 }
