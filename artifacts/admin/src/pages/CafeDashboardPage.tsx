@@ -557,30 +557,29 @@ function StatChartPanel({ title, total, series, theme, Icon, money = false }: {
   const headline = money ? `${fmt(total)} OMR` : fmt(total);
   return (
     <div
-      className="relative rounded-2xl p-4 sm:p-6 border-2 overflow-hidden"
+      className="relative rounded-xl p-3 border-2 overflow-hidden"
       style={{
         borderColor: theme.accent,
         background: theme.panelBg,
-        boxShadow: `0 0 22px ${theme.glow}, inset 0 0 36px ${theme.glow}`,
+        boxShadow: `0 0 18px ${theme.glow}, inset 0 0 28px ${theme.glow}`,
       }}
     >
-      <div className="flex flex-col items-center gap-1 mb-4">
-        <Icon size={26} style={{ color: theme.accent }} />
-        <h3 className="text-lg sm:text-xl font-extrabold text-center" style={{ color: theme.accent }}>{title}</h3>
+      <div className="flex flex-col items-center gap-0.5 mb-2.5">
+        <Icon size={20} style={{ color: theme.accent }} />
+        <h3 className="text-sm font-extrabold text-center leading-tight" style={{ color: theme.accent }}>{title}</h3>
       </div>
 
       <div
-        className="mx-auto mb-5 w-fit min-w-[180px] rounded-xl border px-5 py-2.5 flex items-center justify-center gap-3"
-        style={{ borderColor: theme.accent, background: `${theme.accent}14`, boxShadow: `0 0 12px ${theme.glow}` }}
+        className="mx-auto mb-3 w-fit min-w-[120px] rounded-lg border px-3 py-1.5 flex items-center justify-center gap-2"
+        style={{ borderColor: theme.accent, background: `${theme.accent}14`, boxShadow: `0 0 10px ${theme.glow}` }}
       >
         <div className="text-center">
-          <p className="text-[11px] font-semibold mb-0.5" style={{ color: theme.accentDim }}>{title}</p>
-          <p className="text-3xl sm:text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{headline}</p>
+          <p className="text-2xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{headline}</p>
         </div>
-        <TrendingUp size={28} style={{ color: theme.accent }} />
+        <TrendingUp size={20} style={{ color: theme.accent }} />
       </div>
 
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={130}>
         <AreaChart data={series} margin={{ top: 8, right: 12, left: -14, bottom: 0 }}>
           <defs>
             <linearGradient id={theme.gradId} x1="0" y1="0" x2="0" y2="1">
@@ -600,7 +599,7 @@ function StatChartPanel({ title, total, series, theme, Icon, money = false }: {
         </AreaChart>
       </ResponsiveContainer>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
+      <div className="grid grid-cols-2 gap-2 mt-3">
         <MiniStat label="الأقل" value={fmt(min)} theme={theme} Icon={BarChart3} />
         <MiniStat label="المتوسط" value={fmt(avg)} theme={theme} Icon={Coffee} />
         <MiniStat label="الأعلى" value={fmt(max)} theme={theme} Icon={TrendingUp} />
@@ -696,7 +695,7 @@ function StatsTab({ id }: { id: string }) {
   return (
     <div className="space-y-6">
       {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-3">
         <StatChartPanel
           title="إجمالي الطلبات"
           total={data.totalOrders ?? 0}
