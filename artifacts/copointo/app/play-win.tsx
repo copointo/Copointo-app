@@ -29,6 +29,7 @@ const PRIMARY = "#E8B86D";
 const LOGO = require("../assets/images/copointo-logo.png");
 const COIN_IMG = require("../assets/images/copointo-coin.png");
 const FLAPPY_COVER = require("../assets/images/flappy-cover-real.jpg");
+const UNO_COVER = require("../assets/images/uno-cover.png");
 
 type GameDef = {
   id: string;
@@ -50,8 +51,8 @@ const GAMES: GameDef[] = [
   },
   {
     id: "uno",
-    name: "أونو أونلاين",
-    cover: null,
+    name: "UNO",
+    cover: UNO_COVER,
     gradient: ["#E0584C", "#C9974F", "#4C7FE0"],
     route: "/uno",
     available: true,

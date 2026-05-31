@@ -48,3 +48,9 @@ id = "v9Evt3WPdNGtoApz3Xm3i"
 uri = "file://artifacts/copointo/assets/images/flappy-cover-game.png"
 type = "image"
 title = "flappy copointo game scene"
+
+[[generated]]
+id = "9N4vbBTPvhq9-kipeHZ2x"
+uri = "file://artifacts/copointo/assets/images/uno-cover.png"
+type = "image"
+title = "uno card game cover"
