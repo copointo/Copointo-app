@@ -644,27 +644,6 @@ function StatsTab({ id }: { id: string }) {
   const topItems = Object.entries(data.topItems || {}).map(([name, qty]) => ({ name, qty }));
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
-        <StatBox label="إجمالي الطلبات"   value={data.totalOrders}   Icon={ShoppingBag} />
-        <StatBox label="الحجوزات"          value={data.totalBookings} Icon={CalendarDays} />
-        <StatBox label="عناصر القائمة"    value={data.totalMenuItems} Icon={UtensilsCrossed} />
-        <StatBox label="إجمالي مبيعات اليوم" value={`${(() => {
-          // Today's revenue only — derived from chartData (server already
-          // groups orders by YYYY-MM-DD day). Falls back to 0 if today has
-          // no orders yet so the box reads "0.000 OMR" instead of blank.
-          const today = new Date().toISOString().substring(0, 10);
-          const row = (data.chartData || []).find((d: any) => d.date === today);
-          return (Number(row?.revenue) || 0).toFixed(3);
-        })()} OMR`} Icon={Wallet} />
-        <StatBox label="إجمالي المبيعات كاش" value={`${(data.salesCash ?? 0).toFixed(3)} OMR`} Icon={Wallet} />
-        <StatBox label="إجمالي المبيعات فيزا" value={`${(data.salesVisa ?? 0).toFixed(3)} OMR`} Icon={CreditCard} />
-        <StatBox label="طلبات بانتظار"    value={data.pendingOrders}  Icon={Clock} />
-        <StatBox label="حجوزات مؤكدة"    value={data.confirmedBookings} Icon={CheckCircle} />
-        <StatBox label="القسائم الشرائية"        value={data.totalVouchers ?? 0} Icon={Gift} />
-        <StatBox label="قسائم بانتظار"           value={data.pendingVouchers ?? 0} Icon={Clock} />
-        <StatBox label="منها قسائم (مُحتسبة بالإيرادات)" value={`${(data.voucherRevenue ?? 0).toFixed(3)} OMR`} Icon={Gift} />
-      </div>
-
       {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <StatChartPanel
