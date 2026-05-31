@@ -33,6 +33,7 @@ import inventoryTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_02_55_PM
 import templatesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_05_13_PM_1780268718913.png";
 import reelsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_09_51_PM_1780268997228.png";
 import barcodeTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_12_59_PM_1780269184354.png";
+import vouchersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_13_55_PM_1780269239920.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
 
@@ -405,6 +406,7 @@ const TAB_IMAGES: Partial<Record<Tab, string>> = {
   templates: templatesTabIconUrl,
   reels:     reelsTabIconUrl,
   barcode:   barcodeTabIconUrl,
+  vouchers:  vouchersTabIconUrl,
 };
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
