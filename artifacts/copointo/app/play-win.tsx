@@ -1,8 +1,25 @@
 import { Feather, FontAwesome5 } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
-import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect } from "react";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCoins } from "@/hooks/useCoins";
 
@@ -11,14 +28,13 @@ const PRIMARY = "#E8B86D";
 
 const LOGO = require("../assets/images/copointo-logo.png");
 const COIN_IMG = require("../assets/images/copointo-coin.png");
+const FLAPPY_COVER = require("../assets/images/flappy-cover.png");
 
 type GameDef = {
   id: string;
   name: string;
-  desc: string;
+  cover: any;
   route: string;
-  color: string;
-  icon: string;
   available: boolean;
 };
 
@@ -26,28 +42,88 @@ const GAMES: GameDef[] = [
   {
     id: "flappy",
     name: "Flappy Copointo",
-    desc: "مرّر الطائر بين الأعمدة واربح كوينز",
+    cover: FLAPPY_COVER,
     route: "/flappy-copointo",
-    color: "#FF7A1A",
-    icon: "feather-alt",
     available: true,
   },
 ];
 
-export default function PlayWinScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { balance } = useCoins();
+const PAD = 20;
+const GAP = 14;
+const COLS = 2;
 
-  const openGame = (g: GameDef) => {
-    if (!g.available) return;
+function GameTile({ game, size }: { game: GameDef; size: number }) {
+  const router = useRouter();
+  // Animated diagonal shine that sweeps across the cover on a loop.
+  const shine = useSharedValue(-1);
+  useEffect(() => {
+    shine.value = withDelay(
+      Math.random() * 600,
+      withRepeat(withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.quad) }), -1, false),
+    );
+  }, [shine]);
+
+  const shineStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shine.value * (size + 90) }, { rotate: "18deg" }],
+  }));
+
+  const open = () => {
+    if (!game.available) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     } catch {
       /* ignore */
     }
-    router.push(g.route as any);
+    router.push(game.route as any);
   };
+
+  return (
+    <Pressable
+      onPress={open}
+      style={({ pressed }) => [{ width: size, opacity: pressed ? 0.9 : 1 }]}
+    >
+      <View style={[styles.tile, { width: size, height: size }]}>
+        <Image source={game.cover} style={StyleSheet.absoluteFill} resizeMode="cover" />
+
+        {/* Bottom darkening so a play badge reads clearly */}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.55)"]}
+          style={styles.tileShade}
+          pointerEvents="none"
+        />
+
+        {/* Moving shine streak */}
+        <View style={styles.shineClip} pointerEvents="none">
+          <Animated.View style={[styles.shineBar, { height: size * 2 }, shineStyle]}>
+            <LinearGradient
+              colors={["transparent", "rgba(255,255,255,0.5)", "transparent"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </View>
+
+        {/* Play badge */}
+        <View style={styles.playBadge} pointerEvents="none">
+          <FontAwesome5 name="play" size={14} color="#000" />
+        </View>
+      </View>
+
+      <Text style={[styles.tileName, { width: size }]} numberOfLines={1}>
+        {game.name}
+      </Text>
+    </Pressable>
+  );
+}
+
+export default function PlayWinScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const { balance } = useCoins();
+
+  const tileSize = Math.floor((width - PAD * 2 - GAP * (COLS - 1)) / COLS);
 
   return (
     <View style={styles.root}>
@@ -68,7 +144,7 @@ export default function PlayWinScreen() {
         contentContainerStyle={{
           paddingTop: insets.top + 70,
           paddingBottom: insets.bottom + 30,
-          paddingHorizontal: 20,
+          paddingHorizontal: PAD,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -78,25 +154,11 @@ export default function PlayWinScreen() {
 
         <View style={{ height: 22 }} />
 
-        {GAMES.map((g) => (
-          <Pressable
-            key={g.id}
-            style={({ pressed }) => [
-              styles.card,
-              { borderColor: `${g.color}55`, opacity: pressed ? 0.85 : 1 },
-            ]}
-            onPress={() => openGame(g)}
-          >
-            <View style={[styles.iconWrap, { backgroundColor: g.color }]}>
-              <FontAwesome5 name={g.icon as any} size={26} color="#FFF" />
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardName}>{g.name}</Text>
-              <Text style={styles.cardDesc}>{g.desc}</Text>
-            </View>
-            <Feather name="chevron-left" size={22} color={PRIMARY} />
-          </Pressable>
-        ))}
+        <View style={styles.grid}>
+          {GAMES.map((g) => (
+            <GameTile key={g.id} game={g} size={tileSize} />
+          ))}
+        </View>
 
         <Text style={styles.more}>المزيد من الألعاب قريبًا…</Text>
       </ScrollView>
@@ -169,31 +231,65 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  card: {
+  grid: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 14,
+    flexWrap: "wrap",
+    gap: GAP,
+  },
+
+  // ── Square tile ──
+  tile: {
     borderRadius: 22,
+    overflow: "hidden",
     backgroundColor: "#100B07",
     borderWidth: 1.5,
-    marginBottom: 14,
+    borderColor: "rgba(232,184,109,0.45)",
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    elevation: 10,
   },
-  iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+  tileShade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "55%",
+  },
+  shineClip: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  shineBar: {
+    position: "absolute",
+    top: "-50%",
+    left: 0,
+    width: 46,
+  },
+  playBadge: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: PRIMARY,
+    paddingLeft: 3,
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  cardBody: { flex: 1 },
-  cardName: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "right" },
-  cardDesc: {
-    fontSize: 12.5,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.6)",
-    marginTop: 3,
-    textAlign: "right",
+  tileName: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#FFF",
+    textAlign: "center",
+    marginTop: 10,
   },
 
   more: {
@@ -201,6 +297,6 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.4)",
     textAlign: "center",
-    marginTop: 8,
+    marginTop: 22,
   },
 });
