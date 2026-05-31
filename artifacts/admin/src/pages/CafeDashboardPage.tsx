@@ -19,7 +19,7 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 import copointoLogoUrl from "@/assets/copointo-logo.png";
-import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_37_12_PM_1780267039126.png";
+import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_44_45_PM_1780267519003.png";
 import statsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_41_15_PM_1780267336305.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
