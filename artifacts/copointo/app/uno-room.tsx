@@ -47,13 +47,14 @@ function UnoCardFace({
   active?: UnoColor | null;
 }) {
   const dims = size === "lg" ? CARD.lg : size === "sm" ? CARD.sm : CARD.md;
+  const fontSize = size === "lg" ? CARD_FONT.lg : size === "sm" ? CARD_FONT.sm : CARD_FONT.md;
   const fill = cardFill(card, active);
   const dark = card.color === "yellow";
   const fg = dark ? "#1A1320" : "#FFF";
   return (
     <View style={[styles.card, dims, { backgroundColor: fill }]}>
       <View style={styles.cardOval} />
-      <Text style={[styles.cardLabel, { color: fg, fontSize: dims.font }]}>{cardLabel(card)}</Text>
+      <Text style={[styles.cardLabel, { color: fg, fontSize }]}>{cardLabel(card)}</Text>
       {isWild(card) && !active ? <Text style={styles.cardWildHint}>WILD</Text> : null}
     </View>
   );
@@ -501,10 +502,15 @@ export default function UnoRoomScreen() {
 }
 
 const CARD = {
-  sm: { width: 40, height: 58, borderRadius: 8, font: 18 },
-  md: { width: 58, height: 84, borderRadius: 11, font: 26 },
-  lg: { width: 78, height: 112, borderRadius: 14, font: 36 },
+  sm: { width: 40, height: 58, borderRadius: 8 },
+  md: { width: 58, height: 84, borderRadius: 11 },
+  lg: { width: 78, height: 112, borderRadius: 14 },
 } as const;
+
+// Kept separate from CARD box dims so the numeric font size is never spread
+// into a <View> style — react-native-web treats a `font` style prop as the CSS
+// `font` shorthand and calls value.replace(), which throws on a number.
+const CARD_FONT = { sm: 18, md: 26, lg: 36 } as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
