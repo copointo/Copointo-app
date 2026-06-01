@@ -16,20 +16,23 @@
 //   • A Hosted Payment Page (HPP) session is created server-side and returns
 //     a URL the shopper is redirected to.
 //
-// What is CONFIRMED from the merchant docs ("Create an Order"):
-//   • Create-order: POST {base}/nac/api/v1/pg/orders/create-checkout (Basic auth)
+// What is CONFIRMED from the merchant docs:
+//   • Create-order: POST {apiBase}/nac/api/v1/pg/orders/create-checkout (Basic auth)
 //     body { amount (MAJOR units, NOT baisa), currency, uiMode:"checkout",
 //            receiptId, description, redirectType, customerFields:{name,email,phone} }
 //     → success { orderId, status:"success", resCode:200, errMessage:"" }.
+//   • Checkout redirect (open this in the shopper's browser):
+//       {checkoutBase}/cpbs/pg?actionType=checkout&orderId={orderId}
+//         &redirectUrl={ourReturnUrl}&clientId={CLIENT_ID}
+//     checkoutBase = https://merchant.gateway.ompay.com (PROD)
+//                  / https://merchant.uat.gateway.ompay.com (UAT).
 //
 // What STILL needs the portal docs before going live:
-//   • How to turn the returned orderId into the hosted-checkout redirect URL
-//     (the "checkout form" / "pay by link" step) + return/redirect handling.
+//   • The Status Check API (called after the shopper returns to redirectUrl to
+//     get the FINAL order status) — endpoint + response shape.
 //   • The webhook payload shape + signature header/scheme.
-// Those two spots are clearly marked below — they are the only places to
-// touch when wiring real sandbox credentials. The whole module is dormant
-// (isOmpayConfigured() === false) until all four OMPAY_* secrets are set,
-// so nothing here runs in environments without credentials.
+// The whole module is dormant (isOmpayConfigured() === false) until all four
+// OMPAY_* secrets are set, so nothing here runs without credentials.
 
 import crypto from "node:crypto";
 
@@ -39,7 +42,8 @@ export interface OmpayConfig {
   merchantId: string;
   webhookSecret: string;
   env: "sandbox" | "production";
-  baseUrl: string;
+  baseUrl: string;        // API host (create-order etc.)
+  checkoutBaseUrl: string; // merchant host (shopper redirect)
 }
 
 /** Returns the resolved config, or null if any required secret is missing. */
@@ -50,14 +54,17 @@ export function getOmpayConfig(): OmpayConfig | null {
   const webhookSecret = process.env.OMPAY_WEBHOOK_SECRET;
   if (!clientId || !clientSecret || !merchantId || !webhookSecret) return null;
   const env = process.env.OMPAY_ENV === "production" ? "production" : "sandbox";
-  // Confirmed gateway hosts (sandbox === OMPay's UAT environment). The exact
-  // Bank-Hosted endpoint PATH appended to this host is still a portal-confirm
-  // seam (see createHostedCheckout below).
+  // Confirmed gateway hosts (sandbox === OMPay's UAT environment).
   const baseUrl =
     env === "production"
       ? "https://api.gateway.ompay.com"
       : "https://api.uat.gateway.ompay.com";
-  return { clientId, clientSecret, merchantId, webhookSecret, env, baseUrl };
+  // The shopper-facing checkout lives on the "merchant" host, not the API host.
+  const checkoutBaseUrl =
+    env === "production"
+      ? "https://merchant.gateway.ompay.com"
+      : "https://merchant.uat.gateway.ompay.com";
+  return { clientId, clientSecret, merchantId, webhookSecret, env, baseUrl, checkoutBaseUrl };
 }
 
 export function isOmpayConfigured(): boolean {
@@ -150,23 +157,15 @@ export async function createHostedCheckout(
 
   const orderId: string = String(json.orderId);
 
-  // ⚠️ STILL NEEDED (CONFIRM-AGAINST-PORTAL): create-checkout returns only the
-  // orderId — NOT the hosted-page URL. The doc says the orderId must be "passed
-  // to the checkout", but the exact way to turn orderId → redirect URL (hosted
-  // checkout form / pay-by-link endpoint) is not yet documented to us. Accept
-  // an inline URL if the gateway returns one; otherwise fail loudly so we never
-  // hand the client a bogus payment link.
-  const checkoutUrl: string | undefined =
-    json?.checkoutUrl ||
-    json?.redirectUrl ||
-    json?.paymentUrl ||
-    json?.url ||
-    json?.links?.redirect;
-  if (!checkoutUrl) {
-    throw new Error(
-      "OMPAY_NO_CHECKOUT_URL: need the checkout-form / pay-by-link step (orderId → redirect URL)",
-    );
-  }
+  // ✅ CONFIRMED: build the shopper redirect URL on the "merchant" host. OMPay
+  // hosts the card form there; after payment it sends the shopper back to our
+  // `redirectUrl` (input.returnUrl), where the client then calls our poll/status
+  // flow. `clientId` = OMPAY_API_KEY.
+  const checkoutUrl =
+    `${c.checkoutBaseUrl}/cpbs/pg?actionType=checkout` +
+    `&orderId=${encodeURIComponent(orderId)}` +
+    `&redirectUrl=${encodeURIComponent(input.returnUrl)}` +
+    `&clientId=${encodeURIComponent(c.clientId)}`;
 
   return { checkoutUrl, providerSessionId: orderId, raw: json };
 }

@@ -25,11 +25,15 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `POST {base}/nac/api/v1/pg/orders/create-checkout`, HTTP Basic auth.
 - Body: `amount` (**MAJOR units, e.g. 3.5 — NOT baisa/×1000**; generic doc example uses INR 500.00, "up to 2 decimals"), `currency`, `uiMode:"checkout"`, `receiptId` (our ref, ≤40 chars), `description`, `redirectType:"redirect"|"post"`, `customerFields:{name,email,phone}`.
 - Response success: `{ orderId, amount, receiptId, status:"success", resCode:200, errMessage:"" }`; failure: `{ status:"failure", resCode:400, errMessage }`.
-- **Gotcha:** create-checkout returns ONLY `orderId` — no hosted-page URL. Doc says orderId "should be passed to the checkout". The orderId→redirect-URL step (checkout form / pay-by-link) is STILL not documented to us; `createHostedCheckout` throws `OMPAY_NO_CHECKOUT_URL` if no inline URL is present.
+- **Gotcha:** create-checkout returns ONLY `orderId` — no hosted-page URL (the redirect URL is built client-side, see below).
+
+## ✅ CONFIRMED: Checkout redirect ("Integrate Checkout" doc)
+- Open in shopper browser: `{checkoutBase}/cpbs/pg?actionType=checkout&orderId={orderId}&redirectUrl={ourReturnUrl}&clientId={CLIENT_ID}`.
+- **checkoutBase is a DIFFERENT host** (`merchant.*`, not `api.*`): `https://merchant.gateway.ompay.com` (PROD) / `https://merchant.uat.gateway.ompay.com` (UAT). `OmpayConfig.checkoutBaseUrl` holds it; `clientId`=OMPAY_API_KEY.
+- Flow: create order (server) → redirect to checkout URL → shopper pays → redirected back to `redirectUrl` → **call Status Check API for final status**.
 
 ## ⚠️ Remaining UNVERIFIED seams (need more portal docs + sandbox creds)
-Commented `CONFIRM-AGAINST-PORTAL` in `lib/ompay.ts` / `routes/payments.ts`:
-1. Orphan: how to turn the returned `orderId` into the hosted-checkout redirect URL (the "checkout form" / "pay by link" step) + return/redirect handling.
+1. **Status Check API** — the documented way to confirm final order status after the shopper returns to redirectUrl. Endpoint + response shape NOT yet provided. (Current code relies on the webhook to flip status; once Status Check API is known, wire it as the primary post-redirect confirmation.)
 2. Webhook signature header name + scheme (defaults to `HMAC-SHA256(rawBody, webhookSecret)` hex, constant-time compared) and the webhook payload field names for reference + status.
 
 ## Security/correctness notes baked in
