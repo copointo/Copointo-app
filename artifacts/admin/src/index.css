@@ -348,17 +348,18 @@
   animation: tabShine 0.7s ease-out forwards;
 }
 
-/* ── Section content reveal (slides up on every tab switch) ──────────
-   NOTE: the keyframe ends at `transform: none` so no lingering transform is
-   left behind — a persisted transform would turn the element into the
-   containing block for any `position: fixed` modal rendered inside it and
-   mis-position it. The keyed remount on tab switch replays this. */
+/* ── Section content reveal (gentle fade on every tab switch) ────────
+   Opacity-only on purpose: a translateY here stacked on top of the inner
+   `.dash-stagger` children also rising read as a jolt/shake on tab press.
+   Opacity-only also means no transform is left behind, so it never becomes
+   the containing block for a `position: fixed` modal inside it. The keyed
+   remount on tab switch replays this. */
 @keyframes dashContent {
-  from { opacity: 0; transform: translateY(20px); filter: blur(3px); }
-  to   { opacity: 1; transform: none;             filter: blur(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .dash-content-reveal {
-  animation: dashContent 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: dashContent 0.3s ease-out both;
 }
 
 /* ── Stats charts fly in from the SIDES to their place ──────────────
