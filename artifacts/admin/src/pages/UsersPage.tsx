@@ -35,9 +35,11 @@ interface AppUser {
   syncVersion?: number;
 }
 interface FreeCoffeeRow {
-  id: string; code?: string | null; userPhone?: string | null;
-  cafeId?: string | null; cafeName?: string | null;
-  redeemed?: boolean; redeemedAt?: string | null; createdAt?: string | null;
+  id: string; code?: string | null; userPhone?: string | null; userName?: string | null;
+  earnedAtLevel?: number | null;
+  earnedAtCafeId?: string | null; earnedAtCafeName?: string | null;
+  earnedAt?: string | null;
+  redeemedAt?: string | null; redeemedAtCafeId?: string | null;
 }
 const ITEM_CATS: Array<{ key: keyof OwnedItems; label: string; icon: string }> = [
   { key: "frames",         label: "الإطارات",      icon: "🖼️" },
@@ -497,7 +499,7 @@ export default function UsersPage() {
                     {(() => {
                       const ph = normalizePhone(user.phone);
                       const fcAll = allFreeCoffees.filter(f => normalizePhone(f.userPhone) === ph);
-                      const fcLeft = fcAll.filter(f => !f.redeemed).length;
+                      const fcLeft = fcAll.filter(f => !f.redeemedAt).length;
                       return (
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-400 rounded-lg px-2 py-0.5 text-xs font-bold" title="العملات">
@@ -993,9 +995,12 @@ export default function UsersPage() {
               {/* Free coffees */}
               <div className="border border-emerald-500/30 rounded-xl p-4 bg-emerald-500/5 space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Gift size={16} className="text-emerald-400" />
                     <p className="font-bold text-foreground text-sm">القهوة المجانية</p>
+                    <span className="text-[11px] bg-emerald-500/15 text-emerald-300 rounded-lg px-2 py-0.5 font-bold">
+                      متاح {earnFreeCoffees.filter(f => !f.redeemedAt).length} / إجمالي {earnFreeCoffees.length}
+                    </span>
                   </div>
                   {earnFreeCoffees.length > 0 && (
                     <button
@@ -1015,8 +1020,8 @@ export default function UsersPage() {
                       <div key={f.id} className="flex items-center justify-between bg-card border border-border rounded-lg px-3 py-2 text-xs gap-2">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <span className="font-mono font-bold text-foreground" dir="ltr">{f.code || f.id}</span>
-                          {f.cafeName && <span className="text-muted-foreground truncate">• {f.cafeName}</span>}
-                          {f.redeemed
+                          {f.earnedAtCafeName && <span className="text-muted-foreground truncate">• {f.earnedAtCafeName}</span>}
+                          {f.redeemedAt
                             ? <span className="bg-red-500/15 text-red-400 rounded px-1.5 py-0.5 font-bold shrink-0">مستعمل</span>
                             : <span className="bg-green-500/15 text-green-400 rounded px-1.5 py-0.5 font-bold shrink-0">متاح</span>}
                         </div>
