@@ -6230,18 +6230,6 @@ export function ManagerAnalyticsPage() {
           </form>
         ) : (
           <div className="max-w-7xl mx-auto space-y-8">
-            {/* Manager-only: Discount Codes */}
-            <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Tag size={18} className="text-[#E8B86D]" />
-                <h3 className="text-base font-extrabold text-[#F5E6CC]">أكواد التخفيض</h3>
-              </div>
-              <DiscountCodesTab id={cafeId} />
-            </section>
-
-            {/* Divider */}
-            <div className="h-px bg-gradient-to-l from-transparent via-[#E8B86D]/30 to-transparent" />
-
             {/* Analytics view */}
             <section>
               <div className="flex items-center gap-2 mb-4">
@@ -6249,6 +6237,18 @@ export function ManagerAnalyticsPage() {
                 <h3 className="text-base font-extrabold text-[#F5E6CC]">التقارير المتقدمة</h3>
               </div>
               <ManagerAnalyticsView data={data} period={period} setPeriod={setPeriod} />
+            </section>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-l from-transparent via-[#E8B86D]/30 to-transparent" />
+
+            {/* Manager-only: Discount Codes — pinned to the bottom of the page */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Tag size={18} className="text-[#E8B86D]" />
+                <h3 className="text-base font-extrabold text-[#F5E6CC]">أكواد التخفيض</h3>
+              </div>
+              <DiscountCodesTab id={cafeId} />
             </section>
           </div>
         )}
