@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Circle, Path, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
@@ -76,6 +76,7 @@ const STEPS: StepDef[] = [
 // (identical to the pre-animation look) so reached/unreached states are
 // indistinguishable from the previous design.
 const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type StepIconProps = {
   kind: StepKey;
@@ -403,15 +404,36 @@ export default function OrderTimerScreen() {
   // feels alive while the fill itself stays fixed.
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.loop(
+    // The sweeping band loops while the journey is still in progress and stops
+    // once the final level-up step completes.
+    if (completed) { shimmerAnim.stopAnimation(); shimmerAnim.setValue(0); return; }
+    const loop = Animated.loop(
       Animated.timing(shimmerAnim, {
         toValue: 1,
-        duration: 1800,
+        duration: 1400,
         easing: Easing.linear,
         useNativeDriver: true,
       }),
-    ).start();
-  }, [shimmerAnim]);
+    );
+    shimmerAnim.setValue(0);
+    loop.start();
+    return () => loop.stop();
+  }, [shimmerAnim, completed]);
+
+  // ── Breathing neon glow for the circular timer ──
+  // JS-driven (useNativeDriver:false) so it can bind to the SVG aura's
+  // strokeOpacity, which the native driver can't animate.
+  const ringPulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(ringPulse, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+        Animated.timing(ringPulse, { toValue: 0, duration: 1100, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [ringPulse]);
 
   // ── Pulse for the currently-active step icon ──
   const pulse = useRef(new Animated.Value(0)).current;
@@ -521,7 +543,16 @@ export default function OrderTimerScreen() {
   const RING_R      = (RING_SIZE - RING_STROKE) / 2;
   const RING_C      = 2 * Math.PI * RING_R;
   const ringDashOffset = RING_C * (1 - pct / 100);
-  const ringColor = (isReadyOrDone || completed) ? SUCCESS : confirmed ? PRIMARY : "rgba(245,230,204,0.35)";
+  // Neon gradient stops + comet-head geometry for the circular timer ring.
+  const isDoneState = isReadyOrDone || completed;
+  const gradFrom  = isDoneState ? "#BBF7D0" : confirmed ? "#FFEFC9" : "rgba(245,230,204,0.30)";
+  const gradMid   = isDoneState ? "#4ADE80" : confirmed ? "#E8B86D" : "rgba(245,230,204,0.22)";
+  const gradTo    = isDoneState ? "#22C55E" : confirmed ? "#FFD9A0" : "rgba(245,230,204,0.30)";
+  const glowColor = isDoneState ? SUCCESS : PRIMARY;
+  const tipRad    = ((-90 + (pct / 100) * 360) * Math.PI) / 180;
+  const tipX      = RING_SIZE / 2 + RING_R * Math.cos(tipRad);
+  const tipY      = RING_SIZE / 2 + RING_R * Math.sin(tipRad);
+  const showTip   = confirmed && pct > 0.5;
 
   // ── Fixed fill target (0 .. 1) ──
   // The bar fills to a fixed quarter for each milestone and holds there:
@@ -643,7 +674,7 @@ export default function OrderTimerScreen() {
 
   // Shimmer translate range — measured at runtime so it spans the full bar.
   const [barWidth, setBarWidth] = useState(0);
-  const SHIMMER_WIDTH = 110;
+  const SHIMMER_WIDTH = 130;
   const shimmerTx = shimmerAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [-SHIMMER_WIDTH, barWidth + SHIMMER_WIDTH],
@@ -723,7 +754,7 @@ export default function OrderTimerScreen() {
 
             <Animated.View style={[styles.barFillWrap, { width: fillWidth }]}>
               <LinearGradient
-                colors={[PRIMARY, "#FFD9A0", PRIMARY]}
+                colors={["#E8B86D", "#FFF1CE", "#E8B86D"]}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={StyleSheet.absoluteFill}
               />
@@ -745,7 +776,7 @@ export default function OrderTimerScreen() {
                 ]}
               >
                 <LinearGradient
-                  colors={["transparent", "rgba(255,232,180,0.55)", "transparent"]}
+                  colors={["transparent", "rgba(255,243,210,0.9)", "transparent"]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   style={{ flex: 1 }}
                 />
@@ -764,21 +795,58 @@ export default function OrderTimerScreen() {
         ]}>
           <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" }}>
             <Svg width={RING_SIZE} height={RING_SIZE}>
+              <Defs>
+                <SvgGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor={gradFrom} />
+                  <Stop offset="0.5" stopColor={gradMid} />
+                  <Stop offset="1" stopColor={gradTo} />
+                </SvgGradient>
+              </Defs>
+
               {/* Track */}
               <Circle
                 cx={RING_SIZE / 2}
                 cy={RING_SIZE / 2}
                 r={RING_R}
-                stroke="rgba(245,230,204,0.10)"
+                stroke="rgba(245,230,204,0.08)"
                 strokeWidth={RING_STROKE}
                 fill="none"
               />
-              {/* Progress arc — rotated -90° so 0% starts at 12 o'clock */}
+
+              {/* Breathing neon aura — a faint full ring whose opacity pulses */}
+              <AnimatedCircle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={RING_R}
+                stroke={glowColor}
+                strokeWidth={RING_STROKE + 8}
+                fill="none"
+                strokeOpacity={ringPulse.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.22] }) as unknown as number}
+              />
+
+              {/* Soft bloom behind the progress arc (wider + low opacity) */}
+              {showTip && (
+                <Circle
+                  cx={RING_SIZE / 2}
+                  cy={RING_SIZE / 2}
+                  r={RING_R}
+                  stroke={glowColor}
+                  strokeWidth={RING_STROKE + 6}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${RING_C} ${RING_C}`}
+                  strokeDashoffset={ringDashOffset}
+                  transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+                  opacity={0.28}
+                />
+              )}
+
+              {/* Progress arc — neon gradient, rotated -90° so 0% starts at 12 o'clock */}
               <Circle
                 cx={RING_SIZE / 2}
                 cy={RING_SIZE / 2}
                 r={RING_R}
-                stroke={ringColor}
+                stroke="url(#ringGrad)"
                 strokeWidth={RING_STROKE}
                 fill="none"
                 strokeLinecap="round"
@@ -786,6 +854,14 @@ export default function OrderTimerScreen() {
                 strokeDashoffset={ringDashOffset}
                 transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
               />
+
+              {/* Glowing comet head at the progress tip */}
+              {showTip && (
+                <>
+                  <Circle cx={tipX} cy={tipY} r={RING_STROKE * 0.95} fill={glowColor} opacity={0.35} />
+                  <Circle cx={tipX} cy={tipY} r={RING_STROKE / 2 - 1} fill="#FFF6E2" />
+                </>
+              )}
             </Svg>
             <View style={styles.ringCenter}>
               <Text style={[
@@ -1027,12 +1103,22 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   timerCardActive: {
-    borderColor: "rgba(232,184,109,0.55)",
+    borderColor: "rgba(232,184,109,0.6)",
     backgroundColor: "rgba(232,184,109,0.08)",
+    shadowColor: PRIMARY,
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   timerCardDone: {
-    borderColor: "rgba(74,222,128,0.45)",
+    borderColor: "rgba(74,222,128,0.5)",
     backgroundColor: "rgba(74,222,128,0.08)",
+    shadowColor: SUCCESS,
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   ringCenter: {
     position: "absolute",
@@ -1046,6 +1132,9 @@ const styles = StyleSheet.create({
     color: PRIMARY,
     fontVariant: ["tabular-nums"],
     letterSpacing: 0.3,
+    textShadowColor: "rgba(232,184,109,0.65)",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
   ringSub: {
     fontSize: 12,
