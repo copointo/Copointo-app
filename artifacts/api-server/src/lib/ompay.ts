@@ -16,8 +16,15 @@
 //   • A Hosted Payment Page (HPP) session is created server-side and returns
 //     a URL the shopper is redirected to.
 //
-// What MUST be confirmed against the merchant portal before going live:
-//   • The exact HPP create-session endpoint path + request body field names.
+// What is CONFIRMED from the merchant docs ("Create an Order"):
+//   • Create-order: POST {base}/nac/api/v1/pg/orders/create-checkout (Basic auth)
+//     body { amount (MAJOR units, NOT baisa), currency, uiMode:"checkout",
+//            receiptId, description, redirectType, customerFields:{name,email,phone} }
+//     → success { orderId, status:"success", resCode:200, errMessage:"" }.
+//
+// What STILL needs the portal docs before going live:
+//   • How to turn the returned orderId into the hosted-checkout redirect URL
+//     (the "checkout form" / "pay by link" step) + return/redirect handling.
 //   • The webhook payload shape + signature header/scheme.
 // Those two spots are clearly marked below — they are the only places to
 // touch when wiring real sandbox credentials. The whole module is dormant
@@ -93,29 +100,24 @@ export async function createHostedCheckout(
   if (!c) throw new Error("OMPAY_NOT_CONFIGURED");
 
   const currency = input.currency ?? "OMR";
-  const amountMinor = toMinorUnits(input.amount);
+  // ✅ CONFIRMED: OMPay create-checkout expects the amount in MAJOR units
+  // (e.g. 3.5), NOT minor/baisa. (The generic doc example uses INR 500.00.)
+  const amount = Number(input.amount);
 
-  // ⚠️ CONFIRM-AGAINST-PORTAL #1: exact endpoint + body for the HPP session.
-  // Shaped to OMPay's documented HPP concept (amount/currency/reference +
-  // redirect & webhook URLs). Adjust the path/field names here once verified
-  // with sandbox credentials — this is the single place that needs editing.
-  const url = `${c.baseUrl}/merchants/${c.merchantId}/payment`;
+  // ✅ CONFIRMED endpoint + body (OMPay "Create an Order" / Bank Hosted).
+  const url = `${c.baseUrl}/nac/api/v1/pg/orders/create-checkout`;
   const body = {
-    intent: "sale",
-    payment_method: { type: "hosted" },
-    order: {
-      amount: amountMinor,
-      currency,
-      reference: input.reference,
-      description: input.description ?? input.reference,
-    },
-    customer: {
+    amount,
+    currency,
+    uiMode: "checkout",
+    receiptId: input.reference, // our merchant reference (≤40 chars)
+    description: input.description ?? input.reference,
+    redirectType: "redirect",
+    customerFields: {
       name: input.customerName ?? undefined,
       email: input.customerEmail ?? undefined,
       phone: input.customerPhone ?? undefined,
     },
-    redirect_url: input.returnUrl,
-    webhook_url: input.webhookUrl,
   };
 
   const res = await fetch(url, {
@@ -136,23 +138,37 @@ export async function createHostedCheckout(
     /* non-JSON response handled below */
   }
 
-  if (!res.ok) {
-    const msg = json?.message || json?.error || text || `HTTP ${res.status}`;
+  // ✅ CONFIRMED response shape:
+  //   success → { orderId, amount, receiptId, status:"success", resCode:200, errMessage:"" }
+  //   failure → { receiptId, status:"failure", resCode:400, errMessage:"..." }
+  const ok =
+    res.ok && json?.status === "success" && Number(json?.resCode) === 200 && !!json?.orderId;
+  if (!ok) {
+    const msg = json?.errMessage || json?.message || text || `HTTP ${res.status}`;
     throw new Error(`OMPAY_CREATE_FAILED: ${msg}`);
   }
 
-  // Hosted-page URL is commonly returned under one of these keys; accept the
-  // first present so a minor schema difference doesn't break the flow.
-  const checkoutUrl: string | undefined =
-    json?.redirect_url || json?.payment_url || json?.url || json?.links?.redirect;
-  const providerSessionId: string =
-    json?.id || json?.session_id || json?.payment_id || input.reference;
+  const orderId: string = String(json.orderId);
 
+  // ⚠️ STILL NEEDED (CONFIRM-AGAINST-PORTAL): create-checkout returns only the
+  // orderId — NOT the hosted-page URL. The doc says the orderId must be "passed
+  // to the checkout", but the exact way to turn orderId → redirect URL (hosted
+  // checkout form / pay-by-link endpoint) is not yet documented to us. Accept
+  // an inline URL if the gateway returns one; otherwise fail loudly so we never
+  // hand the client a bogus payment link.
+  const checkoutUrl: string | undefined =
+    json?.checkoutUrl ||
+    json?.redirectUrl ||
+    json?.paymentUrl ||
+    json?.url ||
+    json?.links?.redirect;
   if (!checkoutUrl) {
-    throw new Error("OMPAY_NO_CHECKOUT_URL");
+    throw new Error(
+      "OMPAY_NO_CHECKOUT_URL: need the checkout-form / pay-by-link step (orderId → redirect URL)",
+    );
   }
 
-  return { checkoutUrl, providerSessionId, raw: json };
+  return { checkoutUrl, providerSessionId: orderId, raw: json };
 }
 
 /** Verify an OMPay webhook signature.

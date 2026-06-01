@@ -21,9 +21,15 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - Gateway base URLs: `https://api.gateway.ompay.com` (PROD), `https://api.uat.gateway.ompay.com` (UAT/sandbox). Selected via `OMPAY_ENV` (default sandbox→UAT). **NOTE: earlier code guessed `api.ompay.com/v1` — that was WRONG; the real host is the `*.gateway.ompay.com` API env. No `/v1` suffix is documented for Bank Hosted; the exact endpoint PATH is still unconfirmed.**
 - Currency OMR has **3 decimals** → amounts sent in minor units (×1000 baisa). `toMinorUnits()` + server-side amount validation rejects >3-decimal values.
 
-## ⚠️ Two UNVERIFIED seams (need merchant-portal docs + sandbox creds)
-Both are clearly commented `CONFIRM-AGAINST-PORTAL` in `lib/ompay.ts` / `routes/payments.ts`:
-1. Exact Hosted-Payment-Page create endpoint path + request body field names (currently `POST /merchants/{mid}/payment` with a best-interpretation body; response checkoutUrl/id read from several candidate keys).
+## ✅ CONFIRMED: Create-Order ("Create an Order" doc)
+- `POST {base}/nac/api/v1/pg/orders/create-checkout`, HTTP Basic auth.
+- Body: `amount` (**MAJOR units, e.g. 3.5 — NOT baisa/×1000**; generic doc example uses INR 500.00, "up to 2 decimals"), `currency`, `uiMode:"checkout"`, `receiptId` (our ref, ≤40 chars), `description`, `redirectType:"redirect"|"post"`, `customerFields:{name,email,phone}`.
+- Response success: `{ orderId, amount, receiptId, status:"success", resCode:200, errMessage:"" }`; failure: `{ status:"failure", resCode:400, errMessage }`.
+- **Gotcha:** create-checkout returns ONLY `orderId` — no hosted-page URL. Doc says orderId "should be passed to the checkout". The orderId→redirect-URL step (checkout form / pay-by-link) is STILL not documented to us; `createHostedCheckout` throws `OMPAY_NO_CHECKOUT_URL` if no inline URL is present.
+
+## ⚠️ Remaining UNVERIFIED seams (need more portal docs + sandbox creds)
+Commented `CONFIRM-AGAINST-PORTAL` in `lib/ompay.ts` / `routes/payments.ts`:
+1. Orphan: how to turn the returned `orderId` into the hosted-checkout redirect URL (the "checkout form" / "pay by link" step) + return/redirect handling.
 2. Webhook signature header name + scheme (defaults to `HMAC-SHA256(rawBody, webhookSecret)` hex, constant-time compared) and the webhook payload field names for reference + status.
 
 ## Security/correctness notes baked in

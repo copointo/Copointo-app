@@ -1,0 +1,56 @@
+Create an Order on the Server
+An order should be created for every payment. The orderId received in the response should be passed to the checkout to ensure the request's security against tampering.
+
+How to create an Order:
+To create an Order, use the provided API sample code by integrating it into your server. This will enable you to generate an order seamlessly.
+
+API SAMPLE CODE
+POST: `{{domain}}/nac/api/v1/pg/orders/create-checkout`
+curl -X POST {{domain}}/nac/api/v1/pg/orders/create-checkout \
+-U [CLIENT_ID]:[CLIENT_SECRET] \
+-H 'Content-Type: application/json' \
+-d '{
+ "amount": 500.00,
+ "currency": "INR",
+ "uiMode": "checkout",
+ "receiptId": "66497326b1577421a0e99fb3",
+ "description": "Ecommerce Transaction",
+ "customerFields": {
+ "email": "xyz@email.com",
+ "phone": 9999999999,
+ "name": "User name"
+ },
+ "curn": "curn_id",
+ "redirectType”: “redirect”
+}'
+
+Sample Success Response
+{ 
+ "orderId": "wb-e883b28d-0cd3-455d-9903-ef5d3d8ddf27",
+ "amount": 500.00,
+ "receiptId": "66497326b1577421a0e99fb3",
+ "status": "success",
+ "resCode": 200,
+ "errMessage": ""
+}
+
+Sample Failure Response
+{ 
+ "receiptId": "66497326b1577421a0e99fb3",
+ "status": "failure",
+ "resCode": 400,
+ "errMessage": "Order failed"
+}
+
+
+Parameter	Mandatory	Description	Type	Example
+amount	Yes	The total amount of the transaction in the specified currency. (up to 2 decimals)	Numeric	500.00
+currency	Yes	The currency used for the transactions.	String	“INR”
+uiMode	Yes	UI mode for the transaction.	String	“checkout”
+receiptId	No	Unique identifier for the transaction. (up to 40 characters)	String	“57Kr4ec2qdQMLJ0QVFYZnu1N5y49x0CZz5PlHhp”
+description	No	Additional Information or notes regarding the transaction.	String	“Sample Transactions”
+curn	No	Custom identifier or metadata for the order.	String	“123456789”
+redirectType	Yes	Redirection mode after the transaction.	String	“post” / “redirect”
+phone	Yes	Customer’s phone.	String	“9912364456”
+email	Yes	Customer’s email.	String	“example@gmail.com”
+name	Yes	Customer’s name.	String	“Customer name”
