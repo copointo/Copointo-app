@@ -396,17 +396,15 @@ export default function OrderTimerScreen() {
   // that keeps moving is the transparent shimmer band (below). The target
   // levels are computed further down (after the prep countdown is known)
   // because the 50% step depends on the prep timer finishing.
-  const fillAnim = useRef(new Animated.Value(0)).current;
+  const fillAnim = useRef(new Animated.Value(0.05)).current;
 
   // ── Shimmer sweep ──
-  // A transparent band travels left-to-right across the whole bar to the
-  // end, then repeats — a clean, steady (linear) loop so the bar always
-  // feels alive while the fill itself stays fixed.
+  // A transparent band travels left-to-right across the WHOLE bar to the very
+  // end, then repeats — a clean, steady (linear) loop that NEVER stops, so the
+  // shine keeps passing all the way to the end of the full bar at every stage
+  // (including once the order is complete).
   const shimmerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    // The sweeping band loops while the journey is still in progress and stops
-    // once the final level-up step completes.
-    if (completed) { shimmerAnim.stopAnimation(); shimmerAnim.setValue(0); return; }
     const loop = Animated.loop(
       Animated.timing(shimmerAnim, {
         toValue: 1,
@@ -418,7 +416,7 @@ export default function OrderTimerScreen() {
     shimmerAnim.setValue(0);
     loop.start();
     return () => loop.stop();
-  }, [shimmerAnim, completed]);
+  }, [shimmerAnim]);
 
   // ── Breathing neon glow for the circular timer ──
   // JS-driven (useNativeDriver:false) so it can bind to the SVG aura's
@@ -565,7 +563,7 @@ export default function OrderTimerScreen() {
     isReadyOrDone                           ? 0.75 : // ready for pickup
     (confirmed && secondsLeft === 0)        ? 0.5  : // preparation finished
     confirmed                               ? 0.25 : // preparing started
-                                              0.0;   // pending / received
+                                              0.05;  // pending / received → bar starts at 5%
   useEffect(() => {
     Animated.timing(fillAnim, {
       toValue: fillTarget,
