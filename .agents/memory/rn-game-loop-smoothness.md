@@ -31,3 +31,10 @@ support `Math.random`, array map/filter/slice/push. On `react-native-web` the
 frame callback falls back to the JS thread (graceful), so the UI-thread win is
 native-only — fine, native is the real target. Keep numeric `font`/static
 sizes out of animated style objects (see rn-web-style-coercion).
+
+**Web-preview caveat / SUPERSEDED for Copointo Flappy:** in the Replit Expo
+**web** preview the Reanimated `useFrameCallback` path proved unstable (it could
+crash and tear down the whole app). Copointo's Flappy was therefore moved off
+Reanimated entirely — see [Flappy as embedded HTML game](flappy-html-isolation.md).
+For a game that must run reliably inside the web preview (or be crash-isolated),
+prefer an HTML5 canvas page in a WebView/iframe over the worklet approach.

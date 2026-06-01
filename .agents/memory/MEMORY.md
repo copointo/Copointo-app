@@ -7,5 +7,6 @@
 - [UNO online game](uno-game.md) — lazy-tick (no bg loop, advances on each request+client poll); +4 legality MUST be enforced in bot AI too or tick() stalls; 25-coin reward is client-trusted.
 - [Copointo invoices source](copointo-invoices-source.md) — Printed-Invoices browser must read the persistent `invoices` collection, not live `orders` (orders get wiped on "new day").
 - [Free-coffee ownership](free-coffee-ownership.md) — redemption ownership = signed-in ACCOUNT phone (freeCoffeeOwnerPhone), NOT the order-form contact phone; else showcase "Copointo" + any phone mismatch 403s the whole order.
+- [Flappy HTML isolation](flappy-html-isolation.md) — Flappy Copointo runs as a self-contained HTML5 canvas in a WebView/iframe (cafe-map pattern); RN host authoritative for coins/cap; Reanimated version crashed web preview.
 - [Copointo community group persistence](copointo-community-group-persistence.md) — community→group reconcile must be ADDITIVE-ONLY; poll-driven dissolve wiped conversations. Kicked members keeping history is intended.
 - [Leaderboard reward parity](leaderboard-reward-parity.md) — any payout/ranking mirroring the leaderboard must share the FNV-1a hashId tiebreaker AND the !showcaseOnly+!banned filter, or rewards hit wrong/demo users.
