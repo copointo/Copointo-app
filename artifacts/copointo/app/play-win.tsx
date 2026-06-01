@@ -28,7 +28,9 @@ const PRIMARY = "#E8B86D";
 
 const LOGO = require("../assets/images/copointo-logo.png");
 const COIN_IMG = require("../assets/images/copointo-coin.png");
-const FLAPPY_COVER = require("../assets/images/flappy-btn.png");
+
+// Gold pipe gradient mirrors the in-game pipes in flappy-copointo.tsx.
+const PIPE_GRAD = ["#6E461B", "#C9974F", "#FBEAC6", "#E8B86D", "#7A4E1E"] as const;
 
 type GameDef = {
   id: string;
@@ -36,6 +38,8 @@ type GameDef = {
   cover: any | null;
   /** Gradient cover used when there is no cover image. */
   gradient?: readonly [string, string, ...string[]];
+  /** Icon drawn over the gradient (the game's character). */
+  iconImage?: any;
   route: string;
   available: boolean;
 };
@@ -44,7 +48,9 @@ const GAMES: GameDef[] = [
   {
     id: "flappy",
     name: "Flappy Copointo",
-    cover: FLAPPY_COVER,
+    cover: null,
+    gradient: ["#1F1407", "#07060A"],
+    iconImage: LOGO,
     route: "/flappy-copointo",
     available: true,
   },
@@ -94,9 +100,32 @@ function GameTile({ game, size }: { game: GameDef; size: number }) {
             end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           >
-            <Text style={styles.gradientLabel} numberOfLines={2}>
-              {game.name}
-            </Text>
+            {game.iconImage ? (
+              <View style={StyleSheet.absoluteFill}>
+                {/* Flappy-style gold pipes: one descends from the top, one rises
+                    from the bottom, leaving a gap for the bird to fly through. */}
+                <LinearGradient
+                  colors={PIPE_GRAD}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.pipe, styles.pipeTop]}
+                />
+                <LinearGradient
+                  colors={PIPE_GRAD}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.pipe, styles.pipeBottom]}
+                />
+                {/* The bird = the Copointo droplet, flying through the gap */}
+                <View style={styles.birdGlow}>
+                  <Image source={game.iconImage} style={styles.gameIcon} resizeMode="contain" />
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.gradientLabel} numberOfLines={2}>
+                {game.name}
+              </Text>
+            )}
           </LinearGradient>
         )}
 
@@ -278,6 +307,27 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
+  pipe: {
+    position: "absolute",
+    width: "17%",
+    right: "24%",
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "rgba(46,28,8,0.55)",
+  },
+  pipeTop: { top: -2, height: "34%" },
+  pipeBottom: { bottom: -2, height: "38%" },
+  birdGlow: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    paddingLeft: "14%",
+    shadowColor: PRIMARY,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+  },
+  gameIcon: { width: "38%", height: "38%" },
   tileShade: {
     position: "absolute",
     left: 0,
