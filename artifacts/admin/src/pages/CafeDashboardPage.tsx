@@ -1472,12 +1472,12 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
                 <span className="text-xs text-muted-foreground">({list.length})</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {list.map(it => {
+                {list.map((it, idx) => {
                   const qty = cart[it.id] ?? 0;
                   const outOfStock = it.stockQty != null && it.stockQty <= 0;
                   return (
+                    <div key={it.id} className="dash-item" style={{ animationDelay: `${Math.min(idx, 10) * 0.05}s` }}>
                     <div
-                      key={it.id}
                       className={`flex items-center gap-3 p-3 rounded-xl border ${
                         qty > 0 ? "border-primary bg-primary/5" : "border-border bg-input/30"
                       } ${outOfStock ? "opacity-50" : ""}`}
@@ -1525,6 +1525,7 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
                           </button>
                         </div>
                       )}
+                    </div>
                     </div>
                   );
                 })}

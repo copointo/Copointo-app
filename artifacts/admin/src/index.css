@@ -399,9 +399,17 @@
   animation: dashOrderIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Generic gradual item reveal (reuses the dashOrderIn keyframe). Applied to a
+   wrapper so an inner element's own opacity (e.g. out-of-stock dimming) is kept. */
+.dash-item {
+  opacity: 0;
+  animation: dashOrderIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dash-content-reveal,
   .dash-order,
+  .dash-item,
   .dash-sides > * {
     animation: none;
     opacity: 1;
