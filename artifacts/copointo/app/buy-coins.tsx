@@ -213,14 +213,6 @@ export function BuyCoinsPanel() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<Checkout | null>(null);
-  // Native: show the checkout modal with a spinner the instant the pack is
-  // tapped, before the OMPay session round-trip finishes, so the page feels
-  // immediate instead of appearing after the ~session-creation wait.
-  const [checkoutOpening, setCheckoutOpening] = useState(false);
-  // Monotonic id for each buy attempt. A session response only acts on shared
-  // checkout state if it's still the current attempt — so cancelling and then
-  // tapping another pack can't let a stale in-flight response open the WebView.
-  const buyAttemptId = useRef(0);
   const [webCheckout, setWebCheckout] = useState<Checkout | null>(null);
   const [verifying, setVerifying] = useState(false);
   const pollCancel = useRef(false);
@@ -310,14 +302,6 @@ export function BuyCoinsPanel() {
   const handleBuy = async (p: Pack) => {
     if (busyId) return;
     setBusyId(p.id);
-    const attempt = ++buyAttemptId.current;
-
-    // Native: pop the checkout modal open NOW (with a spinner) so it appears
-    // instantly on tap; the WebView loads as soon as the session URL is ready.
-    if (Platform.OS !== "web") {
-      checkoutClosing.current = false;
-      setCheckoutOpening(true);
-    }
 
     // Web: open the payment tab IMMEDIATELY inside the tap gesture (so the
     // browser allows it) showing a loading page, then redirect that tab to the
@@ -361,31 +345,14 @@ export function BuyCoinsPanel() {
           setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
         }
       } else {
-        // Superseded (the shopper cancelled the spinner, or started another
-        // pack) → this stale response must not touch the current UI state.
-        if (buyAttemptId.current !== attempt) return;
-        setCheckoutOpening(false);
         checkoutClosing.current = false;
         setCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
       }
     } catch (e: any) {
       if (win && !win.closed) win.close();
-      // Stale/cancelled native attempt → stay silent and leave the newer
-      // attempt's state (if any) untouched.
-      if (Platform.OS !== "web" && buyAttemptId.current !== attempt) return;
-      setCheckoutOpening(false);
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
     }
-  };
-
-  // Native: cancel the instant-open spinner if the shopper backs out before the
-  // OMPay session URL is ready. Bumping the attempt id invalidates the in-flight
-  // session response so it can't reopen the WebView after cancel.
-  const cancelCheckoutOpening = () => {
-    buyAttemptId.current++;
-    setCheckoutOpening(false);
-    setBusyId(null);
   };
 
   // Web only: open the hosted checkout from a direct button tap (so the popup
@@ -448,28 +415,15 @@ export function BuyCoinsPanel() {
       </View>
 
       {/* In-app hosted-checkout (native) */}
-      <Modal
-        visible={!!checkout || checkoutOpening}
-        animationType="slide"
-        onRequestClose={() => (checkout ? closeCheckout(false) : cancelCheckoutOpening())}
-      >
+      <Modal visible={!!checkout} animationType="slide" onRequestClose={() => closeCheckout(false)}>
         <View style={styles.webWrap}>
           <View style={styles.webHeader}>
-            <TouchableOpacity
-              style={styles.webClose}
-              onPress={() => (checkout ? closeCheckout(false) : cancelCheckoutOpening())}
-            >
+            <TouchableOpacity style={styles.webClose} onPress={() => closeCheckout(false)}>
               <Feather name="x" size={22} color="#FFF" />
             </TouchableOpacity>
             <Text style={styles.webTitle}>الدفع الآمن</Text>
             <View style={{ width: 36 }} />
           </View>
-          {!checkout && checkoutOpening ? (
-            <View style={styles.webLoading}>
-              <ActivityIndicator color={PRIMARY} size="large" />
-              <Text style={styles.webLoadingText}>جارٍ تجهيز صفحة الدفع…</Text>
-            </View>
-          ) : null}
           {checkout ? (
             <WebView
               source={{ uri: checkout.url }}
@@ -646,8 +600,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   webTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
-  webLoading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#000", gap: 14 },
-  webLoadingText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+  webLoading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#000" },
 
   verifyOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
   verifyCard: {
