@@ -407,11 +407,40 @@
 .dash-stagger > *:nth-child(10) { animation-delay: 0.59s; }
 .dash-stagger > *:nth-child(n+11) { animation-delay: 0.65s; }
 
+/* ── Stats charts fly in from the SIDES to their place ──────────────
+   In the RTL 2-col grid the odd children are the right column (enter from
+   the right) and the even children are the left column (enter from the left),
+   so each row's two charts converge inward. Staggered row by row.
+   Longhand `animation-*` is used (not the shorthand) so the per-row
+   `animation-delay` rules below are never reset by the name rules. */
+@keyframes dashSideR {
+  from { opacity: 0; transform: translateX(70px)  scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes dashSideL {
+  from { opacity: 0; transform: translateX(-70px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+.dash-sides > *:not(.fixed):not(.absolute) {
+  opacity: 0;
+  animation-duration: 0.6s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+}
+.dash-sides > *:nth-child(odd):not(.fixed):not(.absolute)  { animation-name: dashSideR; }
+.dash-sides > *:nth-child(even):not(.fixed):not(.absolute) { animation-name: dashSideL; }
+.dash-sides > *:nth-child(1),  .dash-sides > *:nth-child(2)  { animation-delay: 0.05s; }
+.dash-sides > *:nth-child(3),  .dash-sides > *:nth-child(4)  { animation-delay: 0.14s; }
+.dash-sides > *:nth-child(5),  .dash-sides > *:nth-child(6)  { animation-delay: 0.23s; }
+.dash-sides > *:nth-child(7),  .dash-sides > *:nth-child(8)  { animation-delay: 0.32s; }
+.dash-sides > *:nth-child(n+9) { animation-delay: 0.41s; }
+
 @media (prefers-reduced-motion: reduce) {
   .dash-reveal,
   .dash-tab-pop,
   .dash-content-reveal,
-  .dash-stagger > * {
+  .dash-stagger > *,
+  .dash-sides > * {
     animation: none;
     opacity: 1;
     filter: none;

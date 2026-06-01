@@ -753,7 +753,7 @@ function StatsTab({ id }: { id: string }) {
   return (
     <div className="space-y-6">
       {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
-      <div className="dash-stagger grid grid-cols-2 gap-3">
+      <div className="dash-sides grid grid-cols-2 gap-3">
         <StatChartPanel
           title="إجمالي الطلبات"
           series={data.ordersSeries ?? []}
