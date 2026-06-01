@@ -1355,13 +1355,19 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
 
   const submit = async () => {
     setErr("");
-    const name = customerName.trim();
-    if (!name)               { setErr("أدخل اسم الزبون"); return; }
+    const phone = customerPhone.trim();
+    // When no phone is entered, the order is an anonymous walk-in, so the name
+    // is optional and defaults to "customer". A name is still required when a
+    // phone was typed.
+    let name = customerName.trim();
+    if (!name) {
+      if (phone) { setErr("أدخل اسم الزبون"); return; }
+      name = "customer";
+    }
     if (cartLines.length === 0) { setErr("اختر منتجاً واحداً على الأقل"); return; }
     // If a phone was typed but does not match a registered player, ask the
     // cashier to either clear it or correct it before sending. (Awarding only
     // happens when phone matches; an unmatched phone is just dead weight.)
-    const phone = customerPhone.trim();
     if (phone && !matchedUser) {
       setErr("الرقم غير مسجَّل في Copointo Hub — امسحه أو صحّحه قبل الإرسال");
       return;
@@ -1546,9 +1552,9 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
           <div className="space-y-3 mb-4">
             <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block">
-                اسم الزبون *
+                اسم الزبون
               </label>
-              <Inp value={customerName} onChange={setCustomerName} placeholder="مثال: أحمد" />
+              <Inp value={customerName} onChange={setCustomerName} placeholder="بدون رقم؟ يُكتب تلقائياً: customer" />
             </div>
             <div>
               <label className="text-xs font-semibold text-muted-foreground mb-1 block flex items-center gap-1.5">
@@ -1756,7 +1762,7 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
 
           <button
             onClick={submit}
-            disabled={submitting || cartLines.length === 0 || !customerName.trim()}
+            disabled={submitting || cartLines.length === 0 || (!customerName.trim() && !!customerPhone.trim())}
             className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold text-sm disabled:opacity-50 hover:opacity-90 flex items-center justify-center gap-2"
           >
             <CheckCircle size={16} />
