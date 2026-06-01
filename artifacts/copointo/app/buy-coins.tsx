@@ -185,6 +185,8 @@ export function BuyCoinsPanel() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<Checkout | null>(null);
+  const [webCheckout, setWebCheckout] = useState<Checkout | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const pollCancel = useRef(false);
   // Idempotency guards: never credit the same payment twice, never run two
@@ -273,26 +275,7 @@ export function BuyCoinsPanel() {
   const handleBuy = async (p: Pack) => {
     if (busyId) return;
     setBusyId(p.id);
-
-    // On web, browsers only allow window.open() synchronously inside the click
-    // gesture. Creating the OMPay session is async and can take many seconds, so
-    // open a placeholder tab NOW (within the gesture) and redirect it to the
-    // hosted checkout once the URL is ready — otherwise the popup is silently
-    // blocked and "nothing happens".
-    let webWin: Window | null = null;
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      webWin = window.open("about:blank", "_blank");
-      if (webWin) {
-        webWin.document.write(
-          '<!doctype html><html dir="rtl"><head><meta charset="utf-8">' +
-            "<title>الدفع الآمن</title></head>" +
-            '<body style="margin:0;background:#000;color:#E8B86D;font-family:sans-serif;' +
-            'display:flex;align-items:center;justify-content:center;height:100vh;">' +
-            "<div style='text-align:center'><div style='font-size:18px'>جارٍ تجهيز صفحة الدفع…</div>" +
-            "<div style='font-size:13px;color:#999;margin-top:8px'>لحظة من فضلك</div></div></body></html>",
-        );
-      }
-    }
+    if (Platform.OS === "web") setPreparing(true);
 
     try {
       const { payment, token } = await createPaymentSession({
@@ -308,24 +291,40 @@ export function BuyCoinsPanel() {
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
       if (Platform.OS === "web") {
-        // Redirect the placeholder tab we opened during the click; if the popup
-        // was blocked (webWin null) fall back to a best-effort open. We can't
-        // observe the tab's navigation, so poll through transient "failed"
-        // states (abortOnFailure=false).
-        if (webWin) {
-          webWin.location.href = payment.checkoutUrl;
-        } else if (typeof window !== "undefined") {
-          window.open(payment.checkoutUrl, "_blank");
-        }
-        startPolling(payment.id, token, p.coins, false);
+        // Browsers (and the Replit preview iframe) block window.open() unless it
+        // runs directly inside a user click. Creating the OMPay session is async
+        // (seconds), so we can't open the tab here. Instead show a small modal
+        // whose button opens the checkout from a FRESH tap — reliably allowed.
+        setPreparing(false);
+        setBusyId(null);
+        setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
       } else {
         checkoutClosing.current = false;
         setCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
       }
     } catch (e: any) {
-      if (webWin) webWin.close();
+      setPreparing(false);
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
+    }
+  };
+
+  // Web only: open the hosted checkout from a direct button tap (so the popup
+  // isn't blocked), then poll for completion. Falls back to navigating the
+  // current tab if the new tab is still blocked, so the page always appears.
+  const openWebCheckout = () => {
+    const c = webCheckout;
+    if (!c) return;
+    setWebCheckout(null);
+    const opened = typeof window !== "undefined" ? window.open(c.url, "_blank") : null;
+    if (opened) {
+      // New tab opened → keep this screen alive and poll for completion.
+      startPolling(c.paymentId, c.token, c.coins, false);
+    } else if (typeof window !== "undefined") {
+      // New tab blocked → navigate this tab so the user still reaches OMPay.
+      // (Rare last resort: the navigation unmounts this screen, so we don't
+      // start a poll that would be killed immediately.)
+      window.location.href = c.url;
     }
   };
 
@@ -399,12 +398,37 @@ export function BuyCoinsPanel() {
         </View>
       </Modal>
 
-      {/* Verifying overlay (both platforms) */}
-      <Modal visible={verifying} transparent animationType="fade">
+      {/* Web: explicit "open payment page" modal (popup must come from a tap) */}
+      <Modal
+        visible={!!webCheckout}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWebCheckout(null)}
+      >
+        <View style={styles.verifyOverlay}>
+          <View style={styles.webPayCard}>
+            <Text style={styles.webPayTitle}>إتمام عملية الدفع</Text>
+            <Text style={styles.webPaySub}>
+              اضغط الزر أدناه لفتح صفحة الدفع الآمنة الخاصة بـ OMPay.
+            </Text>
+            <TouchableOpacity style={styles.webPayBtn} onPress={openWebCheckout} activeOpacity={0.85}>
+              <Text style={styles.webPayBtnText}>ادفع الآن</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setWebCheckout(null)}>
+              <Text style={styles.webPayCancel}>إلغاء</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Verifying / preparing overlay (both platforms) */}
+      <Modal visible={verifying || preparing} transparent animationType="fade">
         <View style={styles.verifyOverlay}>
           <View style={styles.verifyCard}>
             <ActivityIndicator color={PRIMARY} size="large" />
-            <Text style={styles.verifyText}>جارٍ تأكيد الدفع…</Text>
+            <Text style={styles.verifyText}>
+              {preparing ? "جارٍ تجهيز صفحة الدفع…" : "جارٍ تأكيد الدفع…"}
+            </Text>
             <Text style={styles.verifySub}>لا تغلق التطبيق</Text>
           </View>
         </View>
@@ -523,4 +547,21 @@ const styles = StyleSheet.create({
   },
   verifyText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
   verifySub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
+
+  webPayCard: {
+    backgroundColor: "#0A0606", borderRadius: 18, borderWidth: 1, borderColor: PRIMARY,
+    paddingVertical: 26, paddingHorizontal: 28, alignItems: "center", gap: 14,
+    width: "82%", maxWidth: 360,
+  },
+  webPayTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "center" },
+  webPaySub: {
+    fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)",
+    textAlign: "center", lineHeight: 20,
+  },
+  webPayBtn: {
+    backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 13,
+    alignItems: "center", justifyContent: "center", alignSelf: "stretch", marginTop: 4,
+  },
+  webPayBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
+  webPayCancel: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", paddingTop: 2 },
 });
