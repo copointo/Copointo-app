@@ -52,6 +52,7 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `customerFields.name` (required), `.email` (required), `.phone` (required) — OMPay 400s if any is missing/blank.
 - `name` must be **Latin** — Arabic-only names → `"Invalid name"`. `phone` must be the **8-digit local Omani** number (no country code) — `96890000000` → `"Invalid mobile number"`, `90000000` works.
 - The adapter sanitises before sending: strip name to Latin (`[^A-Za-z .'-]`) else fall back `"Copointo Customer"`; validate email regex else derive `${localPhone}@copointo.app`; strip phone to trailing 8 digits (drop `+968`/`968`). Mock-auth accounts are phone-only / Arabic-named, so these fallbacks are load-bearing, not edge cases.
+- **Phone fallback is MANDATORY for phone-less flows.** Buy-coins sends NO phone → OMPay 400s `"customerFields.phone" is required` → the hosted gateway never opens. Fix: when no usable 8-digit phone, the adapter substitutes a placeholder `"90000000"` so create-checkout always succeeds. Any new flow that calls `createHostedCheckout` without a phone relies on this.
 - **check-status returns a FAILED-state status for a freshly-created, not-yet-paid order.** So the client must NOT poll while the shopper is still on the hosted page on native — it polls only AFTER the WebView hits `/payments/return`. On web (checkout in a separate tab, navigation unobservable) the poller is started immediately but runs with `abortOnFailure=false` so a transient "failed" doesn't abort; it waits for "paid" or the 4-min deadline.
 
 ## ⚠️ Remaining seams

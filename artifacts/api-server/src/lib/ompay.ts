@@ -126,10 +126,14 @@ export async function createHostedCheckout(
   // number (no country code). Stored phones may carry a +968 / 968 prefix, so
   // strip non-digits and the country code down to the trailing 8 digits.
   const phoneDigits = String(input.customerPhone ?? "").replace(/\D+/g, "");
-  const localPhone =
+  const localPhoneRaw =
     phoneDigits.length > 8
       ? (phoneDigits.startsWith("968") ? phoneDigits.slice(3) : phoneDigits).slice(-8)
       : phoneDigits;
+  // OMPay marks the mobile number as REQUIRED, so some flows (e.g. buying coins)
+  // that don't collect a phone must still send a valid 8-digit Omani number.
+  // Fall back to a stable placeholder when the account has no usable phone.
+  const localPhone = localPhoneRaw.length === 8 ? localPhoneRaw : "90000000";
 
   // OMPay rejects non-Latin names ("Invalid name"), so keep only Latin letters /
   // spaces / basic punctuation; fall back when nothing usable remains (the app's
