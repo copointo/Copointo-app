@@ -12,10 +12,18 @@ export const API_BASE =
 // would stay true forever, disabling the input. AbortController + timeout
 // guarantees every request settles in bounded time.
 const REQUEST_TIMEOUT_MS = 12_000;
+// OMPay's hosted-checkout create + status-check calls are noticeably slower than
+// our own endpoints (UAT has been seen at ~30-40s), so the default 12s timeout
+// would abort them prematurely. Payment calls pass this longer budget instead.
+const PAYMENT_TIMEOUT_MS = 60_000;
 
-async function fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> {
+async function fetchWithTimeout(
+  input: string,
+  init?: RequestInit,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     return await fetch(input, { ...init, signal: ctrl.signal });
   } catch (e: any) {
@@ -82,11 +90,15 @@ export interface CreatePaymentInput {
 export async function createPaymentSession(
   input: CreatePaymentInput,
 ): Promise<{ payment: PaymentView; token: string }> {
-  const res = await fetchWithTimeout(`${API_BASE}/payments/session`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const res = await fetchWithTimeout(
+    `${API_BASE}/payments/session`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    PAYMENT_TIMEOUT_MS,
+  );
   if (!res.ok) {
     let msg = `payment error ${res.status}`;
     try {
@@ -106,6 +118,8 @@ export async function getPaymentStatus(
 ): Promise<PaymentView> {
   const res = await fetchWithTimeout(
     `${API_BASE}/payments/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`,
+    undefined,
+    PAYMENT_TIMEOUT_MS,
   );
   if (!res.ok) throw new Error(`payment status error ${res.status}`);
   const data = (await res.json()) as { payment: PaymentView };

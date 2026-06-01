@@ -273,6 +273,27 @@ export function BuyCoinsPanel() {
   const handleBuy = async (p: Pack) => {
     if (busyId) return;
     setBusyId(p.id);
+
+    // On web, browsers only allow window.open() synchronously inside the click
+    // gesture. Creating the OMPay session is async and can take many seconds, so
+    // open a placeholder tab NOW (within the gesture) and redirect it to the
+    // hosted checkout once the URL is ready — otherwise the popup is silently
+    // blocked and "nothing happens".
+    let webWin: Window | null = null;
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      webWin = window.open("about:blank", "_blank");
+      if (webWin) {
+        webWin.document.write(
+          '<!doctype html><html dir="rtl"><head><meta charset="utf-8">' +
+            "<title>الدفع الآمن</title></head>" +
+            '<body style="margin:0;background:#000;color:#E8B86D;font-family:sans-serif;' +
+            'display:flex;align-items:center;justify-content:center;height:100vh;">' +
+            "<div style='text-align:center'><div style='font-size:18px'>جارٍ تجهيز صفحة الدفع…</div>" +
+            "<div style='font-size:13px;color:#999;margin-top:8px'>لحظة من فضلك</div></div></body></html>",
+        );
+      }
+    }
+
     try {
       const { payment, token } = await createPaymentSession({
         purpose: "coins",
@@ -287,15 +308,22 @@ export function BuyCoinsPanel() {
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
       if (Platform.OS === "web") {
-        // On web the hosted checkout opens in a new tab; we can't observe its
-        // navigation, so poll through transient "failed" states (abortOnFailure=false).
-        if (typeof window !== "undefined") window.open(payment.checkoutUrl, "_blank");
+        // Redirect the placeholder tab we opened during the click; if the popup
+        // was blocked (webWin null) fall back to a best-effort open. We can't
+        // observe the tab's navigation, so poll through transient "failed"
+        // states (abortOnFailure=false).
+        if (webWin) {
+          webWin.location.href = payment.checkoutUrl;
+        } else if (typeof window !== "undefined") {
+          window.open(payment.checkoutUrl, "_blank");
+        }
         startPolling(payment.id, token, p.coins, false);
       } else {
         checkoutClosing.current = false;
         setCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
       }
     } catch (e: any) {
+      if (webWin) webWin.close();
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
     }
