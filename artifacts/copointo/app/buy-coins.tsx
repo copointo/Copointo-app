@@ -177,6 +177,23 @@ interface Checkout {
   coins: number;
 }
 
+// Loading page shown inside the newly-opened payment tab while we create the
+// OMPay session in the background; the tab is then redirected to the checkout.
+const CHECKOUT_LOADING_HTML =
+  '<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">' +
+  '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+  "<title>الدفع الآمن</title><style>" +
+  "html,body{margin:0;height:100%;background:#000;color:#E8B86D;" +
+  "font-family:-apple-system,Segoe UI,Roboto,sans-serif}" +
+  ".wrap{height:100%;display:flex;flex-direction:column;align-items:center;" +
+  "justify-content:center;gap:18px;text-align:center;padding:24px}" +
+  ".sp{width:46px;height:46px;border:4px solid rgba(232,184,109,.25);" +
+  "border-top-color:#E8B86D;border-radius:50%;animation:s 1s linear infinite}" +
+  "@keyframes s{to{transform:rotate(360deg)}}.t{font-size:18px;font-weight:700}" +
+  ".s{font-size:13px;color:#9a9a9a}</style></head><body><div class='wrap'>" +
+  "<div class='sp'></div><div class='t'>جارٍ تجهيز صفحة الدفع الآمنة…</div>" +
+  "<div class='s'>لحظة من فضلك، سيتم تحويلك إلى بوابة OMPay</div></div></body></html>";
+
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
   const { user } = useApp();
@@ -186,7 +203,6 @@ export function BuyCoinsPanel() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [webCheckout, setWebCheckout] = useState<Checkout | null>(null);
-  const [preparing, setPreparing] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const pollCancel = useRef(false);
   // Idempotency guards: never credit the same payment twice, never run two
@@ -275,7 +291,24 @@ export function BuyCoinsPanel() {
   const handleBuy = async (p: Pack) => {
     if (busyId) return;
     setBusyId(p.id);
-    if (Platform.OS === "web") setPreparing(true);
+
+    // Web: open the payment tab IMMEDIATELY inside the tap gesture (so the
+    // browser allows it) showing a loading page, then redirect that tab to the
+    // OMPay checkout once the session URL is ready. This makes the page appear
+    // instantly instead of after a ~40s blocking wait. Opening the tab later
+    // (after the await) would be blocked as a non-gesture popup.
+    let win: Window | null = null;
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      win = window.open("about:blank", "_blank");
+      if (win) {
+        try {
+          win.document.write(CHECKOUT_LOADING_HTML);
+          win.document.close();
+        } catch {
+          /* cross-origin write can throw in rare cases; redirect still works */
+        }
+      }
+    }
 
     try {
       const { payment, token } = await createPaymentSession({
@@ -291,19 +324,21 @@ export function BuyCoinsPanel() {
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
       if (Platform.OS === "web") {
-        // Browsers (and the Replit preview iframe) block window.open() unless it
-        // runs directly inside a user click. Creating the OMPay session is async
-        // (seconds), so we can't open the tab here. Instead show a small modal
-        // whose button opens the checkout from a FRESH tap — reliably allowed.
-        setPreparing(false);
         setBusyId(null);
-        setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
+        if (win && !win.closed) {
+          // Redirect the already-open loading tab to the hosted checkout.
+          win.location.href = payment.checkoutUrl;
+          startPolling(payment.id, token, p.coins, false);
+        } else {
+          // Popup was blocked/closed → fall back to an explicit tap-to-open modal.
+          setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
+        }
       } else {
         checkoutClosing.current = false;
         setCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
       }
     } catch (e: any) {
-      setPreparing(false);
+      if (win && !win.closed) win.close();
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
     }
@@ -421,14 +456,12 @@ export function BuyCoinsPanel() {
         </View>
       </Modal>
 
-      {/* Verifying / preparing overlay (both platforms) */}
-      <Modal visible={verifying || preparing} transparent animationType="fade">
+      {/* Verifying overlay (both platforms) */}
+      <Modal visible={verifying} transparent animationType="fade">
         <View style={styles.verifyOverlay}>
           <View style={styles.verifyCard}>
             <ActivityIndicator color={PRIMARY} size="large" />
-            <Text style={styles.verifyText}>
-              {preparing ? "جارٍ تجهيز صفحة الدفع…" : "جارٍ تأكيد الدفع…"}
-            </Text>
+            <Text style={styles.verifyText}>جارٍ تأكيد الدفع…</Text>
             <Text style={styles.verifySub}>لا تغلق التطبيق</Text>
           </View>
         </View>
