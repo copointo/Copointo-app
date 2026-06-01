@@ -1,6 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins, Gift, Package, Gem } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins, Gift, Package } from "lucide-react";
 import { api } from "@/lib/api";
+import coinUrl from "@/assets/copointo-coin.png";
+
+/** Copointo coin icon — replaces the legacy diamond/Gem mark for currency. */
+function CoinIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
+  return (
+    <img
+      src={coinUrl}
+      alt=""
+      className={`inline-block object-contain shrink-0 ${className}`}
+      style={{ width: size, height: size }}
+    />
+  );
+}
 
 interface OwnedItems {
   frames: string[]; badges: string[]; backgrounds: string[];
@@ -487,7 +500,7 @@ export default function UsersPage() {
                       return (
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-400 rounded-lg px-2 py-0.5 text-xs font-bold" title="العملات">
-                            <Gem size={12} /> {user.coins ?? 0}
+                            <CoinIcon size={12} /> {user.coins ?? 0}
                           </span>
                           <span className="inline-flex items-center gap-1 bg-primary/15 text-primary rounded-lg px-2 py-0.5 text-xs font-bold" title="العناصر المملوكة">
                             <Package size={12} /> {itemsTotal(user.ownedItems)}
@@ -534,7 +547,7 @@ export default function UsersPage() {
                         title="إدارة العملات والعناصر والقهوة المجانية"
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
                       >
-                        <Gem size={14} /> الأرباح
+                        <CoinIcon size={14} /> الأرباح
                       </button>
                       <button
                         onClick={() => user.banned ? unban(user.id) : openBan(user)}
@@ -882,7 +895,7 @@ export default function UsersPage() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-emerald-900/30 to-transparent">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <Gem size={20} />
+                  <CoinIcon size={20} />
                 </div>
                 <div>
                   <p className="font-bold text-foreground">أرباح {earnTarget.username}</p>
@@ -904,7 +917,7 @@ export default function UsersPage() {
               {/* Coins */}
               <div className="border border-amber-500/30 rounded-xl p-4 bg-amber-500/5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Gem size={16} className="text-amber-400" />
+                  <CoinIcon size={16} />
                   <p className="font-bold text-foreground text-sm">رصيد العملات</p>
                 </div>
                 <div className="flex items-center gap-2">
