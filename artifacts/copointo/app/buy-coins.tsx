@@ -429,6 +429,22 @@ export function BuyCoinsPanel() {
               source={{ uri: checkout.url }}
               style={{ flex: 1, backgroundColor: "#000" }}
               startInLoadingState
+              originWhitelist={["*"]}
+              javaScriptEnabled
+              domStorageEnabled
+              /* iOS: let the OMPay card inputs focus & raise the keyboard
+                 without a prior user gesture inside the WebView */
+              keyboardDisplayRequiresUserAction={false}
+              hideKeyboardAccessoryView={false}
+              /* OMPay captures the card number/CVV inside iframes — these
+                 need third-party cookies + a single window or the fields
+                 silently refuse input */
+              thirdPartyCookiesEnabled
+              sharedCookiesEnabled
+              setSupportMultipleWindows={false}
+              allowsInlineMediaPlayback
+              mixedContentMode="always"
+              androidLayerType="hardware"
               renderLoading={() => (
                 <View style={styles.webLoading}>
                   <ActivityIndicator color={PRIMARY} size="large" />
