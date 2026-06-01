@@ -17,7 +17,8 @@ There is NO Replit integration/connector for OMPay (only Stripe exists). OMPay i
 User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkout page; card data never touches our servers; avoids PCI scope). Merchant Hosted (in-app card form, base path `/nac/api/v1/merchant-host`) was rejected as overkill for a coffee app.
 
 ## Known-correct OMPay facts (from official docs)
-- Auth = HTTP Basic `Base64(CLIENT_ID:CLIENT_SECRET)`.
+- Auth = HTTP Basic `Base64(CLIENT_ID:CLIENT_SECRET)` — CONFIRMED, already in `basicAuthHeader`. This is ALL our Bank Hosted calls need.
+- ⚠️ The auth doc also shows `X-Signature`, `X-MERCHANT-BROWSER-FINGERPRINT`, `X-MERCHANT-USER-AGENT`, `X-MERCHANT-DOMAIN`, `X-MERCHANT-IP` headers + a "Card Encryption Key" → these are **Merchant Hosted ONLY** (the `/order` endpoint, in-app card collection). We chose Bank Hosted, so do NOT add them.
 - Gateway base URLs: `https://api.gateway.ompay.com` (PROD), `https://api.uat.gateway.ompay.com` (UAT/sandbox). Selected via `OMPAY_ENV` (default sandbox→UAT). **NOTE: earlier code guessed `api.ompay.com/v1` — that was WRONG; the real host is the `*.gateway.ompay.com` API env. No `/v1` suffix is documented for Bank Hosted; the exact endpoint PATH is still unconfirmed.**
 - Currency OMR has **3 decimals** → amounts sent in minor units (×1000 baisa). `toMinorUnits()` + server-side amount validation rejects >3-decimal values.
 
