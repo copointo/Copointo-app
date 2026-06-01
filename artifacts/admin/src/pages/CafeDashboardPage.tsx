@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
   ArrowLeft, ArrowRight, LayoutDashboard, ShoppingBag, CalendarDays, UtensilsCrossed,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  LineChart, Line, AreaChart, Area, CartesianGrid,
+  AreaChart, Area, CartesianGrid,
 } from "recharts";
 import { api } from "@/lib/api";
 import { Link } from "wouter";
@@ -6257,15 +6257,24 @@ export function ManagerAnalyticsPage() {
 function GoldStat({ label, value, sub, icon, accent = "#E8B86D" }:
   { label: string; value: any; sub?: string; icon: React.ReactNode; accent?: string }) {
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-[#0A0606] via-[#070404] to-black border border-[#E8B86D]/25 p-4 hover:border-[#E8B86D]/50 transition">
-      <div className="flex items-start justify-between gap-3">
+    <div
+      className="group relative rounded-2xl p-4 overflow-hidden border transition-all duration-200 hover:-translate-y-0.5"
+      style={{
+        background: "linear-gradient(135deg,#0C0807 0%,#070404 55%,#000 100%)",
+        borderColor: `${accent}40`,
+        boxShadow: `0 8px 24px -12px ${accent}66, inset 0 1px 0 ${accent}1F`,
+      }}
+    >
+      <span className="pointer-events-none absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl opacity-25 transition-opacity duration-300 group-hover:opacity-40" style={{ background: accent }} />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}99, transparent)` }} />
+      <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-[#E8B86D]/70 uppercase tracking-wider">{label}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: `${accent}B3` }}>{label}</p>
           <p className="text-base sm:text-lg lg:text-xl font-extrabold text-[#F5E6CC] mt-1 leading-tight break-words tabular-nums" style={{ overflowWrap: "anywhere" }}>{value}</p>
           {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
         </div>
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `linear-gradient(135deg, ${accent}33, ${accent}11)`, color: accent }}>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border"
+          style={{ background: `linear-gradient(135deg, ${accent}33, ${accent}0D)`, color: accent, borderColor: `${accent}40`, boxShadow: `0 0 14px ${accent}33` }}>
           {icon}
         </div>
       </div>
@@ -6275,12 +6284,57 @@ function GoldStat({ label, value, sub, icon, accent = "#E8B86D" }:
 
 function SectionCard({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-[#0A0606] to-black border border-[#E8B86D]/20 p-5">
+    <div
+      className="relative rounded-2xl bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/20 p-5 overflow-hidden"
+      style={{ boxShadow: "0 14px 36px -20px rgba(232,184,109,0.4)" }}
+    >
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E8B86D]/55 to-transparent" />
       <h3 className="text-sm font-bold text-[#F5E6CC] mb-4 flex items-center gap-2">
-        {icon && <span className="text-[#E8B86D]">{icon}</span>}{title}
+        {icon && (
+          <span className="w-7 h-7 rounded-lg flex items-center justify-center text-[#E8B86D] border border-[#E8B86D]/30"
+            style={{ background: "linear-gradient(135deg,#E8B86D26,#E8B86D0D)" }}>
+            {icon}
+          </span>
+        )}
+        {title}
       </h3>
       {children}
     </div>
+  );
+}
+
+// Shared premium line chart for the manager analytics view — smooth monotone
+// line with a gold gradient fill, dots, and a dark glowing tooltip, matching
+// the dashboard's statistics chart style.
+function GoldLineChart({ data, xKey, yKey, gradId, height = 240, color = "#E8B86D", money = false, valueLabel }: {
+  data: any[]; xKey: string; yKey: string; gradId: string;
+  height?: number; color?: string; money?: boolean; valueLabel?: string;
+}) {
+  const fmt = (n: any) => money ? `${Number(n || 0).toFixed(3)} OMR` : `${Number(n || 0).toLocaleString("en-US")}`;
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 12, right: 14, left: -6, bottom: 0 }}>
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor={color} stopOpacity={0.45} />
+            <stop offset="100%" stopColor={color} stopOpacity={0.03} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D1A" vertical={false} />
+        <XAxis dataKey={xKey} tick={{ fill: "#E8B86D", fontSize: 11 }} axisLine={{ stroke: "#E8B86D33" }} tickLine={false} interval="preserveStartEnd" />
+        <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={money} axisLine={false} tickLine={false} width={money ? 54 : 38} />
+        <Tooltip
+          cursor={{ stroke: `${color}66`, strokeWidth: 1 }}
+          contentStyle={{ background: "#0A0606", border: `1px solid ${color}55`, borderRadius: 10, color: "#F5E6CC", boxShadow: `0 0 18px ${color}33` }}
+          labelStyle={{ color }}
+          formatter={(v: any) => [fmt(v), valueLabel ?? (money ? "المبلغ" : "العدد")]}
+        />
+        <Area type="monotone" dataKey={yKey} stroke={color} strokeWidth={2.75}
+          fill={`url(#${gradId})`}
+          dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
+          activeDot={{ r: 6, fill: color, stroke: "#0A0606", strokeWidth: 2 }} />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -6328,21 +6382,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
           ))}
         </div>
         {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="goldFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor="#E8B86D" stopOpacity={0.6} />
-                  <stop offset="100%" stopColor="#E8B86D" stopOpacity={0.05} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
-              <XAxis dataKey="x" tick={{ fill: "#E8B86D", fontSize: 11 }} />
-              <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-              <Area type="monotone" dataKey="revenue" stroke="#E8B86D" strokeWidth={2.5} fill="url(#goldFill)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <GoldLineChart data={chartData} xKey="x" yKey="revenue" gradId="revGold" height={260} money valueLabel="الإيراد" />
         ) : (
           <p className="text-center text-muted-foreground py-10 text-sm">لا توجد بيانات بعد</p>
         )}
@@ -6361,64 +6401,26 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         {/* Order type bar */}
         <SectionCard title="نوع الطلب" icon={<Coffee size={16} />}>
           {(o.dineIn + o.carOut) > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={orderTypeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
-                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {orderTypeData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GoldLineChart data={orderTypeData} xKey="name" yKey="value" gradId="ordType" valueLabel="عدد الطلبات" />
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد طلبات بعد</p>}
         </SectionCard>
 
         {/* Order source bar */}
         <SectionCard title="مصدر الطلب (مباشر / شات)" icon={<MessageCircle size={16} />}>
           {(o.direct + o.viaChat) > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={orderSourceData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
-                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {orderSourceData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GoldLineChart data={orderSourceData} xKey="name" yKey="value" gradId="ordSrc" valueLabel="عدد الطلبات" />
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد طلبات بعد</p>}
         </SectionCard>
 
         {/* Weekday bar */}
         <SectionCard title={`الأيام الأكثر طلباً ${data.busiestDay?.orders ? `(الأكثر: ${data.busiestDay.day})` : ""}`} icon={<CalendarDays size={16} />}>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={data.weekdayChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
-              <XAxis dataKey="day" tick={{ fill: "#E8B86D", fontSize: 11 }} />
-              <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-              <Bar dataKey="orders" fill="#E8B86D" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <GoldLineChart data={data.weekdayChart} xKey="day" yKey="orders" gradId="weekday" valueLabel="عدد الطلبات" />
         </SectionCard>
 
         {/* Bookings status bar */}
         <SectionCard title="حالة الحجوزات" icon={<Armchair size={16} />}>
           {b.total > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={bookingData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
-                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {bookingData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GoldLineChart data={bookingData} xKey="name" yKey="value" gradId="booking" valueLabel="عدد الحجوزات" />
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد حجوزات بعد</p>}
         </SectionCard>
       </div>
@@ -6460,17 +6462,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         {/* Top categories */}
         <SectionCard title="الفئة الأكثر طلباً" icon={<UtensilsCrossed size={16} />}>
           {data.topCategories.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={data.topCategories}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E8B86D22" />
-                <XAxis dataKey="name" tick={{ fill: "#E8B86D", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#E8B86D", fontSize: 11 }} allowDecimals={false} />
-                <Tooltip cursor={{ fill: "#E8B86D11" }} contentStyle={{ background: "#0A0606", border: "1px solid #E8B86D55", borderRadius: 8, color: "#F5E6CC" }} />
-                <Bar dataKey="qty" radius={[6, 6, 0, 0]}>
-                  {data.topCategories.map((_: any, i: number) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GoldLineChart data={data.topCategories} xKey="name" yKey="qty" gradId="cats" valueLabel="الكمية" />
           ) : <p className="text-center text-muted-foreground py-10 text-sm">لا توجد بيانات</p>}
         </SectionCard>
       </div>
