@@ -421,7 +421,11 @@ export default function FlappyCopointoScreen() {
       />
       {/* Tap surface (idle taps pass through to start/flap) */}
       <Pressable style={StyleSheet.absoluteFill} onPress={onTap}>
-        <View pointerEvents="none" style={styles.glowTop} />
+        {/* Moon — uses the Copointo coin image as a glowing celestial body */}
+        <View pointerEvents="none" style={[styles.moonWrap, { top: insets.top + 70 }]}>
+          <View style={styles.moonGlow} />
+          <Image source={COIN_IMG} style={styles.moonImg} />
+        </View>
         <View pointerEvents="none" style={styles.glowBottom} />
 
         {/* Pipes (recycled pool, animated entirely on the UI thread) */}
@@ -515,15 +519,28 @@ export default function FlappyCopointoScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG, overflow: "hidden" },
 
-  glowTop: {
+  // Coin "moon" — a glowing celestial body using the Copointo coin image.
+  moonWrap: {
     position: "absolute",
-    top: -180,
     left: "50%",
-    marginLeft: -200,
-    width: 400,
-    height: 400,
-    borderRadius: 200,
-    backgroundColor: "rgba(232,184,109,0.07)",
+    marginLeft: -65,
+    width: 130,
+    height: 130,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moonGlow: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(232,184,109,0.10)",
+  },
+  moonImg: {
+    width: 104,
+    height: 104,
+    resizeMode: "contain",
+    opacity: 0.92,
   },
   glowBottom: {
     position: "absolute",
