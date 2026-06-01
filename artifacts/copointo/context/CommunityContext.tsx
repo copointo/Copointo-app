@@ -316,7 +316,6 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
     const prevIds = lastMyIdsRef.current;
     const sigs = lastBoundSigRef.current;
     const currentIds = new Set<string>();
-    const allIds = new Set(allCommunities.map(c => c.id));
 
     for (const c of myCommunities) {
       currentIds.add(c.id);
@@ -326,21 +325,19 @@ export function CommunityProvider({ children }: { children: ReactNode }) {
         syncCommunityGroup(c).catch(() => {});
       }
     }
-    // Communities I am no longer a member of (left / kicked / dissolved).
+    // IMPORTANT: this periodic reconcile is ADDITIVE-ONLY. We deliberately do
+    // NOT dissolve or remove the bound chat group here. The 4s server poll can
+    // transiently return a stale/empty snapshot that briefly drops a community
+    // from `myCommunities`; auto-removing the group on that basis made
+    // community group conversations (and their visible chat history) disappear
+    // on their own. Genuine removals are handled by the explicit user actions
+    // — leaveCommunity, removeMember, and last-member dissolve — through their
+    // own code paths, so no conversation ever vanishes from a background poll.
     for (const oldId of prevIds) {
-      if (!currentIds.has(oldId)) {
-        sigs.delete(oldId);
-        if (!allIds.has(oldId)) {
-          // Fully gone server-side → dissolve for everyone we can reach.
-          dissolveCommunityGroup(oldId, [user.id]).catch(() => {});
-        } else {
-          // Still exists but I'm no longer in it → drop it from my storage only.
-          dissolveCommunityGroup(oldId, [user.id]).catch(() => {});
-        }
-      }
+      if (!currentIds.has(oldId)) sigs.delete(oldId);
     }
     lastMyIdsRef.current = currentIds;
-  }, [ready, user?.id, myCommunities, allCommunities, syncCommunityGroup, dissolveCommunityGroup]);
+  }, [ready, user?.id, myCommunities, syncCommunityGroup]);
 
   /** ────────── createCommunity ────────── */
   const createCommunity = useCallback(

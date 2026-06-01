@@ -6,4 +6,5 @@
 - [RN-web style coercion crash](rn-web-style-coercion.md) — numeric/shorthand style keys (e.g. `font`) spread into a <View> crash only on react-native-web; native ignores them.
 - [UNO online game](uno-game.md) — lazy-tick (no bg loop, advances on each request+client poll); +4 legality MUST be enforced in bot AI too or tick() stalls; 25-coin reward is client-trusted.
 - [Copointo invoices source](copointo-invoices-source.md) — Printed-Invoices browser must read the persistent `invoices` collection, not live `orders` (orders get wiped on "new day").
+- [Copointo community group persistence](copointo-community-group-persistence.md) — community→group reconcile must be ADDITIVE-ONLY; poll-driven dissolve wiped conversations. Kicked members keeping history is intended.
 - [Leaderboard reward parity](leaderboard-reward-parity.md) — any payout/ranking mirroring the leaderboard must share the FNV-1a hashId tiebreaker AND the !showcaseOnly+!banned filter, or rewards hit wrong/demo users.
