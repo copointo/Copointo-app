@@ -20,7 +20,6 @@ import {
   isOmpayConfigured,
   createHostedCheckout,
   checkOrderStatus,
-  verifyWebhookSignature,
   toMinorUnits,
 } from "../lib/ompay";
 
@@ -71,6 +70,41 @@ function publicPayment(p: Payment) {
     updatedAt: p.updatedAt,
     paidAt: p.paidAt ?? null,
   };
+}
+
+/** Authoritatively confirm a still-pending payment against OMPay's Status Check
+ *  API and apply the result (paid / failed / canceled). Safe to call from both
+ *  the client poll and the webhook: we NEVER trust a client- or webhook-supplied
+ *  status — we re-fetch from OMPay over authenticated HTTPS, so a forged webhook
+ *  is inert. No-ops unless OMPay is configured and the payment is still pending. */
+async function confirmPaymentWithProvider(p: Payment, log?: any): Promise<void> {
+  if (!isOmpayConfigured() || p.status !== "pending" || !p.providerSessionId) return;
+  try {
+    const st = await checkOrderStatus(p.providerSessionId);
+    if (SUCCESS_STATES.includes(st.status)) {
+      // Defence-in-depth: refuse to mark paid if the confirmed amount does not
+      // match what we created the order for (tamper / wrong-order guard).
+      const amountOk =
+        st.amount == null || Math.abs(Number(st.amount) - Number(p.amount)) < 0.0005;
+      if (amountOk) {
+        p.status = "paid";
+        p.paidAt = new Date().toISOString();
+        p.updatedAt = p.paidAt;
+        await flushNow();
+      } else {
+        log?.error?.(
+          { paymentId: p.id, expected: p.amount, got: st.amount },
+          "ompay status: amount mismatch — NOT marking paid",
+        );
+      }
+    } else if (FAILED_STATES.includes(st.status)) {
+      p.status = st.status.startsWith("cancel") ? "canceled" : "failed";
+      p.updatedAt = new Date().toISOString();
+      await flushNow();
+    }
+  } catch (err: any) {
+    log?.warn?.({ err: String(err?.message ?? err) }, "ompay check-status failed");
+  }
 }
 
 // ─── Create a hosted-checkout session ───────────────────────────────────
@@ -172,36 +206,9 @@ router.get("/:id", async (req: any, res): Promise<any> => {
     return res.status(403).json({ error: "FORBIDDEN" });
   }
 
-  if (isOmpayConfigured() && p.status === "pending" && p.providerSessionId) {
-    try {
-      const st = await checkOrderStatus(p.providerSessionId);
-      if (SUCCESS_STATES.includes(st.status)) {
-        // Defence-in-depth: refuse to mark paid if the confirmed amount does
-        // not match what we created the order for (tamper / wrong-order guard).
-        const amountOk =
-          st.amount == null || Math.abs(Number(st.amount) - Number(p.amount)) < 0.0005;
-        if (amountOk) {
-          p.status = "paid";
-          p.paidAt = new Date().toISOString();
-          p.updatedAt = p.paidAt;
-          await flushNow();
-        } else {
-          req.log?.error?.(
-            { paymentId: p.id, expected: p.amount, got: st.amount },
-            "ompay status: amount mismatch — NOT marking paid",
-          );
-        }
-      } else if (FAILED_STATES.includes(st.status)) {
-        p.status = st.status.startsWith("cancel") ? "canceled" : "failed";
-        p.updatedAt = new Date().toISOString();
-        await flushNow();
-      }
-    } catch (err: any) {
-      // Network/provider hiccup → return the cached status; the client keeps
-      // polling, so a transient failure self-heals on the next tick.
-      req.log?.warn?.({ err: String(err?.message ?? err) }, "ompay check-status failed");
-    }
-  }
+  // A transient provider failure self-heals: the client keeps polling, so the
+  // next tick re-confirms. confirmPaymentWithProvider swallows its own errors.
+  await confirmPaymentWithProvider(p, req.log);
 
   return res.json({ payment: publicPayment(p) });
 });
@@ -212,46 +219,29 @@ router.post("/ompay/webhook", async (req: any, res): Promise<any> => {
     return res.status(503).json({ error: "PAYMENTS_NOT_CONFIGURED" });
   }
 
-  // ⚠️ CONFIRM-AGAINST-PORTAL: signature header name. We try the common ones.
-  const sig =
-    (req.headers["x-ompay-signature"] as string) ||
-    (req.headers["x-signature"] as string) ||
-    (req.headers["ompay-signature"] as string);
-  const raw = (req as any).rawBody ?? JSON.stringify(req.body ?? {});
-
-  if (!verifyWebhookSignature(raw, sig)) {
-    req.log?.warn?.("ompay webhook rejected: bad signature");
-    return res.status(401).json({ error: "BAD_SIGNATURE" });
-  }
-
+  // OMPay POSTs { orderId, paymentId, status, receiptId, amount, signature, ... }.
+  // We deliberately do NOT trust the payload's status/amount (its signature
+  // scheme isn't verified yet). Instead we match the payment, then RE-CONFIRM via
+  // the authenticated Status Check API. Result: a forged webhook is inert — an
+  // unknown order never triggers an OMPay call, and a known one is only flipped
+  // to match OMPay's own check-status response (with the amount guard).
   const evt = req.body ?? {};
-  // ⚠️ CONFIRM-AGAINST-PORTAL: webhook payload field names for reference + status.
-  const reference: string | undefined =
-    evt.reference || evt.order?.reference || evt.data?.reference;
-  const rawStatus: string = String(evt.status || evt.result || evt.data?.status || "").toLowerCase();
+  // OMPay's examples sometimes include stray leading spaces — trim defensively.
+  const orderId = evt.orderId ? String(evt.orderId).trim() : undefined;
+  const receiptId = evt.receiptId ? String(evt.receiptId).trim() : undefined;
 
-  const p = reference ? payments.find(x => x.reference === reference) : undefined;
+  const p = payments.find(
+    x =>
+      (!!orderId && x.providerSessionId === orderId) ||
+      (!!receiptId && x.reference === receiptId),
+  );
   if (!p) {
-    // Ack with 200 so OMPay doesn't retry forever for an unknown reference
-    // (signature already verified above, so this is a genuine OMPay call).
-    req.log?.warn?.({ reference }, "ompay webhook: unknown payment reference");
+    // Ack 200 so OMPay doesn't retry forever for an order we don't recognise.
+    req.log?.warn?.({ orderId, receiptId }, "ompay webhook: unknown payment");
     return res.json({ ok: true, matched: false });
   }
 
-  const success = SUCCESS_STATES.includes(rawStatus);
-  const failed = FAILED_STATES.includes(rawStatus);
-
-  if (success && p.status !== "paid") {
-    p.status = "paid";
-    p.paidAt = new Date().toISOString();
-  } else if (failed && p.status === "pending") {
-    p.status = rawStatus.startsWith("cancel") ? "canceled" : "failed";
-  }
-  p.updatedAt = new Date().toISOString();
-  // Durable write BEFORE we ack so a crash right after the 200 can't lose
-  // the authoritative status flip.
-  await flushNow();
-
+  await confirmPaymentWithProvider(p, req.log);
   return res.json({ ok: true, matched: true, status: p.status });
 });
 

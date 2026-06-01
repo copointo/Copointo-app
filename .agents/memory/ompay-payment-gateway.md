@@ -39,10 +39,16 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `checkOrderStatus(orderId)` in `lib/ompay.ts`. The poll route `GET /api/payments/:id` now actively calls it when the payment is still pending + has a providerSessionId (the order's orderId) → flips status to paid/failed. This is the PRIMARY post-redirect confirmation; webhook is secondary. Amount-mismatch guard refuses to mark paid if confirmed amount ≠ created amount (tolerance 0.0005).
 - Status-string sets shared as `SUCCESS_STATES` / `FAILED_STATES` consts in `routes/payments.ts` (used by both poll + webhook).
 
+## ✅ CONFIRMED + WIRED: Webhook ("Handle Payment Success and Failure" doc)
+- Webhook URL is configured OUT-OF-BAND during onboarding (we give OMPay our `{base}/api/payments/ompay/webhook`); NOT sent per-order in create-checkout.
+- Payload (success & failure identical shape, only `status` differs): `{ orderId, paymentId, status:"success"|"failure", receiptId, amount, signature, timestamp, paymentDetails:{paymentMethod,cardNetwork,cardType} }`. NOTE: docs show stray leading spaces in `orderId`/`signature` values — we `.trim()` defensively.
+- **Design decision (security):** webhook handler does NOT trust the payload's status/amount (signature scheme not yet verified). It matches the payment by `providerSessionId===orderId` OR `reference===receiptId`, then calls `confirmPaymentWithProvider()` which RE-FETCHES via Status Check API and applies paid/failed with the amount guard. → forged webhook is inert (unknown order = no OMPay call; known order only flips to OMPay's own check-status result). Shared helper `confirmPaymentWithProvider(p, log)` in `routes/payments.ts` is used by BOTH the poll route and the webhook.
+- `verifyWebhookSignature` (HMAC-over-rawBody) is now UNUSED/placeholder — OMPay's signature is a payload FIELD, not an HMAC header. Kept in lib for when the JS signature doc lands (add as defence-in-depth, not gate).
+
 ## ⚠️ Remaining UNVERIFIED seams (need more portal docs + sandbox creds)
-1. **Payment-response signature algorithm** ("Verify Payment Signature using JavaScript" doc) — to verify the `signature` field on status/redirect/webhook payloads. Status-check is currently trusted via authenticated server-to-server HTTPS (not yet verifying its `signature`).
-2. Webhook signature header name + scheme (defaults to `HMAC-SHA256(rawBody, webhookSecret)` hex, constant-time compared) and the webhook payload field names for reference + status.
-3. **Test card details** for UAT (doc not yet provided).
+1. **Payment-response signature algorithm** ("Verify Payment Signature using JavaScript" doc) — to verify the `signature` field on status/webhook payloads. Currently we don't verify it; we rely on authenticated S2S Status Check re-fetch instead.
+2. **Test card details** for UAT (doc not yet provided).
+3. The 4 OMPAY_* secrets still unset → module dormant.
 
 ## Security/correctness notes baked in
 - Raw body for webhook HMAC is captured via `express.json({ verify })` in `app.ts` → `req.rawBody`.

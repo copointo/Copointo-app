@@ -30,13 +30,16 @@
 //   • Status check: GET {apiBase}/nac/api/v1/pg/orders/check-status?orderId=..
 //     (Basic auth) → { orderId, status, paymentId, receiptId, amount,
 //                      signature, timestamp, paymentDetails }.
+//   • Webhook (configured out-of-band during onboarding) POSTs:
+//     { orderId, paymentId, status:"success"|"failure", receiptId, amount,
+//       signature, timestamp, paymentDetails }.
 //
 // What STILL needs the portal docs before going live:
 //   • The payment-response SIGNATURE algorithm (to verify the `signature` field
 //     returned on status/redirect/webhook) — "Verify Payment Signature" doc.
-//     For now the status check is trusted because it is an authenticated,
-//     server-to-server HTTPS call (Basic auth) — not a client-supplied payload.
-//   • The webhook payload shape + signature header/scheme.
+//     Until then we don't trust webhook payloads: the webhook handler re-confirms
+//     every event via the authenticated Status Check API, so a forged webhook is
+//     inert. (The status check itself is trusted as an authenticated S2S call.)
 // The whole module is dormant (isOmpayConfigured() === false) until all four
 // OMPAY_* secrets are set, so nothing here runs without credentials.
 
@@ -232,10 +235,12 @@ export async function checkOrderStatus(orderId: string): Promise<OrderStatusResu
   };
 }
 
-/** Verify an OMPay webhook signature.
- *  ⚠️ CONFIRM-AGAINST-PORTAL #2: header name + signature scheme. We default
- *  to HMAC-SHA256(rawBody, OMPAY_WEBHOOK_SECRET) compared in constant time,
- *  which is the common convention; adjust once the portal docs confirm. */
+/** Placeholder HMAC verifier — NOT currently wired. OMPay's real signature is a
+ *  `signature` FIELD inside the payload (see the upcoming "Verify Payment
+ *  Signature" doc), not an HMAC header — so the webhook handler instead
+ *  re-confirms each event via checkOrderStatus(). Kept for when the signature
+ *  algorithm lands so we can add payload-signature verification as
+ *  defence-in-depth. HMAC-SHA256(rawBody, OMPAY_WEBHOOK_SECRET), constant-time. */
 export function verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {
   const c = getOmpayConfig();
   if (!c || !signature) return false;
