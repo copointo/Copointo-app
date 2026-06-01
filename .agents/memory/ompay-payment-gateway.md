@@ -72,4 +72,4 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `payments` rows carry PII + a metadata draft → hard-removed in `purgeUserData()`.
 
 ## Status
-Live on UAT. Buy-coins is fully wired end-to-end (mobile `app/buy-coins.tsx` → hosted checkout in WebView/new tab → poll → client credits coins via `creditOnce` idempotency guard). Orders + bookings payment intentionally NOT wired yet (will be OPTIONAL alongside cash). buy-coins pack prices (0.99–99.99) are now charged as **OMR** (were labelled USD) — flagged to user.
+Live on UAT. Buy-coins is fully wired end-to-end (mobile `app/buy-coins.tsx` → hosted checkout in WebView/new tab → poll → client credits coins via `creditOnce` idempotency guard). Orders + bookings payment intentionally NOT wired yet (will be OPTIONAL alongside cash). buy-coins pack prices are **displayed in USD** (0.99–99.99) but **converted to OMR** before being sent to OMPay via `USD_TO_OMR` rate (0.384) + `usdToOmr()` in `buy-coins.tsx` (so $0.99 → 0.380 ﷼ at checkout); tiles show a small "≈ X.XXX ﷼" hint. Rate is a single editable constant — update it if the peg/markup changes.

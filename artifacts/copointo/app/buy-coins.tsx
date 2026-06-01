@@ -33,6 +33,14 @@ const PACKS: Pack[] = [
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
+// Prices are shown in USD in the app, but OMPay charges in Omani Rial. Convert
+// the USD price to OMR (rounded to 3 decimals / baisa) before sending it to the
+// gateway so checkout shows e.g. 0.380 ﷼ for $0.99. Adjust the rate here if the
+// peg changes (1 USD ≈ 0.384 OMR).
+const USD_TO_OMR = 0.384;
+const usdToOmr = (usd: number) => Math.round(usd * USD_TO_OMR * 1000) / 1000;
+const fmtOmr = (omr: number) => omr.toFixed(3);
+
 // A growing pile/stack of coins per tier
 function CoinVisual({ tier }: { tier: Pack["tier"] }) {
   const cfg = {
@@ -161,7 +169,10 @@ function AnimatedTile({ p, index, busy, onPress }: { p: Pack; index: number; bus
             {busy ? (
               <ActivityIndicator color={PRIMARY} size="small" />
             ) : (
-              <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
+              <View style={styles.priceCol}>
+                <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
+                <Text style={styles.priceOmr}>≈ {fmtOmr(usdToOmr(p.price))} ﷼</Text>
+              </View>
             )}
           </View>
         </TouchableOpacity>
@@ -313,7 +324,7 @@ export function BuyCoinsPanel() {
     try {
       const { payment, token } = await createPaymentSession({
         purpose: "coins",
-        amount: p.price,
+        amount: usdToOmr(p.price),
         description: `شراء ${fmt(p.coins)} عملة Copointo`,
         userId: user?.id ?? null,
         customerName: user?.name ?? null,
@@ -557,7 +568,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: PRIMARY,
     alignItems: "center",
   },
+  priceCol: { alignItems: "center", gap: 1 },
   priceText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
+  priceOmr: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.7)" },
 
   webWrap: { flex: 1, backgroundColor: "#000" },
   webHeader: {
