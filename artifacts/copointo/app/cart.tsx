@@ -400,6 +400,11 @@ export default function CartScreen() {
           itemName:  drinkRows[rowIdx].name,
           itemPrice: drinkRows[rowIdx].price,
         }));
+        // Ownership is tied to the signed-in account that earned the free
+        // coffee (the same identity used to fetch the codes), NOT the contact
+        // phone typed into the order form — those can legitimately differ.
+        const ownerPhone = user?.phone?.trim();
+        if (ownerPhone) payload.freeCoffeeOwnerPhone = ownerPhone;
       }
       if (isDine) {
         payload.tableNumber = dineTable.trim();
