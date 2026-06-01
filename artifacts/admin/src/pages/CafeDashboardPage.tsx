@@ -1893,8 +1893,9 @@ function OrdersTab({ id }: { id: string }) {
   // label exactly: غير مستلم (pending) → تم الاستلام (preparing) → لم يُدفع بعد
   // (ready/done, no payment) → تم الدفع (paymentMethod set). The cashier taps a
   // button to view only that state; acting on an order moves it to the next
-  // state and it leaves the current view automatically.
-  const [statusFilter, setStatusFilter] = useState<string>("غير مستلم");
+  // state and it leaves the current view automatically. Defaults to «الكل» so
+  // the cashier sees every order on entry, not only the unreceived ones.
+  const [statusFilter, setStatusFilter] = useState<string>("الكل");
   const openPayForm = (oid: string, prefer: "cash" | "visa") => {
     const o = orders.find(x => x.id === oid);
     const tot = Number(o?.total ?? 0).toFixed(3);
