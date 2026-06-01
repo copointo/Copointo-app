@@ -96,6 +96,18 @@ export const GIFTS: GiftDef[] = [
     singleParticle: true,
     durationMs: 3000,
   },
+  {
+    id: "gift-lion-neon",
+    name: "الأسد الملكي",
+    emoji: "🦁",
+    image: require("../assets/images/gift-lion-neon.webp"),
+    price: 1000,
+    tier: 3,
+    color: "#A855F7",
+    animationKind: "zoom",
+    singleParticle: true,
+    durationMs: 4000,
+  },
 ];
 
 export function getGift(id: string | null | undefined): GiftDef | null {
