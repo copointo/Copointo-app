@@ -853,13 +853,8 @@ function tplFooterHtml(tpl: any): string {
   `;
 }
 
-function openPrintWindow(title: string, body: string) {
-  const w = window.open("", "_blank", "width=360,height=760");
-  if (!w) {
-    alert("الرجاء السماح بفتح النوافذ المنبثقة لعرض الفاتورة");
-    return;
-  }
-  w.document.write(`<!doctype html><html dir="rtl" lang="ar"><head>
+function receiptHtmlDoc(title: string, body: string, autoPrint = true): string {
+  return `<!doctype html><html dir="rtl" lang="ar"><head>
   <meta charset="utf-8">
   <title>${title}</title>
   <style>
@@ -1005,9 +1000,9 @@ function openPrintWindow(title: string, body: string) {
       body { visibility: visible !important; }
       table.receipt { width: 58mm !important; }
     }
-  </style></head><body>
+  </style></head><body class="${autoPrint ? "" : "ready"}">
     <table class="receipt"><tbody>${body}</tbody></table>
-    <script>
+    ${autoPrint ? `<script>
       (function() {
         var printed = false;
         function doPrint() {
@@ -1044,8 +1039,17 @@ function openPrintWindow(title: string, body: string) {
         if (document.readyState === 'complete') whenReady();
         else window.addEventListener('load', whenReady);
       })();
-    </script>
-  </body></html>`);
+    </script>` : ""}
+  </body></html>`;
+}
+
+function openPrintWindow(title: string, body: string) {
+  const w = window.open("", "_blank", "width=360,height=760");
+  if (!w) {
+    alert("الرجاء السماح بفتح النوافذ المنبثقة لعرض الفاتورة");
+    return;
+  }
+  w.document.write(receiptHtmlDoc(title, body, true));
   w.document.close();
 }
 
@@ -4275,12 +4279,12 @@ function fmtDateTimeAr(d: string) {
   return new Date(d).toLocaleString("ar-OM", { year:"numeric", month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" });
 }
 
-async function printOrderInvoice(
+async function buildOrderReceipt(
   id: string,
   o: any,
   freeCoffee?: { code: string; itemName: string; itemPrice: number } | null,
   opts?: { customerCopy?: boolean },
-) {
+): Promise<{ title: string; body: string }> {
   const isCustomerCopy = !!opts?.customerCopy;
   let tpl: any = null;
   try { tpl = (await api.invoiceTemplate(id, "order")).template; } catch { /* fallback */ }
@@ -4420,7 +4424,17 @@ ${summaryBlock}
 <tr><td class="cell total-cell"><span class="lbl">الإجمالي / Total</span><span class="val">${finalTot.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${tplFooterHtml(tpl)}
   `;
-  openPrintWindow(`${titlePrefix}فاتورة طلب / Order #${o.id?.slice(-6)}`, body);
+  return { title: `${titlePrefix}فاتورة طلب / Order #${o.id?.slice(-6)}`, body };
+}
+
+async function printOrderInvoice(
+  id: string,
+  o: any,
+  freeCoffee?: { code: string; itemName: string; itemPrice: number } | null,
+  opts?: { customerCopy?: boolean },
+) {
+  const { title, body } = await buildOrderReceipt(id, o, freeCoffee, opts);
+  openPrintWindow(title, body);
 }
 
 async function printDailyInvoice(id: string, dateStr: string): Promise<{ from: Date; to: Date; count: number }> {
@@ -4848,19 +4862,18 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 // ── Printed Invoices Browser ─────────────────────────────────
-type PMode = "range" | "daily" | "monthly" | "yearly";
+type PMode = "today" | "range";
 
 function PrintedInvoices({ id }: { id: string }) {
   const today = new Date().toISOString().slice(0, 10);
-  const yyyy = new Date().getFullYear();
-  const [mode, setMode] = useState<PMode>("range");
+  const [mode, setMode] = useState<PMode>("today");
   const [from, setFrom] = useState<string>(today);
   const [to, setTo]     = useState<string>(today);
-  const [day, setDay]   = useState<string>(today);
-  const [ym, setYm]     = useState<string>(today.slice(0, 7));
-  const [yr, setYr]     = useState<string>(String(yyyy));
+  const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<{ o: any; html: string } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -4873,41 +4886,48 @@ function PrintedInvoices({ id }: { id: string }) {
 
   const inWindow = (d: Date, start: Date, end: Date) => d >= start && d < end;
 
-  const filtered = (() => {
-    if (mode === "range") {
-      const s = new Date(from + "T00:00:00");
-      const e = new Date(to + "T00:00:00"); e.setDate(e.getDate() + 1);
-      return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
-    }
-    if (mode === "daily") {
-      const s = new Date(day + "T00:00:00");
+  // Date-window filter (today or chosen range)
+  const windowed = (() => {
+    if (mode === "today") {
+      const s = new Date(today + "T00:00:00");
       const e = new Date(s); e.setDate(e.getDate() + 1);
       return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
     }
-    if (mode === "monthly") {
-      const [y, m] = ym.split("-").map(Number);
-      if (!y || !m) return [];
-      const s = new Date(y, m - 1, 1);
-      const e = new Date(y, m, 1);
-      return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
-    }
-    // yearly
-    const y = Number(yr);
-    if (!y) return [];
-    const s = new Date(y, 0, 1);
-    const e = new Date(y + 1, 0, 1);
+    const s = new Date(from + "T00:00:00");
+    const e = new Date(to + "T00:00:00"); e.setDate(e.getDate() + 1);
     return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
   })();
 
+  // When a search query is present, look across ALL printed invoices so a
+  // specific invoice can be found by its code regardless of the date window.
+  const q = search.trim().toLowerCase();
+  const base = q ? printed : windowed;
+  const matched = q
+    ? base.filter(o =>
+        String(o.id ?? "").toLowerCase().includes(q) ||
+        String(o.customerName ?? "").toLowerCase().includes(q) ||
+        String(o.customerPhone ?? "").toLowerCase().includes(q))
+    : base;
+
   // Sort newest first by printedAt
-  const sorted = [...filtered].sort((a, b) => new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime());
+  const sorted = [...matched].sort((a, b) => new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime());
   const total = sorted.reduce((s, o) => s + (Number(o.total) || 0), 0);
 
-  const tabBtn = (m: PMode, label: string, sub: string) => (
+  const openPreview = async (o: any) => {
+    setPreviewLoading(true);
+    try {
+      const { title, body } = await buildOrderReceipt(id, o);
+      setPreview({ o, html: receiptHtmlDoc(title, body, false) });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const modeBtn = (m: PMode, label: string, sub: string) => (
     <button
       key={m}
       onClick={() => setMode(m)}
-      className={`flex-1 min-w-[120px] px-3 py-2.5 rounded-xl border text-xs font-bold transition ${
+      className={`flex-1 min-w-[140px] px-3 py-2.5 rounded-xl border text-xs font-bold transition ${
         mode === m
           ? "bg-primary text-primary-foreground border-primary"
           : "bg-input border-border text-muted-foreground hover:bg-muted/30"
@@ -4928,45 +4948,57 @@ function PrintedInvoices({ id }: { id: string }) {
         </div>
         <div>
           <p className="font-semibold text-foreground">الفواتير المطبوعة / Printed Invoices</p>
-          <p className="text-xs text-muted-foreground">سجل فواتير الزبائن المطبوعة مع تاريخ ووقت الطباعة</p>
+          <p className="text-xs text-muted-foreground">سجل فواتير الزبائن المطبوعة — اضغط على فاتورة لعرضها إلكترونياً</p>
         </div>
       </div>
 
-      {/* Mode tabs */}
+      {/* Two buttons: today / date range */}
       <div className="flex flex-wrap gap-2 mb-3">
-        {tabBtn("range",   "نطاق تواريخ",   "Date Range")}
-        {tabBtn("daily",   "يومي",          "Daily")}
-        {tabBtn("monthly", "شهري",          "Monthly")}
-        {tabBtn("yearly",  "سنوي",          "Yearly")}
+        {modeBtn("today", "فواتير اليوم", "Today")}
+        {modeBtn("range", "نطاق تواريخ",   "Date Range")}
       </div>
 
-      {/* Filter inputs */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {mode === "range" && (
-          <>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>من / From</span>
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>إلى / To</span>
-              <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
-            </label>
-          </>
+      {/* Range inputs (only in range mode) */}
+      {mode === "range" && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>من / From</span>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className={inp} />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>إلى / To</span>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className={inp} />
+          </label>
+          <button onClick={reload}
+            className="ml-auto px-3 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted/30">
+            تحديث / Refresh
+          </button>
+        </div>
+      )}
+
+      {/* Search by invoice code */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="ابحث برمز الفاتورة أو اسم الزبون / Search by invoice code"
+            className="w-full bg-input border border-border rounded-xl pr-9 pl-9 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+            >
+              <X size={14}/>
+            </button>
+          )}
+        </div>
+        {q && (
+          <p className="mt-1 text-[10px] text-muted-foreground">🔎 يبحث في كل الفواتير المطبوعة (يتجاوز نطاق التاريخ) / Searching all printed invoices</p>
         )}
-        {mode === "daily" && (
-          <input type="date" value={day} onChange={e => setDay(e.target.value)} className={inp} />
-        )}
-        {mode === "monthly" && (
-          <input type="month" value={ym} onChange={e => setYm(e.target.value)} className={inp} />
-        )}
-        {mode === "yearly" && (
-          <input type="number" min={2020} max={2100} value={yr} onChange={e => setYr(e.target.value)} className={inp} />
-        )}
-        <button onClick={reload}
-          className="ml-auto px-3 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:bg-muted/30">
-          تحديث / Refresh
-        </button>
       </div>
 
       {/* Summary */}
@@ -4985,11 +5017,15 @@ function PrintedInvoices({ id }: { id: string }) {
       {loading ? (
         <p className="text-center text-xs text-muted-foreground py-6">جاري التحميل...</p>
       ) : sorted.length === 0 ? (
-        <Empty icon="🖨️" text="لا توجد فواتير مطبوعة في هذه الفترة / No printed invoices" />
+        <Empty icon="🖨️" text={q ? "لا توجد فاتورة مطابقة / No matching invoice" : "لا توجد فواتير مطبوعة في هذه الفترة / No printed invoices"} />
       ) : (
         <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
           {sorted.map(o => (
-            <div key={o.id} className="rounded-xl border border-border bg-input/40 p-3">
+            <button
+              key={o.id}
+              onClick={() => openPreview(o)}
+              className="w-full text-right rounded-xl border border-border bg-input/40 p-3 hover:border-primary/50 hover:bg-input/70 transition"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -5002,7 +5038,7 @@ function PrintedInvoices({ id }: { id: string }) {
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {o.customerPhone} • {o.type === "dine" ? `🪑 طاولة ${o.tableNumber}` : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
+                    {o.customerPhone} • {o.source === "direct" ? "☕ طلب مباشر" : o.type === "dine" ? `🪑 طاولة ${o.tableNumber}` : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
                   </p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     🖨️ طُبعت / Printed: {fmtDateTimeAr(o.printedAt)}
@@ -5020,14 +5056,69 @@ function PrintedInvoices({ id }: { id: string }) {
                   <span className="text-base font-bold text-primary whitespace-nowrap">
                     {Number(o.total).toFixed(3)} OMR
                   </span>
-                  <button onClick={() => printOrderInvoice(id, o)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border text-[11px] font-semibold text-muted-foreground hover:bg-muted/30">
-                    <Printer size={11}/> إعادة طباعة
-                  </button>
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-primary/40 text-[11px] font-semibold text-primary">
+                    <Eye size={11}/> عرض الفاتورة
+                  </span>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
+        </div>
+      )}
+
+      {/* Preparing-preview overlay */}
+      {previewLoading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <p className="text-sm text-white">جاري تجهيز الفاتورة… / Preparing invoice…</p>
+        </div>
+      )}
+
+      {/* Electronic invoice preview modal — mirrors the printed thermal receipt */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="bg-card rounded-2xl border border-border max-w-[420px] w-full max-h-[92vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+              <div className="min-w-0">
+                <p className="font-bold text-foreground text-sm truncate">
+                  الفاتورة الإلكترونية / Electronic Invoice
+                </p>
+                <p className="text-[11px] text-muted-foreground">رمز الفاتورة / Code: #{preview.o.id.slice(-6)}</p>
+              </div>
+              <button onClick={() => setPreview(null)} className="text-muted-foreground hover:text-foreground p-1 shrink-0">
+                <X size={18}/>
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto bg-neutral-200 p-3 flex justify-center">
+              <iframe
+                title={`invoice-${preview.o.id}`}
+                srcDoc={preview.html}
+                sandbox=""
+                referrerPolicy="no-referrer"
+                className="bg-white rounded shadow-lg"
+                style={{ width: 300, height: "60vh", minHeight: 360, border: "none" }}
+              />
+            </div>
+            <div className="flex gap-2 px-4 py-3 border-t border-border">
+              <button
+                onClick={() => printOrderInvoice(id, preview.o)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90"
+              >
+                <Printer size={14}/> طباعة / Print
+              </button>
+              <button
+                onClick={() => setPreview(null)}
+                className="px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:bg-muted/30"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </Card>
