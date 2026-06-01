@@ -406,10 +406,31 @@
   animation: dashOrderIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Staggered reveal of the panels INSIDE a section — applied to a container,
+   animates its direct children one after another. Excludes fixed/absolute
+   children (e.g. `fixed inset-0` modals) so a modal is never hidden or delayed.
+   Delays are capped after the 10th child so long lists don't cascade forever. */
+.dash-stagger > *:not(.fixed):not(.absolute) {
+  opacity: 0;
+  animation: dashOrderIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-stagger > *:nth-child(1)  { animation-delay: 0.05s; }
+.dash-stagger > *:nth-child(2)  { animation-delay: 0.11s; }
+.dash-stagger > *:nth-child(3)  { animation-delay: 0.17s; }
+.dash-stagger > *:nth-child(4)  { animation-delay: 0.23s; }
+.dash-stagger > *:nth-child(5)  { animation-delay: 0.29s; }
+.dash-stagger > *:nth-child(6)  { animation-delay: 0.35s; }
+.dash-stagger > *:nth-child(7)  { animation-delay: 0.41s; }
+.dash-stagger > *:nth-child(8)  { animation-delay: 0.47s; }
+.dash-stagger > *:nth-child(9)  { animation-delay: 0.53s; }
+.dash-stagger > *:nth-child(10) { animation-delay: 0.59s; }
+.dash-stagger > *:nth-child(n+11) { animation-delay: 0.65s; }
+
 @media (prefers-reduced-motion: reduce) {
   .dash-content-reveal,
   .dash-order,
   .dash-item,
+  .dash-stagger > *,
   .dash-sides > * {
     animation: none;
     opacity: 1;
