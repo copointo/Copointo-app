@@ -188,22 +188,20 @@ interface Checkout {
   coins: number;
 }
 
-// Loading page shown inside the newly-opened payment tab while we create the
-// OMPay session in the background; the tab is then redirected to the checkout.
+// Minimal loading page shown inside the newly-opened payment tab while we create
+// the OMPay session in the background; the tab is then redirected to the
+// checkout. Kept to a bare spinner (no interstitial wording) so it reads as the
+// payment page loading rather than a separate "preparing" screen.
 const CHECKOUT_LOADING_HTML =
   '<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">' +
   '<meta name="viewport" content="width=device-width, initial-scale=1">' +
   "<title>الدفع الآمن</title><style>" +
-  "html,body{margin:0;height:100%;background:#000;color:#E8B86D;" +
-  "font-family:-apple-system,Segoe UI,Roboto,sans-serif}" +
-  ".wrap{height:100%;display:flex;flex-direction:column;align-items:center;" +
-  "justify-content:center;gap:18px;text-align:center;padding:24px}" +
+  "html,body{margin:0;height:100%;background:#000}" +
+  ".wrap{height:100%;display:flex;align-items:center;justify-content:center}" +
   ".sp{width:46px;height:46px;border:4px solid rgba(232,184,109,.25);" +
   "border-top-color:#E8B86D;border-radius:50%;animation:s 1s linear infinite}" +
-  "@keyframes s{to{transform:rotate(360deg)}}.t{font-size:18px;font-weight:700}" +
-  ".s{font-size:13px;color:#9a9a9a}</style></head><body><div class='wrap'>" +
-  "<div class='sp'></div><div class='t'>جارٍ تجهيز صفحة الدفع الآمنة…</div>" +
-  "<div class='s'>لحظة من فضلك، سيتم تحويلك إلى بوابة OMPay</div></div></body></html>";
+  "@keyframes s{to{transform:rotate(360deg)}}</style></head><body>" +
+  "<div class='wrap'><div class='sp'></div></div></body></html>";
 
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
