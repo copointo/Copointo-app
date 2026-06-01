@@ -4952,7 +4952,7 @@ function ExpensesTab({ id }: { id: string }) {
           <Sel value={form.category} onChange={(v: string) => setForm(f => ({ ...f, category: v }))}
                options={EXPENSE_CATS.map(c => ({ value: c, label: c }))} />
           <Inp value={form.date} onChange={(v: string) => setForm(f => ({ ...f, date: v }))} type="date" />
-          <Inp value={form.notes} onChange={(v: string) => setForm(f => ({ ...f, notes: v }))} placeholder="ملاحظات (اختياري)" className="md:col-span-2" />
+          <Inp value={form.notes} onChange={(v: string) => setForm(f => ({ ...f, notes: v }))} placeholder="ملاحظات" className="md:col-span-2" />
         </div>
         <div className="flex justify-end mt-3">
           <button onClick={submit} disabled={busy}
