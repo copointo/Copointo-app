@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins, Gift, Package } from "lucide-react";
 import { api } from "@/lib/api";
 import coinUrl from "@/assets/copointo-coin.png";
+import { CosmeticShape, cosmeticName, type CosmeticCategory } from "@/data/cosmetics";
 
 /** Copointo coin icon — replaces the legacy diamond/Gem mark for currency. */
 function CoinIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
@@ -946,20 +947,40 @@ export default function UsersPage() {
                   <p className="font-bold text-foreground text-sm">العناصر المملوكة</p>
                   <span className="text-[10px] text-muted-foreground">معرّفات مفصولة بفاصلة</span>
                 </div>
-                {ITEM_CATS.map(c => (
-                  <div key={c.key}>
-                    <label className="block text-[11px] text-muted-foreground mb-1">{c.icon} {c.label}</label>
-                    <input
-                      type="text"
-                      value={itemsDraft[c.key]}
-                      onChange={e => setItemsDraft(d => ({ ...d, [c.key]: e.target.value }))}
-                      placeholder="frame-1, frame-2 ..."
-                      disabled={earnSaving}
-                      dir="ltr"
-                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-60 font-mono"
-                    />
-                  </div>
-                ))}
+                {ITEM_CATS.map(c => {
+                  const ownedIds = Array.from(new Set(
+                    itemsDraft[c.key].split(",").map(x => x.trim()).filter(Boolean),
+                  ));
+                  return (
+                    <div key={c.key}>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] text-muted-foreground">{c.icon} {c.label}</label>
+                        <span className="text-[10px] text-muted-foreground">{ownedIds.length} عنصر</span>
+                      </div>
+                      {ownedIds.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-lg bg-card border border-border">
+                          {ownedIds.map(id => (
+                            <div key={id} className="flex flex-col items-center gap-1" style={{ maxWidth: 76 }}>
+                              <CosmeticShape category={c.key as CosmeticCategory} id={id} />
+                              <span className="text-[9px] text-muted-foreground text-center leading-tight truncate w-full" title={cosmeticName(c.key as CosmeticCategory, id)}>
+                                {cosmeticName(c.key as CosmeticCategory, id)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <input
+                        type="text"
+                        value={itemsDraft[c.key]}
+                        onChange={e => setItemsDraft(d => ({ ...d, [c.key]: e.target.value }))}
+                        placeholder="frame-1, frame-2 ..."
+                        disabled={earnSaving}
+                        dir="ltr"
+                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground disabled:opacity-60 font-mono"
+                      />
+                    </div>
+                  );
+                })}
                 <button
                   onClick={saveItems}
                   disabled={earnSaving}
