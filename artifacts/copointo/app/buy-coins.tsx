@@ -23,12 +23,12 @@ interface Pack {
 }
 
 const PACKS: Pack[] = [
-  { id: "p1", coins: 200,   price: 0.99,  tier: 1 },
-  { id: "p2", coins: 1200,  price: 4.99,  tier: 2 },
-  { id: "p3", coins: 2800,  price: 9.99,  tier: 3, badge: "الأكثر شعبية" },
-  { id: "p4", coins: 6200,  price: 19.99, tier: 4 },
-  { id: "p5", coins: 13500, price: 49.99, tier: 5, badge: "أفضل قيمة" },
-  { id: "p6", coins: 35000, price: 99.99, tier: 6 },
+  { id: "p1", coins: 500,   price: 0.99,  tier: 1 },
+  { id: "p2", coins: 1500,  price: 4.99,  tier: 2 },
+  { id: "p3", coins: 4500,  price: 9.99,  tier: 3, badge: "الأكثر شعبية" },
+  { id: "p4", coins: 12500, price: 19.99, tier: 4 },
+  { id: "p5", coins: 30000, price: 49.99, tier: 5, badge: "أفضل قيمة" },
+  { id: "p6", coins: 80000, price: 99.99, tier: 6 },
 ];
 
 const fmt = (n: number) => n.toLocaleString("en-US");
