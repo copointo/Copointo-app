@@ -347,3 +347,44 @@
   opacity: 0;
   animation: tabShine 0.7s ease-out forwards;
 }
+
+/* ── Cafe-dashboard entrance reveals (elegant staggered fade-rise) ── */
+@keyframes dashRise {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); filter: blur(4px); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);     filter: blur(0); }
+}
+.dash-reveal {
+  opacity: 0;
+  animation: dashRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Springy pop for each tab button, staggered via inline animation-delay */
+@keyframes dashPop {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.82); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0)    scale(1); }
+}
+.dash-tab-pop {
+  opacity: 0;
+  animation: dashPop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Content panel slides up on every tab switch (keyed remount replays it) */
+@keyframes dashContent {
+  from { opacity: 0; transform: translateY(20px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+.dash-content-reveal {
+  animation: dashContent 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-reveal,
+  .dash-tab-pop,
+  .dash-content-reveal {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}

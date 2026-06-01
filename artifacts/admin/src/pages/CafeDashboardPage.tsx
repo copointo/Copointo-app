@@ -5748,7 +5748,7 @@ export default function CafeDashboardPage() {
   return (
     <div className="flex flex-col h-screen bg-background" dir="rtl">
       {/* Top bar */}
-      <header className="relative flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8B86D]/25 bg-gradient-to-l from-[#E8B86D]/12 via-card to-card shrink-0 shadow-lg shadow-black/30">
+      <header className="dash-reveal relative flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8B86D]/25 bg-gradient-to-l from-[#E8B86D]/12 via-card to-card shrink-0 shadow-lg shadow-black/30">
         <span className="absolute bottom-0 inset-x-0 h-px bg-gradient-to-l from-transparent via-[#E8B86D]/50 to-transparent" aria-hidden />
         {/* Copointo brand mark — NOT a link: super-admin must only be
             reached by typing the root URL deliberately, never from a cafe
@@ -5788,7 +5788,7 @@ export default function CafeDashboardPage() {
       </header>
 
       {/* Tabs — square 3D-rotating buttons. Collapsible via chevron at the bottom. */}
-      <div className="relative border-b border-border bg-card shrink-0">
+      <div className="dash-reveal relative border-b border-border bg-card shrink-0" style={{ animationDelay: "0.1s" }}>
         <div
           className={`overflow-hidden transition-[max-height,opacity,padding] duration-300 ease-in-out ${
             tabsCollapsed ? "max-h-0 opacity-0 py-0" : "max-h-[600px] opacity-100 px-6 py-5"
@@ -5800,7 +5800,8 @@ export default function CafeDashboardPage() {
           {/* Manager analytics — special king button (now opens full page) */}
           <Link
             href={`/cafe/${id}/analytics`}
-            className="group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
+            className="dash-tab-pop group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
+            style={{ animationDelay: "0.16s" }}
             title="إحصائيات المدير"
           >
             <div
@@ -5837,7 +5838,8 @@ export default function CafeDashboardPage() {
                 <button
                   key={tid}
                   onClick={() => { setTab(tid); markTabSeen(tid); }}
-                  className="group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
+                  className="dash-tab-pop group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
+                  style={{ animationDelay: `${0.2 + i * 0.045}s` }}
                   title={label}
                 >
                   <div
@@ -5871,7 +5873,8 @@ export default function CafeDashboardPage() {
               <button
                 key={tid}
                 onClick={() => { setTab(tid); markTabSeen(tid); }}
-                className="group relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                className="dash-tab-pop group relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl shrink-0 focus:outline-none focus:ring-2 focus:ring-primary/60"
+                style={{ animationDelay: `${0.2 + i * 0.045}s` }}
                 title={label}
               >
                 {notifCount > 0 && (
@@ -5924,7 +5927,7 @@ export default function CafeDashboardPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 bg-[radial-gradient(ellipse_120%_60%_at_50%_-10%,rgba(232,184,109,0.06),transparent_70%)]">
+      <div key={tab} className="dash-content-reveal flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 bg-[radial-gradient(ellipse_120%_60%_at_50%_-10%,rgba(232,184,109,0.06),transparent_70%)]">
         {tab === "stats"    && <StatsTab    id={id} />}
         {tab === "orders"   && <OrdersTab   id={id} />}
         {tab === "direct"   && <DirectOrderTab id={id} onCreated={() => setTab("orders")} />}
