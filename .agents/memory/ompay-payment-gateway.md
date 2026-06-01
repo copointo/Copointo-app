@@ -33,9 +33,16 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - **checkoutBase is a DIFFERENT host** (`merchant.*`, not `api.*`): `https://merchant.gateway.ompay.com` (PROD) / `https://merchant.uat.gateway.ompay.com` (UAT). `OmpayConfig.checkoutBaseUrl` holds it; `clientId`=OMPAY_API_KEY.
 - Flow: create order (server) → redirect to checkout URL → shopper pays → redirected back to `redirectUrl` → **call Status Check API for final status**.
 
+## ✅ CONFIRMED + WIRED: Status Check API ("Verify Payment Status" doc)
+- `GET {apiBase}/nac/api/v1/pg/orders/check-status?orderId=..`, Basic auth.
+- Response: `{ orderId, status:"success", paymentId, receiptId, amount, signature, timestamp, paymentDetails:{paymentMethod,cardNetwork,cardType} }`.
+- `checkOrderStatus(orderId)` in `lib/ompay.ts`. The poll route `GET /api/payments/:id` now actively calls it when the payment is still pending + has a providerSessionId (the order's orderId) → flips status to paid/failed. This is the PRIMARY post-redirect confirmation; webhook is secondary. Amount-mismatch guard refuses to mark paid if confirmed amount ≠ created amount (tolerance 0.0005).
+- Status-string sets shared as `SUCCESS_STATES` / `FAILED_STATES` consts in `routes/payments.ts` (used by both poll + webhook).
+
 ## ⚠️ Remaining UNVERIFIED seams (need more portal docs + sandbox creds)
-1. **Status Check API** — the documented way to confirm final order status after the shopper returns to redirectUrl. Endpoint + response shape NOT yet provided. (Current code relies on the webhook to flip status; once Status Check API is known, wire it as the primary post-redirect confirmation.)
+1. **Payment-response signature algorithm** ("Verify Payment Signature using JavaScript" doc) — to verify the `signature` field on status/redirect/webhook payloads. Status-check is currently trusted via authenticated server-to-server HTTPS (not yet verifying its `signature`).
 2. Webhook signature header name + scheme (defaults to `HMAC-SHA256(rawBody, webhookSecret)` hex, constant-time compared) and the webhook payload field names for reference + status.
+3. **Test card details** for UAT (doc not yet provided).
 
 ## Security/correctness notes baked in
 - Raw body for webhook HMAC is captured via `express.json({ verify })` in `app.ts` → `req.rawBody`.

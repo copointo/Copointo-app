@@ -19,9 +19,13 @@ import { payments, flushNow, type Payment, type PaymentPurpose } from "../store"
 import {
   isOmpayConfigured,
   createHostedCheckout,
+  checkOrderStatus,
   verifyWebhookSignature,
   toMinorUnits,
 } from "../lib/ompay";
+
+const SUCCESS_STATES = ["paid", "captured", "success", "successful", "completed", "approved"];
+const FAILED_STATES = ["failed", "declined", "error", "canceled", "cancelled", "voided", "failure"];
 
 const router: IRouter = Router();
 
@@ -156,13 +160,49 @@ router.post("/session", async (req: any, res): Promise<any> => {
 });
 
 // ─── Poll status (capability-token protected) ───────────────────────────
-router.get("/:id", (req, res): any => {
+// The client calls this after the shopper returns from the hosted checkout.
+// If the payment is still pending, we actively confirm it against OMPay's
+// Status Check API (the documented post-redirect step) — this is authoritative
+// even when no webhook is configured. The webhook below is a secondary path.
+router.get("/:id", async (req: any, res): Promise<any> => {
   const p = payments.find(x => x.id === req.params.id);
   if (!p) return res.status(404).json({ error: "NOT_FOUND" });
   const token = String(req.query.token ?? "");
   if (!p.accessToken || !token || !safeEqual(token, p.accessToken)) {
     return res.status(403).json({ error: "FORBIDDEN" });
   }
+
+  if (isOmpayConfigured() && p.status === "pending" && p.providerSessionId) {
+    try {
+      const st = await checkOrderStatus(p.providerSessionId);
+      if (SUCCESS_STATES.includes(st.status)) {
+        // Defence-in-depth: refuse to mark paid if the confirmed amount does
+        // not match what we created the order for (tamper / wrong-order guard).
+        const amountOk =
+          st.amount == null || Math.abs(Number(st.amount) - Number(p.amount)) < 0.0005;
+        if (amountOk) {
+          p.status = "paid";
+          p.paidAt = new Date().toISOString();
+          p.updatedAt = p.paidAt;
+          await flushNow();
+        } else {
+          req.log?.error?.(
+            { paymentId: p.id, expected: p.amount, got: st.amount },
+            "ompay status: amount mismatch — NOT marking paid",
+          );
+        }
+      } else if (FAILED_STATES.includes(st.status)) {
+        p.status = st.status.startsWith("cancel") ? "canceled" : "failed";
+        p.updatedAt = new Date().toISOString();
+        await flushNow();
+      }
+    } catch (err: any) {
+      // Network/provider hiccup → return the cached status; the client keeps
+      // polling, so a transient failure self-heals on the next tick.
+      req.log?.warn?.({ err: String(err?.message ?? err) }, "ompay check-status failed");
+    }
+  }
+
   return res.json({ payment: publicPayment(p) });
 });
 
@@ -198,12 +238,8 @@ router.post("/ompay/webhook", async (req: any, res): Promise<any> => {
     return res.json({ ok: true, matched: false });
   }
 
-  const success = ["paid", "captured", "success", "successful", "completed", "approved"].includes(
-    rawStatus,
-  );
-  const failed = ["failed", "declined", "error", "canceled", "cancelled", "voided"].includes(
-    rawStatus,
-  );
+  const success = SUCCESS_STATES.includes(rawStatus);
+  const failed = FAILED_STATES.includes(rawStatus);
 
   if (success && p.status !== "paid") {
     p.status = "paid";

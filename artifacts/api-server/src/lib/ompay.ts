@@ -27,9 +27,15 @@
 //     checkoutBase = https://merchant.gateway.ompay.com (PROD)
 //                  / https://merchant.uat.gateway.ompay.com (UAT).
 //
+//   • Status check: GET {apiBase}/nac/api/v1/pg/orders/check-status?orderId=..
+//     (Basic auth) → { orderId, status, paymentId, receiptId, amount,
+//                      signature, timestamp, paymentDetails }.
+//
 // What STILL needs the portal docs before going live:
-//   • The Status Check API (called after the shopper returns to redirectUrl to
-//     get the FINAL order status) — endpoint + response shape.
+//   • The payment-response SIGNATURE algorithm (to verify the `signature` field
+//     returned on status/redirect/webhook) — "Verify Payment Signature" doc.
+//     For now the status check is trusted because it is an authenticated,
+//     server-to-server HTTPS call (Basic auth) — not a client-supplied payload.
 //   • The webhook payload shape + signature header/scheme.
 // The whole module is dormant (isOmpayConfigured() === false) until all four
 // OMPAY_* secrets are set, so nothing here runs without credentials.
@@ -168,6 +174,62 @@ export async function createHostedCheckout(
     `&clientId=${encodeURIComponent(c.clientId)}`;
 
   return { checkoutUrl, providerSessionId: orderId, raw: json };
+}
+
+export interface OrderStatusResult {
+  orderId: string;
+  status: string;          // normalised lower-case: "success" | "failure" | ...
+  paymentId?: string;
+  receiptId?: string;
+  amount?: number;         // MAJOR units, as returned by OMPay
+  signature?: string;      // verify once the signature-algorithm doc lands
+  timestamp?: string;
+  paymentDetails?: unknown;
+  raw: unknown;
+}
+
+/** Server-to-server status check for a previously created order (Bank Hosted).
+ *  GET {apiBase}/nac/api/v1/pg/orders/check-status?orderId=.. (Basic auth).
+ *  Throws on missing secrets / non-2xx / unparseable response. */
+export async function checkOrderStatus(orderId: string): Promise<OrderStatusResult> {
+  const c = getOmpayConfig();
+  if (!c) throw new Error("OMPAY_NOT_CONFIGURED");
+
+  const url =
+    `${c.baseUrl}/nac/api/v1/pg/orders/check-status?orderId=${encodeURIComponent(orderId)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: basicAuthHeader(c),
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    /* handled below */
+  }
+
+  if (!res.ok || !json) {
+    const msg = json?.errMessage || json?.message || text || `HTTP ${res.status}`;
+    throw new Error(`OMPAY_STATUS_FAILED: ${msg}`);
+  }
+
+  return {
+    orderId: String(json.orderId ?? orderId),
+    status: String(json.status ?? "").toLowerCase(),
+    paymentId: json.paymentId,
+    receiptId: json.receiptId,
+    amount: typeof json.amount === "number" ? json.amount : Number(json.amount) || undefined,
+    signature: json.signature,
+    timestamp: json.timestamp,
+    paymentDetails: json.paymentDetails,
+    raw: json,
+  };
 }
 
 /** Verify an OMPay webhook signature.
