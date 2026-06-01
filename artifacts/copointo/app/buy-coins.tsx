@@ -388,13 +388,23 @@ export function BuyCoinsPanel() {
       startPolling(c.paymentId, c.token, c.coins, true);
       return;
     }
-    // Manual close: do a single status check (covers "paid then closed") but
-    // don't spin the full poll/timeout if they simply backed out.
+    // Manual close: do a single status check. Covers "paid then closed" (credit
+    // + success), and a genuine "failed"/"canceled" when OMPay showed the decline
+    // on its own page without auto-redirecting (show the failure message). If the
+    // payment is still "pending" the shopper simply backed out → stay silent and
+    // don't spin the full poll/timeout.
     setVerifying(true);
     try {
       const st = await getPaymentStatus(c.paymentId, c.token);
-      if (st.status === "paid" && (await creditOnce(c.paymentId, c.coins))) {
-        Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(c.coins)} عملة إلى رصيدك.`);
+      if (st.status === "paid") {
+        if (await creditOnce(c.paymentId, c.coins)) {
+          Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(c.coins)} عملة إلى رصيدك.`);
+        }
+      } else if (st.status === "failed" || st.status === "canceled") {
+        Alert.alert(
+          "لم تتم العملية",
+          st.status === "canceled" ? "تم إلغاء عملية الدفع." : "فشلت عملية الدفع، لم يتم خصم أي مبلغ.",
+        );
       }
     } catch {
       // ignore — nothing credited
