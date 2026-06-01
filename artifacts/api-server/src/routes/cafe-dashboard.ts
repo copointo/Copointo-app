@@ -438,6 +438,13 @@ router.post("/orders", (req: any, res): any => {
     if (!customerPhone) {
       return res.status(400).json({ error: "رقم الهاتف مطلوب لاستخدام كوفي مجاني" });
     }
+    // Normalize phones to digits-only before comparing ownership. The free
+    // coffee is owned by the user's REGISTERED phone, but at checkout the
+    // customer may type the same number in a different format (spaces, +968,
+    // leading zero) — an exact string compare would wrongly reject it and
+    // block the whole order. Matches the project-wide normalization pattern.
+    const normPhone = (p: string) => String(p).replace(/\D+/g, "");
+    const customerPhoneNorm = normPhone(customerPhone);
     // Build a working count of per-name drink slots so two redemptions
     // can target two cups of the same item, but never more than were ordered.
     const slotsByName = new Map<string, number>();
@@ -463,7 +470,7 @@ router.post("/orders", (req: any, res): any => {
       seenCodes.add(code);
       const fc = freeCoffees.find(f => f.code === code);
       if (!fc)                                       return res.status(404).json({ error: `الكود ${code} غير موجود` });
-      if (fc.userPhone !== customerPhone)            return res.status(403).json({ error: "هذا الكوفي المجاني ليس لك" });
+      if (normPhone(fc.userPhone) !== customerPhoneNorm) return res.status(403).json({ error: "هذا الكوفي المجاني ليس لك" });
       if (fc.redeemedAt)                             return res.status(400).json({ error: `الكود ${code} تم استخدامه مسبقاً` });
       // STRICT cafe scope: a free coffee can ONLY be redeemed at the exact
       // cafe where it was earned. No fallback for legacy null earnedAtCafeId

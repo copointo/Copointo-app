@@ -45,14 +45,35 @@ export function ensureCurrentSeason(): MonthlySeason {
   return s;
 }
 
-/** Same ranking the mobile leaderboard uses (totalOrders desc, level desc).
+/** Deterministic FNV-1a hash of a string. MUST match the client's `hashId`
+ *  in artifacts/copointo/app/leaderboard.tsx so the season payout ranks
+ *  players in the EXACT same order the mobile leaderboard displays them. */
+function hashId(s: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h;
+}
+
+/** Same ranking the mobile leaderboard uses (totalOrders desc, then a stable
+ *  hashId(id) tiebreaker — identical to the client's `sortDesc`). Level is
+ *  intentionally NOT a tiebreaker: the reward must follow the position the
+ *  player actually occupies in the displayed ranking, so whoever is visibly
+ *  in the top-10 at season end is exactly who gets paid.
  *  Banned/game-banned players are excluded so they can't claim rewards. */
 export function rankPlayersForSeason() {
   return users
-    .filter(u => !u.banned && !u.gameBanned)
+    // Mirror the public leaderboard population (routes/index.ts /users/public):
+    // banned/game-banned AND showcase-only demo users are excluded. Without the
+    // showcaseOnly filter the seeded demo accounts (copointo-showcase-user,
+    // sc-user-*) would occupy the paid top-10 slots server-side while real
+    // users — who never see showcase rows — show the reward chips client-side.
+    .filter(u => !u.banned && !u.gameBanned && !u.showcaseOnly)
     .sort((a, b) =>
       ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) ||
-      ((b.level ?? 0) - (a.level ?? 0))
+      (hashId(a.id) - hashId(b.id))
     )
     .slice(0, MONTHLY_REWARDS.length);
 }

@@ -253,12 +253,17 @@ export default function LeaderboardScreen() {
     setPanelUserId(uid);
   };
 
-  // Oman-wide rank for any given user (1-based, by total coffee orders desc;
-  // id as stable tiebreaker — level is intentionally not part of ordering).
-  // Mirrors the leaderboard list ordering above.
+  // Oman-wide rank for any given user (1-based, by total coffee orders desc).
+  // CRITICAL: this must use the EXACT same comparator as `sortDesc` (the
+  // hashId tiebreaker), otherwise the season reward chip lands on a different
+  // row than the visible top-10 — i.e. a player who is visually #11 could
+  // still show a coin badge while a visible top-10 player shows none. The
+  // reward must always follow the position shown in the ranking, so if a
+  // player drops below the top 10 the chip disappears and whoever overtook
+  // them inherits the (lower) reward.
   const omanRankOf = useMemo(() => {
     const sorted = [...registeredUsers].sort((a, b) =>
-      ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || a.id.localeCompare(b.id)
+      ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || (hashId(a.id) - hashId(b.id))
     );
     const map = new Map<string, number>();
     sorted.forEach((u, i) => map.set(u.id, i + 1));
