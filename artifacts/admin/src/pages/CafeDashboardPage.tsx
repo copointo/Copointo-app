@@ -753,7 +753,7 @@ function StatsTab({ id }: { id: string }) {
   return (
     <div className="space-y-6">
       {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="dash-stagger grid grid-cols-2 gap-3">
         <StatChartPanel
           title="إجمالي الطلبات"
           series={data.ordersSeries ?? []}
@@ -1427,7 +1427,7 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     : items;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-start">
+    <div className="dash-stagger grid grid-cols-1 lg:grid-cols-3 gap-5 lg:items-start">
       {/* ── Right column: menu picker (2/3) — independent scroll on desktop ── */}
       <div className="lg:col-span-2 space-y-5 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-2">
         {/* Quick search bar */}
@@ -2040,7 +2040,7 @@ function OrdersTab({ id }: { id: string }) {
   const isFinalFilter = statusFilter === "تم الدفع";
 
   return (
-    <div className="space-y-4">
+    <div className="dash-stagger space-y-4">
       {orders.length > 0 && (
         <Card className="p-4 flex items-center justify-between gap-3 bg-gradient-to-l from-red-500/5 to-card border-red-500/30">
           <div className="min-w-0">
@@ -2792,7 +2792,7 @@ function BookingsTab({ id }: { id: string }) {
     setBookings(prev => prev.map(b => b.id === bid ? { ...b, status, confirmedAt: status === "confirmed" ? new Date().toISOString() : b.confirmedAt } : b));
   };
   return (
-    <div className="space-y-4">
+    <div className="dash-stagger space-y-4">
       {bookings.length === 0 && <Empty icon="🪑" text="لا توجد حجوزات بعد" />}
       {bookings.map(b => (
         <Card key={b.id} className="p-5">
@@ -3143,7 +3143,7 @@ function MenuTab({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       {/* Add / Edit form */}
       <Card className="p-5">
         <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -3591,7 +3591,7 @@ function ChatTab({ id }: { id: string }) {
     await api.deleteChatInfo(id, cid); setItems(prev => prev.filter(c => c.id !== cid));
   };
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       <Card className="p-5">
         <h3 className="font-semibold text-foreground mb-1">💬 إضافة معلومات للشات</h3>
         <p className="text-xs text-muted-foreground mb-4">هذه المعلومات سيستخدمها الشات للرد على المستخدمين بشكل دقيق</p>
@@ -3912,7 +3912,7 @@ function TablesTab({ id }: { id: string }) {
     setForm(p => ({ ...p, hourlyPricing: p.hourlyPricing.filter((_, i) => i !== idx) }));
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       {/* Add / Edit form */}
       <Card className="p-5">
         <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -4598,7 +4598,7 @@ function InvoicesTab({ id }: { id: string }) {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       <div className="grid md:grid-cols-3 gap-4">
         {cardRow(<CalendarDays size={18}/>, "فاتورة يومية", "كل طلبات يوم محدد", (
           <div className="flex gap-2">
@@ -4943,7 +4943,7 @@ function ExpensesTab({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       <Card className="p-5">
         <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2"><Plus size={16}/> إضافة مصروف</h3>
         <div className="grid md:grid-cols-2 gap-3">
@@ -5083,7 +5083,7 @@ function InventoryTab({ id }: { id: string }) {
     .filter(x => x.st === "warning" || x.st === "critical");
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       {/* Add product form */}
       <Card className="p-5">
         <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
@@ -5289,7 +5289,7 @@ function TemplatesTab({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       <Card className="p-5">
         <h3 className="font-semibold text-foreground mb-1">تعديل بيانات الفواتير</h3>
         <p className="text-xs text-muted-foreground mb-4">
@@ -5639,7 +5639,7 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="dash-stagger space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -5990,7 +5990,7 @@ function DiscountCodesTab({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="dash-stagger space-y-6">
       {/* List (top) */}
       <div className="space-y-3">
         {codes.length === 0 && <Empty icon="🏷️" text="لا توجد أكواد تخفيض حتى الآن" />}
@@ -6356,7 +6356,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
   const bookingData     = [{ name: "بانتظار", value: b.pending, color: "#D4A35A" }, { name: "مؤكدة", value: b.confirmed, color: "#10B981" }, { name: "ملغية", value: b.cancelled, color: "#EF4444" }];
 
   return (
-    <div className="space-y-6">
+    <div className="dash-stagger space-y-6">
       {/* Revenue summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <GoldStat label="الإيرادات اليوم"    value={`${r.today.toFixed(3)} OMR`}  icon={<TrendingUp size={18} />} />
@@ -6739,7 +6739,7 @@ function ReelsTab({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="dash-stagger space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -7083,7 +7083,7 @@ function VouchersTab({ id, cafeName }: { id: string; cafeName?: string }) {
     .reduce((s, v) => s + (Number(v.amount) || 0), 0);
 
   return (
-    <div className="space-y-5">
+    <div className="dash-stagger space-y-5">
       {/* Summary header */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatBox label="إجمالي القسائم"     value={vouchers.length}                       Icon={Gift} />

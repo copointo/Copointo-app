@@ -348,10 +348,14 @@
   animation: tabShine 0.7s ease-out forwards;
 }
 
-/* ── Cafe-dashboard entrance reveals (elegant staggered fade-rise) ── */
+/* ── Cafe-dashboard entrance reveals (elegant staggered fade-rise) ──
+   NOTE: every reveal keyframe ends at `transform: none` so no lingering
+   transform is left behind — a persisted transform would turn the element
+   into the containing block for any `position: fixed` modal rendered inside
+   it and mis-position it. */
 @keyframes dashRise {
   from { opacity: 0; transform: translateY(18px) scale(0.985); filter: blur(4px); }
-  to   { opacity: 1; transform: translateY(0)    scale(1);     filter: blur(0); }
+  to   { opacity: 1; transform: none;                          filter: blur(0); }
 }
 .dash-reveal {
   opacity: 0;
@@ -362,7 +366,7 @@
 @keyframes dashPop {
   0%   { opacity: 0; transform: translateY(16px) scale(0.82); }
   60%  { opacity: 1; }
-  100% { opacity: 1; transform: translateY(0)    scale(1); }
+  100% { opacity: 1; transform: none; }
 }
 .dash-tab-pop {
   opacity: 0;
@@ -372,16 +376,42 @@
 /* Content panel slides up on every tab switch (keyed remount replays it) */
 @keyframes dashContent {
   from { opacity: 0; transform: translateY(20px); filter: blur(3px); }
-  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+  to   { opacity: 1; transform: none;             filter: blur(0); }
 }
 .dash-content-reveal {
   animation: dashContent 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Staggered reveal of the panels INSIDE a section — applied to a container,
+   animates its direct children one after another. No blur (kept cheap since
+   many panels can animate at once). */
+@keyframes dashPanel {
+  from { opacity: 0; transform: translateY(14px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
+/* Exclude fixed/absolute children (e.g. `fixed inset-0` modals rendered as a
+   direct child) so opening a modal is never hidden or delayed by the stagger. */
+.dash-stagger > *:not(.fixed):not(.absolute) {
+  opacity: 0;
+  animation: dashPanel 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-stagger > *:nth-child(1)  { animation-delay: 0.05s; }
+.dash-stagger > *:nth-child(2)  { animation-delay: 0.11s; }
+.dash-stagger > *:nth-child(3)  { animation-delay: 0.17s; }
+.dash-stagger > *:nth-child(4)  { animation-delay: 0.23s; }
+.dash-stagger > *:nth-child(5)  { animation-delay: 0.29s; }
+.dash-stagger > *:nth-child(6)  { animation-delay: 0.35s; }
+.dash-stagger > *:nth-child(7)  { animation-delay: 0.41s; }
+.dash-stagger > *:nth-child(8)  { animation-delay: 0.47s; }
+.dash-stagger > *:nth-child(9)  { animation-delay: 0.53s; }
+.dash-stagger > *:nth-child(10) { animation-delay: 0.59s; }
+.dash-stagger > *:nth-child(n+11) { animation-delay: 0.65s; }
+
 @media (prefers-reduced-motion: reduce) {
   .dash-reveal,
   .dash-tab-pop,
-  .dash-content-reveal {
+  .dash-content-reveal,
+  .dash-stagger > * {
     animation: none;
     opacity: 1;
     filter: none;
