@@ -161,7 +161,7 @@ function AnimatedTile({ p, index, busy, onPress }: { p: Pack; index: number; bus
             {busy ? (
               <ActivityIndicator color={PRIMARY} size="small" />
             ) : (
-              <Text style={styles.priceText}>{p.price.toFixed(3)} ر.ع</Text>
+              <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
             )}
           </View>
         </TouchableOpacity>
