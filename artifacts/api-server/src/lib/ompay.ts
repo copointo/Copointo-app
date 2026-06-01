@@ -33,13 +33,13 @@
 //   • Webhook (configured out-of-band during onboarding) POSTs:
 //     { orderId, paymentId, status:"success"|"failure", receiptId, amount,
 //       signature, timestamp, paymentDetails }.
+//   • Signature: verifyPaymentSignature() checks the `signature` field as
+//     HMAC-SHA256(clientSecret, `${orderId}|${paymentId}`) hex. Applied as
+//     defence-in-depth on the Status Check response inside the confirm helper.
 //
 // What STILL needs the portal docs before going live:
-//   • The payment-response SIGNATURE algorithm (to verify the `signature` field
-//     returned on status/redirect/webhook) — "Verify Payment Signature" doc.
-//     Until then we don't trust webhook payloads: the webhook handler re-confirms
-//     every event via the authenticated Status Check API, so a forged webhook is
-//     inert. (The status check itself is trusted as an authenticated S2S call.)
+//   • UAT test card details (to run an end-to-end sandbox payment).
+//   • The four OMPAY_* secrets (module is dormant until then).
 // The whole module is dormant (isOmpayConfigured() === false) until all four
 // OMPAY_* secrets are set, so nothing here runs without credentials.
 
@@ -235,21 +235,27 @@ export async function checkOrderStatus(orderId: string): Promise<OrderStatusResu
   };
 }
 
-/** Placeholder HMAC verifier — NOT currently wired. OMPay's real signature is a
- *  `signature` FIELD inside the payload (see the upcoming "Verify Payment
- *  Signature" doc), not an HMAC header — so the webhook handler instead
- *  re-confirms each event via checkOrderStatus(). Kept for when the signature
- *  algorithm lands so we can add payload-signature verification as
- *  defence-in-depth. HMAC-SHA256(rawBody, OMPAY_WEBHOOK_SECRET), constant-time. */
-export function verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {
+/** Verify the `signature` field OMPay returns on status / webhook / redirect
+ *  payloads (per the "Verify Payment Signature" doc):
+ *    signature = HMAC-SHA256(clientSecret, `${orderId}|${paymentId}`) → hex
+ *  compared in constant time. `clientSecret` is OMPAY_API_SECRET.
+ *  Returns false when secrets or any input are missing, or on mismatch.
+ *  Inputs are trimmed because OMPay's doc examples carry stray leading spaces;
+ *  if UAT verification ever fails, the leading-space handling is the first
+ *  thing to revisit. */
+export function verifyPaymentSignature(
+  orderId: string | undefined,
+  paymentId: string | undefined,
+  signature: string | undefined,
+): boolean {
   const c = getOmpayConfig();
-  if (!c || !signature) return false;
+  if (!c || !orderId || !paymentId || !signature) return false;
   const expected = crypto
-    .createHmac("sha256", c.webhookSecret)
-    .update(rawBody, "utf8")
+    .createHmac("sha256", c.clientSecret)
+    .update(`${String(orderId).trim()}|${String(paymentId).trim()}`)
     .digest("hex");
   const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
+  const b = Buffer.from(String(signature).trim());
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
 }

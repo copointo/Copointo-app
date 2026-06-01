@@ -43,12 +43,15 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - Webhook URL is configured OUT-OF-BAND during onboarding (we give OMPay our `{base}/api/payments/ompay/webhook`); NOT sent per-order in create-checkout.
 - Payload (success & failure identical shape, only `status` differs): `{ orderId, paymentId, status:"success"|"failure", receiptId, amount, signature, timestamp, paymentDetails:{paymentMethod,cardNetwork,cardType} }`. NOTE: docs show stray leading spaces in `orderId`/`signature` values — we `.trim()` defensively.
 - **Design decision (security):** webhook handler does NOT trust the payload's status/amount (signature scheme not yet verified). It matches the payment by `providerSessionId===orderId` OR `reference===receiptId`, then calls `confirmPaymentWithProvider()` which RE-FETCHES via Status Check API and applies paid/failed with the amount guard. → forged webhook is inert (unknown order = no OMPay call; known order only flips to OMPay's own check-status result). Shared helper `confirmPaymentWithProvider(p, log)` in `routes/payments.ts` is used by BOTH the poll route and the webhook.
-- `verifyWebhookSignature` (HMAC-over-rawBody) is now UNUSED/placeholder — OMPay's signature is a payload FIELD, not an HMAC header. Kept in lib for when the JS signature doc lands (add as defence-in-depth, not gate).
+## ✅ CONFIRMED + WIRED: Signature verification ("Verify Payment Signature using JavaScript" doc)
+- `signature = HMAC-SHA256(key=clientSecret, data=`${orderId}|${paymentId}`)` → hex. key is OMPAY_API_SECRET (clientSecret); separator is a literal pipe `|`; paymentId comes from the success/failure (status) response.
+- `verifyPaymentSignature(orderId, paymentId, signature)` in `lib/ompay.ts` (constant-time compare, trims inputs — doc examples have stray leading spaces). REPLACED the old wrong `verifyWebhookSignature` (which assumed HMAC-over-rawBody with webhookSecret).
+- Wired as defence-in-depth INSIDE `confirmPaymentWithProvider()`: after `checkOrderStatus`, if the response carries a `signature`, verify it and **fail-closed** (skip the status flip, log error) on mismatch. Genuine events re-verify on the next poll tick. Note OMPAY_WEBHOOK_SECRET is now effectively unused by the signature path (kept as a configured secret / future use).
 
-## ⚠️ Remaining UNVERIFIED seams (need more portal docs + sandbox creds)
-1. **Payment-response signature algorithm** ("Verify Payment Signature using JavaScript" doc) — to verify the `signature` field on status/webhook payloads. Currently we don't verify it; we rely on authenticated S2S Status Check re-fetch instead.
-2. **Test card details** for UAT (doc not yet provided).
-3. The 4 OMPAY_* secrets still unset → module dormant.
+## ⚠️ Remaining seams (need sandbox creds)
+1. **Test card details** for UAT — to run an end-to-end sandbox payment (doc not yet provided).
+2. The 4 OMPAY_* secrets still unset → module dormant.
+3. Mobile pay-button wiring (cart.tsx, cafe/[id]/book.tsx, buy-coins.tsx) NOT started — deferred pending creds.
 
 ## Security/correctness notes baked in
 - Raw body for webhook HMAC is captured via `express.json({ verify })` in `app.ts` → `req.rawBody`.

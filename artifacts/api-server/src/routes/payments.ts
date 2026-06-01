@@ -20,6 +20,7 @@ import {
   isOmpayConfigured,
   createHostedCheckout,
   checkOrderStatus,
+  verifyPaymentSignature,
   toMinorUnits,
 } from "../lib/ompay";
 
@@ -81,6 +82,22 @@ async function confirmPaymentWithProvider(p: Payment, log?: any): Promise<void> 
   if (!isOmpayConfigured() || p.status !== "pending" || !p.providerSessionId) return;
   try {
     const st = await checkOrderStatus(p.providerSessionId);
+
+    // Defence-in-depth: when OMPay returns a signature, verify it before acting
+    // on the status — HMAC-SHA256(clientSecret, `${orderId}|${paymentId}`).
+    // Fail closed (skip the flip) on mismatch so a spoofed/garbled payload can
+    // never advance a payment; a genuine event re-verifies on the next tick.
+    if (st.signature) {
+      const sigOk = verifyPaymentSignature(st.orderId, st.paymentId, st.signature);
+      if (!sigOk) {
+        log?.error?.(
+          { paymentId: p.id, orderId: st.orderId },
+          "ompay signature verification FAILED — not applying status",
+        );
+        return;
+      }
+    }
+
     if (SUCCESS_STATES.includes(st.status)) {
       // Defence-in-depth: refuse to mark paid if the confirmed amount does not
       // match what we created the order for (tamper / wrong-order guard).
