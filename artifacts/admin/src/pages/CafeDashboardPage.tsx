@@ -3482,8 +3482,8 @@ function MenuTab({ id }: { id: string }) {
               </div>
             ) : (
             <div className="divide-y divide-border">
-              {list.map(item => (
-                <div key={item.id} className={`flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`}>
+              {list.map((item, idx) => (
+                <div key={item.id} className={`dash-item flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`} style={{ animationDelay: `${Math.min(idx, 10) * 0.05}s` }}>
                   {item.image ? (
                     <img src={item.image} alt="" className="w-12 h-12 rounded-lg object-cover border border-border shrink-0" />
                   ) : (
@@ -3554,8 +3554,8 @@ function MenuTab({ id }: { id: string }) {
               <span className="font-semibold text-foreground text-sm">📦 تصنيفات قديمة (عدّلها لتظهر للزبائن)</span>
             </div>
             <div className="divide-y divide-border">
-              {legacy.map(item => (
-                <div key={item.id} className={`flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`}>
+              {legacy.map((item, idx) => (
+                <div key={item.id} className={`dash-item flex items-center gap-3 px-5 py-3 ${editingId === item.id ? "bg-primary/5" : ""}`} style={{ animationDelay: `${Math.min(idx, 10) * 0.05}s` }}>
                   <div className="w-12 h-12 rounded-lg bg-muted/30 border border-border flex items-center justify-center text-lg shrink-0">🍽️</div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate text-foreground">{item.name}</p>
