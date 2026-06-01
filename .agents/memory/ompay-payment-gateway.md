@@ -48,10 +48,14 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `verifyPaymentSignature(orderId, paymentId, signature)` in `lib/ompay.ts` (constant-time compare, trims inputs — doc examples have stray leading spaces). REPLACED the old wrong `verifyWebhookSignature` (which assumed HMAC-over-rawBody with webhookSecret).
 - Wired as defence-in-depth INSIDE `confirmPaymentWithProvider()`: after `checkOrderStatus`, if the response carries a `signature`, verify it and **fail-closed** (skip the status flip, log error) on mismatch. Genuine events re-verify on the next poll tick. Note OMPAY_WEBHOOK_SECRET is now effectively unused by the signature path (kept as a configured secret / future use).
 
+## UAT test cards (public sandbox PANs — entered on OMPay's hosted checkout, NOT in our app)
+- VISA approved: `4111111111111111`, exp 12/30, CVV 123
+- Mastercard approved: `5186001700008785`, exp 12/30, CVV 123
+- VISA rejected (test failure path): `4393570006367857`, exp 12/30, CVV 123
+
 ## ⚠️ Remaining seams (need sandbox creds)
-1. **Test card details** for UAT — to run an end-to-end sandbox payment (doc not yet provided).
-2. The 4 OMPAY_* secrets still unset → module dormant.
-3. Mobile pay-button wiring (cart.tsx, cafe/[id]/book.tsx, buy-coins.tsx) NOT started — deferred pending creds.
+1. The 4 OMPAY_* secrets still unset → module dormant. Set to UAT creds first to test.
+2. Mobile pay-button wiring (cart.tsx, cafe/[id]/book.tsx, buy-coins.tsx) NOT started — deferred pending creds.
 
 ## Security/correctness notes baked in
 - Raw body for webhook HMAC is captured via `express.json({ verify })` in `app.ts` → `req.rawBody`.
