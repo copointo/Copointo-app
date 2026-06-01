@@ -49,7 +49,7 @@ export interface OmpayConfig {
   clientId: string;
   clientSecret: string;
   merchantId: string;
-  webhookSecret: string;
+  webhookSecret?: string;
   env: "sandbox" | "production";
   baseUrl: string;        // API host (create-order etc.)
   checkoutBaseUrl: string; // merchant host (shopper redirect)
@@ -61,7 +61,9 @@ export function getOmpayConfig(): OmpayConfig | null {
   const clientSecret = process.env.OMPAY_API_SECRET;
   const merchantId = process.env.OMPAY_MERCHANT_ID;
   const webhookSecret = process.env.OMPAY_WEBHOOK_SECRET;
-  if (!clientId || !clientSecret || !merchantId || !webhookSecret) return null;
+  // webhookSecret is optional: OMPay's Bank Hosted flow verifies signatures with
+  // clientSecret (OMPAY_API_SECRET), so it is not required to activate the module.
+  if (!clientId || !clientSecret || !merchantId) return null;
   const env = process.env.OMPAY_ENV === "production" ? "production" : "sandbox";
   // Confirmed gateway hosts (sandbox === OMPay's UAT environment).
   const baseUrl =
