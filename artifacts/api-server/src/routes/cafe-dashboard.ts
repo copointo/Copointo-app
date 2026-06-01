@@ -1395,6 +1395,37 @@ router.delete("/menu/:itemId", (req, res) => {
   res.json({ success: true });
 });
 
+// Reorder: move a menu item up/down WITHIN its own cafe+category group.
+// Both the admin list and the customer app render items in stored array order,
+// so swapping the two items' positions in `menuItems` reorders them everywhere
+// (and the array order is persisted by the kv_store snapshot). "up" means
+// earlier in the list (shown first to customers); "down" means later.
+router.patch("/menu/:itemId/move", (req: any, res) => {
+  const { cafeId, itemId } = req.params;
+  const dir = req.body?.direction;
+  if (dir !== "up" && dir !== "down") {
+    return res.status(400).json({ error: "direction must be 'up' or 'down'" });
+  }
+  const target = menuItems.find(m => m.id === itemId && m.cafeId === cafeId);
+  if (!target) return res.status(404).json({ error: "Not found" });
+  // Global-array indices of this cafe's items in the SAME category, in display order.
+  const groupIdxs = menuItems
+    .map((m, i) => ({ m, i }))
+    .filter(x => x.m.cafeId === cafeId && x.m.category === target.category)
+    .map(x => x.i);
+  const pos = groupIdxs.findIndex(i => menuItems[i].id === itemId);
+  const swapPos = dir === "up" ? pos - 1 : pos + 1;
+  if (swapPos < 0 || swapPos >= groupIdxs.length) {
+    // Already at the top/bottom of its category — nothing to do.
+    return res.json({ success: true, moved: false });
+  }
+  const a = groupIdxs[pos]!, b = groupIdxs[swapPos]!;
+  const tmp = menuItems[a]!;
+  menuItems[a] = menuItems[b]!;
+  menuItems[b] = tmp;
+  res.json({ success: true, moved: true });
+});
+
 // ── Tables ────────────────────────────────────────────────────
 router.get("/tables", (req: any, res) => {
   res.json({ tables: tables.filter(t => t.cafeId === req.params.cafeId) });

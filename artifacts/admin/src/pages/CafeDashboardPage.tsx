@@ -3089,6 +3089,38 @@ function MenuTab({ id }: { id: string }) {
     await api.updateMenuItem(id, item.id, { available: !item.available });
     setItems(prev => prev.map(m => m.id === item.id ? { ...m, available: !m.available } : m));
   };
+  // Reorder a product up/down within its own category. Swaps it with the
+  // neighbouring same-category item in the global list (server mirrors the
+  // same swap) so the new order shows to customers too. Optimistic, then
+  // reconciles with the server's stored order.
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const move = async (item: any, direction: "up" | "down") => {
+    if (movingId) return; // ignore overlapping clicks until the in-flight move settles
+    setMovingId(item.id);
+    setItems(prev => {
+      const next = [...prev];
+      const sameCat = next
+        .map((m, i) => ({ m, i }))
+        .filter(x => x.m.category === item.category)
+        .map(x => x.i);
+      const pos = sameCat.findIndex(i => next[i].id === item.id);
+      const swap = direction === "up" ? pos - 1 : pos + 1;
+      if (swap < 0 || swap >= sameCat.length) return prev;
+      const a = sameCat[pos], b = sameCat[swap];
+      [next[a], next[b]] = [next[b], next[a]];
+      return next;
+    });
+    try {
+      const res = await api.moveMenuItem(id, item.id, direction);
+      // If the server didn't actually move it (edge/stale view), our optimistic
+      // swap may have diverged — reload to match the server's stored order.
+      if (!res?.moved) await load();
+    } catch {
+      await load(); // revert to server truth on failure
+    } finally {
+      setMovingId(null);
+    }
+  };
   const editStock = async (item: any) => {
     const cur = item.stockQty == null ? "" : String(item.stockQty);
     const v = typeof window !== "undefined"
@@ -3537,8 +3569,18 @@ function MenuTab({ id }: { id: string }) {
                       </button>
                     );
                   })()}
-                  <button onClick={() => toggleAvail(item)} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${item.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
-                    {item.available ? "متاح" : "غير متاح"}
+                  <div className="flex flex-col -my-1 shrink-0">
+                    <button onClick={() => move(item, "up")} disabled={idx === 0 || movingId !== null} title="تحريك لأعلى"
+                      className="p-0.5 rounded hover:bg-primary/15 text-primary disabled:opacity-25 disabled:hover:bg-transparent">
+                      <ChevronUp size={14}/>
+                    </button>
+                    <button onClick={() => move(item, "down")} disabled={idx === list.length - 1 || movingId !== null} title="تحريك لأسفل"
+                      className="p-0.5 rounded hover:bg-primary/15 text-primary disabled:opacity-25 disabled:hover:bg-transparent">
+                      <ChevronDown size={14}/>
+                    </button>
+                  </div>
+                  <button onClick={() => toggleAvail(item)} title={item.available ? "ظاهر للزبائن — اضغط للإخفاء" : "مخفي عن الزبائن — اضغط للإظهار"} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${item.available ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                    {item.available ? "ظاهر" : "مخفي"}
                   </button>
                   <button onClick={() => startEdit(item)} title="تعديل" className="p-1.5 rounded-lg hover:bg-primary/15 text-primary"><Pencil size={14}/></button>
                   <button onClick={() => del(item.id)} title="حذف" className="p-1.5 rounded-lg hover:bg-destructive/15 text-destructive"><Trash2 size={14}/></button>

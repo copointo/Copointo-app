@@ -115,6 +115,7 @@ export const api = {
   addMenuItem:   (id: string, body: any)   => req<any>("POST",   `${C(id)}/menu`, body),
   updateMenuItem:(id: string, mid: string, body: any) => req<any>("PATCH", `${C(id)}/menu/${mid}`, body),
   deleteMenuItem:(id: string, mid: string) => req<any>("DELETE", `${C(id)}/menu/${mid}`),
+  moveMenuItem:  (id: string, mid: string, direction: "up" | "down") => req<any>("PATCH", `${C(id)}/menu/${mid}/move`, { direction }),
   cafeTables:    (id: string)              => req<any>("GET",    `${C(id)}/tables`),
   addTable:      (id: string, body: any)   => req<any>("POST",   `${C(id)}/tables`, body),
   updateTable:   (id: string, tid: string, body: any) => req<any>("PATCH", `${C(id)}/tables/${tid}`, body),
