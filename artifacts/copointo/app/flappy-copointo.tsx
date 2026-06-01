@@ -7,6 +7,7 @@ import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, Text, View }
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { useCoins } from "@/hooks/useCoins";
+import { FLAPPY_COIN_DATA_URI } from "@/data/flappyCoinAsset";
 
 const BG = "#07060A";
 const PRIMARY = "#E8B86D";
@@ -41,8 +42,8 @@ function safeJsonForScript(value: unknown): string {
  * Build the self-contained Flappy Copointo game page. It renders the entire
  * game on a 2D <canvas> with plain requestAnimationFrame — no React Native /
  * Reanimated involved — so it can never stutter or take the app down. The bird
- * (amber droplet) and the coin "moon" are drawn with canvas primitives to keep
- * the page tiny (the real PNG assets are multi-MB). It reports progress to the
+ * and the glowing top emblem are our real Copointo coin (a small inlined PNG so
+ * the page stays tiny). It reports progress to the
  * host via `ReactNativeWebView.postMessage` (native) or `window.parent.postMessage`
  * (web iframe):
  *   - { type: "coin", earned }      a pipe was cleared and a coin awarded
@@ -126,6 +127,13 @@ function buildGameHtml(init: { hi: number; earned: number; cap: number; today: s
 (function () {
   var INIT = ${initJson};
   var CAP = INIT.cap;
+  // Our real Copointo coin (small inlined PNG) used for the bird + the glowing
+  // emblem at the top, instead of the old droplet / "moon" primitives.
+  var COIN_SRC = "${FLAPPY_COIN_DATA_URI}";
+  var coinImg = new Image();
+  var coinReady = false;
+  coinImg.onload = function () { coinReady = true; };
+  coinImg.src = COIN_SRC;
 
   // ── Physics / layout tuning (mirrors the original feel) ──
   var GRAVITY = 1350, FLAP_V = -460;
@@ -307,6 +315,7 @@ function buildGameHtml(init: { hi: number; earned: number; cap: number; today: s
     drawCap(p.x, gapBottom);
   }
 
+  // Top "emblem": our Copointo coin glowing, replacing the old moon.
   function drawMoon() {
     var cx = W / 2, cy = 132, r = 52;
     var glow = ctx.createRadialGradient(cx, cy, r * 0.6, cx, cy, r * 2.1);
@@ -314,14 +323,17 @@ function buildGameHtml(init: { hi: number; earned: number; cap: number; today: s
     glow.addColorStop(1, "rgba(232,184,109,0)");
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(cx, cy, r * 2.1, 0, Math.PI * 2); ctx.fill();
-    var cg = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
-    cg.addColorStop(0, "#FBEAC6"); cg.addColorStop(0.5, "#E8B86D"); cg.addColorStop(1, "#9C6E33");
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = cg; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(123,78,30,0.8)"; ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.7, 0, Math.PI * 2);
-    ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.stroke();
+    if (coinReady) {
+      ctx.drawImage(coinImg, cx - r, cy - r, r * 2, r * 2);
+    } else {
+      var cg = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+      cg.addColorStop(0, "#FBEAC6"); cg.addColorStop(0.5, "#E8B86D"); cg.addColorStop(1, "#9C6E33");
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = cg; ctx.fill();
+    }
   }
 
+  // The player is now our Copointo coin (with a slight tilt for feel),
+  // instead of the old droplet shape.
   function drawBird() {
     var cx = birdX + BIRD_SIZE / 2, cy = birdY + BIRD_SIZE / 2, r = BIRD_SIZE / 2;
     ctx.save();
@@ -329,19 +341,15 @@ function buildGameHtml(init: { hi: number; earned: number; cap: number; today: s
     var ang = Math.max(-20, Math.min(62, birdV * 0.05)) * Math.PI / 180;
     ctx.rotate(ang);
     ctx.shadowColor = "rgba(232,184,109,0.8)"; ctx.shadowBlur = 14;
-    ctx.beginPath();
-    ctx.moveTo(0, -r);
-    ctx.bezierCurveTo(r * 0.95, -r * 0.25, r, r * 0.4, 0, r);
-    ctx.bezierCurveTo(-r, r * 0.4, -r * 0.95, -r * 0.25, 0, -r);
-    ctx.closePath();
-    var bg = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.2);
-    bg.addColorStop(0, "#FBEAC6"); bg.addColorStop(0.55, "#E8B86D"); bg.addColorStop(1, "#B07F3F");
-    ctx.fillStyle = bg; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(123,78,30,0.6)"; ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(-r * 0.25, -r * 0.1, r * 0.22, r * 0.32, -0.3, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fill();
+    if (coinReady) {
+      ctx.drawImage(coinImg, -r, -r, r * 2, r * 2);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      var bg = ctx.createRadialGradient(-r * 0.3, -r * 0.3, r * 0.1, 0, 0, r * 1.2);
+      bg.addColorStop(0, "#FBEAC6"); bg.addColorStop(0.55, "#E8B86D"); bg.addColorStop(1, "#B07F3F");
+      ctx.fillStyle = bg; ctx.fill();
+    }
     ctx.restore();
   }
 
