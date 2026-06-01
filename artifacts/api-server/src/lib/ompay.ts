@@ -2,11 +2,16 @@
 // Single integration seam for OMPay (Oman). Everything OMPay-specific lives
 // here so the routes/store stay provider-agnostic.
 //
-// What is KNOWN-correct (from OMPay public docs):
+// Chosen model: BANK HOSTED — the shopper is redirected to OMPay's secure
+// hosted checkout page to enter their card, then returned to us. Card data
+// never touches our servers (keeps us out of heavy PCI scope).
+//
+// What is KNOWN-correct (from OMPay official docs):
 //   • Auth is HTTP Basic: Base64(CLIENT_ID:CLIENT_SECRET).
 //       CLIENT_ID     ← OMPAY_API_KEY
 //       CLIENT_SECRET ← OMPAY_API_SECRET
-//   • Base URLs: https://api.ompay.com/v1 (prod), https://api.sandbox.ompay.com/v1 (sandbox).
+//   • Gateway base URLs: https://api.gateway.ompay.com (PROD),
+//     https://api.uat.gateway.ompay.com (UAT / sandbox).
 //   • Currency is OMR (3 decimals → amounts are sent in minor units / baisa, ×1000).
 //   • A Hosted Payment Page (HPP) session is created server-side and returns
 //     a URL the shopper is redirected to.
@@ -38,8 +43,13 @@ export function getOmpayConfig(): OmpayConfig | null {
   const webhookSecret = process.env.OMPAY_WEBHOOK_SECRET;
   if (!clientId || !clientSecret || !merchantId || !webhookSecret) return null;
   const env = process.env.OMPAY_ENV === "production" ? "production" : "sandbox";
+  // Confirmed gateway hosts (sandbox === OMPay's UAT environment). The exact
+  // Bank-Hosted endpoint PATH appended to this host is still a portal-confirm
+  // seam (see createHostedCheckout below).
   const baseUrl =
-    env === "production" ? "https://api.ompay.com/v1" : "https://api.sandbox.ompay.com/v1";
+    env === "production"
+      ? "https://api.gateway.ompay.com"
+      : "https://api.uat.gateway.ompay.com";
   return { clientId, clientSecret, merchantId, webhookSecret, env, baseUrl };
 }
 

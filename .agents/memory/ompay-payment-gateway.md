@@ -13,9 +13,12 @@ There is NO Replit integration/connector for OMPay (only Stripe exists). OMPay i
 - **Client-driven fulfilment.** Server payment is only a *gate*: client creates a session → opens hosted `checkoutUrl` → polls `GET /payments/:id?token=...` → on `status:"paid"` runs the app's existing order/booking/coins flow. The webhook is the authoritative status flip. This avoids duplicating the complex order/loyalty/invoice logic on the server and matches the app's existing client-driven (mock-auth) pattern.
   - **Why:** order creation (loyalty award, invoice sync, stock decrement) is large and lives in the cafe-dashboard router; re-implementing it in a webhook would drift. Coins are credited client-side via AsyncStorage anyway.
 
-## Known-correct OMPay facts (from public docs)
+## Chosen model: BANK HOSTED
+User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkout page; card data never touches our servers; avoids PCI scope). Merchant Hosted (in-app card form, base path `/nac/api/v1/merchant-host`) was rejected as overkill for a coffee app.
+
+## Known-correct OMPay facts (from official docs)
 - Auth = HTTP Basic `Base64(CLIENT_ID:CLIENT_SECRET)`.
-- Base URLs: `https://api.ompay.com/v1` (prod), `https://api.sandbox.ompay.com/v1` (sandbox). Selected via `OMPAY_ENV` (default sandbox).
+- Gateway base URLs: `https://api.gateway.ompay.com` (PROD), `https://api.uat.gateway.ompay.com` (UAT/sandbox). Selected via `OMPAY_ENV` (default sandbox→UAT). **NOTE: earlier code guessed `api.ompay.com/v1` — that was WRONG; the real host is the `*.gateway.ompay.com` API env. No `/v1` suffix is documented for Bank Hosted; the exact endpoint PATH is still unconfirmed.**
 - Currency OMR has **3 decimals** → amounts sent in minor units (×1000 baisa). `toMinorUnits()` + server-side amount validation rejects >3-decimal values.
 
 ## ⚠️ Two UNVERIFIED seams (need merchant-portal docs + sandbox creds)
