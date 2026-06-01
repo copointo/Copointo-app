@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef } from "react";
-import { Alert, Animated, Easing, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
+import { createPaymentSession, getPaymentStatus } from "../constants/api";
+import { useApp } from "../context/AppContext";
 import { useCoins } from "../hooks/useCoins";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
@@ -102,7 +105,7 @@ const visualStyles = StyleSheet.create({
   },
 });
 
-function AnimatedTile({ p, index, onPress }: { p: Pack; index: number; onPress: () => void }) {
+function AnimatedTile({ p, index, busy, onPress }: { p: Pack; index: number; busy?: boolean; onPress: () => void }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
   const scale = useRef(new Animated.Value(0.7)).current;
@@ -143,7 +146,7 @@ function AnimatedTile({ p, index, onPress }: { p: Pack; index: number; onPress: 
       transform: [{ translateY }, { scale }],
     }}>
       <Animated.View style={[styles.tile, { shadowOpacity, shadowRadius }]}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.tileTouch}>
+        <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={busy} style={styles.tileTouch}>
           {p.badge ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{p.badge}</Text>
@@ -155,7 +158,11 @@ function AnimatedTile({ p, index, onPress }: { p: Pack; index: number; onPress: 
             <Text style={styles.coinsLabel}>عملة</Text>
           </View>
           <View style={styles.priceBtn}>
-            <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
+            {busy ? (
+              <ActivityIndicator color={PRIMARY} size="small" />
+            ) : (
+              <Text style={styles.priceText}>{p.price.toFixed(3)} ر.ع</Text>
+            )}
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -163,10 +170,37 @@ function AnimatedTile({ p, index, onPress }: { p: Pack; index: number; onPress: 
   );
 }
 
+interface Checkout {
+  url: string;
+  paymentId: string;
+  token: string;
+  coins: number;
+}
+
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
+  const { user } = useApp();
   const introOpacity = useRef(new Animated.Value(0)).current;
   const introTranslate = useRef(new Animated.Value(-10)).current;
+
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [checkout, setCheckout] = useState<Checkout | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const pollCancel = useRef(false);
+  // Idempotency guards: never credit the same payment twice, never run two
+  // polling loops for the same payment, and only handle each checkout-close once.
+  const activePoll = useRef<string | null>(null);
+  const credited = useRef<Set<string>>(new Set());
+  const checkoutClosing = useRef(false);
+
+  // Credit coins for a payment at most once, even across multiple poll ticks or
+  // a return-handler + manual-close race. Returns true only on the first credit.
+  const creditOnce = async (paymentId: string, coins: number): Promise<boolean> => {
+    if (credited.current.has(paymentId)) return false;
+    credited.current.add(paymentId);
+    await addCoins(coins);
+    return true;
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -175,12 +209,125 @@ export function BuyCoinsPanel() {
     ]).start();
   }, [introOpacity, introTranslate]);
 
-  const handleBuy = (_p: Pack) => {
-    Alert.alert(
-      "قريباً",
-      "🚧 شراء العملات من المتجر سوف يتوفر قريباً، ترقّبوا التحديث القادم!",
-      [{ text: "حسناً" }],
-    );
+  // Stop any in-flight polling if the screen unmounts.
+  useEffect(() => () => { pollCancel.current = true; }, []);
+
+  // Poll the server (authoritative — it re-confirms with OMPay) until the
+  // payment reaches a terminal state, then credit coins on success.
+  // `abortOnFailure`: on native we only poll AFTER the shopper returns from the
+  // hosted page, so a terminal "failed"/"canceled" is genuine → stop. On web we
+  // poll while the checkout tab is still open, where a fresh unpaid order can
+  // report "failed" → keep polling (false) until "paid" or the deadline.
+  const startPolling = async (
+    paymentId: string,
+    token: string,
+    coins: number,
+    abortOnFailure = true,
+  ) => {
+    if (activePoll.current === paymentId) return; // a loop is already running
+    activePoll.current = paymentId;
+    pollCancel.current = false;
+    setVerifying(true);
+    const deadline = Date.now() + 4 * 60 * 1000;
+    const stop = () => { activePoll.current = null; };
+    while (!pollCancel.current && Date.now() < deadline) {
+      let status: string | undefined;
+      try {
+        const st = await getPaymentStatus(paymentId, token);
+        status = st.status;
+      } catch {
+        // transient network error — keep polling
+      }
+      if (pollCancel.current) return stop();
+      if (status === "paid") {
+        const didCredit = await creditOnce(paymentId, coins);
+        setVerifying(false);
+        setBusyId(null);
+        if (didCredit) {
+          Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(coins)} عملة إلى رصيدك.`);
+        }
+        return stop();
+      }
+      if (abortOnFailure && (status === "failed" || status === "canceled")) {
+        setVerifying(false);
+        setBusyId(null);
+        Alert.alert(
+          "لم تتم العملية",
+          status === "canceled" ? "تم إلغاء عملية الدفع." : "فشلت عملية الدفع، لم يتم خصم أي مبلغ.",
+        );
+        return stop();
+      }
+      await new Promise(r => setTimeout(r, 3000));
+    }
+    stop();
+    if (!pollCancel.current) {
+      setVerifying(false);
+      setBusyId(null);
+      Alert.alert(
+        "انتهت المهلة",
+        "لم نتمكّن من تأكيد الدفع. إذا تم خصم المبلغ فسيُضاف رصيدك تلقائياً، أو حاول مرة أخرى.",
+      );
+    }
+  };
+
+  const handleBuy = async (p: Pack) => {
+    if (busyId) return;
+    setBusyId(p.id);
+    try {
+      const { payment, token } = await createPaymentSession({
+        purpose: "coins",
+        amount: p.price,
+        description: `شراء ${fmt(p.coins)} عملة Copointo`,
+        userId: user?.id ?? null,
+        customerName: user?.name ?? null,
+        customerPhone: user?.phone ?? null,
+        customerEmail: user?.email ?? null,
+        metadata: { coins: p.coins, packId: p.id },
+      });
+      if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
+
+      if (Platform.OS === "web") {
+        // On web the hosted checkout opens in a new tab; we can't observe its
+        // navigation, so poll through transient "failed" states (abortOnFailure=false).
+        if (typeof window !== "undefined") window.open(payment.checkoutUrl, "_blank");
+        startPolling(payment.id, token, p.coins, false);
+      } else {
+        checkoutClosing.current = false;
+        setCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
+      }
+    } catch (e: any) {
+      setBusyId(null);
+      Alert.alert("تعذّر الدفع", String(e?.message ?? e));
+    }
+  };
+
+  // Called when the WebView reaches the return page (reachedReturn=true) or the
+  // shopper closes it manually (reachedReturn=false).
+  const closeCheckout = async (reachedReturn: boolean) => {
+    const c = checkout;
+    if (!c) return;
+    // onNavigationStateChange can fire repeatedly for the return URL; handle the
+    // close exactly once per checkout session.
+    if (checkoutClosing.current) return;
+    checkoutClosing.current = true;
+    setCheckout(null);
+    if (reachedReturn) {
+      startPolling(c.paymentId, c.token, c.coins, true);
+      return;
+    }
+    // Manual close: do a single status check (covers "paid then closed") but
+    // don't spin the full poll/timeout if they simply backed out.
+    setVerifying(true);
+    try {
+      const st = await getPaymentStatus(c.paymentId, c.token);
+      if (st.status === "paid" && (await creditOnce(c.paymentId, c.coins))) {
+        Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(c.coins)} عملة إلى رصيدك.`);
+      }
+    } catch {
+      // ignore — nothing credited
+    }
+    setVerifying(false);
+    setBusyId(null);
   };
 
   return (
@@ -190,9 +337,50 @@ export function BuyCoinsPanel() {
       </Animated.Text>
       <View style={styles.grid}>
         {PACKS.map((p, i) => (
-          <AnimatedTile key={p.id} p={p} index={i} onPress={() => handleBuy(p)} />
+          <AnimatedTile key={p.id} p={p} index={i} busy={busyId === p.id} onPress={() => handleBuy(p)} />
         ))}
       </View>
+
+      {/* In-app hosted-checkout (native) */}
+      <Modal visible={!!checkout} animationType="slide" onRequestClose={() => closeCheckout(false)}>
+        <View style={styles.webWrap}>
+          <View style={styles.webHeader}>
+            <TouchableOpacity style={styles.webClose} onPress={() => closeCheckout(false)}>
+              <Feather name="x" size={22} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={styles.webTitle}>الدفع الآمن</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          {checkout ? (
+            <WebView
+              source={{ uri: checkout.url }}
+              style={{ flex: 1, backgroundColor: "#000" }}
+              startInLoadingState
+              renderLoading={() => (
+                <View style={styles.webLoading}>
+                  <ActivityIndicator color={PRIMARY} size="large" />
+                </View>
+              )}
+              onNavigationStateChange={(nav) => {
+                if (nav.url && nav.url.includes("/payments/return")) {
+                  closeCheckout(true);
+                }
+              }}
+            />
+          ) : null}
+        </View>
+      </Modal>
+
+      {/* Verifying overlay (both platforms) */}
+      <Modal visible={verifying} transparent animationType="fade">
+        <View style={styles.verifyOverlay}>
+          <View style={styles.verifyCard}>
+            <ActivityIndicator color={PRIMARY} size="large" />
+            <Text style={styles.verifyText}>جارٍ تأكيد الدفع…</Text>
+            <Text style={styles.verifySub}>لا تغلق التطبيق</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -285,4 +473,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   priceText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  webWrap: { flex: 1, backgroundColor: "#000" },
+  webHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 12, paddingTop: Platform.OS === "web" ? 12 : 52, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: "#0A0606",
+  },
+  webClose: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center", justifyContent: "center",
+  },
+  webTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  webLoading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#000" },
+
+  verifyOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
+  verifyCard: {
+    backgroundColor: "#0A0606", borderRadius: 18, borderWidth: 1, borderColor: PRIMARY,
+    paddingVertical: 28, paddingHorizontal: 36, alignItems: "center", gap: 12,
+  },
+  verifyText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  verifySub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)" },
 });

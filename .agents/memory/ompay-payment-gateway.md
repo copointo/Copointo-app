@@ -48,14 +48,16 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `verifyPaymentSignature(orderId, paymentId, signature)` in `lib/ompay.ts` (constant-time compare, trims inputs — doc examples have stray leading spaces). REPLACED the old wrong `verifyWebhookSignature` (which assumed HMAC-over-rawBody with webhookSecret).
 - Wired as defence-in-depth INSIDE `confirmPaymentWithProvider()`: after `checkOrderStatus`, if the response carries a `signature`, verify it and **fail-closed** (skip the status flip, log error) on mismatch. Genuine events re-verify on the next poll tick. Note OMPAY_WEBHOOK_SECRET is now effectively unused by the signature path (kept as a configured secret / future use).
 
-## UAT test cards (public sandbox PANs — entered on OMPay's hosted checkout, NOT in our app)
-- VISA approved: `4111111111111111`, exp 12/30, CVV 123
-- Mastercard approved: `5186001700008785`, exp 12/30, CVV 123
-- VISA rejected (test failure path): `4393570006367857`, exp 12/30, CVV 123
+## ✅ CONFIRMED via live UAT: create-checkout customerFields are ALL required + validated
+- `customerFields.name` (required), `.email` (required), `.phone` (required) — OMPay 400s if any is missing/blank.
+- `name` must be **Latin** — Arabic-only names → `"Invalid name"`. `phone` must be the **8-digit local Omani** number (no country code) — `96890000000` → `"Invalid mobile number"`, `90000000` works.
+- The adapter sanitises before sending: strip name to Latin (`[^A-Za-z .'-]`) else fall back `"Copointo Customer"`; validate email regex else derive `${localPhone}@copointo.app`; strip phone to trailing 8 digits (drop `+968`/`968`). Mock-auth accounts are phone-only / Arabic-named, so these fallbacks are load-bearing, not edge cases.
+- **check-status returns a FAILED-state status for a freshly-created, not-yet-paid order.** So the client must NOT poll while the shopper is still on the hosted page on native — it polls only AFTER the WebView hits `/payments/return`. On web (checkout in a separate tab, navigation unobservable) the poller is started immediately but runs with `abortOnFailure=false` so a transient "failed" doesn't abort; it waits for "paid" or the 4-min deadline.
 
-## ⚠️ Remaining seams (need sandbox creds)
-1. The 4 OMPAY_* secrets still unset → module dormant. Set to UAT creds first to test.
-2. Mobile pay-button wiring (cart.tsx, cafe/[id]/book.tsx, buy-coins.tsx) NOT started — deferred pending creds.
+## ⚠️ Remaining seams
+1. Creds are **UAT** — production go-live needs PROD OMPAY_* creds + OMPay-side webhook URL registration (`{base}/api/payments/ompay/webhook`) during onboarding.
+2. Orders (cart.tsx) + bookings (cafe/[id]/book.tsx) payment NOT wired — by user's scope decision these stay OPTIONAL alongside cash, to be added later. Only buy-coins is wired.
+3. UAT check-status latency is high (seen ~30-40s/call); production may differ. The verifying overlay + 3s poll interval absorb it.
 
 ## Security/correctness notes baked in
 - Raw body for webhook HMAC is captured via `express.json({ verify })` in `app.ts` → `req.rawBody`.
@@ -65,4 +67,4 @@ User picked "recommend best" → Bank Hosted (redirect to OMPay's hosted checkou
 - `payments` rows carry PII + a metadata draft → hard-removed in `purgeUserData()`.
 
 ## Status
-Server backbone only. Mobile wiring (cart.tsx orders, cafe/[id]/book.tsx bookings, buy-coins.tsx) NOT done yet — deferred pending credentials + UX sign-off (open hosted page in WebView/browser, poll status, then run existing flow).
+Live on UAT. Buy-coins is fully wired end-to-end (mobile `app/buy-coins.tsx` → hosted checkout in WebView/new tab → poll → client credits coins via `creditOnce` idempotency guard). Orders + bookings payment intentionally NOT wired yet (will be OPTIONAL alongside cash). buy-coins pack prices (0.99–99.99) are now charged as **OMR** (were labelled USD) — flagged to user.

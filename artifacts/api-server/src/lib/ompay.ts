@@ -122,6 +122,30 @@ export async function createHostedCheckout(
   // (e.g. 3.5), NOT minor/baisa. (The generic doc example uses INR 500.00.)
   const amount = Number(input.amount);
 
+  // ✅ CONFIRMED: OMPay validates the mobile number as an 8-digit local Omani
+  // number (no country code). Stored phones may carry a +968 / 968 prefix, so
+  // strip non-digits and the country code down to the trailing 8 digits.
+  const phoneDigits = String(input.customerPhone ?? "").replace(/\D+/g, "");
+  const localPhone =
+    phoneDigits.length > 8
+      ? (phoneDigits.startsWith("968") ? phoneDigits.slice(3) : phoneDigits).slice(-8)
+      : phoneDigits;
+
+  // OMPay rejects non-Latin names ("Invalid name"), so keep only Latin letters /
+  // spaces / basic punctuation; fall back when nothing usable remains (the app's
+  // accounts are commonly Arabic-only or name-less).
+  const latinName = (input.customerName ?? "").replace(/[^A-Za-z .'-]/g, "").trim();
+  const name = latinName || "Copointo Customer";
+
+  // Use the supplied email only if it's a plausible address; otherwise derive a
+  // stable placeholder so OMPay's required-email validation always passes.
+  const rawEmail = input.customerEmail?.trim() ?? "";
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)
+    ? rawEmail
+    : localPhone
+      ? `${localPhone}@copointo.app`
+      : "guest@copointo.app";
+
   // ✅ CONFIRMED endpoint + body (OMPay "Create an Order" / Bank Hosted).
   const url = `${c.baseUrl}/nac/api/v1/pg/orders/create-checkout`;
   const body = {
@@ -132,9 +156,12 @@ export async function createHostedCheckout(
     description: input.description ?? input.reference,
     redirectType: "redirect",
     customerFields: {
-      name: input.customerName ?? undefined,
-      email: input.customerEmail ?? undefined,
-      phone: input.customerPhone ?? undefined,
+      // OMPay requires a non-empty Latin name + a valid email + an 8-digit
+      // Omani mobile (all sanitised above) so create-checkout never 400s on
+      // Arabic-only / name-less / country-coded accounts.
+      name,
+      email,
+      phone: localPhone || undefined,
     },
   };
 

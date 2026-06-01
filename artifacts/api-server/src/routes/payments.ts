@@ -136,7 +136,7 @@ router.post("/session", async (req: any, res): Promise<any> => {
   const body = req.body ?? {};
   const purpose = String(body.purpose ?? "") as PaymentPurpose;
   const amount = Number(body.amount);
-  const returnUrl = String(body.returnUrl ?? "").trim();
+  let returnUrl = String(body.returnUrl ?? "").trim();
 
   if (!VALID_PURPOSES.includes(purpose)) {
     return res.status(400).json({ error: "BAD_PURPOSE" });
@@ -151,14 +151,17 @@ router.post("/session", async (req: any, res): Promise<any> => {
   if (Math.abs(amount * 1000 - minor) > 1e-6) {
     return res.status(400).json({ error: "BAD_AMOUNT", message: "max 3 decimal places (OMR)" });
   }
-  if (!returnUrl) {
-    return res.status(400).json({ error: "BAD_RETURN_URL" });
-  }
 
   const baseUrl = getPublicApiBaseUrl();
   if (!baseUrl) {
     req.log?.error?.("cannot build webhook url: no trusted public base url");
     return res.status(500).json({ error: "SERVER_MISCONFIGURED" });
+  }
+  // The client may omit returnUrl; default to a stable server-hosted return
+  // page so the app's in-app browser/WebView has a known URL to detect (the
+  // authoritative status still comes from polling check-status, not this page).
+  if (!returnUrl) {
+    returnUrl = `${baseUrl}/api/payments/return`;
   }
   const webhookUrl = `${baseUrl}/api/payments/ompay/webhook`;
 
@@ -193,6 +196,7 @@ router.post("/session", async (req: any, res): Promise<any> => {
       description: payment.description ?? undefined,
       customerName: payment.customerName ?? undefined,
       customerPhone: payment.customerPhone ?? undefined,
+      customerEmail: body.customerEmail ?? undefined,
       returnUrl,
       webhookUrl,
     });
@@ -208,6 +212,25 @@ router.post("/session", async (req: any, res): Promise<any> => {
       .status(502)
       .json({ error: "PAYMENT_PROVIDER_ERROR", message: String(err?.message ?? err) });
   }
+});
+
+// ─── Return page (shopper lands here after the hosted checkout) ──────────
+// The hosted checkout redirects the shopper's browser here. We don't trust any
+// status from this page — the app polls GET /:id for the authoritative result.
+// This just renders a tiny "done" page whose URL the in-app browser/WebView can
+// detect to know the shopper finished and to start/finish polling. Declared
+// BEFORE the "/:id" route so "return" isn't captured as a payment id.
+router.get("/return", (_req, res): void => {
+  res.set("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Copointo</title>
+<style>html,body{margin:0;height:100%;background:#000;color:#E8B86D;
+font-family:-apple-system,system-ui,sans-serif;display:flex;align-items:center;
+justify-content:center;text-align:center}div{padding:24px}h1{font-size:20px;margin:0 0 8px}
+p{color:rgba(255,255,255,.7);font-size:14px;margin:0}</style></head>
+<body><div data-payment-return="1"><h1>تمت العملية</h1>
+<p>يمكنك العودة إلى التطبيق الآن.</p></div></body></html>`);
 });
 
 // ─── Poll status (capability-token protected) ───────────────────────────
