@@ -351,8 +351,16 @@ export default function CartScreen() {
       const totalQty = cart.reduce((s, i) => s + i.quantity, 0);
       // Drink-only count for game/level progress. حلى و طعام لا تزيد المستوى
       // ولا عدد الكوفي — يجب أن يطابق السيرفر (awardOrderProgress).
+      // كذلك: المشروب الذي سعره ≤ 0.800 ر.ع لا يرفع المستوى (يجب أن يكون أعلى
+      // من 0.800) — مطابق لحد LEVEL_MIN_DRINK_PRICE في السيرفر.
+      const LEVEL_MIN_DRINK_PRICE = 0.8;
       const drinkQty = cart.reduce(
-        (s, i) => s + (i.category === "مشروب ساخن" || i.category === "مشروبات باردة" ? i.quantity : 0),
+        (s, i) =>
+          s +
+          ((i.category === "مشروب ساخن" || i.category === "مشروبات باردة") &&
+          Number(i.price) > LEVEL_MIN_DRINK_PRICE
+            ? i.quantity
+            : 0),
         0,
       );
       const prepMin  = totalQty * 3; // 3 minutes per item

@@ -592,6 +592,12 @@ router.get("/orders/:orderId", (req, res): any => {
   return res.json({ order });
 });
 // Award drink-count progress to the customer (idempotent — only fires once per order).
+// Minimum per-cup price (OMR) for a drink to count toward game/level progress.
+// Per product spec: a drink must cost MORE than 0.800 OMR to raise the player's
+// level. Cheap drinks priced at or below this never contribute to the level,
+// the drink tally, or the free-coffee loyalty milestone.
+const LEVEL_MIN_DRINK_PRICE = 0.8;
+
 function awardOrderProgress(order: any) {
   if (order.pointsAwarded) return;
   // Direct in-cafe orders without a registered customer phone do NOT contribute
@@ -625,6 +631,13 @@ function awardOrderProgress(order: any) {
           || cat === "مشروبات باردة"
           || cat === "مشروب بارد";
         if (!isDrink) return s;
+        // Price gate: only drinks priced ABOVE the threshold (0.800 OMR per
+        // cup) raise the level. `it.price` is the effective per-unit price —
+        // it already reflects size extras and per-product discounts, since the
+        // order subtotal is computed as price*qty. A cheaper cup (≤ 0.800)
+        // contributes nothing to the tally.
+        const unitPrice = Number(it.price);
+        if (!Number.isFinite(unitPrice) || unitPrice <= LEVEL_MIN_DRINK_PRICE) return s;
         // Sanitize qty: must be a finite non-negative integer. Non-finite
         // values (NaN, Infinity, "1e309") and negatives are clamped to 0
         // so a malformed client payload can never inflate the tally.
