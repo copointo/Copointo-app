@@ -5694,7 +5694,7 @@ export default function CafeDashboardPage() {
   const [tabsCollapsed, setTabsCollapsed] = useState(false);
   const { counts: notifCounts, markSeen: markTabSeen } = useTabNotifications(id, tab);
 
-  // Random glossy shine: every 3s a random button (manager analytics = -1,
+  // Random glossy shine: every 5s a random button (manager analytics = -1,
   // tabs = 0..TABS.length-1) gets a light-sweep. Cleared after the animation
   // so the same button can shine again later.
   const [shineIdx, setShineIdx] = useState<number>(-99);
@@ -5705,7 +5705,7 @@ export default function CafeDashboardPage() {
       setShineIdx(r);
       setTimeout(() => setShineIdx(s => (s === r ? -99 : s)), 750);
     };
-    const interval = setInterval(tick, 2000);
+    const interval = setInterval(tick, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -5810,7 +5810,7 @@ export default function CafeDashboardPage() {
               />
               {shineIdx === -1 && (
                 <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
-                  <span className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-tab-shine" />
+                  <span className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-transparent via-white to-transparent animate-tab-shine" />
                 </span>
               )}
               <span className="absolute bottom-0.5 left-0.5 w-4 h-4 rounded-md bg-black/55 flex items-center justify-center">
@@ -5843,7 +5843,7 @@ export default function CafeDashboardPage() {
                     <img src={tabImg} alt={label} className="w-full h-full object-cover" />
                     {shineIdx === i && (
                       <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
-                        <span className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-tab-shine" />
+                        <span className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-transparent via-white to-transparent animate-tab-shine" />
                       </span>
                     )}
                     {active && (
@@ -5884,7 +5884,7 @@ export default function CafeDashboardPage() {
                   <div className={`absolute inset-0.5 rounded-lg pointer-events-none ${active ? "ring-1 ring-black/20" : "ring-1 ring-[#E8B86D]/15"}`} />
                   {shineIdx === i && (
                     <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
-                      <span className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent animate-tab-shine" />
+                      <span className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-transparent via-white to-transparent animate-tab-shine" />
                     </span>
                   )}
 
