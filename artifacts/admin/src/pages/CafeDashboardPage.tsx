@@ -4327,11 +4327,19 @@ async function buildOrderReceipt(
     return `<tr><td>${it.name}${variantNote}${promoNote}${freeNote}</td><td style="text-align:center">${qtyCell}</td><td style="text-align:left">${oldPriceCell}${(it.price * it.qty).toFixed(3)}</td></tr>`;
   }).join("");
   const isDirect = o.source === "direct";
-  const where = isDirect
-    ? "طلب مباشر من الكوفي / Direct in-cafe order"
-    : (o.type === "dine"
+  const isBookingInv = o.invoiceType === "booking";
+  // Invoice-only rows (the live order was wiped on "new day") carry no order
+  // shape, so guard the location line: explicit dine/car only, else a neutral
+  // label instead of a misleading "سيارة: undefined".
+  const where = isBookingInv
+    ? "حجز طاولة / Table booking"
+    : isDirect
+      ? "طلب مباشر من الكوفي / Direct in-cafe order"
+      : o.type === "dine"
         ? `طاولة / Table ${o.tableNumber}`
-        : `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`);
+        : o.type === "car"
+          ? `سيارة / Car: ${o.plateNumber} ${o.plateSymbol ?? ""}`
+          : "فاتورة محفوظة / Saved invoice";
 
   // Pricing breakdown — prefer the persisted order fields when available
   // (new flow), otherwise fall back to legacy single-coffee math.
@@ -4410,7 +4418,7 @@ ${customerCopyBanner}
   <div><b>الزبون / Customer:</b> ${o.customerName}${o.customerNameEn ? ` <span style="direction:ltr;display:inline-block">(${o.customerNameEn})</span>` : ""}</div>
   ${isDirect
     ? `<div style="margin-top:1mm;padding:1mm 2mm;border:1px dashed #000;text-align:center;font-weight:bold">☕ طلب مباشر من الكوفي / Direct in-cafe order</div>`
-    : `<div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>
+    : `${o.customerPhone ? `<div><b>الهاتف / Phone:</b> ${o.customerPhone}</div>` : ""}
   <div><b>المكان / Location:</b> ${where}</div>`}
   <div><b>التاريخ / Date:</b> ${new Date(o.createdAt).toLocaleString("ar-OM")}</div>
   <div><b>طريقة الدفع / Payment:</b> ${payLabel}</div>
@@ -4664,18 +4672,54 @@ function PrintedInvoices({ id }: { id: string }) {
   const [to, setTo]     = useState<string>(today);
   const [search, setSearch] = useState("");
   const [orders, setOrders] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<{ o: any; html: string } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const reload = useCallback(() => {
     setLoading(true);
-    api.cafeOrders(id).then(d => setOrders(d.orders ?? [])).finally(() => setLoading(false));
+    Promise.all([
+      api.cafeOrders(id).then(d => d.orders ?? []).catch(() => []),
+      api.cafeInvoices(id).then(d => d.invoices ?? []).catch(() => []),
+    ])
+      .then(([ords, invs]) => { setOrders(ords); setInvoices(invs); })
+      .finally(() => setLoading(false));
   }, [id]);
   useEffect(() => { reload(); }, [reload]);
 
-  // Filter to printed orders only
-  const printed = orders.filter(o => !!o.printedAt);
+  // The server-side `invoices` collection is the persistent source of truth: an
+  // invoice is finalised the moment an order leaves "pending", and it SURVIVES
+  // the "بدء يوم جديد" wipe that clears the live orders panel. The old code read
+  // from `orders` filtered by `printedAt`, so any invoice whose order had been
+  // cleared (or that was confirmed but not printed) silently disappeared. We now
+  // build the list from every invoice and enrich each row with its live order
+  // (matched by orderId) when it still exists — giving full phone/table/receipt
+  // detail — then fold in any printed order that has no invoice record yet so
+  // nothing is ever missed.
+  const records = (() => {
+    const orderById = new Map(orders.map(o => [o.id, o]));
+    const byKey = new Map<string, any>();
+    for (const inv of invoices) {
+      const o = orderById.get(inv.orderId);
+      byKey.set(inv.orderId, {
+        ...(o ?? {}),
+        id: inv.orderId,
+        invoiceId: inv.id,
+        invoiceType: inv.type, // "order" | "booking" — distinct from order.type (dine/car)
+        customerName: o?.customerName ?? inv.customerName,
+        items: (o?.items ?? inv.items) ?? [],
+        total: o?.total ?? inv.total ?? 0,
+        createdAt: o?.createdAt ?? inv.createdAt,
+        dateAt: o?.printedAt ?? inv.createdAt,
+      });
+    }
+    for (const o of orders) {
+      if (!o.printedAt || byKey.has(o.id)) continue;
+      byKey.set(o.id, { ...o, dateAt: o.printedAt });
+    }
+    return [...byKey.values()];
+  })();
 
   const inWindow = (d: Date, start: Date, end: Date) => d >= start && d < end;
 
@@ -4684,17 +4728,17 @@ function PrintedInvoices({ id }: { id: string }) {
     if (mode === "today") {
       const s = new Date(today + "T00:00:00");
       const e = new Date(s); e.setDate(e.getDate() + 1);
-      return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
+      return records.filter(o => inWindow(new Date(o.dateAt), s, e));
     }
     const s = new Date(from + "T00:00:00");
     const e = new Date(to + "T00:00:00"); e.setDate(e.getDate() + 1);
-    return printed.filter(o => inWindow(new Date(o.printedAt), s, e));
+    return records.filter(o => inWindow(new Date(o.dateAt), s, e));
   })();
 
-  // When a search query is present, look across ALL printed invoices so a
-  // specific invoice can be found by its code regardless of the date window.
+  // When a search query is present, look across ALL invoices so a specific
+  // invoice can be found by its code regardless of the date window.
   const q = search.trim().toLowerCase();
-  const base = q ? printed : windowed;
+  const base = q ? records : windowed;
   const matched = q
     ? base.filter(o =>
         String(o.id ?? "").toLowerCase().includes(q) ||
@@ -4702,8 +4746,8 @@ function PrintedInvoices({ id }: { id: string }) {
         String(o.customerPhone ?? "").toLowerCase().includes(q))
     : base;
 
-  // Sort newest first by printedAt
-  const sorted = [...matched].sort((a, b) => new Date(b.printedAt).getTime() - new Date(a.printedAt).getTime());
+  // Sort newest first by date
+  const sorted = [...matched].sort((a, b) => new Date(b.dateAt).getTime() - new Date(a.dateAt).getTime());
   const total = sorted.reduce((s, o) => s + (Number(o.total) || 0), 0);
 
   const openPreview = async (o: any) => {
@@ -4830,11 +4874,13 @@ function PrintedInvoices({ id }: { id: string }) {
                       )}
                     </span>
                   </div>
+                  {(o.customerPhone || o.source || o.type) && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {o.customerPhone} • {o.source === "direct" ? "☕ طلب مباشر" : o.type === "dine" ? `🪑 طاولة ${o.tableNumber}` : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
+                    </p>
+                  )}
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {o.customerPhone} • {o.source === "direct" ? "☕ طلب مباشر" : o.type === "dine" ? `🪑 طاولة ${o.tableNumber}` : `🚗 ${o.plateNumber} ${o.plateSymbol ?? ""}`}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    🖨️ طُبعت / Printed: {fmtDateTimeAr(o.printedAt)}
+                    🧾 التاريخ / Date: {fmtDateTimeAr(o.dateAt)}
                   </p>
                   <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                     {(o.items ?? []).map((it: any) => `${it.name} ×${it.qty}`).join("، ")}

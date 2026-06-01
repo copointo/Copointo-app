@@ -5,3 +5,4 @@
 - [RN image extension mismatch](rn-image-extension-mismatch.md) — blank Expo image despite correct require = file bytes (e.g. JPEG) dont match its .png extension; run `file` and rename.
 - [RN-web style coercion crash](rn-web-style-coercion.md) — numeric/shorthand style keys (e.g. `font`) spread into a <View> crash only on react-native-web; native ignores them.
 - [UNO online game](uno-game.md) — lazy-tick (no bg loop, advances on each request+client poll); +4 legality MUST be enforced in bot AI too or tick() stalls; 25-coin reward is client-trusted.
+- [Copointo invoices source](copointo-invoices-source.md) — Printed-Invoices browser must read the persistent `invoices` collection, not live `orders` (orders get wiped on "new day").
