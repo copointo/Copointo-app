@@ -389,8 +389,19 @@
 .dash-sides > *:nth-child(7),  .dash-sides > *:nth-child(8)  { animation-delay: 0.32s; }
 .dash-sides > *:nth-child(n+9) { animation-delay: 0.41s; }
 
+/* ── Order cards reveal gradually (per-card capped stagger via inline delay) ── */
+@keyframes dashOrderIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+.dash-order {
+  opacity: 0;
+  animation: dashOrderIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dash-content-reveal,
+  .dash-order,
   .dash-sides > * {
     animation: none;
     opacity: 1;

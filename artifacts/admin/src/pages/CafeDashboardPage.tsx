@@ -2109,8 +2109,8 @@ function OrdersTab({ id }: { id: string }) {
       {orders.length > 0 && filteredOrders.length === 0 && (
         <Empty icon="📭" text={`لا توجد طلبات في حالة «${statusFilter}»`} />
       )}
-      {filteredOrders.map(o => { const th = orderTheme(o); return (
-        <div key={o.id} className={`relative overflow-hidden p-5 pr-7 rounded-2xl border-2 ${th.ring} ${th.bg} ${th.glow} bg-card transition-shadow duration-200`}>
+      {filteredOrders.map((o, idx) => { const th = orderTheme(o); return (
+        <div key={o.id} className={`dash-order relative overflow-hidden p-5 pr-7 rounded-2xl border-2 ${th.ring} ${th.bg} ${th.glow} bg-card transition-shadow duration-200`} style={{ animationDelay: `${Math.min(idx, 12) * 0.06}s` }}>
           <span className={`absolute top-0 bottom-0 right-0 w-1.5 ${th.bar}`} aria-hidden />
           {(o.status === "pending" || o.status === "preparing") && (
             <OrderTimer createdAt={o.createdAt} prepMinutes={o.prepMinutes} />
