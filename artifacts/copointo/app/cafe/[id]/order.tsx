@@ -82,6 +82,10 @@ export default function OrderScreen() {
   const [loading, setLoading] = useState(true);
   const [cafeName, setCafeName] = useState<string>(mockCafe?.name ?? "");
   const [activeCategory, setActiveCategory] = useState<string>(CATEGORIES[0].key);
+  // Quick product search. When the box has text it matches the product name
+  // (and description as a fallback) across ALL categories, so the customer can
+  // find a drink instantly without hunting through tabs.
+  const [search, setSearch] = useState("");
 
   const cafe = mockCafe ?? CAFES[0];
   const displayName = cafeName || cafe.name;
@@ -134,13 +138,20 @@ export default function OrderScreen() {
     return () => { cancelled = true; clearInterval(t); };
   }, [id]);
 
-  const visibleItems = useMemo(
-    () =>
-      activeCategory === ALL_KEY
-        ? items
-        : items.filter((i) => i.category === activeCategory),
-    [items, activeCategory]
-  );
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (q) {
+      // Search overrides the category filter so any matching product surfaces.
+      return items.filter((i) => {
+        const name = String(i.name ?? "").toLowerCase();
+        const desc = String(i.description ?? "").toLowerCase();
+        return name.includes(q) || desc.includes(q);
+      });
+    }
+    return activeCategory === ALL_KEY
+      ? items
+      : items.filter((i) => i.category === activeCategory);
+  }, [items, activeCategory, search]);
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -246,26 +257,54 @@ export default function OrderScreen() {
         />
       )}
 
-      {/* Category tabs (always shown) — fixed-height bar pinned above the
-          scrollable items list so it never gets covered no matter how many
-          products are loaded. */}
-      <View style={styles.tabsBar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabs}
-        >
-          {CATEGORIES.map((c) => (
-            <CategoryTab
-              key={c.key}
-              label={c.key}
-              icon={c.icon}
-              active={activeCategory === c.key}
-              onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
-            />
-          ))}
-        </ScrollView>
+      {/* Quick product search — pinned above the tabs so finding a drink is
+          instant. Typing overrides the active category and matches across all. */}
+      <View style={styles.searchBar}>
+        <View style={styles.searchBox}>
+          <Feather name="search" size={16} color={PRIMARY} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="ابحث عن منتج…"
+            placeholderTextColor="rgba(245,230,204,0.4)"
+            returnKeyType="search"
+            textAlign="right"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearch("")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel="مسح البحث"
+            >
+              <Feather name="x" size={16} color="rgba(245,230,204,0.55)" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+
+      {/* Category tabs (hidden while searching) — fixed-height bar pinned above
+          the scrollable items list so it never gets covered no matter how many
+          products are loaded. */}
+      {search.trim().length === 0 && (
+        <View style={styles.tabsBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabs}
+          >
+            {CATEGORIES.map((c) => (
+              <CategoryTab
+                key={c.key}
+                label={c.key}
+                icon={c.icon}
+                active={activeCategory === c.key}
+                onPress={() => { Haptics.selectionAsync(); setActiveCategory(c.key); }}
+              />
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Items list — flex:1 constrains it to the remaining space below the
           categories bar so its own internal scroll stays within bounds. */}
@@ -276,9 +315,11 @@ export default function OrderScreen() {
       >
         {visibleItems.length === 0 && (
           <View style={[styles.center, { paddingTop: 60 }]}>
-            <Text style={{ fontSize: 48 }}>{CATEGORY_ICONS[activeCategory] ?? "🍽️"}</Text>
-            <Text style={styles.emptyTitle}>لا توجد منتجات في هذا التصنيف</Text>
-            <Text style={styles.muted}>جرّب تصنيفاً آخر</Text>
+            <Text style={{ fontSize: 48 }}>{search.trim() ? "🔍" : (CATEGORY_ICONS[activeCategory] ?? "🍽️")}</Text>
+            <Text style={styles.emptyTitle}>
+              {search.trim() ? "لا توجد نتائج مطابقة" : "لا توجد منتجات في هذا التصنيف"}
+            </Text>
+            <Text style={styles.muted}>{search.trim() ? "جرّب كلمة بحث أخرى" : "جرّب تصنيفاً آخر"}</Text>
           </View>
         )}
         <View style={styles.grid}>
@@ -827,6 +868,18 @@ const styles = StyleSheet.create({
   activeBannerBarFill: { height: "100%", backgroundColor: PRIMARY },
 
   // Tabs
+  searchBar: { paddingHorizontal: 14, paddingTop: 12 },
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingHorizontal: 12, height: 44,
+    borderRadius: 14, borderWidth: 1, borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  searchIcon: { marginLeft: 2 },
+  searchInput: {
+    flex: 1, fontSize: 14, fontFamily: "Inter_400Regular",
+    color: CREAM, paddingVertical: 0,
+  },
   tabsBar: { flexShrink: 0, flexGrow: 0 },
   tabs: { paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
   itemsScroll: { flex: 1 },
