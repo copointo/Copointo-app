@@ -5698,10 +5698,16 @@ export default function CafeDashboardPage() {
   // tabs = 0..TABS.length-1) gets a light-sweep. Cleared after the animation
   // so the same button can shine again later.
   const [shineIdx, setShineIdx] = useState<number>(-99);
+  const lastShineRef = useRef<number>(-99);
   useEffect(() => {
     const total = TABS.length + 1; // +1 for the manager-analytics button
     const tick = () => {
-      const r = Math.floor(Math.random() * total) - 1; // -1 .. TABS.length-1
+      let r = Math.floor(Math.random() * total) - 1; // -1 .. TABS.length-1
+      // Never shine the same button twice in a row.
+      while (total > 1 && r === lastShineRef.current) {
+        r = Math.floor(Math.random() * total) - 1;
+      }
+      lastShineRef.current = r;
       setShineIdx(r);
       setTimeout(() => setShineIdx(s => (s === r ? -99 : s)), 750);
     };
