@@ -344,5 +344,6 @@
   100% { transform: translateX(320%)  skewX(-18deg); opacity: 0; }
 }
 .animate-tab-shine {
-  animation: tabShine 0.7s ease-out;
+  opacity: 0;
+  animation: tabShine 0.7s ease-out forwards;
 }
