@@ -415,7 +415,7 @@ router.post("/users/:id/game-clear", (req, res) => {
 //
 // `drinksHere` counts only hot/cold drinks (matching the loyalty allow-list
 // in `awardOrderProgress` so what the admin sees matches what actually counts
-// toward the 7-drink free-coffee milestone). `ordersHere` is the raw count
+// toward the 6-drink free-coffee milestone). `ordersHere` is the raw count
 // of orders the user has at that cafe regardless of category.
 //
 // Phone normalization (digits-only) is used to match orders to the user so
@@ -471,7 +471,7 @@ router.get("/users/:id/cafe-breakdown", (req, res): any => {
 // match the in-game level cap used everywhere else.
 //
 // Milestone free-coffees: when the admin INCREASES totalOrders, milestone
-// free coffees ARE issued for any newly-crossed multiple of 7 — so the user
+// free coffees ARE issued for any newly-crossed multiple of 6 — so the user
 // actually progresses and earns the rewards (which was the explicit ask).
 // The `awardCafeId` body field selects which cafe the new free coffees are
 // redeemable at (free coffees are cafe-specific). If omitted, the cafe with
@@ -540,13 +540,15 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     user.level       = allCafeLvls.reduce((s, n) => s + n, 0);
     user.totalOrders = allCafeOrds.reduce((s, n) => s + n, 0);
     // Milestone free coffees: only if THIS cafe's coffees crossed upward
-    // through a new multiple of 7. (No-op for decreases.)
+    // through a new multiple of 6. (No-op for decreases.)
     let newlyAwardedSet = 0;
     if (setOrders > (prev.totalOrders ?? 0) && user.phone) {
       const norm = (p: any) => String(p ?? "").replace(/\D+/g, "");
       const userPhoneN = norm(user.phone);
       const alreadyAwarded = freeCoffees.filter(f => norm(f.userPhone) === userPhoneN).length;
-      const willHave = Math.floor((user.totalOrders ?? 0) / DRINKS_PER_LEVEL);
+      // Free coffee every 6 drinks (levels 6, 12, 18, …) — must stay in
+      // lockstep with DRINKS_PER_FREE_COFFEE in cafe-dashboard.ts.
+      const willHave = Math.floor((user.totalOrders ?? 0) / 6);
       newlyAwardedSet = Math.max(0, willHave - alreadyAwarded);
       if (newlyAwardedSet > 0) {
         awardMilestoneCoffees(
@@ -611,7 +613,9 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
       const norm = (p: any) => String(p ?? "").replace(/\D+/g, "");
       const userPhoneN = norm(user.phone);
       const alreadyAwarded = freeCoffees.filter(f => norm(f.userPhone) === userPhoneN).length;
-      const willHave = Math.floor(user.totalOrders / 7);
+      // Free coffee every 6 drinks (levels 6, 12, 18, …) — must stay in
+      // lockstep with DRINKS_PER_FREE_COFFEE in cafe-dashboard.ts.
+      const willHave = Math.floor(user.totalOrders / 6);
       newlyAwarded = Math.max(0, willHave - alreadyAwarded);
       if (newlyAwarded > 0) {
         let cafe = awardCafeId ? cafes.find(c => c.id === awardCafeId) : null;

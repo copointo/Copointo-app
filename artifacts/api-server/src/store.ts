@@ -291,7 +291,7 @@ export interface FreeCoffee {
   code: string;             // unique 6-char uppercase code
   userPhone: string;        // owner (the player who earned it)
   userName: string;         // snapshot
-  earnedAtLevel: number;    // milestone level (multiple of 7) that earned it
+  earnedAtLevel: number;    // milestone level (multiple of 6) that earned it
   earnedAt: string;         // ISO
   /** Cafe whose order pushed the user past the milestone — only redeemable here. */
   earnedAtCafeId?: string | null;

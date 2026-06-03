@@ -56,6 +56,10 @@ const PURPLE  = "#7B5CFF";
 
 const SZ_CURRENT = 110;
 const SZ_OTHER   = 78;
+// Qualifying drinks (== levels) between each free-coffee reward. Reward lands
+// at levels 6, 12, 18, … — must stay in lockstep with the server award rule
+// (DRINKS_PER_FREE_COFFEE in api-server cafe-dashboard.ts).
+const DRINKS_PER_FREE_COFFEE = 6;
 const SZ_DONE    = 60;
 
 const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
@@ -93,7 +97,7 @@ function FreeCoffeeModal({
           </View>
 
           <Text style={styles.fcSubtitle}>
-            تحصل على كوب قهوة مجاني بعد كل ٧ مشروبات — استخدم الكود في نفس الكوفي الذي ربحته فيه.
+            تحصل على كوب قهوة مجاني بعد كل ٦ مشروبات — استخدم الكود في نفس الكوفي الذي ربحته فيه.
           </Text>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
@@ -207,8 +211,8 @@ export default function GameScreen() {
   const levelsToNextReward = nextReward ? nextReward.unlockLevel - level : 0;
   const nextCoinMilestone = getNextCoinMilestone(level);
   const levelsToNextCoin  = nextCoinMilestone ? nextCoinMilestone.level - level : 0;
-  const ordersThisLevel = level % 7;
-  const nextFreeLevel   = ordersThisLevel === 0 ? 0 : 7 - ordersThisLevel;
+  const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
+  const nextFreeLevel   = ordersThisLevel === 0 ? 0 : DRINKS_PER_FREE_COFFEE - ordersThisLevel;
   const overallProgress = Math.min((level / 999) * 100, 100);
 
   // ── Daily level cap progress (resets each calendar day) ──
@@ -533,7 +537,7 @@ export default function GameScreen() {
         {visibleLevels.map((lvl) => {
           const isCurrent    = lvl === level;
           const isDone       = lvl < level;
-          const isFreeCoffee = lvl > 0 && lvl % 7 === 0;
+          const isFreeCoffee = lvl > 0 && lvl % DRINKS_PER_FREE_COFFEE === 0;
           const isCoinLvl    = isCoinMilestone(lvl);
           const sz           = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER;
           const osZ          = outerSz(sz);
@@ -657,7 +661,7 @@ export default function GameScreen() {
                 </View>
               </View>
 
-              {/* ── Free-coffee hint label (future multiples of 7) ── */}
+              {/* ── Free-coffee hint label (future multiples of DRINKS_PER_FREE_COFFEE) ── */}
               {isFreeCoffee && !isDone && !isCurrent && (
                 <View style={[styles.freeHint, { transform: [{ translateX: xOff > 0 ? -30 : xOff < 0 ? 30 : 0 }] }]}>
                   <Text style={styles.freeHintText}>{"▲ ☕ اصل لهذا المستوى للحصول على مشروب مجاني"}</Text>

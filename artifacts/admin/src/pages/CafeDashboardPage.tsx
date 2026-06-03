@@ -2328,7 +2328,7 @@ function OrdersTab({ id }: { id: string }) {
                   <button
                     onClick={() => setFreeCoffeeOrder(o)}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-bold hover:bg-purple-500/30"
-                    title="استخدام كود قهوة مجانية يملكه الزبون (من نظام المكافآت كل 7 مشروبات)"
+                    title="استخدام كود قهوة مجانية يملكه الزبون (من نظام المكافآت كل 6 مشروبات)"
                   >
                     🎟️ كود كوفي مجاني
                   </button>

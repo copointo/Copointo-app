@@ -35,7 +35,7 @@ I want iterative development. Ask before making major changes.
 - **AI chatbot:** Data-aware (menu/tables/chat), guided order & booking flows; conversation persisted per cafe; clearable from the header.
 - **Ordering:** In-app cart wizard, real-time menu, status tracking. Supports per-product discounts (`originalPrice`), buy-X-get-Y promos, and bean/size variants — all carried through cart, chat order, invoices.
 - **Table booking:** Hourly pricing, admin approval, time-slot management, invoice on confirmation.
-- **Loyalty:** Free coffee every 7 paid drinks, redeemable only at the earning cafe (atomic two-phase commit). Progress is credited at invoice print, not order confirmation.
+- **Loyalty:** Free coffee every 6 paid drinks (levels 6, 12, 18…), redeemable only at the earning cafe (atomic two-phase commit). Progress is credited at invoice print, not order confirmation.
 - **Inventory / discount codes / reels / ratings / expenses & invoice templates / broadcast notifications** — managed from the admin dashboard.
 - **Cafe dashboard extras:** Edit order, direct (walk-in) in-cafe order, barcode/QR tab, 2-step reels upload wizard.
 - **Super-admin:** Edit cafe; ban (soft-block) vs hard-delete (full PII purge); view users' owned cosmetics as shapes.

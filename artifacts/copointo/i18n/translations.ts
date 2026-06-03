@@ -176,7 +176,7 @@ export const translations: Record<Lang, Dict> = {
     "ranks.levelsRange": "المستويات {min}–{max}",
     "ranks.cupsToNext": "كوفي حتى التالية",
     "ranks.remaining": "متبقي",
-    "ranks.footer": "كل طلب قهوة = 1 مستوى. كل 7 مستويات = ☕ مجاني!",
+    "ranks.footer": "كل طلب قهوة = 1 مستوى. كل 6 مستويات = ☕ مجاني!",
 
     // ── Game ───────────────────────────────────────────────────
     "game.levelSlash": " / 999 ",
@@ -773,7 +773,7 @@ export const translations: Record<Lang, Dict> = {
     "ranks.levelsRange": "Levels {min}–{max}",
     "ranks.cupsToNext": "cups to next",
     "ranks.remaining": "remaining",
-    "ranks.footer": "Each coffee order = 1 level. Every 7 levels = ☕ free!",
+    "ranks.footer": "Each coffee order = 1 level. Every 6 levels = ☕ free!",
 
     // ── Game ───────────────────────────────────────────────────
     "game.levelSlash": " / 999 ",

@@ -58,7 +58,10 @@ function generateUniqueCode(): string {
   }
   return `FC${Date.now().toString(36).toUpperCase()}`;
 }
-/** Issues one FreeCoffee per multiple-of-7 milestone the user has crossed but not yet been awarded for.
+/** Number of qualifying drinks (== levels) between each free-coffee reward.
+ *  Reward lands at levels 6, 12, 18, … (every DRINKS_PER_FREE_COFFEE). */
+const DRINKS_PER_FREE_COFFEE = 6;
+/** Issues one FreeCoffee per multiple-of-DRINKS_PER_FREE_COFFEE milestone the user has crossed but not yet been awarded for.
  *  The triggering cafe is recorded so the free coffee is only redeemable there. */
 export function awardMilestoneCoffees(
   userPhone: string,
@@ -67,7 +70,7 @@ export function awardMilestoneCoffees(
   earnedAtCafeId?: string | null,
   earnedAtCafeName?: string | null,
 ) {
-  const milestonesEarned = Math.floor(totalOrders / 7);
+  const milestonesEarned = Math.floor(totalOrders / DRINKS_PER_FREE_COFFEE);
   // Normalize phone numbers when counting existing vouchers so a stored
   // record like "+96812345678" still matches a lookup of "96812345678".
   // Without this, format drift between code paths can over-issue vouchers
@@ -82,7 +85,7 @@ export function awardMilestoneCoffees(
       code:             generateUniqueCode(),
       userPhone,
       userName,
-      earnedAtLevel:    (i + 1) * 7,
+      earnedAtLevel:    (i + 1) * DRINKS_PER_FREE_COFFEE,
       earnedAt:         new Date().toISOString(),
       earnedAtCafeId:   earnedAtCafeId ?? null,
       earnedAtCafeName: earnedAtCafeName ?? null,

@@ -1,6 +1,7 @@
 - [OMPay payment gateway](ompay-payment-gateway.md) — server backbone done & gated behind OMPAY_* secrets; two CONFIRM-AGAINST-PORTAL seams + client-driven fulfilment.
 - [Dev DB showcase-only users](dev-db-showcase-only.md) — every local user is showcaseOnly, so phone/loyalty matching has no happy-path in dev; test guard/reject paths only.
 - [Copointo loyalty award timing](copointo-loyalty-award-timing.md) — level/drink progress credited ONLY at invoice print (POST /print), never at order confirmation.
+- [Copointo free-coffee cadence](copointo-free-coffee-cadence.md) — "free coffee every N drinks" is duplicated across server+admin+mobile+copy; change all together; DRINKS_PER_LEVEL is a different coupling.
 - [RN game-loop smoothness](rn-game-loop-smoothness.md) — frame-driven RN games must run physics in a Reanimated worklet on the UI thread, not RAF+forceRender, to never stutter.
 - [RN image extension mismatch](rn-image-extension-mismatch.md) — blank Expo image despite correct require = file bytes (e.g. JPEG) dont match its .png extension; run `file` and rename.
 - [RN-web style coercion crash](rn-web-style-coercion.md) — numeric/shorthand style keys (e.g. `font`) spread into a <View> crash only on react-native-web; native ignores them.

@@ -278,7 +278,7 @@ function FreeCoffeeModal({
           </View>
 
           <Text style={styles.ranksSubtitle}>
-            تحصل على كوب قهوة مجاني بعد كل ٧ مشروبات — استخدم الكود في نفس الكوفي الذي ربحته فيه.
+            تحصل على كوب قهوة مجاني بعد كل ٦ مشروبات — استخدم الكود في نفس الكوفي الذي ربحته فيه.
           </Text>
 
           <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
@@ -613,7 +613,7 @@ export default function ProfileScreen() {
   const rank  = getRank(level);
   const nextRank = getRank(Math.min(level + 1, 1000));
   const pct   = rank ? ((level - rank.min) / Math.max(rank.max - rank.min, 1)) * 100 : 0;
-  const freeCoffees = Math.floor((user.totalOrders ?? 0) / 7);
+  const freeCoffees = Math.floor((user.totalOrders ?? 0) / 6);
   const giftsReceived = useReceivedGifts(user.id);
   const giftsSent     = useSentGifts(user.id);
   const { equipped: eqCharacterId } = useCharacters();
