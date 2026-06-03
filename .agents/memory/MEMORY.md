@@ -6,6 +6,7 @@
 - [RN-web style coercion crash](rn-web-style-coercion.md) — numeric/shorthand style keys (e.g. `font`) spread into a <View> crash only on react-native-web; native ignores them.
 - [UNO online game](uno-game.md) — lazy-tick (no bg loop, advances on each request+client poll); +4 legality MUST be enforced in bot AI too or tick() stalls; 25-coin reward is client-trusted.
 - [Copointo invoices source](copointo-invoices-source.md) — Printed-Invoices browser must read the persistent `invoices` collection, not live `orders` (orders get wiped on "new day").
+- [Copointo phone canonicalization](copointo-phone-canonicalization.md) — phone-keyed lookups must strip Omani 968 country code to an 8-digit key; device sends bare local #, server stores +968.
 - [Free-coffee ownership](free-coffee-ownership.md) — redemption ownership = signed-in ACCOUNT phone (freeCoffeeOwnerPhone), NOT the order-form contact phone; else showcase "Copointo" + any phone mismatch 403s the whole order.
 - [Flappy HTML isolation](flappy-html-isolation.md) — Flappy Copointo runs as a self-contained HTML5 canvas in a WebView/iframe (cafe-map pattern); RN host authoritative for coins/cap; Reanimated version crashed web preview.
 - [Copointo community group persistence](copointo-community-group-persistence.md) — community→group reconcile must be ADDITIVE-ONLY; poll-driven dissolve wiped conversations. Kicked members keeping history is intended.

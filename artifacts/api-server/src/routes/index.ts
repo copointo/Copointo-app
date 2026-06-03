@@ -191,8 +191,32 @@ router.get("/orders", (req, res) => {
 router.get("/free-coffees", (req, res) => {
   const phone = String(req.query.phone ?? "").trim();
   if (!phone) { res.json({ coffees: [] }); return; }
+  // Canonicalize Omani phones to the 8-digit national number before comparing
+  // so format drift can't hide earned codes. The server canonicalizes the
+  // stored phone to "+96812345678" (that's what both the `users` and
+  // `freeCoffees` collections hold), but a device that registered with a bare
+  // local number keeps "12345678" on-device and sends THAT here. A strict
+  // string compare — or even a plain digits-only compare — would then return
+  // nothing (the +968 country code makes "96812345678" ≠ "12345678") and the
+  // user's free-coffee section would look empty even though codes were earned.
+  // This mirrors the login matcher (which already bridges "+968…" vs the bare
+  // local number) and handles "+968…", "00968…", leading-zero, and spaced
+  // variants. Falls back to exact match for non-numeric handles (e.g. the
+  // showcase "Copointo" account) whose canonical key is empty.
+  const phoneKey = (p: string) => {
+    let d = String(p ?? "").replace(/\D+/g, "").replace(/^0+/, "");
+    if (d.startsWith("968") && d.length > 8) d = d.slice(3);
+    // Only treat a well-formed Omani national number (exactly 8 digits) as a
+    // canonical key. Malformed/short remnants return "" and fall through to
+    // strict exact match, so they can't collide with a real user's codes.
+    return d.length === 8 ? d : "";
+  };
+  const wantKey = phoneKey(phone);
   const list = freeCoffees
-    .filter(f => f.userPhone === phone)
+    .filter(f =>
+      f.userPhone === phone ||
+      (wantKey !== "" && phoneKey(f.userPhone) === wantKey),
+    )
     .sort((a, b) => b.earnedAt.localeCompare(a.earnedAt));
   res.json({ coffees: list });
 });
