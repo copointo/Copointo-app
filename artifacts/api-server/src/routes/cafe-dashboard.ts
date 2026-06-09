@@ -252,6 +252,14 @@ router.get("/stats", (req: any, res) => {
   const confirmedBookingsSeries = last7.map(d => ({ ...d, count: confirmedBookingsByDay[d.date] || 0 }));
   const vouchersSeries          = last7.map(d => ({ ...d, count: vouchersByDay[d.date] || 0 }));
   const todaySales = revenueSeries.length ? revenueSeries[revenueSeries.length - 1].count : 0;
+  // Today's expenses (Oman day) — sum of expense rows whose `date` matches the
+  // current Oman day key (reuses todayKey from the sold-items block above).
+  // Surfaced so the stats tab can show a "مصاريف اليوم" panel only when
+  // something was actually recorded today.
+  const todayExpenses = +expenses
+    .filter(e => e.cafeId === id && e.date === todayKey)
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0)
+    .toFixed(3);
 
   res.json({
     totalOrders: cafeOrders.length, totalBookings: cafeBookings.length,
@@ -267,6 +275,7 @@ router.get("/stats", (req: any, res) => {
     todayItemsSold,
     revenueSeries,
     todaySales,
+    todayExpenses,
     cashSeries,
     visaSeries,
     pendingOrdersSeries,

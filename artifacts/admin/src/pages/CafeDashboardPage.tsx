@@ -766,13 +766,13 @@ function SoldItemCard({ cafeId, row, theme, Icon, fmt }: {
   );
 }
 
-const ORDERS_CHART_THEME: ChartTheme = {
-  accent: "#E8B86D",
-  accentDim: "#C9A063",
-  glow: "rgba(232,184,109,0.30)",
-  panelBg: "linear-gradient(135deg,#0A0706 0%,#050302 60%,#000 100%)",
-  grid: "rgba(232,184,109,0.12)",
-  gradId: "ordersChartFill",
+const EXPENSES_CHART_THEME: ChartTheme = {
+  accent: "#F0857A",
+  accentDim: "#CC675E",
+  glow: "rgba(240,133,122,0.28)",
+  panelBg: "linear-gradient(135deg,#140706 0%,#0A0303 60%,#000 100%)",
+  grid: "rgba(240,133,122,0.12)",
+  gradId: "expensesChartFill",
 };
 const MENU_CHART_THEME: ChartTheme = {
   accent: "#C18CF0",
@@ -834,15 +834,9 @@ function StatsTab({ id }: { id: string }) {
   if (!data) return <Loader />;
   return (
     <div className="space-y-6">
-      {/* Today's themed panels — orders & total sales (charts), cash & Visa (number-only) */}
-      <div className="dash-sides grid grid-cols-2 gap-3">
-        <StatChartPanel
-          title="إجمالي الطلبات"
-          series={data.ordersSeries ?? []}
-          theme={ORDERS_CHART_THEME}
-          Icon={ShoppingBag}
-        />
-        <StatChartPanel
+      {/* Today's number-only panels (side by side): total sales, cash, Visa & today's expenses (when any) */}
+      <div className="dash-sides grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatNumberPanel
           title="إجمالي مبيعات اليوم"
           series={data.revenueSeries ?? []}
           theme={TODAY_SALES_CHART_THEME}
@@ -863,6 +857,16 @@ function StatsTab({ id }: { id: string }) {
           Icon={CreditCard}
           money
         />
+        {/* Today's expenses — only shown when something was recorded today */}
+        {(Number(data.todayExpenses) || 0) > 0 && (
+          <StatNumberPanel
+            title="مصاريف اليوم"
+            series={[{ date: "", label: (data.revenueSeries ?? []).slice(-1)[0]?.label ?? "—", count: Number(data.todayExpenses) || 0 }]}
+            theme={EXPENSES_CHART_THEME}
+            Icon={Receipt}
+            money
+          />
+        )}
       </div>
 
       {/* Sold-items showcase — full-width distinctive panel with pictures */}
