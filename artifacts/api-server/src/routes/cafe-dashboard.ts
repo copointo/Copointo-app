@@ -182,15 +182,21 @@ router.get("/stats", (req: any, res) => {
   const ordersSeries    = last7.map(d => ({ ...d, count: ordersByDayCount[d.date] || 0 }));
   const bookingsSeries  = last7.map(d => ({ ...d, count: bookingsByDayCount[d.date] || 0 }));
   const menuItemsSeries = last7.map(d => ({ ...d, count: menuItemsByDayCount[d.date] || 0 }));
-  // Per-product quantities sold TODAY (Oman-day) — drives the menu-items panel
-  // which lists each product name with how many were sold today.
   const todayKey = last7.length ? last7[last7.length - 1].date : "";
-  const todayItemsMap: Record<string, number> = {};
+  // Per-product TODAY (Oman-day): quantity ordered + revenue generated. Drives
+  // the "اجمالي طلبات اليوم" panel which shows each product's picture, name,
+  // order count and revenue as a vertical bar chart.
+  const todayItemsMap: Record<string, { qty: number; revenue: number }> = {};
+  let todayOrdersCount = 0;
   cafeOrders.forEach(o => {
     if (omanDayKey(o.createdAt) !== todayKey) return;
+    todayOrdersCount += 1;
     (o.items || []).forEach(it => {
       const name = (it.name || "").trim() || "—";
-      todayItemsMap[name] = (todayItemsMap[name] || 0) + (Number(it.qty) || 0);
+      const qty = Number(it.qty) || 0;
+      const revenue = (Number(it.price) || 0) * qty;
+      const cur = todayItemsMap[name] || { qty: 0, revenue: 0 };
+      todayItemsMap[name] = { qty: cur.qty + qty, revenue: cur.revenue + revenue };
     });
   });
   // Map product name → its menu item id so the panel can show each sold
@@ -202,7 +208,7 @@ router.get("/stats", (req: any, res) => {
     if (nm && !menuIdByName[nm]) menuIdByName[nm] = m.id;
   });
   const todayItemsSold = Object.entries(todayItemsMap)
-    .map(([name, qty]) => ({ name, qty, itemId: menuIdByName[name] ?? null }))
+    .map(([name, v]) => ({ name, qty: v.qty, revenue: +v.revenue.toFixed(3), itemId: menuIdByName[name] ?? null }))
     .sort((a, b) => b.qty - a.qty);
   // ── Gift voucher stats (separate from regular orders) ─────────────
   const cafeVouchers = giftVouchers.filter(v => v.cafeId === id);
@@ -273,6 +279,7 @@ router.get("/stats", (req: any, res) => {
     menuItemsSeries,
     totalItemsSold,
     todayItemsSold,
+    todayOrdersCount,
     revenueSeries,
     todaySales,
     todayExpenses,

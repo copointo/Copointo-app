@@ -661,18 +661,20 @@ function StatNumberPanel({ title, series, theme, Icon, money = false }: {
 // Menu-items panel: a distinctive full-width showcase of every product sold
 // TODAY, each presented as a picture card (using the image added in the menu)
 // with its quantity. The grand total sits in its own large highlighted box.
-function MenuSoldPanel({ cafeId, items, series, theme, Icon }: {
+function MenuSoldPanel({ cafeId, items, totalOrders, series, theme, Icon }: {
   cafeId: string;
-  items: { name: string; qty: number; itemId?: string | null }[];
+  items: { name: string; qty: number; revenue?: number; itemId?: string | null }[];
+  totalOrders: number;
   series: { date: string; label: string; count: number }[];
   theme: ChartTheme;
   Icon: any;
 }) {
   const rows = (items || []).slice().sort((a, b) => b.qty - a.qty);
-  const total = rows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
   const todayPoint = (series || []).slice(-1);
   const todayLabel = todayPoint.length ? todayPoint[0].label : "—";
   const fmt = (n: number) => Number(n || 0).toLocaleString("en-US");
+  const fmtMoney = (n: number) => Number(n || 0).toFixed(3);
+  const maxQty = rows.reduce((m, r) => Math.max(m, Number(r.qty) || 0), 0) || 1;
   return (
     <div
       className="relative rounded-2xl p-5 border-2 overflow-hidden"
@@ -692,29 +694,40 @@ function MenuSoldPanel({ cafeId, items, series, theme, Icon }: {
         >
           <Icon size={22} style={{ color: theme.accent }} />
         </span>
-        <h3 className="text-lg font-extrabold leading-tight" style={{ color: theme.accent }}>عناصر القائمة المباعة اليوم</h3>
+        <h3 className="text-lg font-extrabold leading-tight" style={{ color: theme.accent }}>اجمالي طلبات اليوم</h3>
       </div>
 
-      {/* Big standalone total box */}
+      {/* Big standalone total-orders box */}
       <div
         className="mx-auto mb-5 w-full max-w-sm rounded-2xl border-2 px-5 py-4 flex items-center justify-center gap-4"
         style={{ borderColor: theme.accent, background: `${theme.accent}16`, boxShadow: `0 0 18px ${theme.glow}, inset 0 0 22px ${theme.glow}` }}
       >
-        <TrendingUp size={34} style={{ color: theme.accent }} />
+        <ShoppingBag size={34} style={{ color: theme.accent }} />
         <div className="flex flex-col items-center">
-          <p className="text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(total)}</p>
-          <span className="text-[11px] font-bold mt-1" style={{ color: theme.accentDim }}>إجمالي القطع المباعة</span>
+          <p className="text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(totalOrders)}</p>
+          <span className="text-[11px] font-bold mt-1" style={{ color: theme.accentDim }}>اجمالي عدد الطلبات</span>
         </div>
       </div>
 
-      {/* Picture cards grid */}
+      {/* Vertical bar chart — one column per product (name, image, revenue, order count) */}
       {rows.length === 0 ? (
-        <p className="text-center text-sm py-8" style={{ color: theme.accentDim }}>لا توجد مبيعات اليوم</p>
+        <p className="text-center text-sm py-8" style={{ color: theme.accentDim }}>لا توجد طلبات اليوم</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {rows.map((r, i) => (
-            <SoldItemCard key={`${r.name}-${i}`} cafeId={cafeId} row={r} theme={theme} Icon={Icon} fmt={fmt} />
-          ))}
+        <div className="overflow-x-auto pb-1">
+          <div className="flex items-end justify-start gap-4 min-w-min px-1">
+            {rows.map((r, i) => (
+              <SoldItemBar
+                key={`${r.name}-${i}`}
+                cafeId={cafeId}
+                row={r}
+                maxQty={maxQty}
+                theme={theme}
+                Icon={Icon}
+                fmt={fmt}
+                fmtMoney={fmtMoney}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -725,23 +738,50 @@ function MenuSoldPanel({ cafeId, items, series, theme, Icon }: {
   );
 }
 
-// A single sold-item picture card. Falls back to the panel icon when the item
-// has no menu id or its image fails to load, so a card is never left blank.
-function SoldItemCard({ cafeId, row, theme, Icon, fmt }: {
+// A single product column in the orders bar chart. The bar height is scaled to
+// the busiest product (by order count); revenue sits above the bar and the
+// product image + name act as the x-axis label. Falls back to the panel icon
+// when the item has no menu id or its image fails to load.
+function SoldItemBar({ cafeId, row, maxQty, theme, Icon, fmt, fmtMoney }: {
   cafeId: string;
-  row: { name: string; qty: number; itemId?: string | null };
+  row: { name: string; qty: number; revenue?: number; itemId?: string | null };
+  maxQty: number;
   theme: ChartTheme;
   Icon: any;
   fmt: (n: number) => string;
+  fmtMoney: (n: number) => string;
 }) {
   const [failed, setFailed] = useState(false);
   const showImg = !!row.itemId && !failed;
+  const BAR_MAX = 130;
+  const barH = Math.max(10, Math.round(((Number(row.qty) || 0) / maxQty) * BAR_MAX));
   return (
-    <div
-      className="relative rounded-xl border overflow-hidden flex flex-col"
-      style={{ borderColor: `${theme.accent}40`, background: `${theme.accent}0D` }}
-    >
-      <div className="relative aspect-square w-full overflow-hidden" style={{ background: `${theme.accent}10` }}>
+    <div className="flex flex-col items-center justify-end shrink-0 w-[68px]">
+      {/* Revenue label */}
+      <span className="text-[10px] font-bold tabular-nums mb-1 whitespace-nowrap" style={{ color: theme.accentDim }}>
+        {fmtMoney(Number(row.revenue) || 0)} OMR
+      </span>
+      {/* Bar */}
+      <div
+        className="relative w-9 rounded-t-lg flex items-start justify-center"
+        style={{
+          height: barH,
+          background: `linear-gradient(180deg, ${theme.accent} 0%, ${theme.accent}66 100%)`,
+          boxShadow: `0 0 10px ${theme.glow}`,
+        }}
+        title={`${row.name}: ${fmt(row.qty)} طلب`}
+      >
+        {/* Order-count badge */}
+        <span
+          className="absolute -top-2.5 text-[10px] font-black tabular-nums rounded-full px-1.5 py-0.5"
+          style={{ color: "#0A0706", background: theme.accent, boxShadow: `0 0 8px ${theme.glow}` }}
+        >×{fmt(row.qty)}</span>
+      </div>
+      {/* Image (x-axis label) */}
+      <div
+        className="mt-2 w-12 h-12 rounded-full overflow-hidden flex items-center justify-center border"
+        style={{ borderColor: `${theme.accent}55`, background: `${theme.accent}12` }}
+      >
         {showImg ? (
           <img
             src={`/api/cafe/${cafeId}/menu/${row.itemId}/image`}
@@ -750,18 +790,13 @@ function SoldItemCard({ cafeId, row, theme, Icon, fmt }: {
             onError={() => setFailed(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Icon size={30} style={{ color: `${theme.accent}80` }} />
-          </div>
+          <Icon size={22} style={{ color: `${theme.accent}80` }} />
         )}
-        <span
-          className="absolute top-1.5 left-1.5 text-xs font-black tabular-nums rounded-full px-2.5 py-1 backdrop-blur-sm"
-          style={{ color: "#0A0706", background: theme.accent, boxShadow: `0 0 10px ${theme.glow}` }}
-        >×{fmt(row.qty)}</span>
       </div>
-      <div className="px-2.5 py-2">
-        <p className="text-xs font-bold truncate text-center" style={{ color: "#EADCC8" }} title={row.name}>{row.name}</p>
-      </div>
+      {/* Name */}
+      <p className="text-[10px] font-bold text-center mt-1 leading-tight line-clamp-2 w-full" style={{ color: "#EADCC8" }} title={row.name}>
+        {row.name}
+      </p>
     </div>
   );
 }
@@ -873,6 +908,7 @@ function StatsTab({ id }: { id: string }) {
       <MenuSoldPanel
         cafeId={id}
         items={data.todayItemsSold ?? []}
+        totalOrders={Number(data.todayOrdersCount) || 0}
         series={data.menuItemsSeries ?? []}
         theme={MENU_CHART_THEME}
         Icon={UtensilsCrossed}
