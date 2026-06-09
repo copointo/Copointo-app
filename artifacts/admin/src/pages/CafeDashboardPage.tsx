@@ -623,36 +623,32 @@ function StatNumberPanel({ title, series, theme, Icon, money = false }: {
   const todayCount = todayPoint.length ? todayPoint[0].count : 0;
   const todayLabel = todayPoint.length ? todayPoint[0].label : "—";
   const fmt = (n: number) => money ? Number(n || 0).toFixed(3) : Number(n || 0).toLocaleString("en-US");
+  const accent = theme.accent;
+  // Styled to match the manager-analytics GoldStat cards: dark gradient,
+  // accent-tinted border/glow, uppercase label + cream value, icon box.
   return (
     <div
-      className="relative rounded-xl p-3 border-2 overflow-hidden flex flex-col"
+      className="group relative rounded-2xl p-4 overflow-hidden border transition-all duration-200 hover:-translate-y-0.5"
       style={{
-        borderColor: theme.accent,
-        background: theme.panelBg,
-        boxShadow: `0 0 18px ${theme.glow}, inset 0 0 28px ${theme.glow}`,
+        background: "linear-gradient(135deg,#0C0807 0%,#070404 55%,#000 100%)",
+        borderColor: `${accent}40`,
+        boxShadow: `0 8px 24px -12px ${accent}66, inset 0 1px 0 ${accent}1F`,
       }}
     >
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg,transparent,${theme.accent},transparent)` }} />
-
-      <div className="flex flex-col items-center gap-0.5 mb-2.5">
-        <Icon size={20} style={{ color: theme.accent }} />
-        <h3 className="text-sm font-extrabold text-center leading-tight" style={{ color: theme.accent }}>{title}</h3>
-      </div>
-
-      {/* Hero number badge */}
-      <div
-        className="relative mx-auto my-1 w-fit min-w-[120px] rounded-xl border px-3 py-1.5 flex items-center justify-center gap-1.5"
-        style={{ borderColor: theme.accent, background: `${theme.accent}16`, boxShadow: `inset 0 0 14px ${theme.glow}` }}
-      >
-        <Icon size={18} style={{ color: `${theme.accent}99` }} />
-        <div className="flex items-baseline gap-1">
-          <p className="text-2xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(todayCount)}</p>
-          {money && <span className="text-xs font-extrabold" style={{ color: theme.accentDim }}>OMR</span>}
+      <span className="pointer-events-none absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl opacity-25 transition-opacity duration-300 group-hover:opacity-40" style={{ background: accent }} />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}99, transparent)` }} />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: `${accent}B3` }}>{title}</p>
+          <p className="text-base sm:text-lg lg:text-xl font-extrabold text-[#F5E6CC] mt-1 leading-tight break-words tabular-nums" style={{ overflowWrap: "anywhere" }}>
+            {fmt(todayCount)}{money && <span className="text-xs font-extrabold ms-1" style={{ color: `${accent}B3` }}>OMR</span>}
+          </p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{todayLabel}</p>
         </div>
-      </div>
-
-      <div className="mt-3">
-        <MiniStat label="اليوم" value={todayLabel} theme={theme} Icon={CalendarDays} />
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border"
+          style={{ background: `linear-gradient(135deg, ${accent}33, ${accent}0D)`, color: accent, borderColor: `${accent}40`, boxShadow: `0 0 14px ${accent}33` }}>
+          <Icon size={18} />
+        </div>
       </div>
     </div>
   );
