@@ -482,8 +482,18 @@ function orderTheme(o: any): OrderTheme {
   };
 }
 
+// Shared section surface — matches the manager-analytics GoldStat/SectionCard
+// look: dark diagonal gradient, gold-tinted border, top hairline highlight and
+// a soft amber drop shadow. Used across every cafe-dashboard tab.
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-gradient-to-b from-card to-[#0a0606] border border-[#E8B86D]/15 rounded-2xl shadow-lg shadow-black/40 ${className}`}>{children}</div>;
+  return (
+    <div
+      className={`relative bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/20 rounded-2xl shadow-[0_14px_36px_-20px_rgba(232,184,109,0.45)] ${className}`}
+    >
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#E8B86D]/55 to-transparent" />
+      {children}
+    </div>
+  );
 }
 function StatBox({ label, value, Icon }: { label:string; value:any; Icon: any }) {
   return (
@@ -498,14 +508,14 @@ function StatBox({ label, value, Icon }: { label:string; value:any; Icon: any })
 function Inp({ value, onChange, placeholder, type = "text", className = "" }: any) {
   return (
     <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className={`w-full bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground ${className}`} />
+      className={`w-full bg-input border border-[#E8B86D]/25 rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-[#E8B86D]/50 placeholder:text-muted-foreground ${className}`} />
   );
 }
 function Sel({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
     <div className="relative">
       <select value={value} onChange={e => onChange(e.target.value)}
-        className="w-full appearance-none bg-input border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+        className="w-full appearance-none bg-input border border-[#E8B86D]/25 rounded-xl px-4 py-2.5 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-[#E8B86D]/50">
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <ChevronDown size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -1238,7 +1248,7 @@ function FreeCoffeeModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card border border-border rounded-2xl w-full max-w-md p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/30 rounded-2xl w-full max-w-md p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-primary flex items-center gap-2">
             <Gift size={18}/> كوفي مجاني
@@ -2524,7 +2534,7 @@ function OrdersTab({ id }: { id: string }) {
                 const sum = +(Number(f.cash || 0) + Number(f.visa || 0)).toFixed(3);
                 const ok = Math.abs(sum - tot) < 0.005;
                 return (
-                  <div className="w-full mt-2 p-3 rounded-xl bg-card border border-border/60 flex flex-col gap-3">
+                  <div className="w-full mt-2 p-3 rounded-xl bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/25 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-foreground">💳 تثبيت الدفع — الإجمالي: {tot.toFixed(3)} ر.ع</span>
                       <button onClick={() => closePayForm(o.id)} className="text-[11px] text-muted-foreground hover:text-foreground">إلغاء ✕</button>
@@ -2692,10 +2702,10 @@ function AddPhoneModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-2xl bg-card border border-border shadow-2xl"
+        className="w-full max-w-md rounded-2xl bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/30 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border">
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-[#E8B86D]/15">
           <h3 className="font-bold text-foreground flex items-center gap-2">
             <Phone size={16} className="text-emerald-400"/> إضافة رقم الهاتف
           </h3>
@@ -2838,10 +2848,10 @@ function OrderEditor({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-card border border-border shadow-2xl"
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/30 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-5 py-4 border-b border-border bg-card">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-5 py-4 border-b border-[#E8B86D]/15 bg-[#0C0807]">
           <h3 className="font-bold text-foreground flex items-center gap-2">
             <Pencil size={16} className="text-primary"/> التعديل على الطلب — {order.customerName}
           </h3>
@@ -2917,7 +2927,7 @@ function OrderEditor({
         </div>
 
         {/* Footer — live total + save */}
-        <div className="sticky bottom-0 z-10 px-5 py-4 border-t border-border bg-card space-y-3">
+        <div className="sticky bottom-0 z-10 px-5 py-4 border-t border-[#E8B86D]/15 bg-[#0C0807] space-y-3">
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>المجموع الفرعي</span><span className="tabular-nums">{subtotal.toFixed(3)} ر.ع</span>
@@ -3922,10 +3932,10 @@ function SlotsModal({
       onClick={onClose}
     >
       <div
-        className="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+        className="bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/30 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-card border-b border-border p-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-[#0C0807] border-b border-[#E8B86D]/15 p-4 flex items-center justify-between z-10">
           <div>
             <h3 className="font-bold text-foreground text-base">⏰ مواعيد طاولة {table.number}</h3>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -5130,10 +5140,10 @@ function PrintedInvoices({ id }: { id: string }) {
           onClick={() => setPreview(null)}
         >
           <div
-            className="bg-card rounded-2xl border border-border max-w-[420px] w-full max-h-[92vh] flex flex-col overflow-hidden"
+            className="bg-gradient-to-br from-[#0C0807] via-[#080504] to-black rounded-2xl border border-[#E8B86D]/30 max-w-[420px] w-full max-h-[92vh] flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[#E8B86D]/15">
               <div className="min-w-0">
                 <p className="font-bold text-foreground text-sm truncate">
                   الفاتورة الإلكترونية / Electronic Invoice
@@ -5154,7 +5164,7 @@ function PrintedInvoices({ id }: { id: string }) {
                 style={{ width: 300, height: "60vh", minHeight: 360, border: "none" }}
               />
             </div>
-            <div className="flex gap-2 px-4 py-3 border-t border-border">
+            <div className="flex gap-2 px-4 py-3 border-t border-[#E8B86D]/15">
               <button
                 onClick={() => printOrderInvoice(id, preview.o)}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90"
@@ -5812,7 +5822,7 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
     if (isHidden) {
       return (
         <div
-          className="p-6 flex flex-col items-center justify-center gap-4 bg-card border-2 border-dashed rounded-2xl min-h-[220px]"
+          className="p-6 flex flex-col items-center justify-center gap-4 bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border-2 border-dashed border-[#E8B86D]/25 rounded-2xl min-h-[220px]"
           style={{ borderColor: accent }}
         >
           <div className="text-center">
@@ -5830,7 +5840,7 @@ function BarcodeTab({ id, cafeName }: { id: string; cafeName?: string }) {
       );
     }
     return (
-    <div className="p-6 flex flex-col items-center gap-4 bg-card border-2 rounded-2xl" style={{ borderColor: accent }}>
+    <div className="p-6 flex flex-col items-center gap-4 bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border-2 rounded-2xl" style={{ borderColor: accent }}>
       <div className="text-center">
         <h3 className="font-extrabold text-foreground text-lg">{title}</h3>
         <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
@@ -5991,7 +6001,7 @@ export default function CafeDashboardPage() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6" dir="rtl">
-        <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center space-y-4">
+        <div className="max-w-md w-full bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/30 rounded-2xl p-8 text-center space-y-4">
           <div className="text-5xl">☕</div>
           <h1 className="text-xl font-bold text-foreground">هذا الكوفي غير متاح</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -6046,7 +6056,7 @@ export default function CafeDashboardPage() {
       </header>
 
       {/* Tabs — square 3D-rotating buttons. Collapsible via chevron at the bottom. */}
-      <div className="relative border-b border-border bg-card shrink-0">
+      <div className="relative border-b border-[#E8B86D]/15 bg-[#0C0807] shrink-0">
         <div
           className={`overflow-hidden transition-[max-height,opacity,padding] duration-300 ease-in-out ${
             tabsCollapsed ? "max-h-0 opacity-0 py-0" : "max-h-[600px] opacity-100 px-6 py-5"
@@ -6385,7 +6395,7 @@ export function ManagerAnalyticsPage() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6" dir="rtl">
-        <div className="max-w-md w-full bg-card border border-border rounded-2xl p-8 text-center space-y-4">
+        <div className="max-w-md w-full bg-gradient-to-br from-[#0C0807] via-[#080504] to-black border border-[#E8B86D]/30 rounded-2xl p-8 text-center space-y-4">
           <div className="text-5xl">📊</div>
           <h1 className="text-xl font-bold text-foreground">لوحة التحليلات غير متاحة</h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -6798,7 +6808,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         {data.invoices.length > 0 ? (
           <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-card">
+              <thead className="sticky top-0 bg-[#0C0807]">
                 <tr className="text-[11px] uppercase tracking-wider text-[#E8B86D]/70 border-b border-[#E8B86D]/20">
                   <th className="text-right py-2 px-2 font-bold">رقم</th>
                   <th className="text-right py-2 px-2 font-bold">العميل</th>
