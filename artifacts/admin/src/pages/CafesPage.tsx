@@ -369,131 +369,146 @@ export default function CafesPage() {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40">
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الكوفي</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">صاحب الكوفي</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">التوقيت</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الاشتراك</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">مدة الاشتراك</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الموقع</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الحالة</th>
-                <th className="text-right text-muted-foreground font-medium px-5 py-3.5">الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {cafes.map(cafe => (
-                <tr key={cafe.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      {/* Logo circle */}
-                      <div className="relative shrink-0">
-                        {cafe.image
-                          ? <img src={cafe.image} alt="" className="w-14 h-14 rounded-2xl object-cover border border-border" />
-                          : <div className="w-14 h-14 rounded-2xl bg-muted/60 border border-border flex items-center justify-center text-2xl">☕</div>
-                        }
-                        {cafe.logo
-                          ? <img src={cafe.logo} alt="" className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full object-cover border-2 border-card shadow" />
-                          : <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-amber-500/20 border-2 border-card shadow flex items-center justify-center text-sm">☕</div>
-                        }
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">{cafe.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{cafe.address}</p>
-                      </div>
+      {/* Cafe panels grid — each cafe gets a full square panel showing all its
+          details in an organized layout instead of a single dense table row. */}
+      {cafes.length === 0 ? (
+        <div className="bg-card border border-border rounded-2xl text-center py-16 text-muted-foreground">
+          <div className="text-5xl mb-3">☕</div>
+          <p>لا توجد كافيهات مضافة بعد</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {cafes.map(cafe => {
+            const expired = !!(cafe.subscriptionEnd && cafe.subscriptionEnd < today);
+            return (
+              <div
+                key={cafe.id}
+                className="group bg-card border border-border rounded-2xl overflow-hidden flex flex-col shadow-sm hover:border-primary/40 hover:shadow-lg transition-all"
+              >
+                {/* ── Cover header with logo + name overlay ── */}
+                <div className="relative h-32 bg-muted/40">
+                  {cafe.image
+                    ? <img src={cafe.image} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-4xl">☕</div>
+                  }
+                  <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
+                  {/* Status badge */}
+                  <span className={`absolute top-3 left-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-sm ${cafe.active ? "bg-green-500/25 text-green-300" : "bg-red-500/25 text-red-300"}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${cafe.active ? "bg-green-400" : "bg-red-400"}`} />
+                    {cafe.active ? "نشط" : "موقوف"}
+                  </span>
+                  {/* Logo + name */}
+                  <div className="absolute bottom-0 inset-x-0 p-3 flex items-end gap-3">
+                    <div className="shrink-0">
+                      {cafe.logo
+                        ? <img src={cafe.logo} alt="" className="w-12 h-12 rounded-xl object-cover border-2 border-card shadow" />
+                        : <div className="w-12 h-12 rounded-xl bg-amber-500/20 border-2 border-card shadow flex items-center justify-center text-xl">☕</div>
+                      }
                     </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <p className="text-foreground font-medium">{cafe.ownerName || "—"}</p>
-                    <p className="text-muted-foreground text-xs mt-0.5" dir="ltr">{cafe.ownerPhone}</p>
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground">{cafe.openTime} – {cafe.closeTime}</td>
-                  <td className="px-5 py-4">
-                    <span className="text-green-400 font-semibold">{cafe.subscriptionAmount} OMR</span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="text-xs space-y-0.5">
-                      <p className="text-muted-foreground">البداية: <span className="text-foreground font-medium">{cafe.subscriptionStart || "—"}</span></p>
-                      <p className="text-muted-foreground">الانتهاء: <span className={`font-medium ${cafe.subscriptionEnd && cafe.subscriptionEnd < today ? "text-red-400" : "text-foreground"}`}>{cafe.subscriptionEnd || "—"}</span></p>
+                    <div className="min-w-0 flex-1 pb-0.5">
+                      <p className="font-bold text-foreground truncate">{cafe.name}</p>
+                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                        <MapPin size={11} className="shrink-0" /> {cafe.address || "—"}
+                      </p>
                     </div>
-                  </td>
-                  <td className="px-5 py-4">
+                  </div>
+                </div>
+
+                {/* ── Details body ── */}
+                <div className="p-4 flex flex-col gap-3 flex-1">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <InfoCell
+                      icon={<UserIcon size={13} />}
+                      label="صاحب الكوفي"
+                      value={cafe.ownerName || "—"}
+                      sub={cafe.ownerPhone}
+                      ltrSub
+                    />
+                    <InfoCell
+                      icon={<Clock size={13} />}
+                      label="التوقيت"
+                      value={`${cafe.openTime} – ${cafe.closeTime}`}
+                    />
+                    <InfoCell
+                      icon={<Tag size={13} />}
+                      label="الاشتراك"
+                      value={<span className="text-green-400">{cafe.subscriptionAmount} OMR</span>}
+                    />
+                    <InfoCell
+                      icon={<Clock size={13} />}
+                      label="مدة الاشتراك"
+                      value={<span className={expired ? "text-red-400" : "text-foreground"}>{cafe.subscriptionEnd || "—"}</span>}
+                      sub={`من ${cafe.subscriptionStart || "—"}`}
+                    />
+                  </div>
+
+                  {/* Website / location link */}
+                  <div className="bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+                      <span className="text-primary inline-flex items-center"><Globe size={13} /></span>
+                      الموقع
+                    </div>
                     {cafe.website ? (
                       <a href={cafe.website} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs max-w-[140px] truncate">
-                        <Globe size={12} /> {cafe.website.replace(/^https?:\/\//, "")}
+                        className="inline-flex items-center gap-1.5 text-primary hover:underline text-sm font-semibold truncate max-w-full" dir="ltr">
+                        <ExternalLink size={12} className="shrink-0" /> {cafe.website.replace(/^https?:\/\//, "")}
                       </a>
                     ) : (
-                      <span className="text-muted-foreground/50 text-xs">—</span>
+                      <span className="text-sm text-muted-foreground/60">—</span>
                     )}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${cafe.active ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${cafe.active ? "bg-green-400" : "bg-red-400"}`} />
-                      {cafe.active ? "نشط" : "موقوف"}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setNewCafe(cafe)}
-                        title="عرض QR الداشبورد"
-                        className="p-2 rounded-lg hover:bg-amber-500/15 text-amber-400 transition-colors flex items-center"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/>
-                          <rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/>
-                          <rect x="18" y="18" width="3" height="3"/>
-                        </svg>
-                      </button>
-                      <Link
-                        href={`/cafe/${cafe.id}`}
-                        title="داشبورد الكوفي"
-                        className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center"
-                        onClick={() => { try { sessionStorage.setItem("copointo_from_super_admin", "1"); } catch {} }}
-                      >
-                        <LayoutDashboard size={16} />
-                      </Link>
-                      <button
-                        onClick={() => openEdit(cafe)}
-                        title="تعديل معلومات الكوفي"
-                        aria-label="تعديل معلومات الكوفي"
-                        className="p-2 rounded-lg hover:bg-blue-500/15 text-blue-400 transition-colors"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => toggle(cafe.id)}
-                        title={cafe.active ? "إيقاف" : "تفعيل"}
-                        className={`p-2 rounded-lg transition-colors ${cafe.active ? "hover:bg-red-500/15 text-red-400" : "hover:bg-green-500/15 text-green-400"}`}
-                      >
-                        <Power size={16} />
-                      </button>
-                      <button
-                        onClick={() => remove(cafe.id)}
-                        className="p-2 rounded-lg hover:bg-destructive/15 text-destructive transition-colors"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {cafes.length === 0 && (
-            <div className="text-center py-16 text-muted-foreground">
-              <div className="text-5xl mb-3">☕</div>
-              <p>لا توجد كافيهات مضافة بعد</p>
-            </div>
-          )}
+                  </div>
+
+                  {/* ── Actions footer ── */}
+                  <div className="mt-auto pt-3 border-t border-border flex items-center gap-2">
+                    <button
+                      onClick={() => setNewCafe(cafe)}
+                      title="عرض QR الداشبورد"
+                      className="p-2 rounded-lg hover:bg-amber-500/15 text-amber-400 transition-colors flex items-center"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/>
+                        <rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/>
+                        <rect x="18" y="18" width="3" height="3"/>
+                      </svg>
+                    </button>
+                    <Link
+                      href={`/cafe/${cafe.id}`}
+                      title="داشبورد الكوفي"
+                      className="p-2 rounded-lg hover:bg-primary/15 text-primary transition-colors flex items-center"
+                      onClick={() => { try { sessionStorage.setItem("copointo_from_super_admin", "1"); } catch {} }}
+                    >
+                      <LayoutDashboard size={16} />
+                    </Link>
+                    <button
+                      onClick={() => openEdit(cafe)}
+                      title="تعديل معلومات الكوفي"
+                      aria-label="تعديل معلومات الكوفي"
+                      className="p-2 rounded-lg hover:bg-blue-500/15 text-blue-400 transition-colors"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      onClick={() => toggle(cafe.id)}
+                      title={cafe.active ? "إيقاف" : "تفعيل"}
+                      className={`p-2 rounded-lg transition-colors ${cafe.active ? "hover:bg-red-500/15 text-red-400" : "hover:bg-green-500/15 text-green-400"}`}
+                    >
+                      <Power size={16} />
+                    </button>
+                    <button
+                      onClick={() => remove(cafe.id)}
+                      title="حذف"
+                      className="p-2 rounded-lg hover:bg-destructive/15 text-destructive transition-colors mr-auto"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       {/* ── Add Cafe Modal — 3-step wizard ── */}
       {modal && (
@@ -908,6 +923,27 @@ function Field({ label, icon, children }: { label: string; icon: React.ReactNode
         <span className="text-primary inline-flex items-center">{icon}</span> {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// One labelled detail tile inside a cafe panel. `value` may be a string or a
+// styled node; `sub` is an optional second line (e.g. a phone number).
+function InfoCell({
+  icon, label, value, sub, ltrSub,
+}: {
+  icon: React.ReactNode; label: string; value: React.ReactNode; sub?: string; ltrSub?: boolean;
+}) {
+  return (
+    <div className="bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-1">
+        <span className="text-primary inline-flex items-center">{icon}</span>
+        {label}
+      </div>
+      <div className="text-sm font-semibold text-foreground truncate">{value}</div>
+      {sub ? (
+        <div className="text-[11px] text-muted-foreground mt-0.5 truncate" dir={ltrSub ? "ltr" : undefined}>{sub}</div>
+      ) : null}
     </div>
   );
 }
