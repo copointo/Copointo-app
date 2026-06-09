@@ -193,8 +193,16 @@ router.get("/stats", (req: any, res) => {
       todayItemsMap[name] = (todayItemsMap[name] || 0) + (Number(it.qty) || 0);
     });
   });
+  // Map product name → its menu item id so the panel can show each sold
+  // item's picture via the cacheable /menu/:itemId/image endpoint. Items no
+  // longer on the menu simply resolve to null and fall back to an icon.
+  const menuIdByName: Record<string, string> = {};
+  cafeMenu.forEach(m => {
+    const nm = (m.name || "").trim();
+    if (nm && !menuIdByName[nm]) menuIdByName[nm] = m.id;
+  });
   const todayItemsSold = Object.entries(todayItemsMap)
-    .map(([name, qty]) => ({ name, qty }))
+    .map(([name, qty]) => ({ name, qty, itemId: menuIdByName[name] ?? null }))
     .sort((a, b) => b.qty - a.qty);
   // ── Gift voucher stats (separate from regular orders) ─────────────
   const cafeVouchers = giftVouchers.filter(v => v.cafeId === id);

@@ -608,10 +608,12 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
   );
 }
 
-// Menu-items panel: instead of a trend chart, list each product sold TODAY
-// with its quantity (the user wants names + per-product counts for today).
-function MenuSoldPanel({ items, series, theme, Icon }: {
-  items: { name: string; qty: number }[];
+// Menu-items panel: a distinctive full-width showcase of every product sold
+// TODAY, each presented as a picture card (using the image added in the menu)
+// with its quantity. The grand total sits in its own large highlighted box.
+function MenuSoldPanel({ cafeId, items, series, theme, Icon }: {
+  cafeId: string;
+  items: { name: string; qty: number; itemId?: string | null }[];
   series: { date: string; label: string; count: number }[];
   theme: ChartTheme;
   Icon: any;
@@ -623,46 +625,92 @@ function MenuSoldPanel({ items, series, theme, Icon }: {
   const fmt = (n: number) => Number(n || 0).toLocaleString("en-US");
   return (
     <div
-      className="relative rounded-xl p-3 border-2 overflow-hidden"
+      className="relative rounded-2xl p-5 border-2 overflow-hidden"
       style={{
         borderColor: theme.accent,
         background: theme.panelBg,
-        boxShadow: `0 0 18px ${theme.glow}, inset 0 0 28px ${theme.glow}`,
+        boxShadow: `0 0 26px ${theme.glow}, inset 0 0 44px ${theme.glow}`,
       }}
     >
-      <div className="flex flex-col items-center gap-0.5 mb-2.5">
-        <Icon size={20} style={{ color: theme.accent }} />
-        <h3 className="text-sm font-extrabold text-center leading-tight" style={{ color: theme.accent }}>عناصر القائمة المباعة</h3>
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg,transparent,${theme.accent},transparent)` }} />
+
+      {/* Header */}
+      <div className="flex items-center justify-center gap-2.5 mb-4">
+        <span
+          className="w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{ background: `${theme.accent}1A`, border: `1px solid ${theme.accent}55`, boxShadow: `0 0 14px ${theme.glow}` }}
+        >
+          <Icon size={22} style={{ color: theme.accent }} />
+        </span>
+        <h3 className="text-lg font-extrabold leading-tight" style={{ color: theme.accent }}>عناصر القائمة المباعة اليوم</h3>
       </div>
 
+      {/* Big standalone total box */}
       <div
-        className="mx-auto mb-3 w-fit min-w-[120px] rounded-lg border px-3 py-1.5 flex items-center justify-center gap-2"
-        style={{ borderColor: theme.accent, background: `${theme.accent}14`, boxShadow: `0 0 10px ${theme.glow}` }}
+        className="mx-auto mb-5 w-full max-w-sm rounded-2xl border-2 px-5 py-4 flex items-center justify-center gap-4"
+        style={{ borderColor: theme.accent, background: `${theme.accent}16`, boxShadow: `0 0 18px ${theme.glow}, inset 0 0 22px ${theme.glow}` }}
       >
-        <p className="text-2xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(total)}</p>
-        <TrendingUp size={20} style={{ color: theme.accent }} />
+        <TrendingUp size={34} style={{ color: theme.accent }} />
+        <div className="flex flex-col items-center">
+          <p className="text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(total)}</p>
+          <span className="text-[11px] font-bold mt-1" style={{ color: theme.accentDim }}>إجمالي القطع المباعة</span>
+        </div>
       </div>
 
-      <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-0.5">
-        {rows.length === 0 ? (
-          <p className="text-center text-xs py-4" style={{ color: theme.accentDim }}>لا توجد مبيعات اليوم</p>
-        ) : rows.map((r, i) => (
-          <div
-            key={`${r.name}-${i}`}
-            className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5"
-            style={{ borderColor: `${theme.accent}33`, background: `${theme.accent}0D` }}
-          >
-            <span className="text-xs font-semibold truncate" style={{ color: "#EADCC8" }} title={r.name}>{r.name}</span>
-            <span
-              className="text-xs font-black tabular-nums shrink-0 rounded-md px-2 py-0.5"
-              style={{ color: theme.accent, background: `${theme.accent}1A` }}
-            >{fmt(r.qty)}</span>
-          </div>
-        ))}
-      </div>
+      {/* Picture cards grid */}
+      {rows.length === 0 ? (
+        <p className="text-center text-sm py-8" style={{ color: theme.accentDim }}>لا توجد مبيعات اليوم</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {rows.map((r, i) => (
+            <SoldItemCard key={`${r.name}-${i}`} cafeId={cafeId} row={r} theme={theme} Icon={Icon} fmt={fmt} />
+          ))}
+        </div>
+      )}
 
-      <div className="mt-3">
+      <div className="mt-4 max-w-xs mx-auto">
         <MiniStat label="اليوم" value={todayLabel} theme={theme} Icon={CalendarDays} />
+      </div>
+    </div>
+  );
+}
+
+// A single sold-item picture card. Falls back to the panel icon when the item
+// has no menu id or its image fails to load, so a card is never left blank.
+function SoldItemCard({ cafeId, row, theme, Icon, fmt }: {
+  cafeId: string;
+  row: { name: string; qty: number; itemId?: string | null };
+  theme: ChartTheme;
+  Icon: any;
+  fmt: (n: number) => string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const showImg = !!row.itemId && !failed;
+  return (
+    <div
+      className="relative rounded-xl border overflow-hidden flex flex-col"
+      style={{ borderColor: `${theme.accent}40`, background: `${theme.accent}0D` }}
+    >
+      <div className="relative aspect-square w-full overflow-hidden" style={{ background: `${theme.accent}10` }}>
+        {showImg ? (
+          <img
+            src={`/api/cafe/${cafeId}/menu/${row.itemId}/image`}
+            alt={row.name}
+            className="w-full h-full object-cover"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Icon size={30} style={{ color: `${theme.accent}80` }} />
+          </div>
+        )}
+        <span
+          className="absolute top-1.5 left-1.5 text-xs font-black tabular-nums rounded-full px-2.5 py-1 backdrop-blur-sm"
+          style={{ color: "#0A0706", background: theme.accent, boxShadow: `0 0 10px ${theme.glow}` }}
+        >×{fmt(row.qty)}</span>
+      </div>
+      <div className="px-2.5 py-2">
+        <p className="text-xs font-bold truncate text-center" style={{ color: "#EADCC8" }} title={row.name}>{row.name}</p>
       </div>
     </div>
   );
@@ -732,14 +780,6 @@ const CONFIRMED_BOOK_CHART_THEME: ChartTheme = {
   grid: "rgba(143,224,196,0.12)",
   gradId: "confirmedBookChartFill",
 };
-const VOUCHERS_CHART_THEME: ChartTheme = {
-  accent: "#D7A0F5",
-  accentDim: "#B27FCC",
-  glow: "rgba(215,160,245,0.28)",
-  panelBg: "linear-gradient(135deg,#100716 0%,#08040B 60%,#000 100%)",
-  grid: "rgba(215,160,245,0.12)",
-  gradId: "vouchersChartFill",
-};
 
 // ── Stats Tab ─────────────────────────────────────────────────
 function StatsTab({ id }: { id: string }) {
@@ -787,20 +827,16 @@ function StatsTab({ id }: { id: string }) {
           theme={BOOKINGS_CHART_THEME}
           Icon={CalendarDays}
         />
-        <MenuSoldPanel
-          items={data.todayItemsSold ?? []}
-          series={data.menuItemsSeries ?? []}
-          theme={MENU_CHART_THEME}
-          Icon={UtensilsCrossed}
-        />
-        <StatChartPanel
-          title="القسائم الشرائية"
-          series={data.vouchersSeries ?? []}
-          theme={VOUCHERS_CHART_THEME}
-          Icon={Gift}
-        />
       </div>
 
+      {/* Sold-items showcase — full-width distinctive panel with pictures */}
+      <MenuSoldPanel
+        cafeId={id}
+        items={data.todayItemsSold ?? []}
+        series={data.menuItemsSeries ?? []}
+        theme={MENU_CHART_THEME}
+        Icon={UtensilsCrossed}
+      />
     </div>
   );
 }
