@@ -23,7 +23,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { apiFetch, apiPost } from "@/constants/api";
+import { apiFetch, apiPost, apiDelete } from "@/constants/api";
 import { useApp } from "@/context/AppContext";
 
 interface ApiCafe {
@@ -71,6 +71,8 @@ export default function CafeLandingScreen() {
   const [myStars, setMyStars] = useState(0);          // current user's rating (0 = not rated yet)
   const [myComment, setMyComment] = useState("");     // current user's optional review text
   const [submitting, setSubmitting] = useState(false);
+  const [hasRated, setHasRated]   = useState(false);  // user already submitted (one rating per user)
+  const [deleting, setDeleting]   = useState(false);  // delete-my-rating request in flight
   // Ratings: inline auto-rotating panel + full-list modal
   const [ratingsOpen, setRatingsOpen]       = useState(false);
   const [ratingsLoading, setRatingsLoading] = useState(false);
@@ -255,18 +257,22 @@ export default function CafeLandingScreen() {
     if (id) apiPost(`/cafe/${id}/track-view`, { source: "cafe-detail" }).catch(() => {});
   }, [id]);
 
-  // Load the current user's previous rating + comment (so the panel pre-fills).
+  // Load the current user's previous rating + comment. If they already rated,
+  // the panel locks (one rating per user) and offers a delete instead.
   useEffect(() => {
-    if (!id || !user?.id) { setMyStars(0); setMyComment(""); return; }
+    if (!id || !user?.id) { setMyStars(0); setMyComment(""); setHasRated(false); return; }
     apiFetch<{ stars: number; comment?: string }>(`/cafes/${id}/my-rating?userId=${encodeURIComponent(user.id)}`)
-      .then(d => { setMyStars(d.stars ?? 0); setMyComment(d.comment ?? ""); })
+      .then(d => {
+        const s = d.stars ?? 0;
+        setMyStars(s); setMyComment(d.comment ?? ""); setHasRated(s > 0);
+      })
       .catch(() => {});
   }, [id, user?.id]);
 
   // Tapping a star only SELECTS it (no submit yet) — the user confirms with the
-  // "مشاركة" button below, optionally after writing a comment.
+  // "مشاركة" button below, optionally after writing a comment. Locked once rated.
   const pickStars = (stars: number) => {
-    if (!user?.id || submitting) return;
+    if (!user?.id || submitting || hasRated) return;
     if (stars < 1 || stars > 5) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMyStars(stars);
@@ -292,6 +298,7 @@ export default function CafeLandingScreen() {
       );
       if (res?.ok && cafe) {
         setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
+        setHasRated(true);
         loadRatings();
         Alert.alert("شكراً لك", "تم نشر تقييمك بنجاح");
       }
@@ -300,6 +307,35 @@ export default function CafeLandingScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Delete the current user's own rating + comment. Confirms first, then clears
+  // the panel back to the un-rated state so they could rate again later.
+  const deleteRating = () => {
+    if (!user?.id || deleting) return;
+    Alert.alert("حذف تقييمك", "هل تريد حذف تقييمك وتعليقك؟", [
+      { text: "إلغاء", style: "cancel" },
+      {
+        text: "حذف", style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            const res = await apiDelete<{ ok: boolean; rating: number; ratingCount: number }>(
+              `/cafes/${id}/rate?userId=${encodeURIComponent(user.id)}`
+            );
+            if (res?.ok && cafe) {
+              setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
+            }
+            setMyStars(0); setMyComment(""); setHasRated(false);
+            loadRatings();
+          } catch {
+            Alert.alert("تعذّر الحذف", "حاول مرة أخرى");
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
   };
 
   // Load the cafe's full ratings list — feeds both the inline auto-rotating
@@ -730,7 +766,7 @@ export default function CafeLandingScreen() {
                 <TouchableOpacity
                   key={n}
                   onPress={() => pickStars(n)}
-                  disabled={submitting || !user}
+                  disabled={submitting || !user || hasRated}
                   activeOpacity={0.7}
                   style={styles.starBtn}
                 >
@@ -744,8 +780,8 @@ export default function CafeLandingScreen() {
             })}
           </View>
 
-          {/* After choosing stars: optional comment + share button */}
-          {!!user && myStars > 0 && (
+          {/* Not rated yet: after choosing stars, optional comment + share */}
+          {!!user && !hasRated && myStars > 0 && (
             <View style={styles.reviewBox}>
               <TextInput
                 style={styles.reviewInput}
@@ -771,12 +807,36 @@ export default function CafeLandingScreen() {
             </View>
           )}
 
+          {/* Already rated: show their saved comment (if any) + delete option */}
+          {!!user && hasRated && (
+            <View style={styles.reviewBox}>
+              {!!myComment && (
+                <View style={styles.myCommentBox}>
+                  <Text style={styles.myCommentText}>{myComment}</Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={[styles.deleteRatingBtn, deleting && { opacity: 0.6 }]}
+                activeOpacity={0.85}
+                disabled={deleting}
+                onPress={deleteRating}
+              >
+                {deleting
+                  ? <ActivityIndicator size="small" color="#E55353" />
+                  : <Feather name="trash-2" size={15} color="#E55353" />}
+                <Text style={styles.deleteRatingBtnText}>حذف تقييمي</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <Text style={styles.ratingHint}>
             {!user
               ? "سجّل دخولك لإضافة تقييم"
-              : myStars > 0
-                ? `تقييمك: ${myStars} من 5 — اختر النجوم ثم اضغط مشاركة`
-                : "التقييم اختياري — اضغط على عدد النجوم"}
+              : hasRated
+                ? `تقييمك: ${myStars} من 5 — يمكنك حذفه إن أردت`
+                : myStars > 0
+                  ? `تقييمك: ${myStars} من 5 — اختر النجوم ثم اضغط مشاركة`
+                  : "التقييم اختياري — اضغط على عدد النجوم"}
           </Text>
 
           {/* Inline auto-rotating reviews panel (replaces the old button) */}
@@ -1348,6 +1408,20 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 12,
   },
   shareBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1a1205" },
+  // Already-rated state: saved comment + delete-my-rating button
+  myCommentBox: {
+    width: "100%", backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1, borderColor: BORDER, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+  },
+  myCommentText: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "right", lineHeight: 19 },
+  deleteRatingBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 11, width: "100%",
+    backgroundColor: "rgba(229,83,83,0.10)",
+    borderWidth: 1, borderColor: "rgba(229,83,83,0.40)", borderRadius: 12,
+  },
+  deleteRatingBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#E55353" },
   // Inline auto-rotating reviews panel
   reviewsPanel: {
     width: "100%", marginTop: 8, padding: 12,

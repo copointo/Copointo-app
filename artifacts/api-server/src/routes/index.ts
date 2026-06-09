@@ -179,6 +179,26 @@ router.post("/cafes/:id/rate", (req, res): any => {
   return res.json({ ok: true, stars, ...stats });
 });
 
+// Delete the current user's rating + comment for a cafe. Each user has exactly
+// one entry, so this removes it entirely and recomputes the cafe stats.
+router.delete("/cafes/:id/rate", (req, res): any => {
+  const cafeId = req.params.id;
+  const cafe = cafes.find(c => c.id === cafeId);
+  if (!cafe) return res.status(404).json({ ok: false, error: "الكوفي غير موجود" });
+  const userId = String(req.query.userId ?? req.body?.userId ?? "").trim();
+  if (cafe.showcaseOnly && !isShowcaseViewer(userId)) {
+    return res.status(404).json({ ok: false, error: "الكوفي غير موجود" });
+  }
+  if (!userId) return res.status(400).json({ ok: false, error: "userId مطلوب" });
+  const idx = cafeRatings.findIndex(r => r.cafeId === cafeId && r.userId === userId);
+  if (idx >= 0) {
+    cafeRatings.splice(idx, 1);
+    persistStore();
+  }
+  const stats = getCafeRatingStats(cafeId);
+  return res.json({ ok: true, ...stats });
+});
+
 // Public game-status endpoint — used by the mobile app to check whether
 // the current user is suspended or banned from the game.
 // Lookup by phone (mobile keeps user state local; phone is the bridge).
