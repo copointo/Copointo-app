@@ -640,13 +640,13 @@ function StatNumberPanel({ title, series, theme, Icon, money = false }: {
 
       {/* Hero number badge */}
       <div
-        className="relative flex-1 mx-auto my-1 w-full rounded-2xl border-2 px-4 py-6 flex flex-col items-center justify-center gap-1"
-        style={{ borderColor: theme.accent, background: `${theme.accent}16`, boxShadow: `inset 0 0 26px ${theme.glow}` }}
+        className="relative mx-auto my-1 w-fit min-w-[120px] rounded-xl border px-3 py-1.5 flex items-center justify-center gap-1.5"
+        style={{ borderColor: theme.accent, background: `${theme.accent}16`, boxShadow: `inset 0 0 14px ${theme.glow}` }}
       >
-        <Icon size={26} style={{ color: `${theme.accent}99` }} className="mb-1" />
-        <div className="flex items-baseline gap-1.5">
-          <p className="text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(todayCount)}</p>
-          {money && <span className="text-sm font-extrabold" style={{ color: theme.accentDim }}>OMR</span>}
+        <Icon size={18} style={{ color: `${theme.accent}99` }} />
+        <div className="flex items-baseline gap-1">
+          <p className="text-2xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(todayCount)}</p>
+          {money && <span className="text-xs font-extrabold" style={{ color: theme.accentDim }}>OMR</span>}
         </div>
       </div>
 
@@ -773,14 +773,6 @@ const ORDERS_CHART_THEME: ChartTheme = {
   grid: "rgba(232,184,109,0.12)",
   gradId: "ordersChartFill",
 };
-const BOOKINGS_CHART_THEME: ChartTheme = {
-  accent: "#5EC8C2",
-  accentDim: "#4FA6A1",
-  glow: "rgba(94,200,194,0.28)",
-  panelBg: "linear-gradient(135deg,#04100F 0%,#020807 60%,#000 100%)",
-  grid: "rgba(94,200,194,0.12)",
-  gradId: "bookingsChartFill",
-};
 const MENU_CHART_THEME: ChartTheme = {
   accent: "#C18CF0",
   accentDim: "#A06FCF",
@@ -841,7 +833,7 @@ function StatsTab({ id }: { id: string }) {
   if (!data) return <Loader />;
   return (
     <div className="space-y-6">
-      {/* Weekly themed panels — orders (gold), bookings (teal) & menu items (violet) */}
+      {/* Today's themed panels — orders & total sales (charts), cash & Visa (number-only) */}
       <div className="dash-sides grid grid-cols-2 gap-3">
         <StatChartPanel
           title="إجمالي الطلبات"
@@ -869,12 +861,6 @@ function StatsTab({ id }: { id: string }) {
           theme={VISA_CHART_THEME}
           Icon={CreditCard}
           money
-        />
-        <StatChartPanel
-          title="حجوزات الطاولات"
-          series={data.bookingsSeries ?? []}
-          theme={BOOKINGS_CHART_THEME}
-          Icon={CalendarDays}
         />
       </div>
 
