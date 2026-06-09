@@ -20,6 +20,7 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withTiming,
+  withDelay,
   Easing,
   interpolate,
 } from "react-native-reanimated";
@@ -68,6 +69,33 @@ const CATEGORY_ICONS: Record<string, string> = CATEGORIES.reduce(
   (acc, c) => ({ ...acc, [c.key]: c.icon }),
   {} as Record<string, string>,
 );
+
+// Lightweight mount entrance: fades + slides its children up. Uses the core
+// Reanimated shared-value API (proven on web in this file) rather than the
+// `entering` layout-animation API, which is flaky on react-native-web.
+function FadeInView({
+  delay = 0,
+  offset = 16,
+  duration = 480,
+  style,
+  children,
+}: {
+  delay?: number;
+  offset?: number;
+  duration?: number;
+  style?: any;
+  children: React.ReactNode;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(delay, withTiming(1, { duration, easing: Easing.out(Easing.cubic) }));
+  }, [delay, duration, p]);
+  const aStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ translateY: interpolate(p.value, [0, 1], [offset, 0]) }],
+  }));
+  return <Animated.View style={[style, aStyle]}>{children}</Animated.View>;
+}
 
 export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -260,7 +288,7 @@ export default function OrderScreen() {
 
       {/* Quick product search — pinned above the tabs so finding a drink is
           instant. Typing overrides the active category and matches across all. */}
-      <View style={styles.searchBar}>
+      <FadeInView delay={40} offset={12} style={styles.searchBar}>
         <View style={styles.searchBox}>
           <Feather name="search" size={16} color={PRIMARY} style={styles.searchIcon} />
           <TextInput
@@ -282,13 +310,13 @@ export default function OrderScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </FadeInView>
 
       {/* Category tabs (hidden while searching) — fixed-height bar pinned above
           the scrollable items list so it never gets covered no matter how many
           products are loaded. */}
       {search.trim().length === 0 && (
-        <View style={styles.tabsBar}>
+        <FadeInView delay={120} offset={12} style={styles.tabsBar}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -304,7 +332,7 @@ export default function OrderScreen() {
               />
             ))}
           </ScrollView>
-        </View>
+        </FadeInView>
       )}
 
       {/* Items list — flex:1 constrains it to the remaining space below the
@@ -324,7 +352,7 @@ export default function OrderScreen() {
           </View>
         )}
         <View style={styles.grid}>
-          {visibleItems.map((item) => {
+          {visibleItems.map((item, idx) => {
             // Sum quantity across every variant of this menu item (composite ids).
             const qty = cart.reduce(
               (s, c) => s + ((c.menuItemId ?? c.id) === item.id ? c.quantity : 0),
@@ -339,6 +367,7 @@ export default function OrderScreen() {
             return (
               <ProductTile
                 key={item.id}
+                index={idx}
                 item={item}
                 qty={qty}
                 depleted={depleted}
@@ -526,7 +555,7 @@ function ActiveOrderBanner({
 
 // ── Product tile: square card with image background + shimmer sweep ──
 function ProductTile({
-  item, qty, depleted, lowStock, tracked, remaining, hasVariants, onAdd, onMinus,
+  item, qty, depleted, lowStock, tracked, remaining, hasVariants, onAdd, onMinus, index,
 }: {
   item: MenuItem;
   qty: number;
@@ -537,9 +566,20 @@ function ProductTile({
   hasVariants: boolean;
   onAdd: () => void;
   onMinus: () => void;
+  index: number;
 }) {
   const [width, setWidth] = useState(0);
   const progress = useSharedValue(0);
+
+  // Staggered mount entrance: fade + rise + slight scale, delayed by grid order
+  // (capped so long menus never wait too long).
+  const enter = useSharedValue(0);
+  useEffect(() => {
+    enter.value = withDelay(
+      Math.min(index, 8) * 55,
+      withTiming(1, { duration: 430, easing: Easing.out(Easing.cubic) }),
+    );
+  }, [enter, index]);
 
   useEffect(() => {
     if (width === 0) return;
@@ -550,6 +590,14 @@ function ProductTile({
       false,
     );
   }, [width, progress]);
+
+  const enterStyle = useAnimatedStyle(() => ({
+    opacity: enter.value * (depleted ? 0.55 : 1),
+    transform: [
+      { translateY: interpolate(enter.value, [0, 1], [22, 0]) },
+      { scale: interpolate(enter.value, [0, 1], [0.96, 1]) },
+    ],
+  }));
 
   const shineStyle = useAnimatedStyle(() => ({
     transform: [
@@ -563,8 +611,8 @@ function ProductTile({
   const hasBundle   = !!(item.promoBuyQty && item.promoGetQty);
 
   return (
-    <View
-      style={[styles.tile, depleted && { opacity: 0.55 }]}
+    <Animated.View
+      style={[styles.tile, enterStyle]}
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
     >
       {/* Background image (or fallback gradient + emoji) */}
@@ -675,7 +723,7 @@ function ProductTile({
           </Text>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
