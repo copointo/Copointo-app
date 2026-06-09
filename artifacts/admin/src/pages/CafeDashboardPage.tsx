@@ -11,6 +11,7 @@ import {
   Wallet, FileText, Printer, Save, Package, Minus, AlertTriangle, XCircle,
   GlassWater, Cookie, Gift, Video, Heart, MessageSquare, Upload, MapPin, Link2,
   QrCode, Copy, Download, Share2, Search, Banknote, CreditCard, Phone,
+  LayoutGrid,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -1300,6 +1301,10 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
   // the full menu is shown. Categories with zero matches are hidden
   // automatically because the grouping below filters by `visibleItems`.
   const [search, setSearch]         = useState("");
+  // Category quick-filter: "all" shows the whole menu, otherwise only the
+  // chosen category's section is shown. Lets the cashier jump straight to
+  // hot/cold drinks, desserts or food instead of scrolling.
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [customerName, setCustomerName] = useState("");
   // Optional Copointo-Hub phone lookup. When the cashier types a phone, we
   // probe the server and (if matched) lock the player so loyalty points are
@@ -1536,9 +1541,52 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
                 : `${visibleItems.length} منتج مطابق`}
             </p>
           )}
+
+          {/* Category quick-filter buttons */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {(() => {
+              const active = categoryFilter === "all";
+              return (
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter("all")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-input/30 text-muted-foreground border-border hover:text-foreground hover:border-primary/50"
+                  }`}
+                >
+                  <LayoutGrid size={14} />
+                  الكل
+                  <span className={active ? "opacity-80" : "opacity-60"}>({visibleItems.length})</span>
+                </button>
+              );
+            })()}
+            {MENU_CATEGORIES.map(({ value: cat, label, Icon }) => {
+              const count = visibleItems.filter(i => i.category === cat).length;
+              const active = categoryFilter === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-input/30 text-muted-foreground border-border hover:text-foreground hover:border-primary/50"
+                  }`}
+                >
+                  <Icon size={14} />
+                  {label}
+                  <span className={active ? "opacity-80" : "opacity-60"}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
         </Card>
 
         {MENU_CATEGORIES.map(({ value: cat, label, Icon }) => {
+          if (categoryFilter !== "all" && categoryFilter !== cat) return null;
           const list = visibleItems.filter(i => i.category === cat);
           if (list.length === 0) return null;
           return (
@@ -1610,6 +1658,12 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
             </Card>
           );
         })}
+
+        {visibleItems.filter(i => categoryFilter === "all" || i.category === categoryFilter).length === 0 && (
+          <Card className="p-8">
+            <Empty icon="🔍" text={q ? "لا توجد نتائج مطابقة في هذا التصنيف" : "لا توجد عناصر في هذا التصنيف"} />
+          </Card>
+        )}
       </div>
 
       {/* ── Left column: summary (1/3) — independent scroll on desktop ── */}
