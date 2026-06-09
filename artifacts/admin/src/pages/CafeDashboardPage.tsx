@@ -608,6 +608,55 @@ function StatChartPanel({ title, series, theme, Icon, money = false }: {
   );
 }
 
+// Number-only panel: shows today's value for a metric in a distinctive, bold
+// way WITHOUT a trend chart (used for cash & Visa totals). The figure sits in
+// a large glowing badge so it reads as a hero number, not a chart headline.
+function StatNumberPanel({ title, series, theme, Icon, money = false }: {
+  title: string;
+  series: { date: string; label: string; count: number }[];
+  theme: ChartTheme;
+  Icon: any;
+  money?: boolean;
+}) {
+  const todayPoint = (series || []).slice(-1);
+  const todayCount = todayPoint.length ? todayPoint[0].count : 0;
+  const todayLabel = todayPoint.length ? todayPoint[0].label : "—";
+  const fmt = (n: number) => money ? Number(n || 0).toFixed(3) : Number(n || 0).toLocaleString("en-US");
+  return (
+    <div
+      className="relative rounded-xl p-3 border-2 overflow-hidden flex flex-col"
+      style={{
+        borderColor: theme.accent,
+        background: theme.panelBg,
+        boxShadow: `0 0 18px ${theme.glow}, inset 0 0 28px ${theme.glow}`,
+      }}
+    >
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg,transparent,${theme.accent},transparent)` }} />
+
+      <div className="flex flex-col items-center gap-0.5 mb-2.5">
+        <Icon size={20} style={{ color: theme.accent }} />
+        <h3 className="text-sm font-extrabold text-center leading-tight" style={{ color: theme.accent }}>{title}</h3>
+      </div>
+
+      {/* Hero number badge */}
+      <div
+        className="relative flex-1 mx-auto my-1 w-full rounded-2xl border-2 px-4 py-6 flex flex-col items-center justify-center gap-1"
+        style={{ borderColor: theme.accent, background: `${theme.accent}16`, boxShadow: `inset 0 0 26px ${theme.glow}` }}
+      >
+        <Icon size={26} style={{ color: `${theme.accent}99` }} className="mb-1" />
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-4xl font-black tabular-nums leading-none" style={{ color: theme.accent }}>{fmt(todayCount)}</p>
+          {money && <span className="text-sm font-extrabold" style={{ color: theme.accentDim }}>OMR</span>}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <MiniStat label="اليوم" value={todayLabel} theme={theme} Icon={CalendarDays} />
+      </div>
+    </div>
+  );
+}
+
 // Menu-items panel: a distinctive full-width showcase of every product sold
 // TODAY, each presented as a picture card (using the image added in the menu)
 // with its quantity. The grand total sits in its own large highlighted box.
@@ -807,14 +856,14 @@ function StatsTab({ id }: { id: string }) {
           Icon={Wallet}
           money
         />
-        <StatChartPanel
+        <StatNumberPanel
           title="اجمالي المبيعات نقدا"
           series={data.cashSeries ?? []}
           theme={CASH_CHART_THEME}
           Icon={Banknote}
           money
         />
-        <StatChartPanel
+        <StatNumberPanel
           title="اجمالي المبيعات Visa"
           series={data.visaSeries ?? []}
           theme={VISA_CHART_THEME}
