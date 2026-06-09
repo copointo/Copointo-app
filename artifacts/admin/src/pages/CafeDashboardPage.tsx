@@ -6464,6 +6464,31 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
         <GoldStat label="إجمالي المبيعات فيزا" value={`${(r.visa ?? 0).toFixed(3)} OMR`} sub="مدفوعات الطلبات فقط" icon={<CreditCard size={18} />} accent="#60A5FA" />
       </div>
 
+      {/* ── Intraday curves (today, hour by hour) ── */}
+      {Array.isArray(data.hourly) && data.hourly.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SectionCard title="📈 إجمالي المبيعات اليوم (بالساعة)" icon={<TrendingUp size={16} />}>
+            <GoldLineChart data={data.hourly} xKey="time" yKey="sales" gradId="hSales" height={240} color="#E8B86D" money valueLabel="المبيعات" />
+          </SectionCard>
+
+          <SectionCard title="🧾 إجمالي الطلبات اليوم (بالساعة)" icon={<ShoppingBag size={16} />}>
+            <GoldLineChart data={data.hourly} xKey="time" yKey="orders" gradId="hOrders" height={240} color="#D4A35A" valueLabel="الطلبات" />
+          </SectionCard>
+
+          <SectionCard title="💵 المبيعات نقداً اليوم (بالساعة)" icon={<Banknote size={16} />}>
+            <GoldLineChart data={data.hourly} xKey="time" yKey="cash" gradId="hCash" height={240} color="#10B981" money valueLabel="نقداً" />
+          </SectionCard>
+
+          <SectionCard title="💳 المبيعات فيزا اليوم (بالساعة)" icon={<CreditCard size={16} />}>
+            <GoldLineChart data={data.hourly} xKey="time" yKey="visa" gradId="hVisa" height={240} color="#60A5FA" money valueLabel="فيزا" />
+          </SectionCard>
+
+          <SectionCard title="🪑 حجوزات الطاولات اليوم (بالساعة)" icon={<Armchair size={16} />}>
+            <GoldLineChart data={data.hourly} xKey="time" yKey="bookings" gradId="hBookings" height={240} color="#C99654" valueLabel="الحجوزات" />
+          </SectionCard>
+        </div>
+      )}
+
       {/* Revenue chart with period switcher */}
       <SectionCard title="📈 منحنى الإيرادات" icon={<TrendingUp size={16} />}>
         <div className="flex gap-2 mb-4">

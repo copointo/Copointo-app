@@ -1730,6 +1730,65 @@ router.post("/advanced-stats", (req: any, res): any => {
   const monthRevenue   = revByMonth[monthKey] || 0;
   const yearRevenue    = revByYear[yearKey]   || 0;
 
+  // ── Intraday hourly series (today only) ─────────────────────────
+  // Cumulative running totals across the 24 hours of the current day so
+  // the manager sees an ascending curve of how sales/orders/bookings
+  // build up from the start of the day to its end. X = hour (00:00→23:00).
+  // Oman is UTC+4 (no DST): shift instants by the offset and read UTC
+  // accessors so the day window and hour bucket are Oman-local, matching
+  // how /stats computes its day buckets, regardless of server timezone.
+  const OMAN_OFFSET = 4 * 3600000;
+  const omanMidnight = new Date(Date.now() + OMAN_OFFSET);
+  omanMidnight.setUTCHours(0, 0, 0, 0);
+  const dayStart = omanMidnight.getTime() - OMAN_OFFSET;   // back to UTC instant
+  const dayEnd   = dayStart + 24 * 3600000;
+  const omanHour = (iso: string | undefined) => {
+    const t = Date.parse(iso || "");
+    return Number.isNaN(t) ? -1 : new Date(t + OMAN_OFFSET).getUTCHours();
+  };
+  const inToday = (iso: string | undefined) => {
+    const t = Date.parse(iso || "");
+    return !Number.isNaN(t) && t >= dayStart && t < dayEnd;
+  };
+  const todayOrders   = cOrders.filter(o => inToday(o.createdAt));
+  const todayBookings = cBookings.filter(b => inToday(b.createdAt));
+
+  const hSales    = new Array(24).fill(0);
+  const hOrders   = new Array(24).fill(0);
+  const hCash     = new Array(24).fill(0);
+  const hVisa     = new Array(24).fill(0);
+  const hBookings = new Array(24).fill(0);
+
+  todayOrders.forEach(o => {
+    const h = omanHour(o.createdAt);
+    if (h < 0) return;
+    hSales[h]  += Number(o.total)      || 0;
+    hOrders[h] += 1;
+    hCash[h]   += Number(o.cashAmount) || 0;
+    hVisa[h]   += Number(o.visaAmount) || 0;
+  });
+  todayBookings.forEach(b => {
+    const h = omanHour(b.createdAt);
+    if (h >= 0) hBookings[h] += 1;
+  });
+
+  let cuSales = 0, cuOrders = 0, cuCash = 0, cuVisa = 0, cuBookings = 0;
+  const hourly = Array.from({ length: 24 }, (_, h) => {
+    cuSales    += hSales[h];
+    cuOrders   += hOrders[h];
+    cuCash     += hCash[h];
+    cuVisa     += hVisa[h];
+    cuBookings += hBookings[h];
+    return {
+      time:     `${String(h).padStart(2, "0")}:00`,
+      sales:    +cuSales.toFixed(3),
+      orders:   cuOrders,
+      cash:     +cuCash.toFixed(3),
+      visa:     +cuVisa.toFixed(3),
+      bookings: cuBookings,
+    };
+  });
+
   // ── Order types: dine-in (داخل) vs car (خارج) ──
   const dineCount = cOrders.filter(o => o.type === "dine").length;
   const carCount  = cOrders.filter(o => o.type === "car").length;
@@ -1821,6 +1880,7 @@ router.post("/advanced-stats", (req: any, res): any => {
       cash:    +cashTotal.toFixed(3),
       visa:    +visaTotal.toFixed(3),
     },
+    hourly,
     orders: {
       total:    cOrders.length,
       pending:  cOrders.filter(o => o.status === "pending").length,
