@@ -313,28 +313,31 @@ export default function CafeLandingScreen() {
   // the panel back to the un-rated state so they could rate again later.
   const deleteRating = () => {
     if (!user?.id || deleting) return;
+    const doDelete = async () => {
+      setDeleting(true);
+      try {
+        const res = await apiDelete<{ ok: boolean; rating: number; ratingCount: number }>(
+          `/cafes/${id}/rate?userId=${encodeURIComponent(user.id)}`
+        );
+        if (res?.ok && cafe) {
+          setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
+        }
+        setMyStars(0); setMyComment(""); setHasRated(false);
+        loadRatings();
+      } catch {
+        Alert.alert("تعذّر الحذف", "حاول مرة أخرى");
+      } finally {
+        setDeleting(false);
+      }
+    };
+    // Alert.alert is unreliable on react-native-web — fall back to window.confirm
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm("هل تريد حذف تقييمك وتعليقك؟")) doDelete();
+      return;
+    }
     Alert.alert("حذف تقييمك", "هل تريد حذف تقييمك وتعليقك؟", [
       { text: "إلغاء", style: "cancel" },
-      {
-        text: "حذف", style: "destructive",
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            const res = await apiDelete<{ ok: boolean; rating: number; ratingCount: number }>(
-              `/cafes/${id}/rate?userId=${encodeURIComponent(user.id)}`
-            );
-            if (res?.ok && cafe) {
-              setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
-            }
-            setMyStars(0); setMyComment(""); setHasRated(false);
-            loadRatings();
-          } catch {
-            Alert.alert("تعذّر الحذف", "حاول مرة أخرى");
-          } finally {
-            setDeleting(false);
-          }
-        },
-      },
+      { text: "حذف", style: "destructive", onPress: doDelete },
     ]);
   };
 
