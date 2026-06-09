@@ -867,10 +867,11 @@ function StatsTab({ id }: { id: string }) {
   }, [id]);
   if (err) return <div className="p-8 text-center text-muted-foreground text-sm">تعذّر تحميل الإحصائيات.</div>;
   if (!data) return <Loader />;
+  const hasExpenses = (Number(data.todayExpenses) || 0) > 0;
   return (
     <div className="space-y-6">
-      {/* Today's number-only panels (side by side): total sales, cash, Visa & today's expenses (when any) */}
-      <div className="dash-sides grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Today's number-only panels — always in a single row: total sales, cash, Visa & today's expenses (when any) */}
+      <div className={`dash-sides grid ${hasExpenses ? "grid-cols-4" : "grid-cols-3"} gap-2`}>
         <StatNumberPanel
           title="إجمالي مبيعات اليوم"
           series={data.revenueSeries ?? []}
