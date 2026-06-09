@@ -33,6 +33,14 @@ interface ApiCafe {
   /** Exact Google Maps URL pasted by the super-admin in the cafe edit form. */
   website?: string;
 }
+interface RatingEntry {
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  stars: number;
+  comment?: string;
+  ratedAt: string;
+}
 function isOpen(o: string, c: string) {
   const now = new Date(); const m = now.getHours()*60+now.getMinutes();
   const p = (t:string)=>{const[h,mm]=t.split(":").map(Number);return h*60+(mm||0);};
@@ -61,7 +69,12 @@ export default function CafeLandingScreen() {
   const [loading, setLoading] = useState(true);
   // Rating panel state
   const [myStars, setMyStars] = useState(0);          // current user's rating (0 = not rated yet)
+  const [myComment, setMyComment] = useState("");     // current user's optional review text
   const [submitting, setSubmitting] = useState(false);
+  // "View ratings" list modal
+  const [ratingsOpen, setRatingsOpen]       = useState(false);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [ratingsList, setRatingsList]       = useState<RatingEntry[]>([]);
 
   // Cafe-report modal state. Pre-fills name + phone from the logged-in user
   // (still editable). Posts to /api/reports with kind="cafe" and the cafe id
@@ -240,36 +253,65 @@ export default function CafeLandingScreen() {
     if (id) apiPost(`/cafe/${id}/track-view`, { source: "cafe-detail" }).catch(() => {});
   }, [id]);
 
-  // Load the current user's previous rating (so the panel shows it pre-selected).
+  // Load the current user's previous rating + comment (so the panel pre-fills).
   useEffect(() => {
-    if (!id || !user?.id) { setMyStars(0); return; }
-    apiFetch<{ stars: number }>(`/cafes/${id}/my-rating?userId=${encodeURIComponent(user.id)}`)
-      .then(d => setMyStars(d.stars ?? 0))
+    if (!id || !user?.id) { setMyStars(0); setMyComment(""); return; }
+    apiFetch<{ stars: number; comment?: string }>(`/cafes/${id}/my-rating?userId=${encodeURIComponent(user.id)}`)
+      .then(d => { setMyStars(d.stars ?? 0); setMyComment(d.comment ?? ""); })
       .catch(() => {});
   }, [id, user?.id]);
 
-  // Upsert the user's rating. Optimistically updates the local stars count;
-  // refreshes the cafe stats from the server response.
-  const submitRating = async (stars: number) => {
-    if (!user?.id) return;
-    if (submitting) return;
+  // Tapping a star only SELECTS it (no submit yet) — the user confirms with the
+  // "مشاركة" button below, optionally after writing a comment.
+  const pickStars = (stars: number) => {
+    if (!user?.id || submitting) return;
     if (stars < 1 || stars > 5) return;
-    setSubmitting(true);
-    const prev = myStars;
-    setMyStars(stars);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMyStars(stars);
+  };
+
+  // Submit the user's rating + optional comment. Refreshes the cafe stats
+  // from the server response.
+  const shareRating = async () => {
+    if (!user?.id || submitting) return;
+    if (myStars < 1 || myStars > 5) return;
+    setSubmitting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const res = await apiPost<{ ok: boolean; rating: number; ratingCount: number }>(
-        `/cafes/${id}/rate`, { userId: user.id, stars }
+        `/cafes/${id}/rate`,
+        {
+          userId: user.id,
+          stars: myStars,
+          comment: myComment.trim(),
+          userName: user.name || user.gameUsername || "",
+          userAvatar: user.avatar || "",
+        }
       );
       if (res?.ok && cafe) {
         setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
+        Alert.alert("شكراً لك", "تم نشر تقييمك بنجاح");
       }
     } catch {
-      // Roll back on failure
-      setMyStars(prev);
+      Alert.alert("تعذّر النشر", "حاول مرة أخرى");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Open the "view ratings" modal and load the cafe's full ratings list.
+  const openRatings = async () => {
+    setRatingsOpen(true);
+    setRatingsLoading(true);
+    try {
+      const res = await apiFetch<{ ratings: RatingEntry[] }>(
+        `/cafes/${id}/ratings${user?.id ? `?userId=${encodeURIComponent(user.id)}` : ""}`
+      );
+      setRatingsList(res?.ratings ?? []);
+    } catch {
+      setRatingsList([]);
+    } finally {
+      setRatingsLoading(false);
     }
   };
 
@@ -654,7 +696,7 @@ export default function CafeLandingScreen() {
               return (
                 <TouchableOpacity
                   key={n}
-                  onPress={() => submitRating(n)}
+                  onPress={() => pickStars(n)}
                   disabled={submitting || !user}
                   activeOpacity={0.7}
                   style={styles.starBtn}
@@ -669,13 +711,50 @@ export default function CafeLandingScreen() {
             })}
           </View>
 
+          {/* After choosing stars: optional comment + share button */}
+          {!!user && myStars > 0 && (
+            <View style={styles.reviewBox}>
+              <TextInput
+                style={styles.reviewInput}
+                placeholder="أضف تعليقاً (اختياري)…"
+                placeholderTextColor="rgba(255,255,255,0.35)"
+                value={myComment}
+                onChangeText={setMyComment}
+                multiline
+                maxLength={500}
+                textAlign="right"
+              />
+              <TouchableOpacity
+                style={[styles.shareBtn, submitting && { opacity: 0.6 }]}
+                activeOpacity={0.85}
+                disabled={submitting}
+                onPress={shareRating}
+              >
+                {submitting
+                  ? <ActivityIndicator size="small" color="#1a1205" />
+                  : <Feather name="send" size={15} color="#1a1205" />}
+                <Text style={styles.shareBtnText}>مشاركة</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <Text style={styles.ratingHint}>
             {!user
               ? "سجّل دخولك لإضافة تقييم"
               : myStars > 0
-                ? `تقييمك: ${myStars} من 5 — اضغط لتعديله`
+                ? `تقييمك: ${myStars} من 5 — اختر النجوم ثم اضغط مشاركة`
                 : "التقييم اختياري — اضغط على عدد النجوم"}
           </Text>
+
+          {/* View all ratings */}
+          <TouchableOpacity
+            style={styles.viewRatingsBtn}
+            activeOpacity={0.85}
+            onPress={openRatings}
+          >
+            <Feather name="message-square" size={15} color={PRIMARY} />
+            <Text style={styles.viewRatingsBtnText}>عرض التقييمات</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Report cafe button ── */}
@@ -1028,6 +1107,62 @@ export default function CafeLandingScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ── Ratings list modal ── */}
+      <Modal visible={ratingsOpen} transparent animationType="slide" onRequestClose={() => setRatingsOpen(false)}>
+        <View style={styles.ratingsOverlay}>
+          <View style={styles.ratingsSheet}>
+            <View style={styles.ratingsHeader}>
+              <TouchableOpacity onPress={() => setRatingsOpen(false)} style={styles.reportClose}>
+                <Feather name="x" size={20} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+              <Text style={styles.ratingsHeaderTitle}>التقييمات</Text>
+              <View style={{ width: 28 }} />
+            </View>
+
+            {ratingsLoading ? (
+              <View style={styles.ratingsEmpty}>
+                <ActivityIndicator size="large" color={PRIMARY} />
+              </View>
+            ) : ratingsList.length === 0 ? (
+              <View style={styles.ratingsEmpty}>
+                <Feather name="message-square" size={40} color="rgba(255,255,255,0.25)" />
+                <Text style={styles.ratingsEmptyText}>لا توجد تقييمات بعد</Text>
+              </View>
+            ) : (
+              <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} showsVerticalScrollIndicator={false}>
+                {ratingsList.map((r, i) => (
+                  <View key={`${r.userId}-${i}`} style={styles.ratingRow}>
+                    {r.userAvatar
+                      ? <Image source={{ uri: r.userAvatar }} style={styles.ratingAvatar} />
+                      : (
+                        <View style={[styles.ratingAvatar, styles.ratingAvatarFallback]}>
+                          <Text style={styles.ratingAvatarLetter}>{(r.userName || "?").charAt(0)}</Text>
+                        </View>
+                      )}
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.ratingRowTop}>
+                        <Text style={styles.ratingName} numberOfLines={1}>{r.userName || "مستخدم"}</Text>
+                        <View style={styles.ratingRowStars}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <MaterialCommunityIcons
+                              key={n}
+                              name={r.stars >= n ? "star" : "star-outline"}
+                              size={14}
+                              color={r.stars >= n ? PRIMARY : "rgba(255,255,255,0.30)"}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                      {!!r.comment && <Text style={styles.ratingComment}>{r.comment}</Text>}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1108,6 +1243,56 @@ const styles = StyleSheet.create({
   },
   starBtn: { padding: 4 },
   ratingHint: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.50)", textAlign: "center", marginTop: 2 },
+
+  // Comment + share (after picking stars)
+  reviewBox: { width: "100%", gap: 10, marginTop: 4 },
+  reviewInput: {
+    width: "100%", minHeight: 64, maxHeight: 140,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1, borderColor: BORDER, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10,
+    color: "#FFF", fontSize: 13, fontFamily: "Inter_400Regular",
+    textAlignVertical: "top",
+  },
+  shareBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 12,
+  },
+  shareBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1a1205" },
+  viewRatingsBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginTop: 8, paddingVertical: 11, width: "100%",
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)", borderRadius: 12,
+  },
+  viewRatingsBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Ratings list modal
+  ratingsOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  ratingsSheet: {
+    backgroundColor: "#0c0c0c", borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    borderWidth: 1, borderColor: BORDER, maxHeight: "82%", paddingBottom: 8,
+  },
+  ratingsHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: BORDER,
+  },
+  ratingsHeaderTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  ratingsEmpty: { alignItems: "center", justifyContent: "center", gap: 12, paddingVertical: 60 },
+  ratingsEmptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
+  ratingRow: {
+    flexDirection: "row", gap: 12, alignItems: "flex-start",
+    backgroundColor: CARD, borderWidth: 1, borderColor: BORDER,
+    borderRadius: 14, padding: 12,
+  },
+  ratingAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.08)" },
+  ratingAvatarFallback: { alignItems: "center", justifyContent: "center" },
+  ratingAvatarLetter: { fontSize: 18, fontFamily: "Inter_700Bold", color: PRIMARY },
+  ratingRowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  ratingName: { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "right" },
+  ratingRowStars: { flexDirection: "row", gap: 1 },
+  ratingComment: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", textAlign: "right", marginTop: 6, lineHeight: 19 },
 
   // Report cafe button + modal
   reportBtn: {

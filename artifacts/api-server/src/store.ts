@@ -523,6 +523,12 @@ export interface CafeRating {
   userId: string;
   /** Whole stars 1–5 only. */
   stars: number;
+  /** Optional free-text review left with the rating (trimmed, max 500 chars). */
+  comment?: string;
+  /** Snapshot of the rater's display name + avatar at rate time, so the
+   *  public ratings list can render them without a user lookup. */
+  userName?: string;
+  userAvatar?: string;
   ratedAt: string;
 }
 export const cafeRatings: CafeRating[] = [];

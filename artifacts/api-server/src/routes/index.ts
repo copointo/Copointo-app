@@ -109,30 +109,70 @@ router.get("/cafes/:id", async (req, res) => {
 router.get("/cafes/:id/my-rating", (req, res): any => {
   const cafeId = req.params.id;
   const userId = String(req.query.userId ?? "").trim();
-  if (!userId) return res.json({ stars: 0 });
+  const cafe = cafes.find(c => c.id === cafeId);
+  if (!cafe || (cafe.showcaseOnly && !isShowcaseViewer(userId))) {
+    return res.status(404).json({ error: "Cafe not found" });
+  }
+  if (!userId) return res.json({ stars: 0, comment: "" });
   const entry = cafeRatings.find(r => r.cafeId === cafeId && r.userId === userId);
-  return res.json({ stars: entry?.stars ?? 0 });
+  return res.json({ stars: entry?.stars ?? 0, comment: entry?.comment ?? "" });
+});
+
+// List every rating left for a cafe (newest first), with the rater's name,
+// avatar, stars and optional comment — used by the "عرض التقييمات" panel.
+router.get("/cafes/:id/ratings", (req, res): any => {
+  const cafeId = req.params.id;
+  const cafe = cafes.find(c => c.id === cafeId);
+  if (!cafe || (cafe.showcaseOnly && !isShowcaseViewer(String(req.query.userId ?? "")))) {
+    return res.status(404).json({ error: "Cafe not found" });
+  }
+  const list = cafeRatings
+    .filter(r => r.cafeId === cafeId)
+    .slice()
+    .sort((a, b) => (b.ratedAt ?? "").localeCompare(a.ratedAt ?? ""))
+    .map(r => ({
+      userId:   r.userId,
+      userName: r.userName || "مستخدم",
+      userAvatar: r.userAvatar || "",
+      stars:    r.stars,
+      comment:  r.comment ?? "",
+      ratedAt:  r.ratedAt,
+    }));
+  const stats = getCafeRatingStats(cafeId);
+  return res.json({ ratings: list, ...stats });
 });
 
 // Upsert a rating (1-5 stars) for the given cafe + user. Submitting again
 // replaces the previous rating so each user contributes exactly one entry.
+// An optional free-text `comment` and the rater's display name/avatar
+// snapshot may accompany the rating.
 router.post("/cafes/:id/rate", (req, res): any => {
   const cafeId = req.params.id;
   const cafe = cafes.find(c => c.id === cafeId);
   if (!cafe) return res.status(404).json({ ok: false, error: "الكوفي غير موجود" });
   const userId = String(req.body?.userId ?? "").trim();
+  // Hidden showcase cafes can only be rated by showcase viewers.
+  if (cafe.showcaseOnly && !isShowcaseViewer(userId)) {
+    return res.status(404).json({ ok: false, error: "الكوفي غير موجود" });
+  }
   const stars  = Number(req.body?.stars);
   if (!userId) return res.status(400).json({ ok: false, error: "userId مطلوب" });
   if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
     return res.status(400).json({ ok: false, error: "التقييم يجب أن يكون بين 1 و 5 نجوم" });
   }
+  const comment    = String(req.body?.comment ?? "").trim().slice(0, 500);
+  const userName   = String(req.body?.userName ?? "").trim().slice(0, 60);
+  const userAvatar = String(req.body?.userAvatar ?? "").trim();
   const idx = cafeRatings.findIndex(r => r.cafeId === cafeId && r.userId === userId);
   const now = new Date().toISOString();
   if (idx >= 0) {
     cafeRatings[idx].stars   = stars;
+    cafeRatings[idx].comment = comment;
+    if (userName)   cafeRatings[idx].userName   = userName;
+    if (userAvatar) cafeRatings[idx].userAvatar = userAvatar;
     cafeRatings[idx].ratedAt = now;
   } else {
-    cafeRatings.push({ cafeId, userId, stars, ratedAt: now });
+    cafeRatings.push({ cafeId, userId, stars, comment, userName, userAvatar, ratedAt: now });
   }
   persistStore();
   const stats = getCafeRatingStats(cafeId);
