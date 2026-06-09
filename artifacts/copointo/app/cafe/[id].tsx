@@ -71,10 +71,12 @@ export default function CafeLandingScreen() {
   const [myStars, setMyStars] = useState(0);          // current user's rating (0 = not rated yet)
   const [myComment, setMyComment] = useState("");     // current user's optional review text
   const [submitting, setSubmitting] = useState(false);
-  // "View ratings" list modal
+  // Ratings: inline auto-rotating panel + full-list modal
   const [ratingsOpen, setRatingsOpen]       = useState(false);
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [ratingsList, setRatingsList]       = useState<RatingEntry[]>([]);
+  const [ratingIdx, setRatingIdx]           = useState(0);            // which review the inline panel shows
+  const ratingSlide = useRef(new Animated.Value(0)).current;         // -1 = slid out left, 0 = center, 1 = entering from right
 
   // Cafe-report modal state. Pre-fills name + phone from the logged-in user
   // (still editable). Posts to /api/reports with kind="cafe" and the cafe id
@@ -290,6 +292,7 @@ export default function CafeLandingScreen() {
       );
       if (res?.ok && cafe) {
         setCafe({ ...cafe, rating: res.rating, ratingCount: res.ratingCount });
+        loadRatings();
         Alert.alert("شكراً لك", "تم نشر تقييمك بنجاح");
       }
     } catch {
@@ -299,21 +302,51 @@ export default function CafeLandingScreen() {
     }
   };
 
-  // Open the "view ratings" modal and load the cafe's full ratings list.
-  const openRatings = async () => {
-    setRatingsOpen(true);
+  // Load the cafe's full ratings list — feeds both the inline auto-rotating
+  // panel and the full-list modal.
+  const loadRatings = async () => {
     setRatingsLoading(true);
     try {
       const res = await apiFetch<{ ratings: RatingEntry[] }>(
         `/cafes/${id}/ratings${user?.id ? `?userId=${encodeURIComponent(user.id)}` : ""}`
       );
       setRatingsList(res?.ratings ?? []);
+      setRatingIdx(0);
+      ratingSlide.setValue(0);
     } catch {
       setRatingsList([]);
     } finally {
       setRatingsLoading(false);
     }
   };
+
+  // Fetch ratings as soon as the cafe/user is known, so the inline panel shows.
+  useEffect(() => {
+    if (!id) return;
+    loadRatings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.id]);
+
+  // Auto-rotate the inline review panel right-to-left every 3 seconds: the
+  // current card slides out to the left and the next slides in from the right.
+  useEffect(() => {
+    if (ratingsList.length <= 1) return;
+    const timer = setInterval(() => {
+      Animated.timing(ratingSlide, {
+        toValue: -1, duration: 320, easing: Easing.in(Easing.cubic), useNativeDriver: false,
+      }).start(() => {
+        setRatingIdx(i => (i + 1) % ratingsList.length);
+        ratingSlide.setValue(1);
+        Animated.timing(ratingSlide, {
+          toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+        }).start();
+      });
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [ratingsList.length, ratingSlide]);
+
+  // Open the full ratings list modal (data is already loaded).
+  const openRatings = () => setRatingsOpen(true);
 
   if (loading) {
     return (
@@ -746,15 +779,71 @@ export default function CafeLandingScreen() {
                 : "التقييم اختياري — اضغط على عدد النجوم"}
           </Text>
 
-          {/* View all ratings */}
-          <TouchableOpacity
-            style={styles.viewRatingsBtn}
-            activeOpacity={0.85}
-            onPress={openRatings}
-          >
-            <Feather name="message-square" size={15} color={PRIMARY} />
-            <Text style={styles.viewRatingsBtnText}>عرض التقييمات</Text>
-          </TouchableOpacity>
+          {/* Inline auto-rotating reviews panel (replaces the old button) */}
+          {ratingsLoading ? (
+            <View style={[styles.reviewsPanel, { alignItems: "center" }]}>
+              <ActivityIndicator size="small" color={PRIMARY} />
+            </View>
+          ) : ratingsList.length === 0 ? (
+            <View style={[styles.reviewsPanel, { alignItems: "center" }]}>
+              <Feather name="message-square" size={18} color="rgba(255,255,255,0.30)" />
+              <Text style={styles.reviewsEmptyText}>لا توجد تقييمات بعد</Text>
+            </View>
+          ) : (
+            <TouchableOpacity activeOpacity={0.85} onPress={openRatings} style={styles.reviewsPanel}>
+              <View style={styles.reviewsPanelHeader}>
+                <Text style={styles.reviewsPanelMore}>عرض الكل ›</Text>
+                <Text style={styles.reviewsPanelTitle}>التقييمات ({ratingsList.length})</Text>
+              </View>
+
+              <Animated.View
+                style={[
+                  styles.reviewSlide,
+                  {
+                    opacity: ratingSlide.interpolate({ inputRange: [-1, 0, 1], outputRange: [0, 1, 0] }),
+                    transform: [{ translateX: ratingSlide.interpolate({ inputRange: [-1, 0, 1], outputRange: [-30, 0, 30] }) }],
+                  },
+                ]}
+              >
+                {(() => {
+                  const r = ratingsList[ratingIdx] ?? ratingsList[0];
+                  return (
+                    <>
+                      {r.userAvatar
+                        ? <Image source={{ uri: r.userAvatar }} style={styles.reviewSlideAvatar} />
+                        : (
+                          <View style={[styles.reviewSlideAvatar, styles.ratingAvatarFallback]}>
+                            <Text style={styles.ratingAvatarLetter}>{(r.userName || "?").charAt(0)}</Text>
+                          </View>
+                        )}
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.ratingRowTop}>
+                          <Text style={styles.ratingName} numberOfLines={1}>{r.userName || "مستخدم"}</Text>
+                          <View style={styles.ratingRowStars}>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <MaterialCommunityIcons
+                                key={n}
+                                name={r.stars >= n ? "star" : "star-outline"}
+                                size={12}
+                                color={r.stars >= n ? PRIMARY : "rgba(255,255,255,0.30)"}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                        {!!r.comment && (
+                          <Text style={styles.reviewSlideComment} numberOfLines={2}>{r.comment}</Text>
+                        )}
+                      </View>
+                    </>
+                  );
+                })()}
+              </Animated.View>
+
+              {ratingsList.length > 1 && (
+                <Text style={styles.reviewCounter}>{ratingIdx + 1} / {ratingsList.length}</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Report cafe button ── */}
@@ -1259,13 +1348,21 @@ const styles = StyleSheet.create({
     backgroundColor: PRIMARY, borderRadius: 12, paddingVertical: 12,
   },
   shareBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#1a1205" },
-  viewRatingsBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    marginTop: 8, paddingVertical: 11, width: "100%",
-    backgroundColor: "rgba(232,184,109,0.10)",
-    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)", borderRadius: 12,
+  // Inline auto-rotating reviews panel
+  reviewsPanel: {
+    width: "100%", marginTop: 8, padding: 12,
+    backgroundColor: "rgba(232,184,109,0.06)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.30)", borderRadius: 14,
+    minHeight: 96, justifyContent: "center", gap: 10,
   },
-  viewRatingsBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  reviewsPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reviewsPanelTitle: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
+  reviewsPanelMore: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)" },
+  reviewsEmptyText: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.45)", textAlign: "center" },
+  reviewSlide: { flexDirection: "row", gap: 10, alignItems: "flex-start", minHeight: 40 },
+  reviewSlideAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.08)" },
+  reviewSlideComment: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.72)", textAlign: "right", marginTop: 4, lineHeight: 17 },
+  reviewCounter: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.40)", textAlign: "center" },
 
   // Ratings list modal
   ratingsOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
