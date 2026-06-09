@@ -13,3 +13,4 @@
 - [Copointo community group persistence](copointo-community-group-persistence.md) — community→group reconcile must be ADDITIVE-ONLY; poll-driven dissolve wiped conversations. Kicked members keeping history is intended.
 - [Leaderboard reward parity](leaderboard-reward-parity.md) — any payout/ranking mirroring the leaderboard must share the FNV-1a hashId tiebreaker AND the !showcaseOnly+!banned filter, or rewards hit wrong/demo users.
 - [Cafe showcase visibility guard](cafe-showcase-visibility-guard.md) — every new /cafes/:id/* route must replicate the showcaseOnly→404 guard, and its mobile caller must pass ?userId or showcase viewers false-404.
+- [api-server no hot-reload](api-server-no-hot-reload.md) — api-server serves stale code until its workflow is restarted; new response fields read undefined; always restart + curl the live endpoint to verify.
