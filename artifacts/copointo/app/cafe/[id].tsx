@@ -80,6 +80,10 @@ export default function CafeLandingScreen() {
   const [ratingIdx, setRatingIdx]           = useState(0);            // which review the inline panel shows
   const ratingSlide = useRef(new Animated.Value(0)).current;         // -1 = slid out left, 0 = center, 1 = entering from right
 
+  // Page-entrance reveal: hero zooms/fades in first, then the content slides up.
+  const enterHero    = useRef(new Animated.Value(0)).current;
+  const enterContent = useRef(new Animated.Value(0)).current;
+
   // Cafe-report modal state. Pre-fills name + phone from the logged-in user
   // (still editable). Posts to /api/reports with kind="cafe" and the cafe id
   // so the super-admin can see the full cafe details next to the report.
@@ -256,6 +260,34 @@ export default function CafeLandingScreen() {
     // Track this view (best-effort; ignore errors)
     if (id) apiPost(`/cafe/${id}/track-view`, { source: "cafe-detail" }).catch(() => {});
   }, [id]);
+
+  // Play the entrance reveal once the cafe finishes loading: the hero gently
+  // zooms + fades in, then the content section staggers up just behind it.
+  useEffect(() => {
+    if (loading || !cafe) return;
+    enterHero.setValue(0);
+    enterContent.setValue(0);
+    const anim = Animated.stagger(140, [
+      Animated.timing(enterHero, {
+        toValue: 1, duration: 540, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+      }),
+      Animated.timing(enterContent, {
+        toValue: 1, duration: 560, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+      }),
+    ]);
+    anim.start();
+    // Safety net: if the animation is ever interrupted before completing, snap
+    // everything fully visible so content can never get stuck hidden.
+    const fallback = setTimeout(() => {
+      enterHero.setValue(1);
+      enterContent.setValue(1);
+    }, 1200);
+    return () => {
+      clearTimeout(fallback);
+      anim.stop();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, cafe?.id]);
 
   // Load the current user's previous rating + comment. If they already rated,
   // the panel locks (one rating per user) and offers a delete instead.
@@ -440,6 +472,11 @@ export default function CafeLandingScreen() {
     },
   ];
 
+  // Entrance interpolations — gentle hero zoom-out + fade, content slide-up.
+  const heroScale       = enterHero.interpolate({ inputRange: [0, 1], outputRange: [1.12, 1] });
+  const heroInfoTranslate = enterHero.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const contentTranslate  = enterContent.interpolate({ inputRange: [0, 1], outputRange: [36, 0] });
+
   return (
     <View style={styles.container}>
 
@@ -482,7 +519,11 @@ export default function CafeLandingScreen() {
 
       {/* ── Hero Image ── */}
       <View style={styles.heroWrap}>
-        <Image source={cafeImage} style={styles.heroImg} resizeMode="cover" />
+        <Animated.Image
+          source={cafeImage}
+          style={[styles.heroImg, { opacity: enterHero, transform: [{ scale: heroScale }] }]}
+          resizeMode="cover"
+        />
         <LinearGradient
           colors={["transparent", "rgba(15,10,46,0.85)", BG]}
           style={styles.gradient}
@@ -502,7 +543,7 @@ export default function CafeLandingScreen() {
         </TouchableOpacity>
 
         {/* Cafe identity on image */}
-        <View style={styles.heroInfo}>
+        <Animated.View style={[styles.heroInfo, { opacity: enterHero, transform: [{ translateY: heroInfoTranslate }] }]}>
           <View style={styles.logoCircle}>
             {isLogoUrl
               ? <Image source={{ uri: cafe.logo }} style={{ width: 50, height: 50, borderRadius: 25 }} />
@@ -516,7 +557,7 @@ export default function CafeLandingScreen() {
             <View style={[styles.statusDot, { backgroundColor: cafeOpen ? "#66BB6A" : "#9E9E9E" }]} />
             <Text style={styles.statusText}>{cafeOpen ? "مفتوح" : "مغلق"}</Text>
           </View>
-        </View>
+        </Animated.View>
       </View>
 
       <ScrollView
@@ -524,6 +565,7 @@ export default function CafeLandingScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
       >
+       <Animated.View style={{ opacity: enterContent, transform: [{ translateY: contentTranslate }] }}>
         {/* ── Meta chips ── */}
         <View style={styles.metaRow}>
           <View style={styles.chip}>
@@ -918,6 +960,7 @@ export default function CafeLandingScreen() {
           <Feather name="flag" size={15} color="#E55353" />
           <Text style={styles.reportBtnText}>الإبلاغ عن هذا الكوفي</Text>
         </TouchableOpacity>
+       </Animated.View>
       </ScrollView>
 
       {/* ── Gift voucher modal ── */}
