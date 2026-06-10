@@ -3,10 +3,14 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { WebView } from "react-native-webview";
 import { createPaymentSession, getPaymentStatus } from "../constants/api";
 import { useApp } from "../context/AppContext";
 import { useCoins } from "../hooks/useCoins";
+import { coinsForPackage, useSubscription, type PurchasesPackage } from "../lib/revenuecat";
+
+// iOS/Android must sell coins through Apple/Google IAP (App Store guideline
+// 3.1.1). Web keeps the existing OMPay card checkout.
+const IS_WEB = Platform.OS === "web";
 
 const COPOINTO_COIN = require("../assets/images/copointo-coin.png");
 
@@ -113,7 +117,7 @@ const visualStyles = StyleSheet.create({
   },
 });
 
-function AnimatedTile({ p, index, busy, onPress }: { p: Pack; index: number; busy?: boolean; onPress: () => void }) {
+function AnimatedTile({ p, index, busy, onPress, priceLabel, disabled }: { p: Pack; index: number; busy?: boolean; onPress: () => void; priceLabel?: string; disabled?: boolean }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
   const scale = useRef(new Animated.Value(0.7)).current;
@@ -154,7 +158,7 @@ function AnimatedTile({ p, index, busy, onPress }: { p: Pack; index: number; bus
       transform: [{ translateY }, { scale }],
     }}>
       <Animated.View style={[styles.tile, { shadowOpacity, shadowRadius }]}>
-        <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={busy} style={styles.tileTouch}>
+        <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={busy || disabled} style={[styles.tileTouch, disabled && styles.tileDisabled]}>
           {p.badge ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{p.badge}</Text>
@@ -168,11 +172,20 @@ function AnimatedTile({ p, index, busy, onPress }: { p: Pack; index: number; bus
           <View style={styles.priceBtn}>
             {busy ? (
               <ActivityIndicator color={PRIMARY} size="small" />
-            ) : (
+            ) : IS_WEB ? (
+              // Web (OMPay): USD with an OMR estimate.
               <View style={styles.priceCol}>
                 <Text style={styles.priceText}>${p.price.toFixed(2)}</Text>
                 <Text style={styles.priceOmr}>≈ {fmtOmr(usdToOmr(p.price))} ﷼</Text>
               </View>
+            ) : priceLabel !== undefined ? (
+              // Native IAP: price comes straight from the store (never hardcoded).
+              <View style={styles.priceCol}>
+                <Text style={styles.priceText}>{priceLabel}</Text>
+              </View>
+            ) : (
+              // Native: store price not loaded yet → loading (tile disabled).
+              <ActivityIndicator color={PRIMARY} size="small" />
             )}
           </View>
         </TouchableOpacity>
@@ -206,19 +219,30 @@ const CHECKOUT_LOADING_HTML =
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
   const { user } = useApp();
+  // RevenueCat (native IAP). On web these are unused — web stays on OMPay.
+  const { currentOffering, purchase, restore, isRestoring } = useSubscription();
   const introOpacity = useRef(new Animated.Value(0)).current;
   const introTranslate = useRef(new Animated.Value(-10)).current;
 
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [webCheckout, setWebCheckout] = useState<Checkout | null>(null);
   const [verifying, setVerifying] = useState(false);
+  // Native IAP: confirm dialog (custom modal — Alert.alert is unreliable for
+  // purchase confirmation per the RevenueCat guidance).
+  const [pendingPack, setPendingPack] = useState<{ pack: Pack; rcPackage: PurchasesPackage; priceLabel: string } | null>(null);
   const pollCancel = useRef(false);
   // Idempotency guards: never credit the same payment twice, never run two
-  // polling loops for the same payment, and only handle each checkout-close once.
+  // polling loops for the same payment.
   const activePoll = useRef<string | null>(null);
   const credited = useRef<Set<string>>(new Set());
-  const checkoutClosing = useRef(false);
+
+  // Map a coin pack to its live RevenueCat package (by the "coins_<n>"
+  // identifier seeded in RevenueCat). Returns null in Expo Go preview / when
+  // offerings haven't loaded.
+  const packageForPack = (p: Pack): PurchasesPackage | null => {
+    const pkgs = currentOffering?.availablePackages ?? [];
+    return pkgs.find((pkg) => coinsForPackage(pkg) === p.coins) ?? null;
+  };
 
   // Credit coins for a payment at most once, even across multiple poll ticks or
   // a return-handler + manual-close race. Returns true only on the first credit.
@@ -297,17 +321,80 @@ export function BuyCoinsPanel() {
     }
   };
 
-  const handleBuy = async (p: Pack) => {
+  // Entry point for a pack tap. iOS/Android go through Apple/Google IAP; web
+  // keeps the OMPay hosted checkout.
+  const handleBuy = (p: Pack) => {
     if (busyId) return;
+    if (IS_WEB) return handleBuyWeb(p);
+    return handleBuyNativeTap(p);
+  };
+
+  // ─── Native IAP (iOS/Android) ──────────────────────────────────────
+  // Tap → open a custom confirm modal (RevenueCat recommends a custom dialog
+  // over Alert.alert for the purchase confirmation step).
+  const handleBuyNativeTap = (p: Pack) => {
+    const rcPackage = packageForPack(p);
+    if (!rcPackage) {
+      Alert.alert(
+        "غير متوفر حالياً",
+        "متجر المشتريات غير متاح في هذه النسخة. جرّب مرة أخرى لاحقاً.",
+      );
+      return;
+    }
+    setPendingPack({ pack: p, rcPackage, priceLabel: rcPackage.product.priceString });
+  };
+
+  // Confirm → run the App Store / Play purchase, then credit coins once.
+  const confirmNativePurchase = async () => {
+    const pending = pendingPack;
+    if (!pending) return;
+    setPendingPack(null);
+    setBusyId(pending.pack.id);
+    try {
+      const result = await purchase(pending.rcPackage);
+      if (result.cancelled) {
+        setBusyId(null);
+        return;
+      }
+      // A completed purchase must always grant coins. When the store returns a
+      // stable transaction id we dedupe on it (guards any double-resolution of
+      // the same transaction). Concurrent double-taps are already blocked by
+      // `busyId` + the confirm modal, so a missing id still credits exactly once.
+      const credited = result.transactionId
+        ? await creditOnce(result.transactionId, pending.pack.coins)
+        : (await addCoins(pending.pack.coins), true);
+      if (credited) {
+        Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(pending.pack.coins)} عملة إلى رصيدك.`);
+      }
+    } catch (e: any) {
+      Alert.alert("تعذّر الدفع", String(e?.message ?? e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Restore Purchases — required by the App Store. Consumables aren't restored,
+  // but we surface the affordance and a clear result message.
+  const handleRestore = async () => {
+    try {
+      await restore();
+      Alert.alert("تمت الاستعادة", "تمت مزامنة مشترياتك مع حسابك.");
+    } catch (e: any) {
+      Alert.alert("تعذّرت الاستعادة", String(e?.message ?? e));
+    }
+  };
+
+  // ─── Web OMPay checkout ────────────────────────────────────────────
+  const handleBuyWeb = async (p: Pack) => {
     setBusyId(p.id);
 
-    // Web: open the payment tab IMMEDIATELY inside the tap gesture (so the
-    // browser allows it) showing a loading page, then redirect that tab to the
-    // OMPay checkout once the session URL is ready. This makes the page appear
+    // Open the payment tab IMMEDIATELY inside the tap gesture (so the browser
+    // allows it) showing a loading page, then redirect that tab to the OMPay
+    // checkout once the session URL is ready. This makes the page appear
     // instantly instead of after a ~40s blocking wait. Opening the tab later
     // (after the await) would be blocked as a non-gesture popup.
     let win: Window | null = null;
-    if (Platform.OS === "web" && typeof window !== "undefined") {
+    if (typeof window !== "undefined") {
       win = window.open("about:blank", "_blank");
       if (win) {
         try {
@@ -332,19 +419,14 @@ export function BuyCoinsPanel() {
       });
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
-      if (Platform.OS === "web") {
-        setBusyId(null);
-        if (win && !win.closed) {
-          // Redirect the already-open loading tab to the hosted checkout.
-          win.location.href = payment.checkoutUrl;
-          startPolling(payment.id, token, p.coins, false);
-        } else {
-          // Popup was blocked/closed → fall back to an explicit tap-to-open modal.
-          setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
-        }
+      setBusyId(null);
+      if (win && !win.closed) {
+        // Redirect the already-open loading tab to the hosted checkout.
+        win.location.href = payment.checkoutUrl;
+        startPolling(payment.id, token, p.coins, false);
       } else {
-        checkoutClosing.current = false;
-        setCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
+        // Popup was blocked/closed → fall back to an explicit tap-to-open modal.
+        setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
       }
     } catch (e: any) {
       if (win && !win.closed) win.close();
@@ -372,99 +454,71 @@ export function BuyCoinsPanel() {
     }
   };
 
-  // Called when the WebView reaches the return page (reachedReturn=true) or the
-  // shopper closes it manually (reachedReturn=false).
-  const closeCheckout = async (reachedReturn: boolean) => {
-    const c = checkout;
-    if (!c) return;
-    // onNavigationStateChange can fire repeatedly for the return URL; handle the
-    // close exactly once per checkout session.
-    if (checkoutClosing.current) return;
-    checkoutClosing.current = true;
-    setCheckout(null);
-    if (reachedReturn) {
-      startPolling(c.paymentId, c.token, c.coins, true);
-      return;
-    }
-    // Manual close: do a single status check. Covers "paid then closed" (credit
-    // + success), and a genuine "failed"/"canceled" when OMPay showed the decline
-    // on its own page without auto-redirecting (show the failure message). If the
-    // payment is still "pending" the shopper simply backed out → stay silent and
-    // don't spin the full poll/timeout.
-    setVerifying(true);
-    try {
-      const st = await getPaymentStatus(c.paymentId, c.token);
-      if (st.status === "paid") {
-        if (await creditOnce(c.paymentId, c.coins)) {
-          Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(c.coins)} عملة إلى رصيدك.`);
-        }
-      } else if (st.status === "failed" || st.status === "canceled") {
-        Alert.alert(
-          "لم تتم العملية",
-          st.status === "canceled" ? "تم إلغاء عملية الدفع." : "فشلت عملية الدفع، لم يتم خصم أي مبلغ.",
-        );
-      }
-    } catch {
-      // ignore — nothing credited
-    }
-    setVerifying(false);
-    setBusyId(null);
-  };
-
   return (
     <View>
       <Animated.Text style={[styles.intro, { opacity: introOpacity, transform: [{ translateY: introTranslate }] }]}>
         اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً
       </Animated.Text>
       <View style={styles.grid}>
-        {PACKS.map((p, i) => (
-          <AnimatedTile key={p.id} p={p} index={i} busy={busyId === p.id} onPress={() => handleBuy(p)} />
-        ))}
+        {PACKS.map((p, i) => {
+          // On native, the price comes only from the live store package — never
+          // hardcoded. Until the offering loads, the tile shows a loading state
+          // and is disabled so no purchase can start without a real store price.
+          const rcPackage = IS_WEB ? null : packageForPack(p);
+          const priceLabel = rcPackage?.product.priceString;
+          const disabled = !IS_WEB && !rcPackage;
+          return (
+            <AnimatedTile
+              key={p.id}
+              p={p}
+              index={i}
+              busy={busyId === p.id}
+              onPress={() => handleBuy(p)}
+              priceLabel={priceLabel}
+              disabled={disabled}
+            />
+          );
+        })}
       </View>
 
-      {/* In-app hosted-checkout (native) */}
-      <Modal visible={!!checkout} animationType="slide" onRequestClose={() => closeCheckout(false)}>
-        <View style={styles.webWrap}>
-          <View style={styles.webHeader}>
-            <TouchableOpacity style={styles.webClose} onPress={() => closeCheckout(false)}>
-              <Feather name="x" size={22} color="#FFF" />
+      {/* Native only: Restore Purchases (App Store requirement) */}
+      {!IS_WEB && (
+        <TouchableOpacity
+          style={styles.restoreBtn}
+          onPress={handleRestore}
+          disabled={isRestoring}
+          activeOpacity={0.8}
+        >
+          {isRestoring ? (
+            <ActivityIndicator color={PRIMARY} size="small" />
+          ) : (
+            <Text style={styles.restoreText}>استعادة المشتريات</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Native IAP: custom purchase-confirm dialog */}
+      <Modal
+        visible={!!pendingPack}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingPack(null)}
+      >
+        <View style={styles.verifyOverlay}>
+          <View style={styles.webPayCard}>
+            <Text style={styles.webPayTitle}>تأكيد الشراء</Text>
+            {pendingPack && (
+              <Text style={styles.webPaySub}>
+                {`شراء ${fmt(pendingPack.pack.coins)} عملة مقابل ${pendingPack.priceLabel}؟`}
+              </Text>
+            )}
+            <TouchableOpacity style={styles.webPayBtn} onPress={confirmNativePurchase} activeOpacity={0.85}>
+              <Text style={styles.webPayBtnText}>تأكيد الدفع</Text>
             </TouchableOpacity>
-            <Text style={styles.webTitle}>الدفع الآمن</Text>
-            <View style={{ width: 36 }} />
+            <TouchableOpacity onPress={() => setPendingPack(null)}>
+              <Text style={styles.webPayCancel}>إلغاء</Text>
+            </TouchableOpacity>
           </View>
-          {checkout ? (
-            <WebView
-              source={{ uri: checkout.url }}
-              style={{ flex: 1, backgroundColor: "#000" }}
-              startInLoadingState
-              originWhitelist={["*"]}
-              javaScriptEnabled
-              domStorageEnabled
-              /* iOS: let the OMPay card inputs focus & raise the keyboard
-                 without a prior user gesture inside the WebView */
-              keyboardDisplayRequiresUserAction={false}
-              hideKeyboardAccessoryView={false}
-              /* OMPay captures the card number/CVV inside iframes — these
-                 need third-party cookies + a single window or the fields
-                 silently refuse input */
-              thirdPartyCookiesEnabled
-              sharedCookiesEnabled
-              setSupportMultipleWindows={false}
-              allowsInlineMediaPlayback
-              mixedContentMode="always"
-              androidLayerType="hardware"
-              renderLoading={() => (
-                <View style={styles.webLoading}>
-                  <ActivityIndicator color={PRIMARY} size="large" />
-                </View>
-              )}
-              onNavigationStateChange={(nav) => {
-                if (nav.url && nav.url.includes("/payments/return")) {
-                  closeCheckout(true);
-                }
-              }}
-            />
-          ) : null}
         </View>
       </Modal>
 
@@ -572,6 +626,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 14, elevation: 4,
   },
   tileTouch: { padding: 14, paddingTop: 18, alignItems: "center" },
+  tileDisabled: { opacity: 0.5 },
   badge: {
     position: "absolute", top: -8, alignSelf: "center",
     backgroundColor: PRIMARY,
@@ -580,7 +635,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
 
-  coinImg: { width: 70, height: 70, resizeMode: "contain", marginBottom: 8 },
   coinsRow: { flexDirection: "row", alignItems: "baseline", gap: 4, marginBottom: 12 },
   coinsText: { fontSize: 20, fontFamily: "Inter_700Bold", color: PRIMARY },
   coinsLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
@@ -596,19 +650,12 @@ const styles = StyleSheet.create({
   priceText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
   priceOmr: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.7)" },
 
-  webWrap: { flex: 1, backgroundColor: "#000" },
-  webHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 12, paddingTop: Platform.OS === "web" ? 12 : 52, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: "#0A0606",
+  restoreBtn: {
+    alignSelf: "center", marginTop: 18, paddingVertical: 10, paddingHorizontal: 22,
+    borderRadius: 12, borderWidth: 1, borderColor: "rgba(232,184,109,0.4)",
+    alignItems: "center", justifyContent: "center", minHeight: 42, minWidth: 180,
   },
-  webClose: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    alignItems: "center", justifyContent: "center",
-  },
-  webTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
-  webLoading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: "#000" },
+  restoreText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   verifyOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
   verifyCard: {

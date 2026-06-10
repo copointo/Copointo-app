@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
+import { Alert } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -21,8 +22,17 @@ import { AppProvider } from "@/context/AppContext";
 import { CommunityProvider } from "@/context/CommunityContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { MessagesProvider } from "@/context/MessagesContext";
+import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
 SplashScreen.preventAutoHideAsync();
+
+// Configure RevenueCat once at startup (coins are bought via Apple/Google IAP).
+// Wrapped so a misconfiguration never blocks the whole app from booting.
+try {
+  initializeRevenueCat();
+} catch (err: any) {
+  Alert.alert("RevenueCat Unavailable", err?.message ?? "Unknown error");
+}
 
 // ─── Custom-domain redirect: admin domain → /admin/ ───────────────
 // Visitors who land on the admin custom domain should immediately see
@@ -133,6 +143,7 @@ export default function RootLayout() {
           <AppProvider>
             <MessagesProvider>
               <CommunityProvider>
+               <SubscriptionProvider>
                 <GestureHandlerRootView style={{ flex: 1 }}>
                   <KeyboardProvider>
                     {/* Global auth gate — every entry point (including QR
@@ -144,6 +155,7 @@ export default function RootLayout() {
                     </AuthGate>
                   </KeyboardProvider>
                 </GestureHandlerRootView>
+               </SubscriptionProvider>
               </CommunityProvider>
             </MessagesProvider>
           </AppProvider>
