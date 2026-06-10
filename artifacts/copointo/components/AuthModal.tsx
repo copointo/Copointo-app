@@ -188,7 +188,6 @@ export function AuthModal({
     if (!name.trim() || !phone.trim() || !gameUser.trim() || !pass) {
       setErr(t("auth.errFillAll")); return;
     }
-    if (!regGender) { setErr(t("auth.errPickGender")); return; }
     const u = gameUser.trim();
     if (u.length < 3) { setErr(t("auth.errUsernameShort")); return; }
     if (!USERNAME_EN_RE.test(u)) { setErr(t("auth.errUsernameEn")); return; }
@@ -214,7 +213,7 @@ export function AuthModal({
       phone: fullPhone,
       gameUsername: gameUser.trim(),
       password: pass,
-      gender: regGender!,
+      gender: regGender ?? undefined,
       avatar: regAvatar ?? undefined,
     }, v.token);
     setBusy(false);
@@ -561,7 +560,7 @@ export function AuthModal({
                   <Text style={styles.fieldLabel}>{t("auth.fieldGenderLabel")}</Text>
                   <View style={styles.genderRow}>
                     <TouchableOpacity
-                      onPress={() => { setRegGender("male"); Haptics.selectionAsync(); }}
+                      onPress={() => { setRegGender(regGender === "male" ? null : "male"); Haptics.selectionAsync(); }}
                       style={[styles.genderBtn, regGender === "male" && styles.genderBtnActiveMale]}
                       activeOpacity={0.85}
                     >
@@ -569,7 +568,7 @@ export function AuthModal({
                       <Text style={[styles.genderText, regGender === "male" && { color: "#FFF" }]}>{t("auth.genderMale")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => { setRegGender("female"); Haptics.selectionAsync(); }}
+                      onPress={() => { setRegGender(regGender === "female" ? null : "female"); Haptics.selectionAsync(); }}
                       style={[styles.genderBtn, regGender === "female" && styles.genderBtnActiveFemale]}
                       activeOpacity={0.85}
                     >

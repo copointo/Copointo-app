@@ -15,7 +15,12 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.copointo.app"
+      "bundleIdentifier": "com.copointo.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "يستخدم Copointo موقعك لعرض الكافيهات القريبة منك وترتيبها حسب المسافة على الخريطة (مثال: عند فتح الخريطة نعرض الكافيهات الأقرب إليك أولاً). Copointo uses your location to show and sort nearby cafés by distance on the map (for example, when you open the map we show the cafés closest to you first).",
+        "NSPhotoLibraryUsageDescription": "يصل Copointo إلى صورك لتعيين صورة ملفك الشخصي وإرسال الصور داخل المحادثات (مثال: اختيار صورة من مكتبتك لاستخدامها كصورة للحساب أو إرسالها إلى كافيه). Copointo accesses your photo library so you can set a profile picture and send images in chats (for example, choosing a photo from your library to use as your avatar or to send it to a café).",
+        "NSMicrophoneUsageDescription": "يستخدم Copointo الميكروفون لتسجيل الرسائل الصوتية وإرسالها داخل المحادثات (مثال: تسجيل ملاحظة صوتية لإرسالها إلى كافيه أو صديق). Copointo uses the microphone to record and send voice messages in chats (for example, recording a voice note to send to a café or a friend)."
+      }
     },
     "android": {
       "package": "com.copointo.app"
