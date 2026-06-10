@@ -33,8 +33,8 @@ export function useResponsive(): Responsive {
     const isTablet = kind === "tablet";
     const isDesktop = kind === "desktop";
 
-    const scale = isPhone ? 1 : isTablet ? 1.1 : 1.2;
-    const fontScale = isPhone ? 1 : isTablet ? 1.05 : 1.1;
+    const scale = isPhone ? 1 : isTablet ? 1.2 : 1.3;
+    const fontScale = isPhone ? 1 : isTablet ? 1.1 : 1.15;
     const contentMaxWidth = isPhone ? width : isTablet ? 720 : 960;
     const hPad = isPhone ? 16 : isTablet ? 24 : 32;
     const tabBarHeight = isWeb
@@ -44,7 +44,7 @@ export function useResponsive(): Responsive {
         ? 80
         : 88
       : 0;
-    const iconSize = isPhone ? 22 : isTablet ? 26 : 28;
+    const iconSize = isPhone ? 22 : isTablet ? 30 : 32;
 
     return {
       width,

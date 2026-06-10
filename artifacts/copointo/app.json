@@ -14,7 +14,7 @@
       "backgroundColor": "#1A0E08"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.copointo.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "يستخدم Copointo موقعك لعرض الكافيهات القريبة منك وترتيبها حسب المسافة على الخريطة (مثال: عند فتح الخريطة نعرض الكافيهات الأقرب إليك أولاً). Copointo uses your location to show and sort nearby cafés by distance on the map (for example, when you open the map we show the cafés closest to you first).",

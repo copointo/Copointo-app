@@ -149,6 +149,10 @@ export default function GameScreen() {
   const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
   const r = useResponsive();
+  const s = r.scale;
+  // Floating controls scale a little less than the board so the fixed +70px
+  // vertical stack offsets on the left never overlap (capped at the tablet step).
+  const fabScale = Math.min(s, 1.2);
   const { toast: overtakeToast, dismiss: dismissOvertake } = useRankOvertakeNotifier();
   const unseenSentGifts = useUnseenSentGifts();
 
@@ -421,7 +425,7 @@ export default function GameScreen() {
 
       {/* ── Notifications bell (top-left) ── */}
       <TouchableOpacity
-        style={[styles.bellTopLeft, { top: topPad + 8 }]}
+        style={[styles.bellTopLeft, { top: topPad + 8, transform: [{ scale: fabScale }], transformOrigin: "left top" }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
         activeOpacity={0.85}
       >
@@ -435,7 +439,7 @@ export default function GameScreen() {
 
       {/* ── Add friend (top-right) ── */}
       <TouchableOpacity
-        style={[styles.addFriendTopRight, { top: topPad + 8 }]}
+        style={[styles.addFriendTopRight, { top: topPad + 8, transform: [{ scale: fabScale }], transformOrigin: "right top" }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
         activeOpacity={0.85}
       >
@@ -539,9 +543,9 @@ export default function GameScreen() {
           const isDone       = lvl < level;
           const isFreeCoffee = lvl > 0 && lvl % DRINKS_PER_FREE_COFFEE === 0;
           const isCoinLvl    = isCoinMilestone(lvl);
-          const sz           = isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER;
+          const sz           = (isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER) * s;
           const osZ          = outerSz(sz);
-          const xOff         = POSITIONS[lvl % 3];
+          const xOff         = POSITIONS[lvl % 3] * s;
           const rankForLvl   = RANKS.find((r) => r.min === lvl);
 
           return (
@@ -694,6 +698,8 @@ export default function GameScreen() {
           style={[styles.goBackBtn, {
             left: 20,
             bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 58 + 12,
+            transform: [{ scale: fabScale }],
+            transformOrigin: "left bottom",
           }]}
           onPress={goToCurrent}
           activeOpacity={0.85}
@@ -726,6 +732,8 @@ export default function GameScreen() {
       {/* ── Floating action buttons ── */}
       <View style={[styles.fabGroup, {
         bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
+        transform: [{ scale: fabScale }],
+        transformOrigin: "right bottom",
       }]}>
 
         {/* Play & Win — العب واربح (orange, distinctive mini-game) */}
@@ -808,6 +816,8 @@ export default function GameScreen() {
       <TouchableOpacity
         style={[styles.fabFreeCoffee, {
           bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70 + 70 + 70,
+          transform: [{ scale: fabScale }],
+          transformOrigin: "left bottom",
         }]}
         onPress={async () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -836,6 +846,8 @@ export default function GameScreen() {
           backgroundColor: "#FF8A3D",
           shadowColor: "#FF8A3D",
           bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70 + 70,
+          transform: [{ scale: fabScale }],
+          transformOrigin: "left bottom",
         }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/my-cafes"); }}
         activeOpacity={0.85}
@@ -853,6 +865,8 @@ export default function GameScreen() {
       <TouchableOpacity
         style={[styles.fabSentGifts, {
           bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70,
+          transform: [{ scale: fabScale }],
+          transformOrigin: "left bottom",
         }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/sent-gifts"); }}
         activeOpacity={0.85}
@@ -870,6 +884,8 @@ export default function GameScreen() {
       <TouchableOpacity
         style={[styles.fabLevels, {
           bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
+          transform: [{ scale: fabScale }],
+          transformOrigin: "left bottom",
         }]}
         onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
         activeOpacity={0.85}
@@ -1120,7 +1136,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6, shadowRadius: 10, elevation: 6,
   },
   fabThemedLabel: {
-    fontSize: 7, fontFamily: "Inter_700Bold",
+    fontSize: 9, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabSmall: {
@@ -1277,7 +1293,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8, shadowRadius: 16, elevation: 10,
   },
   fabPlayWinLabel: {
-    fontSize: 8, fontFamily: "Inter_700Bold",
+    fontSize: 9, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabLeaderboard: {
@@ -1305,7 +1321,7 @@ const styles = StyleSheet.create({
     zIndex: 60,
   },
   fabSentGiftsLabel: {
-    fontSize: 8, fontFamily: "Inter_700Bold",
+    fontSize: 9, fontFamily: "Inter_700Bold",
     color: "#FFF", textAlign: "center",
   },
   fabLevels: {
@@ -1320,7 +1336,7 @@ const styles = StyleSheet.create({
     zIndex: 60,
   },
   fabLevelsLabel: {
-    fontSize: 8, fontFamily: "Inter_700Bold",
+    fontSize: 9, fontFamily: "Inter_700Bold",
     color: "#000", textAlign: "center",
   },
   // ── Small free-coffee FAB (above مستوى الكافيهات) ──
@@ -1336,9 +1352,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6, shadowRadius: 12, elevation: 9,
     zIndex: 60,
   },
-  fabFreeCoffeeIcon: { fontSize: 14 },
+  fabFreeCoffeeIcon: { fontSize: 16 },
   fabFreeCoffeeLabel: {
-    fontSize: 7, fontFamily: "Inter_700Bold",
+    fontSize: 9, fontFamily: "Inter_700Bold",
     color: PRIMARY, textAlign: "center",
   },
   fabFreeCoffeeBadge: {
