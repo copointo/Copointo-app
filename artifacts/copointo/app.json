@@ -14,9 +14,12 @@
       "backgroundColor": "#1A0E08"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.copointo.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.copointo.app"
+    },
     "web": {
       "favicon": "./assets/images/icon.png",
       "name": "Copointo",
