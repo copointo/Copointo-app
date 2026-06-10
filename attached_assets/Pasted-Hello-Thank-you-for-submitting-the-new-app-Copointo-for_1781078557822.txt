@@ -1,0 +1,91 @@
+Hello, 
+
+Thank you for submitting the new app, Copointo, for review. We noticed some issues that require your attention. Please see below for additional information.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: 8dd62778-e5fe-426e-9740-e9219557cc7d
+Review date: June 09, 2026
+Review Device: iPhone 17 Pro Max and iPad Air 11-inch (M3)
+Version reviewed: 1.0 (1)
+
+Guideline 5.1.1(ii) - Legal - Privacy - Data Collection and Storage
+Issue Description
+
+One or more purpose strings in the app do not sufficiently explain the use of protected resources. Purpose strings must clearly and completely describe the app's use of data and, in most cases, provide an example of how the data will be used.
+
+Please see attached screenshots for details.
+
+Next Steps
+
+Update the photo library and location purpose string to explain how the app will use the requested information and provide a specific example of how the data will be used. See the attached screenshot.
+
+Resources
+
+Purpose strings must clearly describe how an app uses the ability, data, or resource. The following are hypothetical examples of unclear purpose strings that would not pass review: 
+
+- "App would like to access your Contacts"
+- "App needs microphone access"
+
+See examples of helpful, informative purpose strings.
+Guideline 5.1.1(v) - Legal - Privacy - Data Collection and Storage
+Issue Description
+
+The app requires users to provide personal information that is not directly relevant to the app's core functionality.
+
+Apps should only require users to provide information that is necessary for the app to function. If information is useful for a non-essential feature, apps may request the information but make it optional.
+
+Examples of app concepts and inappropriate required information:
+
+- A general shopping app that requires the user's marital status
+- A rideshare app that requires the user's gender
+
+Next Steps
+
+Update the app to not require users to provide the following personal information:
+
+- Gender
+
+Resources
+
+Learn more about data collection and storage requirements in guideline 5.1.1.
+Guideline 4 - Design
+
+Issue Description
+
+There are issues with the app's user interface that contribute to a lower-quality user experience than App Store users expect. Specifically, the app includes controls that are difficult to use due to size or placement.
+
+Next Steps
+
+Revise the app to address all instances of the issues identified above.
+
+Note that users expect apps they download to function on all the devices where they are available. For example, apps that may be downloaded onto iPad devices should function as expected for iPad users. Learn more about supporting apps on compatible devices.
+
+Resources
+
+- Learn more about App Store design requirements in guideline 4. 
+- Learn foundational design principles from Apple designers and the developer community.
+- Visit Accessibility on iOS to learn more about delivering a superior mobile experience to every customer.
+Guideline 3.1.1 - Business - Payments - In-App Purchase
+
+Issue Description
+
+We noticed that the app includes or accesses paid digital content, services, or functionality by means other than In-App Purchase, which is not appropriate for the App Store. Specifically: 
+
+- The coins can be purchased in the app using payment mechanisms other than In-App Purchase. 
+
+Apps on the United States storefront may link out to the default browser, using buttons, external links, or other calls to action, for payment mechanisms other than in-app purchase. To learn more, see the News post on Apple Developer. For storefronts where there are not alternative options for qualifying apps, the app must use in-app purchase.
+
+Next Steps
+
+The paid digital coins included in or accessed by the app must be available for purchase in the app using In-App Purchase. 
+
+If you have any additional information to provide regarding the digital content and services in the app and how the guidelines apply to them, please reply to this message in App Store Connect and let us know. If there is information you'd like us to consider in our review of future submissions, please feel free to include it in the App Review Information section of App Store Connect. 
+
+Resources
+
+- See how to implement In-App Purchase with the StoreKit framework.
+- Review step-by-step instructions for creating In-App Purchases in App Store Connect. 
+- Learn more about business requirements in guideline 3.1.1.
+- Learn more about submitting In-App Purchases and subscriptions to App Review.
