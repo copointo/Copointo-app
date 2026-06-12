@@ -160,6 +160,16 @@ overrides:
   # Security overrides for transitive dependency vulnerabilities (osv-scanner findings)
   "@xmldom/xmldom@<0.8.13": "^0.8.13"
   "brace-expansion@>=2.0.0 <2.0.3": "^2.0.3"
+  # GHSA-jxxr-4gwj-5jf2: brace-expansion >=5.0.0 <5.0.6 — large numeric range DoS
+  "brace-expansion@>=5.0.0 <5.0.6": "^5.0.6"
+  # GHSA-w5hq-g745-h8pq: uuid <11.1.1 — missing buffer bounds check in v3/v5/v6
+  "uuid@<11.1.1": "^11.1.1"
+  # GHSA-w7jw-789q-3m8p: shell-quote <=1.8.3 — does not escape newlines in object .op values
+  "shell-quote@<=1.8.3": "^1.8.4"
+  # GHSA-58qx-3vcg-4xpx: ws >=8.0.0 <8.20.1 — uninitialized memory disclosure
+  "ws@>=8.0.0 <8.20.1": "^8.20.1"
+  # GHSA-q8mj-m7cp-5q26: qs >=6.11.1 <=6.15.1 — DoS via stringify crash
+  "qs@>=6.11.1 <=6.15.1": "^6.15.2"
   "fast-uri@<3.1.2": "^3.1.2"
   "lodash@>=4.17.0 <4.18.0": "^4.18.0"
   "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.0"
