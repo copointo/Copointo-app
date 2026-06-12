@@ -237,6 +237,24 @@ function clearPendingPayment() {
   }
 }
 
+// Send the browser to the OMPay hosted checkout in the SAME tab. Payment
+// gateways refuse to render inside an iframe (X-Frame-Options), and the app may
+// itself be embedded (Replit/canvas preview), so we navigate the TOP-level
+// window when reachable and fall back to the current window otherwise.
+function redirectToCheckout(url: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const top = window.top;
+    if (top && top !== window) {
+      top.location.href = url;
+      return;
+    }
+  } catch {
+    /* cross-origin parent blocked window.top access — fall through to self */
+  }
+  window.location.href = url;
+}
+
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
   const { user } = useApp();
@@ -446,9 +464,7 @@ export function BuyCoinsPanel() {
 
       // Persist so the credit survives the full-page navigation to OMPay.
       savePendingPayment(payment.id, token, p.coins);
-      if (typeof window !== "undefined") {
-        window.location.href = payment.checkoutUrl; // straight to the gateway
-      }
+      redirectToCheckout(payment.checkoutUrl); // same tab → straight to gateway
     } catch (e: any) {
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
