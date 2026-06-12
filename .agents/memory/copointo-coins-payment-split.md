@@ -47,6 +47,13 @@ the marker is the only recovery handle once we come back.
 - Clear the marker ONLY on a terminal status (`paid`/`failed`/`canceled`). NEVER
   clear it on poll timeout — a slow/late OMPay confirmation must still auto-credit
   on the next mount. The marker self-expires after 1h in `loadPendingPayment`.
-- Server `/payments/session` honours `body.returnUrl`; `creditOnce` is idempotent;
-  the server re-confirms with OMPay before reporting `paid`, so client polling is
-  trusted only as a trigger, not as proof of payment.
+- Server `/payments/session` honours `body.returnUrl`; `creditOnce` is idempotent
+  ONLY in-memory (per page-load) + the marker gate — `addCoins` itself is NOT
+  idempotent, so never let two contexts credit the same payment.
+- The same-tab redirect must branch on `isEmbedded()` (`window.top !== self`):
+  the real site (copointo.com) runs top-level → `window.location.href` same-tab.
+  In the Replit/canvas in-editor preview the app is in a SANDBOXED iframe where
+  same-tab nav hits the gateway's X-Frame-Options AND top-window nav is blocked
+  SILENTLY (no throw → a try/catch fallback never fires). So the preview branch
+  must `window.open(_blank)` instead. Don't "simplify" to a single redirect path
+  or preview testing breaks ("page closes immediately" / "page never appears").

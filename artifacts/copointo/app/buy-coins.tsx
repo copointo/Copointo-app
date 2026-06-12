@@ -237,22 +237,19 @@ function clearPendingPayment() {
   }
 }
 
-// Send the browser to the OMPay hosted checkout in the SAME tab. Payment
-// gateways refuse to render inside an iframe (X-Frame-Options), and the app may
-// itself be embedded (Replit/canvas preview), so we navigate the TOP-level
-// window when reachable and fall back to the current window otherwise.
-function redirectToCheckout(url: string) {
-  if (typeof window === "undefined") return;
+// True when the web app is running inside an iframe (the Replit/canvas in-editor
+// preview). The real published site at copointo.com runs top-level, so this is
+// false there. We branch on it because a sandboxed preview frame can neither
+// navigate itself to a gateway (X-Frame-Options) nor navigate the top window
+// (sandbox blocks it silently).
+function isEmbedded(): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    const top = window.top;
-    if (top && top !== window) {
-      top.location.href = url;
-      return;
-    }
+    return window.top !== window.self;
   } catch {
-    /* cross-origin parent blocked window.top access — fall through to self */
+    // Cross-origin parent → we're definitely embedded.
+    return true;
   }
-  window.location.href = url;
 }
 
 export function BuyCoinsPanel() {
@@ -462,9 +459,26 @@ export function BuyCoinsPanel() {
       });
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
-      // Persist so the credit survives the full-page navigation to OMPay.
+      // Persist so the credit survives the full-page navigation to OMPay; the
+      // page we return to picks the marker back up and credits the coins.
       savePendingPayment(payment.id, token, p.coins);
-      redirectToCheckout(payment.checkoutUrl); // same tab → straight to gateway
+
+      if (isEmbedded()) {
+        // In-editor preview only: the framed app can't navigate to the gateway,
+        // so open it in a new tab (the only thing the sandbox allows). The new
+        // tab returns to this app after paying, where the marker credits the
+        // coins. NOTE: never reached on the real published site.
+        const opened =
+          typeof window !== "undefined" ? window.open(payment.checkoutUrl, "_blank") : null;
+        setBusyId(null);
+        if (!opened && typeof window !== "undefined") {
+          // Popups blocked → last resort: navigate this frame anyway.
+          window.location.href = payment.checkoutUrl;
+        }
+      } else if (typeof window !== "undefined") {
+        // Real site (top-level): go straight to the gateway in the same tab.
+        window.location.href = payment.checkoutUrl;
+      }
     } catch (e: any) {
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
