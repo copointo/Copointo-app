@@ -28,3 +28,25 @@ currency. Web has no such rule, and OMPay (Oman) is the only card option there.
 - User-cancelled store sheet (`userCancelled`) is not an error and must not credit.
 - RevenueCat is still `configure()`d on web (Browser/Test mode) but is never used
   to purchase there — harmless; don't "clean it up" by gating init off web.
+
+# Web OMPay = full-page nav + client-side credit on return
+
+The web buy-coins flow navigates the SAME tab straight to the OMPay hosted page
+(`window.location.href = checkoutUrl`) — no new tab, interstitial, or popup
+fallback. Because coins are stored on-device (AsyncStorage, `addCoins`), crediting
+MUST happen client-side after the browser returns. Before navigating, persist a
+`{paymentId, token, coins, ts}` marker to `localStorage` (key
+`copointo:pendingCoinPayment`); pass `returnUrl = window.location.href` so OMPay
+returns to the same screen, where a web-only mount `useEffect` resumes polling and
+credits.
+
+**Why:** the full-page redirect unmounts the screen, killing any in-flight poll;
+the marker is the only recovery handle once we come back.
+
+**How to apply:**
+- Clear the marker ONLY on a terminal status (`paid`/`failed`/`canceled`). NEVER
+  clear it on poll timeout — a slow/late OMPay confirmation must still auto-credit
+  on the next mount. The marker self-expires after 1h in `loadPendingPayment`.
+- Server `/payments/session` honours `body.returnUrl`; `creditOnce` is idempotent;
+  the server re-confirms with OMPay before reporting `paid`, so client polling is
+  trusted only as a trigger, not as proof of payment.

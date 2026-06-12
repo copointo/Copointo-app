@@ -194,27 +194,48 @@ function AnimatedTile({ p, index, busy, onPress, priceLabel, disabled }: { p: Pa
   );
 }
 
-interface Checkout {
-  url: string;
-  paymentId: string;
-  token: string;
-  coins: number;
+// Web only: persist the in-flight coin payment so the credit survives the
+// full-page navigation to OMPay's hosted checkout and back. Coins are stored on
+// the device, so the app itself must credit them once OMPay confirms the payment
+// — this marker lets the screen pick the payment back up after the browser
+// returns from the gateway.
+const PENDING_KEY = "copointo:pendingCoinPayment";
+
+function savePendingPayment(paymentId: string, token: string, coins: number) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(
+      PENDING_KEY,
+      JSON.stringify({ paymentId, token, coins, ts: Date.now() }),
+    );
+  } catch {
+    /* storage unavailable (private mode) — return polling just won't resume */
+  }
 }
 
-// Minimal loading page shown inside the newly-opened payment tab while we create
-// the OMPay session in the background; the tab is then redirected to the
-// checkout. Kept to a bare spinner (no interstitial wording) so it reads as the
-// payment page loading rather than a separate "preparing" screen.
-const CHECKOUT_LOADING_HTML =
-  '<!doctype html><html dir="rtl" lang="ar"><head><meta charset="utf-8">' +
-  '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-  "<title>الدفع الآمن</title><style>" +
-  "html,body{margin:0;height:100%;background:#000}" +
-  ".wrap{height:100%;display:flex;align-items:center;justify-content:center}" +
-  ".sp{width:46px;height:46px;border:4px solid rgba(232,184,109,.25);" +
-  "border-top-color:#E8B86D;border-radius:50%;animation:s 1s linear infinite}" +
-  "@keyframes s{to{transform:rotate(360deg)}}</style></head><body>" +
-  "<div class='wrap'><div class='sp'></div></div></body></html>";
+function loadPendingPayment(): { paymentId: string; token: string; coins: number } | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o?.paymentId || !o?.token || typeof o?.coins !== "number") return null;
+    // Ignore stale markers (> 1 hour) so an abandoned payment never resumes.
+    if (o.ts && Date.now() - o.ts > 60 * 60 * 1000) return null;
+    return { paymentId: o.paymentId, token: o.token, coins: o.coins };
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingPayment() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(PENDING_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 export function BuyCoinsPanel() {
   const { addCoins } = useCoins();
@@ -225,7 +246,6 @@ export function BuyCoinsPanel() {
   const introTranslate = useRef(new Animated.Value(-10)).current;
 
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [webCheckout, setWebCheckout] = useState<Checkout | null>(null);
   const [verifying, setVerifying] = useState(false);
   // Native IAP: confirm dialog (custom modal — Alert.alert is unreliable for
   // purchase confirmation per the RevenueCat guidance).
@@ -274,12 +294,13 @@ export function BuyCoinsPanel() {
     token: string,
     coins: number,
     abortOnFailure = true,
+    maxMs = 4 * 60 * 1000,
   ) => {
     if (activePoll.current === paymentId) return; // a loop is already running
     activePoll.current = paymentId;
     pollCancel.current = false;
     setVerifying(true);
-    const deadline = Date.now() + 4 * 60 * 1000;
+    const deadline = Date.now() + maxMs;
     const stop = () => { activePoll.current = null; };
     while (!pollCancel.current && Date.now() < deadline) {
       let status: string | undefined;
@@ -292,6 +313,7 @@ export function BuyCoinsPanel() {
       if (pollCancel.current) return stop();
       if (status === "paid") {
         const didCredit = await creditOnce(paymentId, coins);
+        clearPendingPayment();
         setVerifying(false);
         setBusyId(null);
         if (didCredit) {
@@ -300,6 +322,7 @@ export function BuyCoinsPanel() {
         return stop();
       }
       if (abortOnFailure && (status === "failed" || status === "canceled")) {
+        clearPendingPayment();
         setVerifying(false);
         setBusyId(null);
         Alert.alert(
@@ -312,6 +335,9 @@ export function BuyCoinsPanel() {
     }
     stop();
     if (!pollCancel.current) {
+      // Deliberately KEEP the pending marker here: a slow/late OMPay
+      // confirmation must still be auto-credited the next time this screen
+      // mounts (the marker self-expires after 1h via loadPendingPayment).
       setVerifying(false);
       setBusyId(null);
       Alert.alert(
@@ -320,6 +346,17 @@ export function BuyCoinsPanel() {
       );
     }
   };
+
+  // Web: returning from OMPay's hosted page reloads this screen. If a coin
+  // payment was in flight, re-confirm it with the server and credit the coins.
+  useEffect(() => {
+    if (!IS_WEB) return;
+    const pending = loadPendingPayment();
+    if (pending) {
+      startPolling(pending.paymentId, pending.token, pending.coins, true, 90 * 1000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Entry point for a pack tap. iOS/Android go through Apple/Google IAP; web
   // keeps the OMPay hosted checkout.
@@ -385,28 +422,15 @@ export function BuyCoinsPanel() {
   };
 
   // ─── Web OMPay checkout ────────────────────────────────────────────
+  // Create the OMPay session, then navigate THIS tab straight to the hosted
+  // checkout (no new tab, no interstitial, no popup-fallback). Coins live on the
+  // device, so we stash a pending marker first; when OMPay redirects back to
+  // this screen the mount effect picks it up and credits the coins.
   const handleBuyWeb = async (p: Pack) => {
     setBusyId(p.id);
-
-    // Open the payment tab IMMEDIATELY inside the tap gesture (so the browser
-    // allows it) showing a loading page, then redirect that tab to the OMPay
-    // checkout once the session URL is ready. This makes the page appear
-    // instantly instead of after a ~40s blocking wait. Opening the tab later
-    // (after the await) would be blocked as a non-gesture popup.
-    let win: Window | null = null;
-    if (typeof window !== "undefined") {
-      win = window.open("about:blank", "_blank");
-      if (win) {
-        try {
-          win.document.write(CHECKOUT_LOADING_HTML);
-          win.document.close();
-        } catch {
-          /* cross-origin write can throw in rare cases; redirect still works */
-        }
-      }
-    }
-
     try {
+      // Bring the shopper back to this exact screen after the hosted checkout.
+      const returnUrl = typeof window !== "undefined" ? window.location.href : undefined;
       const { payment, token } = await createPaymentSession({
         purpose: "coins",
         amount: usdToOmr(p.price),
@@ -416,41 +440,18 @@ export function BuyCoinsPanel() {
         customerPhone: user?.phone ?? null,
         customerEmail: user?.email ?? null,
         metadata: { coins: p.coins, packId: p.id },
+        returnUrl,
       });
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
-      setBusyId(null);
-      if (win && !win.closed) {
-        // Redirect the already-open loading tab to the hosted checkout.
-        win.location.href = payment.checkoutUrl;
-        startPolling(payment.id, token, p.coins, false);
-      } else {
-        // Popup was blocked/closed → fall back to an explicit tap-to-open modal.
-        setWebCheckout({ url: payment.checkoutUrl, paymentId: payment.id, token, coins: p.coins });
+      // Persist so the credit survives the full-page navigation to OMPay.
+      savePendingPayment(payment.id, token, p.coins);
+      if (typeof window !== "undefined") {
+        window.location.href = payment.checkoutUrl; // straight to the gateway
       }
     } catch (e: any) {
-      if (win && !win.closed) win.close();
       setBusyId(null);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
-    }
-  };
-
-  // Web only: open the hosted checkout from a direct button tap (so the popup
-  // isn't blocked), then poll for completion. Falls back to navigating the
-  // current tab if the new tab is still blocked, so the page always appears.
-  const openWebCheckout = () => {
-    const c = webCheckout;
-    if (!c) return;
-    setWebCheckout(null);
-    const opened = typeof window !== "undefined" ? window.open(c.url, "_blank") : null;
-    if (opened) {
-      // New tab opened → keep this screen alive and poll for completion.
-      startPolling(c.paymentId, c.token, c.coins, false);
-    } else if (typeof window !== "undefined") {
-      // New tab blocked → navigate this tab so the user still reaches OMPay.
-      // (Rare last resort: the navigation unmounts this screen, so we don't
-      // start a poll that would be killed immediately.)
-      window.location.href = c.url;
     }
   };
 
@@ -516,29 +517,6 @@ export function BuyCoinsPanel() {
               <Text style={styles.webPayBtnText}>تأكيد الدفع</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setPendingPack(null)}>
-              <Text style={styles.webPayCancel}>إلغاء</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Web: explicit "open payment page" modal (popup must come from a tap) */}
-      <Modal
-        visible={!!webCheckout}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setWebCheckout(null)}
-      >
-        <View style={styles.verifyOverlay}>
-          <View style={styles.webPayCard}>
-            <Text style={styles.webPayTitle}>إتمام عملية الدفع</Text>
-            <Text style={styles.webPaySub}>
-              اضغط الزر أدناه لفتح صفحة الدفع الآمنة الخاصة بـ OMPay.
-            </Text>
-            <TouchableOpacity style={styles.webPayBtn} onPress={openWebCheckout} activeOpacity={0.85}>
-              <Text style={styles.webPayBtnText}>ادفع الآن</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setWebCheckout(null)}>
               <Text style={styles.webPayCancel}>إلغاء</Text>
             </TouchableOpacity>
           </View>
