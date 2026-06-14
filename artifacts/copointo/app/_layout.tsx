@@ -133,6 +133,25 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
+  // Web-only: silence the benign @expo-google-fonts load timeout. On the web
+  // preview Inter is fetched over the network via an internal font observer
+  // that rejects with the exact message "<n>ms timeout exceeded" when the
+  // network is slow. useFonts already falls back gracefully (we render on
+  // fontError above), so this rejection is harmless but surfaces as an uncaught
+  // error overlay. Match ONLY that exact font-observer signature so unrelated
+  // timeouts still propagate. Native bundles the fonts, so this never runs there.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+    const onRejection = (event: PromiseRejectionEvent) => {
+      const msg = String((event?.reason as any)?.message ?? event?.reason ?? "");
+      if (/^\d+ms timeout exceeded$/.test(msg)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => window.removeEventListener("unhandledrejection", onRejection);
+  }, []);
+
   if (!fontsLoaded && !fontError) return null;
 
   return (
