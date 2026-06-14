@@ -550,6 +550,16 @@ interface AppContextType {
   addCafeOrder: (cafeId: string, cafeName: string, qty: number) => void;
 }
 
+export interface ActiveOrderItem {
+  name: string;
+  qty: number;
+  price: number;
+  image?: string;
+  selectedSize?: string;
+  selectedBean?: string;
+  originalPrice?: number;
+}
+
 export interface ActiveOrder {
   orderId: string;
   cafeId: string;
@@ -557,6 +567,15 @@ export interface ActiveOrder {
   prepMinutes: number;
   drinkQty: number;
   startedAt: number; // epoch ms
+  // ── Rich snapshot (added so the order-timer screen can show the full
+  //    receipt: line items, total and pickup method) — optional so older
+  //    persisted active-orders created before this field still load fine. ──
+  items?: ActiveOrderItem[];
+  total?: number;
+  type?: "dine" | "car";
+  tableNumber?: string;
+  plateNumber?: string;
+  plateSymbol?: string;
 }
 
 export interface Order {

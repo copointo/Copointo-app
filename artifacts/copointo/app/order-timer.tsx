@@ -7,7 +7,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  Image,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,13 +22,11 @@ import { useT } from "@/context/LanguageContext";
 import { apiFetch } from "@/constants/api";
 import { playLevelUpSound } from "@/lib/notification-sound";
 
+const cupLogo = require("../assets/images/copointo-logo.png");
+
 // Ensure OS-level notifications still appear (with their default chime) even
 // while the order-timer screen is in the foreground. Module-level so the
 // handler is set once per app lifetime — idempotent across navigations.
-// We cast the handler shape because expo-notifications exposes two key
-// schemas across SDK versions (legacy `shouldShowAlert` vs the newer
-// `shouldShowBanner`/`shouldShowList`); we set both so the chime + banner
-// fire regardless of which SDK is in play.
 try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -47,36 +47,28 @@ const CREAM   = "#F5E6CC";
 const SUCCESS = "#4ADE80";
 const TRACK   = "rgba(232,184,109,0.12)";
 
-// 4 ordered milestones in the customer-facing progress journey.
-// `pos` is the centre of each node along the bar (0..1) so the fill
-// can land exactly under the active icon.
-type StepKey = "received" | "preparing" | "ready" | "levelup";
+const AR_MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const EN_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// 5 ordered milestones — mirrors the order-status journey shown to the
+// customer (received → confirm → preparing → ready → level-up).
+type StepKey = "received" | "confirm" | "preparing" | "ready" | "levelup";
 type StepDef = {
   key: StepKey;
   icon: React.ComponentProps<typeof Feather>["name"];
   ar: string;
   en: string;
-  pos: number;
 };
 const STEPS: StepDef[] = [
-  { key: "received",  icon: "inbox",         ar: "استلام الطلب",      en: "Received",  pos: 0.125 },
-  { key: "preparing", icon: "coffee",        ar: "تحضير الطلب",       en: "Preparing", pos: 0.375 },
-  { key: "ready",     icon: "check-circle",  ar: "جاهز للاستلام",     en: "Ready",     pos: 0.625 },
-  { key: "levelup",   icon: "trending-up",   ar: "زيادة المستوى",     en: "Level up",  pos: 0.875 },
+  { key: "received",  icon: "clipboard",    ar: "استلام الطلب",   en: "Received"  },
+  { key: "confirm",   icon: "clock",        ar: "تأكيد الطلب",    en: "Confirm"   },
+  { key: "preparing", icon: "coffee",       ar: "التحضير",        en: "Preparing" },
+  { key: "ready",     icon: "shopping-bag", ar: "جاهز للاستلام",  en: "Ready"     },
+  { key: "levelup",   icon: "star",         ar: "زيادة المستوى",  en: "Level up"  },
 ];
 
 // ── Animated step icons ────────────────────────────────────────────────
-// Each milestone gets a bespoke micro-animation when it is the currently
-// active step, conveying the *meaning* of the stage visually:
-//   • received  → a checkmark draws itself into an inbox tray, fades, redraws
-//   • preparing → two ingredient drops fall into a coffee cup on loop
-//   • ready     → a checkmark draws inside a circle, fades, redraws
-//   • levelup   → an upward arrow rises from below and fades at the top
-// When the step is NOT the active one, the original Feather icon renders
-// (identical to the pre-animation look) so reached/unreached states are
-// indistinguishable from the previous design.
 const AnimatedPath = Animated.createAnimatedComponent(Path);
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type StepIconProps = {
   kind: StepKey;
@@ -84,22 +76,18 @@ type StepIconProps = {
   color: string;
   size?: number;
 };
-function StepIcon({ kind, active, color, size = 22 }: StepIconProps) {
-  // Animation drivers — only one set is used per kind, but allocating them
-  // unconditionally keeps the hook order stable across re-renders.
+function StepIcon({ kind, active, color, size = 20 }: StepIconProps) {
+  // Animation drivers — allocating them unconditionally keeps hook order
+  // stable across re-renders even though only a couple are used.
   const draw   = useRef(new Animated.Value(1)).current; // 0 hidden → 1 drawn
   const dropA  = useRef(new Animated.Value(0)).current; // 0 top → 1 inside cup
   const dropB  = useRef(new Animated.Value(0)).current;
-  const arrowY = useRef(new Animated.Value(1)).current; // 0 below → 1 raised
-  const arrowO = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!active) return;
     const loops: Animated.CompositeAnimation[] = [];
 
-    if (kind === "received" || kind === "ready") {
-      // Draw the checkmark in, hold, erase, brief pause, repeat — feels
-      // like the stamp is being applied over and over.
+    if (kind === "received") {
       const l = Animated.loop(
         Animated.sequence([
           Animated.timing(draw, { toValue: 1, duration: 750, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
@@ -108,11 +96,9 @@ function StepIcon({ kind, active, color, size = 22 }: StepIconProps) {
           Animated.delay(180),
         ]),
       );
-      // Start from "empty" so the first cycle visibly draws in.
       draw.setValue(0);
       loops.push(l);
     } else if (kind === "preparing") {
-      // Two ingredient drops fall into the cup on staggered cadence.
       const make = (v: Animated.Value, delay: number) =>
         Animated.loop(
           Animated.sequence([
@@ -124,69 +110,29 @@ function StepIcon({ kind, active, color, size = 22 }: StepIconProps) {
         );
       loops.push(make(dropA, 0));
       loops.push(make(dropB, 350));
-    } else if (kind === "levelup") {
-      // Arrow rises from the bottom, fades at the top, then resets and rises again.
-      arrowY.setValue(0);
-      arrowO.setValue(0);
-      const l = Animated.loop(
-        Animated.sequence([
-          Animated.parallel([
-            Animated.timing(arrowY, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-            Animated.sequence([
-              Animated.timing(arrowO, { toValue: 1, duration: 220, useNativeDriver: true }),
-              Animated.delay(380),
-              Animated.timing(arrowO, { toValue: 0, duration: 300, useNativeDriver: true }),
-            ]),
-          ]),
-          Animated.timing(arrowY, { toValue: 0, duration: 1, useNativeDriver: true }),
-          Animated.delay(220),
-        ]),
-      );
-      loops.push(l);
     }
 
     loops.forEach((l) => l.start());
     return () => loops.forEach((l) => l.stop());
-  }, [active, kind, draw, dropA, dropB, arrowY, arrowO]);
+  }, [active, kind, draw, dropA, dropB]);
 
-  // ── Inactive: render the original Feather icon (no regression) ──
-  if (!active) {
-    const name =
-      kind === "received"  ? "inbox" :
-      kind === "preparing" ? "coffee" :
-      kind === "ready"     ? "check-circle" :
-                             "trending-up";
-    return <Feather name={name as React.ComponentProps<typeof Feather>["name"]} size={size} color={color} />;
-  }
-
-  // ── Active animated variants ──
   const S = size;
 
-  if (kind === "received") {
-    // Checkmark path "M7 11 L11 15 L17 8" length ≈ √32 + √85 ≈ 14.88 — round
-    // up to 16 so the dasharray fully covers it for the draw-in effect.
+  // ── Active: bespoke animation for received + preparing; plain icon else ──
+  if (active && kind === "received") {
     const CHECK_LEN = 16;
     const dashOffset = draw.interpolate({ inputRange: [0, 1], outputRange: [CHECK_LEN, 0] });
     return (
       <Svg width={S} height={S} viewBox="0 0 24 24">
-        {/* Inbox tray (static base) */}
         <Path
           d="M3 14 L3 19 A2 2 0 0 0 5 21 L19 21 A2 2 0 0 0 21 19 L21 14"
-          stroke={color}
-          strokeWidth={2}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity={0.5}
+          stroke={color} strokeWidth={2} fill="none"
+          strokeLinecap="round" strokeLinejoin="round" opacity={0.5}
         />
-        {/* Checkmark that draws-in over and over */}
         <AnimatedPath
           d="M7 11 L11 15 L17 8"
-          stroke={color}
-          strokeWidth={2.6}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          stroke={color} strokeWidth={2.6} fill="none"
+          strokeLinecap="round" strokeLinejoin="round"
           strokeDasharray={`${CHECK_LEN} ${CHECK_LEN}`}
           strokeDashoffset={dashOffset as unknown as number}
         />
@@ -194,31 +140,7 @@ function StepIcon({ kind, active, color, size = 22 }: StepIconProps) {
     );
   }
 
-  if (kind === "ready") {
-    // "M7 12 L11 16 L17 8" length ≈ √32 + √100 ≈ 15.66 — round up to 17.
-    const CHECK_LEN = 17;
-    const dashOffset = draw.interpolate({ inputRange: [0, 1], outputRange: [CHECK_LEN, 0] });
-    return (
-      <Svg width={S} height={S} viewBox="0 0 24 24">
-        <Circle cx={12} cy={12} r={10} stroke={color} strokeWidth={2} fill="none" opacity={0.55} />
-        <AnimatedPath
-          d="M7 12 L11 16 L17 8"
-          stroke={color}
-          strokeWidth={2.6}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray={`${CHECK_LEN} ${CHECK_LEN}`}
-          strokeDashoffset={dashOffset as unknown as number}
-        />
-      </Svg>
-    );
-  }
-
-  if (kind === "preparing") {
-    // Two falling ingredient drops above a static coffee cup. Each drop
-    // translates from y=0 down to ~y=(S*0.45), fading out near the bottom
-    // as if it dissolves into the brew.
+  if (active && kind === "preparing") {
     const dropMaxY = S * 0.45;
     const txA = dropA.interpolate({ inputRange: [0, 1], outputRange: [0, dropMaxY] });
     const opA = dropA.interpolate({ inputRange: [0, 0.85, 1], outputRange: [0, 1, 0] });
@@ -244,18 +166,13 @@ function StepIcon({ kind, active, color, size = 22 }: StepIconProps) {
     );
   }
 
-  if (kind === "levelup") {
-    const ty = arrowY.interpolate({ inputRange: [0, 1], outputRange: [S * 0.35, -S * 0.05] });
-    return (
-      <View style={{ width: S, height: S, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-        <Animated.View style={{ transform: [{ translateY: ty }], opacity: arrowO }}>
-          <Feather name="arrow-up" size={S} color={color} />
-        </Animated.View>
-      </View>
-    );
-  }
-
-  return null;
+  const name =
+    kind === "received"  ? "clipboard"    :
+    kind === "confirm"   ? "clock"        :
+    kind === "preparing" ? "coffee"       :
+    kind === "ready"     ? "shopping-bag" :
+                           "star";
+  return <Feather name={name as React.ComponentProps<typeof Feather>["name"]} size={size} color={color} />;
 }
 
 interface ServerOrder {
@@ -269,19 +186,36 @@ interface ServerOrder {
   pointsAwarded?: boolean;
 }
 
+const DRINKS_PER_FREE_COFFEE = 6;
+
 export default function OrderTimerScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, setActiveOrder, addCafeOrder } = useApp();
+  const { user, activeOrder, setActiveOrder, addCafeOrder } = useApp();
   const { isAr } = useT();
   const params = useLocalSearchParams<{
     orderId: string; cafeId: string; cafeName?: string; minutes: string; drinks: string;
   }>();
-  const orderId   = params.orderId;
-  const cafeId    = params.cafeId;
-  const cafeName  = params.cafeName ?? "";
-  const totalMin  = Math.max(1, Number(params.minutes ?? "3"));
-  const drinkQty  = (() => { const n = Number(params.drinks ?? "0"); return Math.max(0, Number.isFinite(n) ? n : 0); })();
+
+  // ── Source of truth ──
+  // Prefer the navigation params (fresh order), then fall back to the
+  // persisted `activeOrder` so re-entry from history / the café banner —
+  // which pushes this screen WITHOUT params — still works.
+  const orderId   = params.orderId   ?? activeOrder?.orderId   ?? "";
+  const cafeId    = params.cafeId    ?? activeOrder?.cafeId    ?? "";
+  const cafeName  = params.cafeName  ?? activeOrder?.cafeName  ?? "";
+  const totalMin  = Math.max(1, Number(params.minutes ?? activeOrder?.prepMinutes ?? 3));
+  const drinkQty  = (() => {
+    const n = Number(params.drinks ?? activeOrder?.drinkQty ?? 0);
+    return Math.max(0, Number.isFinite(n) ? n : 0);
+  })();
+
+  // Rich receipt snapshot — only trust it when it belongs to THIS order.
+  const rich = activeOrder && activeOrder.orderId === orderId ? activeOrder : null;
+  const items = rich?.items ?? [];
+  const orderTotal = rich?.total;
+  const pickupType = rich?.type;
+  const startedAt = rich?.startedAt ?? Date.now();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -294,25 +228,21 @@ export default function OrderTimerScreen() {
 
   const isReadyOrDone = order?.status === "ready" || order?.status === "done";
 
-  // Active step index drives icon styling.
-  // Currently animating step = activeIdx (the latest one reached).
+  // Active step index drives icon styling — 5-step space:
+  //   0 received (always done once placed) · 1 confirm · 2 preparing · 3 ready · 4 levelup
   const activeIdx =
-    completed       ? 3 :
-    isReadyOrDone   ? 2 :
-    confirmed       ? 1 :
-                      0;
+    completed       ? 4 :
+    isReadyOrDone   ? 3 :
+    confirmed       ? 2 :
+                      1;
 
   // ── Per-step toast banner + OS notification + sound ──
-  // We watch `activeIdx` and fire a celebratory chime/banner the FIRST time
-  // each milestone is reached. Initial mount (idx 0 → 0) is silent — only
-  // forward transitions count.
   type BannerState = { title: string; sub: string; color: string; icon: React.ComponentProps<typeof Feather>["name"]; key: number } | null;
   const [banner, setBanner] = useState<BannerState>(null);
   const lastNotifiedIdxRef = useRef<number>(-1);
   const bannerY = useRef(new Animated.Value(-140)).current;
   const bannerHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Slide the banner in whenever a new one is set, then auto-hide.
   useEffect(() => {
     if (!banner) return;
     Animated.spring(bannerY, { toValue: 0, useNativeDriver: true, friction: 8, tension: 80 }).start();
@@ -325,7 +255,6 @@ export default function OrderTimerScreen() {
   }, [banner, bannerY]);
 
   useEffect(() => {
-    // First render — establish the baseline silently.
     if (lastNotifiedIdxRef.current === -1) {
       lastNotifiedIdxRef.current = activeIdx;
       return;
@@ -334,15 +263,15 @@ export default function OrderTimerScreen() {
     lastNotifiedIdxRef.current = activeIdx;
 
     const COPY = [
-      { titleAr: "تم استلام طلبك 📥",    titleEn: "Order received 📥",      subAr: "بانتظار تأكيد الكوفي",                  subEn: "Waiting for cafe confirmation",     color: "#9CA3AF", icon: "inbox"        as const },
+      { titleAr: "تم استلام طلبك 📥",    titleEn: "Order received 📥",      subAr: "بانتظار تأكيد الكوفي",                       subEn: "Waiting for cafe confirmation",     color: "#9CA3AF", icon: "clipboard"    as const },
+      { titleAr: "بانتظار التأكيد ⏳",   titleEn: "Awaiting confirmation ⏳", subAr: "سيتم إشعارك فور قبول الطلب",                subEn: "You'll be notified once accepted",  color: "#9CA3AF", icon: "clock"        as const },
       { titleAr: "بدأ تحضير طلبك ☕",   titleEn: "Preparation started ☕", subAr: `سيكون جاهزاً خلال ${totalMin} دقيقة تقريباً`, subEn: `Ready in ~${totalMin} min`,         color: PRIMARY,   icon: "coffee"       as const },
-      { titleAr: "طلبك جاهز للاستلام 🎉", titleEn: "Your order is ready 🎉", subAr: "توجّه للكاشير لاستلامه",                 subEn: "Head to the counter to pick it up", color: SUCCESS,   icon: "check-circle" as const },
-      { titleAr: "ارتفع تصنيفك 🏆",     titleEn: "Your rank rose 🏆",      subAr: "تمت إضافة تقدّمك في اللعبة",            subEn: "Game progress added",                color: PRIMARY,   icon: "trending-up"  as const },
+      { titleAr: "طلبك جاهز للاستلام 🎉", titleEn: "Your order is ready 🎉", subAr: "توجّه للكاشير لاستلامه",                    subEn: "Head to the counter to pick it up", color: SUCCESS,   icon: "shopping-bag" as const },
+      { titleAr: "ارتفع تصنيفك 🏆",     titleEn: "Your rank rose 🏆",      subAr: "تمت إضافة تقدّمك في اللعبة",                 subEn: "Game progress added",               color: PRIMARY,   icon: "star"         as const },
     ];
     const c = COPY[activeIdx];
     if (!c) return;
 
-    // 1) In-app banner from the top — works on every platform incl. web.
     setBanner({
       title: isAr ? c.titleAr : c.titleEn,
       sub:   isAr ? c.subAr   : c.subEn,
@@ -351,18 +280,10 @@ export default function OrderTimerScreen() {
       key:   Date.now(),
     });
 
-    // 2) Haptic — same celebratory pattern across all steps EXCEPT the final
-    //    level-up step (activeIdx 3): the auto-redirect-to-hub effect already
-    //    fires its own success haptic + level-up sound there, so we skip here
-    //    to avoid a double buzz on completion.
-    if (activeIdx !== 3) {
+    if (activeIdx !== 4) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
 
-    // 3) OS-level local notification with default chime. Native only — the
-    //    web stack throws on scheduleNotificationAsync without a service
-    //    worker registration, so we skip it there (the in-app banner is
-    //    enough on web).
     if (Platform.OS !== "web") {
       Notifications.scheduleNotificationAsync({
         content: {
@@ -375,9 +296,6 @@ export default function OrderTimerScreen() {
     }
   }, [activeIdx, isAr, totalMin]);
 
-  // Request notification permission once on mount so the OS chime actually
-  // fires on the first transition. Best-effort — denied is fine, the
-  // in-app banner still works.
   useEffect(() => {
     if (Platform.OS === "web") return;
     (async () => {
@@ -390,37 +308,7 @@ export default function OrderTimerScreen() {
     })();
   }, []);
 
-  // ── Bar fill (0 .. 1) ──
-  // The fill is FIXED (determinate), not a back-and-forth crawl. It snaps
-  // to a fixed quarter for each milestone and stays there — the only thing
-  // that keeps moving is the transparent shimmer band (below). The target
-  // levels are computed further down (after the prep countdown is known)
-  // because the 50% step depends on the prep timer finishing.
-  const fillAnim = useRef(new Animated.Value(0.05)).current;
-
-  // ── Shimmer sweep ──
-  // A transparent band travels left-to-right across the WHOLE bar to the very
-  // end, then repeats — a clean, steady (linear) loop that NEVER stops, so the
-  // shine keeps passing all the way to the end of the full bar at every stage
-  // (including once the order is complete).
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 1400,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
-    shimmerAnim.setValue(0);
-    loop.start();
-    return () => loop.stop();
-  }, [shimmerAnim]);
-
   // ── Breathing neon glow for the circular timer ──
-  // JS-driven (useNativeDriver:false) so it can bind to the SVG aura's
-  // strokeOpacity, which the native driver can't animate.
   const ringPulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -455,8 +343,6 @@ export default function OrderTimerScreen() {
         setOrder(data.order);
         if (data.order.status !== "pending" && !confirmed) {
           setConfirmed(true);
-          // Haptic intentionally omitted — the activeIdx effect below fires
-          // a single success haptic per milestone to avoid double-tapping.
         }
         if (data.order.pointsAwarded && !awardedRef.current) {
           awardedRef.current = true;
@@ -477,17 +363,10 @@ export default function OrderTimerScreen() {
   }, [orderId, cafeId, completed, confirmed, drinkQty]);
 
   // ── Live MM:SS countdown ──
-  // Starts the moment the cafe confirms the order, counts down totalMin*60
-  // seconds to 00:00, and freezes when the order becomes ready/done so the
-  // customer can see how long the prep actually took. Persisted across
-  // re-renders by anchoring on a single `prepStartedAt` timestamp so polling
-  // refreshes don't restart the count.
   const PREP_TOTAL_SEC = totalMin * 60;
   const prepStartedAtRef = useRef<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(PREP_TOTAL_SEC);
   useEffect(() => {
-    // Stop the clock as soon as the drink is ready — freeze whatever value
-    // we landed on (could be a small positive number, 0, or "early").
     if (!confirmed || isReadyOrDone || completed) return;
     if (prepStartedAtRef.current == null) prepStartedAtRef.current = Date.now();
     const tick = () => {
@@ -498,17 +377,12 @@ export default function OrderTimerScreen() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [confirmed, isReadyOrDone, completed, PREP_TOTAL_SEC]);
-  // When the order becomes ready before the count reaches zero, snap to 0
-  // so the timer doesn't look like it's still ticking.
   useEffect(() => {
     if (isReadyOrDone || completed) setSecondsLeft(0);
   }, [isReadyOrDone, completed]);
   const timerActive = confirmed && !isReadyOrDone && !completed;
-  // ── High-resolution prep progress (0 .. 100, float) ──
-  // Updated ~20×/sec so the on-ring number ticks smoothly in hundredths
-  // (e.g. 99.99 → 99.98 → 99.97 …) instead of jumping by whole numbers.
-  // Anchored on the same `prepStartedAtRef` as the MM:SS clock so it stays
-  // consistent across polling refreshes.
+
+  // ── High-resolution prep progress (0 .. 100) ──
   const [prepProgress, setPrepProgress] = useState<number>(0);
   useEffect(() => {
     if (isReadyOrDone || completed) { setPrepProgress(100); return; }
@@ -523,57 +397,28 @@ export default function OrderTimerScreen() {
     const id = setInterval(tick, 50);
     return () => clearInterval(id);
   }, [confirmed, isReadyOrDone, completed, PREP_TOTAL_SEC]);
+
   // ── Circular progress percentage ──
-  // The arc fills up (0 → 100) as prep time elapses and locks at 100% once
-  // the order is ready or done.
-  const pct = (isReadyOrDone || completed) ? 100 : confirmed ? prepProgress : 0;
-  // The big number is a fine-grained COUNTDOWN of the remaining prep share —
-  // starts at 100.00 the moment prep begins and ticks down toward 0.00 in
-  // hundredths; shows a clean "100" once the order is complete.
-  const pctLabel = (isReadyOrDone || completed)
-    ? "100"
-    : confirmed
-      ? (100 - prepProgress).toFixed(2)
-      : "0";
+  const pct = (isReadyOrDone || completed) ? 100 : confirmed ? prepProgress : 8;
+
   // SVG ring geometry.
-  const RING_SIZE   = 168;
-  const RING_STROKE = 14;
+  const RING_SIZE   = 132;
+  const RING_STROKE = 11;
   const RING_R      = (RING_SIZE - RING_STROKE) / 2;
   const RING_C      = 2 * Math.PI * RING_R;
   const ringDashOffset = RING_C * (1 - pct / 100);
-  // Neon gradient stops + comet-head geometry for the circular timer ring.
   const isDoneState = isReadyOrDone || completed;
-  const gradFrom  = isDoneState ? "#BBF7D0" : confirmed ? "#FFEFC9" : "rgba(245,230,204,0.30)";
-  const gradMid   = isDoneState ? "#4ADE80" : confirmed ? "#E8B86D" : "rgba(245,230,204,0.22)";
-  const gradTo    = isDoneState ? "#22C55E" : confirmed ? "#FFD9A0" : "rgba(245,230,204,0.30)";
+  const gradFrom  = isDoneState ? "#BBF7D0" : confirmed ? "#FFEFC9" : "#FFEFC9";
+  const gradMid   = isDoneState ? "#4ADE80" : PRIMARY;
+  const gradTo    = isDoneState ? "#22C55E" : "#FFD9A0";
   const glowColor = isDoneState ? SUCCESS : PRIMARY;
-  const tipRad    = ((-90 + (pct / 100) * 360) * Math.PI) / 180;
-  const tipX      = RING_SIZE / 2 + RING_R * Math.cos(tipRad);
-  const tipY      = RING_SIZE / 2 + RING_R * Math.sin(tipRad);
-  const showTip   = confirmed && pct > 0.5;
 
-  // ── Fixed fill target (0 .. 1) ──
-  // The bar fills to a fixed quarter for each milestone and holds there:
-  //   • 25%  after the cafe confirms preparation        (status: preparing)
-  //   • 50%  after the prep countdown finishes           (preparing + 0:00)
-  //   • 75%  ready for pickup                            (status: ready)
-  //   • 100% after the order is done / level goes up     (status: done)
-  const fillTarget =
-    completed                               ? 1.0  : // done → level up
-    isReadyOrDone                           ? 0.75 : // ready for pickup
-    (confirmed && secondsLeft === 0)        ? 0.5  : // preparation finished
-    confirmed                               ? 0.25 : // preparing started
-                                              0.05;  // pending / received → bar starts at 5%
-  useEffect(() => {
-    Animated.timing(fillAnim, {
-      toValue: fillTarget,
-      duration: 700,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [fillTarget, fillAnim]);
+  // ── MM:SS label shown inside the ring ──
+  const mm = Math.floor(secondsLeft / 60);
+  const ss = secondsLeft % 60;
+  const timeLabel = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 
-  // ── Status pill text (top-right) ──
+  // ── Status pill text ──
   const pillText = useMemo(() => {
     if (completed)     return isAr ? "اكتمل" : "Done";
     if (isReadyOrDone) return isAr ? "جاهز للاستلام" : "Ready";
@@ -581,34 +426,48 @@ export default function OrderTimerScreen() {
     return isAr ? "بانتظار التأكيد" : "Pending";
   }, [completed, isReadyOrDone, confirmed, isAr]);
 
-  // Big subtitle under the stepper.
-  const headlineAr =
-    completed       ? "تم الدفع — زاد مستواك في اللعبة 🎮" :
-    isReadyOrDone   ? "طلبك جاهز — توجّه لاستلامه ☕" :
-    confirmed       ? `جاري تحضير طلبك… (${totalMin} دقيقة تقريباً)` :
-                      "تم استلام طلبك — بانتظار تأكيد الكوفي";
-  const headlineEn =
-    completed       ? "Paid — your game level went up 🎮" :
-    isReadyOrDone   ? "Your order is ready — come pick it up ☕" :
-    confirmed       ? `Preparing your order… (~${totalMin} min)` :
-                      "Order received — waiting for cafe confirmation";
-  const headline = isAr ? headlineAr : headlineEn;
+  // ── Current-status card title + sub ──
+  const statusTitle =
+    completed       ? (isAr ? "تم الدفع — زاد مستواك 🎮" : "Paid — your level went up 🎮") :
+    isReadyOrDone   ? (isAr ? "طلبك جاهز للاستلام" : "Your order is ready") :
+    confirmed       ? (isAr ? "جاري تحضير طلبك" : "Preparing your order") :
+                      (isAr ? "بانتظار تأكيد الكوفي" : "Waiting for cafe confirmation");
+  const statusSub =
+    completed       ? (isAr ? "تمت إضافة تقدّمك في اللعبة" : "Game progress added") :
+    isReadyOrDone   ? (isAr ? "توجّه للكاشير لاستلامه" : "Head to the counter to pick it up") :
+    confirmed       ? (isAr ? `سيكون جاهزاً خلال ${totalMin} دقيقة تقريباً` : `Ready in ~${totalMin} min`) :
+                      (isAr ? "سيتم إشعارك فور قبول الطلب" : "You'll be notified once accepted");
 
+  // ── Time / date helpers ──
+  const fmtTime = (d: Date) => {
+    let h = d.getHours();
+    const m = d.getMinutes();
+    const ampm = isAr ? (h < 12 ? "ص" : "م") : (h < 12 ? "AM" : "PM");
+    h = h % 12; if (h === 0) h = 12;
+    return `${h}:${String(m).padStart(2, "0")} ${ampm}`;
+  };
+  const fmtDate = (d: Date) =>
+    `${d.getDate()} ${(isAr ? AR_MONTHS : EN_MONTHS)[d.getMonth()]} ${d.getFullYear()}`;
+  const orderDate  = new Date(startedAt);
+  const pickupDate = new Date(startedAt + totalMin * 60 * 1000);
+
+  // ── Free-coffee loyalty cycle (mirrors Copointo Hub) ──
+  const level = user?.level ?? 0;
+  const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
+  const freeCoffeeRemaining = ordersThisLevel === 0 ? DRINKS_PER_FREE_COFFEE : DRINKS_PER_FREE_COFFEE - ordersThisLevel;
+  const freeCoffeePct = Math.round((ordersThisLevel / DRINKS_PER_FREE_COFFEE) * 100);
+
+  // ── Navigation helpers ──
   const goBackToMenu = () => {
     if (cafeId) router.replace({ pathname: "/cafe/[id]/order", params: { id: cafeId } });
     else router.back();
   };
-
-  const goHome = () => { setActiveOrder(null); router.replace("/(tabs)"); };
-
-  // After payment (order done), clear the active order so it disappears from
-  // the customer's side and send them straight to the Copointo hub (game tab).
-  const goHub = () => { setActiveOrder(null); router.replace("/(tabs)/game"); };
+  const goCafe = () => { if (cafeId) router.push({ pathname: "/cafe/[id]", params: { id: cafeId } }); };
+  const goHelp = () => { if (cafeId) router.push({ pathname: "/cafe/[id]/chat", params: { id: cafeId } }); };
+  const goHub  = () => { setActiveOrder(null); router.replace("/(tabs)/game"); };
+  const goHubKeepOrder = () => { router.push("/(tabs)/game"); };
 
   // ── Auto-redirect to the Copointo hub once the order is paid/done ──
-  // Plays the level-up sound + a success haptic, shows the "your game level
-  // went up" celebration briefly, then routes to the game tab and clears the
-  // active order so it no longer shows for the customer.
   const redirectedRef = useRef(false);
   useEffect(() => {
     if (!completed || redirectedRef.current) return;
@@ -617,18 +476,18 @@ export default function OrderTimerScreen() {
     if (Platform.OS !== "web") {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
-    const t = setTimeout(() => { goHub(); }, 3200);
+    const t = setTimeout(() => { goHub(); }, 3400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completed]);
 
-  // ── Step node with pulse on the active one ──
+  // ── Step node ──
   const renderNode = (i: number) => {
     const s = STEPS[i];
     const reached  = i <= activeIdx;
     const current  = i === activeIdx;
-    const scale    = current ? pulse.interpolate({ inputRange: [0,1], outputRange: [1, 1.12] }) : 1;
-    const glow     = current ? pulse.interpolate({ inputRange: [0,1], outputRange: [0.35, 0.95] }) : 0.0;
+    const scale    = current ? pulse.interpolate({ inputRange: [0,1], outputRange: [1, 1.1] }) : 1;
+    const glow     = current ? pulse.interpolate({ inputRange: [0,1], outputRange: [0.35, 0.95] }) : 0;
 
     return (
       <View key={s.key} style={styles.iconCol}>
@@ -637,7 +496,7 @@ export default function OrderTimerScreen() {
             styles.nodeShadow,
             current && {
               opacity: glow,
-              transform: [{ scale: current ? pulse.interpolate({ inputRange:[0,1], outputRange:[1, 1.45] }) : 1 }],
+              transform: [{ scale: current ? pulse.interpolate({ inputRange:[0,1], outputRange:[1, 1.4] }) : 1 }],
             },
           ]}
           pointerEvents="none"
@@ -652,9 +511,14 @@ export default function OrderTimerScreen() {
           <StepIcon
             kind={s.key}
             active={current}
-            size={22}
-            color={reached ? "#0B0604" : "rgba(245,230,204,0.55)"}
+            size={19}
+            color={reached ? "#0B0604" : "rgba(245,230,204,0.5)"}
           />
+          {reached && i < activeIdx && (
+            <View style={styles.nodeCheck}>
+              <Feather name="check" size={10} color="#0B0604" />
+            </View>
+          )}
         </Animated.View>
         <Text
           numberOfLines={2}
@@ -666,34 +530,56 @@ export default function OrderTimerScreen() {
         >
           {isAr ? s.ar : s.en}
         </Text>
+        {current && <View style={styles.stepDot} />}
       </View>
     );
   };
 
-  // Shimmer translate range — measured at runtime so it spans the full bar.
-  const [barWidth, setBarWidth] = useState(0);
-  const SHIMMER_WIDTH = 130;
-  const shimmerTx = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-SHIMMER_WIDTH, barWidth + SHIMMER_WIDTH],
-  });
+  // ── Connector line fill fraction (centre of first → centre of active) ──
+  const connectorFill = STEPS.length > 1 ? activeIdx / (STEPS.length - 1) : 0;
 
-  // Animated fill width (in %) — converts 0..1 to "0%..100%".
-  const fillWidth = fillAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0%", "100%"],
-  });
+  // ── Empty state — neither nav params nor a persisted active order. ──
+  if (!orderId) {
+    return (
+      <View style={[styles.container, { paddingTop: topPad }]}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.replace("/(tabs)")} style={styles.iconBtn} activeOpacity={0.85}>
+            <Feather name="arrow-right" size={20} color={CREAM} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle}>{isAr ? "متابعة الطلب" : "Order status"}</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIcon}>
+            <Feather name="coffee" size={32} color={PRIMARY} />
+          </View>
+          <Text style={styles.emptyTitle}>{isAr ? "لا يوجد طلب نشط" : "No active order"}</Text>
+          <Text style={styles.emptySub}>
+            {isAr ? "لم نجد طلباً قيد المتابعة الآن." : "We couldn't find an order to track right now."}
+          </Text>
+          <TouchableOpacity style={styles.emptyBtn} onPress={() => router.replace("/(tabs)")} activeOpacity={0.88}>
+            <LinearGradient
+              colors={[PRIMARY, "#C9985A"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={styles.ctaGrad}
+            >
+              <Text style={styles.ctaText}>{isAr ? "العودة للرئيسية" : "Back to home"}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: botPad }]}>
-      {/* ── Top-of-screen toast banner — slides down on each step transition ── */}
+    <View style={[styles.container, { paddingTop: topPad, paddingBottom: 0 }]}>
+      {/* ── Toast banner ── */}
       {banner && (
         <Animated.View
           pointerEvents="box-none"
-          style={[
-            styles.bannerWrap,
-            { top: topPad + 6, transform: [{ translateY: bannerY }] },
-          ]}
+          style={[styles.bannerWrap, { top: topPad + 6, transform: [{ translateY: bannerY }] }]}
         >
           <View style={[styles.banner, { borderColor: `${banner.color}88` }]}>
             <View style={[styles.bannerIcon, { backgroundColor: `${banner.color}22`, borderColor: `${banner.color}66` }]}>
@@ -718,190 +604,235 @@ export default function OrderTimerScreen() {
         </Animated.View>
       )}
 
+      {/* ── Header ── */}
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={goBackToMenu} style={styles.backBtn} activeOpacity={0.85}>
-          <Feather name="arrow-right" size={18} color={CREAM} />
-          <Text style={styles.backBtnText}>{isAr ? "للقائمة" : "Menu"}</Text>
+        <TouchableOpacity onPress={goBackToMenu} style={styles.iconBtn} activeOpacity={0.85}>
+          <Feather name="arrow-right" size={20} color={CREAM} />
         </TouchableOpacity>
-        <View style={[styles.statusPill, completed && { borderColor: "rgba(74,222,128,0.55)", backgroundColor: "rgba(74,222,128,0.10)" }]}>
+
+        <TouchableOpacity onPress={goCafe} activeOpacity={0.8} style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {isAr ? "طلب" : "Order"} #{orderId ? orderId.slice(-6) : "------"}
+          </Text>
+          {!!cafeName && (
+            <View style={styles.headerCafeRow}>
+              <Text style={styles.headerCafe} numberOfLines={1}>{cafeName}</Text>
+              <Feather name="chevron-left" size={14} color="rgba(245,230,204,0.55)" />
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={goHelp} style={styles.helpBtn} activeOpacity={0.85}>
+          <Feather name="headphones" size={15} color={PRIMARY} />
+          <Text style={styles.helpText}>{isAr ? "مساعدة" : "Help"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Status badge ── */}
+      <View style={styles.statusBadgeWrap}>
+        <View style={[
+          styles.statusBadge,
+          completed     ? styles.statusBadgeDone :
+          isReadyOrDone ? styles.statusBadgeDone : null,
+        ]}>
           <View style={[
             styles.statusDot,
             completed     ? { backgroundColor: SUCCESS } :
             isReadyOrDone ? { backgroundColor: SUCCESS } :
             confirmed     ? { backgroundColor: PRIMARY } :
-                            { backgroundColor: "rgba(245,230,204,0.45)" },
+                            { backgroundColor: "rgba(245,230,204,0.55)" },
           ]} />
-          <Text style={styles.statusText}>{pillText}</Text>
+          <Text style={styles.statusBadgeText}>{pillText}</Text>
         </View>
       </View>
 
-      <View style={styles.center}>
-        <Text style={styles.title}>{isAr ? "متابعة طلبك" : "Tracking your order"}</Text>
-
-        {/* ── 4-step progress block ── */}
-        <View style={styles.stepperBlock}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: botPad + 24 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── 5-step stepper ── */}
+        <View style={styles.stepperCard}>
+          <View style={styles.connectorWrap} pointerEvents="none">
+            <View style={styles.connectorTrack} />
+            <View style={[styles.connectorFill, { width: `${connectorFill * 100}%` }]} />
+          </View>
           <View style={styles.iconsRow}>
             {STEPS.map((_, i) => renderNode(i))}
           </View>
-
-          <View
-            style={styles.barTrackWrap}
-            onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
-          >
-            <View style={styles.barTrack} />
-
-            <Animated.View style={[styles.barFillWrap, { width: fillWidth }]}>
-              <LinearGradient
-                colors={["#E8B86D", "#FFF1CE", "#E8B86D"]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
-
-            {/* Quarter division ticks (25% / 50% / 75%) so the bar reads as
-                a fixed, divided track rather than a free-floating fill. */}
-            {[0.25, 0.5, 0.75].map((p) => (
-              <View key={p} pointerEvents="none" style={[styles.barTick, { left: `${p * 100}%` }]} />
-            ))}
-
-            {/* Shimmer band sweeping across the full bar repeatedly. */}
-            {barWidth > 0 && (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.shimmer,
-                  { width: SHIMMER_WIDTH, transform: [{ translateX: shimmerTx }, { skewX: "-18deg" }] },
-                ]}
-              >
-                <LinearGradient
-                  colors={["transparent", "rgba(255,243,210,0.9)", "transparent"]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={{ flex: 1 }}
-                />
-              </Animated.View>
-            )}
-          </View>
         </View>
 
-        <Text style={styles.headline}>{headline}</Text>
-
-        {/* ── Circular progress ring with percentage ── */}
+        {/* ── Current status card ── */}
         <View style={[
-          styles.timerCard,
-          timerActive && styles.timerCardActive,
-          (isReadyOrDone || completed) && styles.timerCardDone,
+          styles.statusCard,
+          timerActive && styles.statusCardActive,
+          isDoneState && styles.statusCardDone,
         ]}>
-          <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" }}>
-            <Svg width={RING_SIZE} height={RING_SIZE}>
-              <Defs>
-                <SvgGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-                  <Stop offset="0" stopColor={gradFrom} />
-                  <Stop offset="0.5" stopColor={gradMid} />
-                  <Stop offset="1" stopColor={gradTo} />
-                </SvgGradient>
-              </Defs>
+          <View style={styles.statusCardHead}>
+            <Text style={styles.statusCardHeadText}>{isAr ? "الحالة الحالية" : "Current status"}</Text>
+            <View style={[styles.statusDot, { backgroundColor: isDoneState ? SUCCESS : PRIMARY }]} />
+          </View>
 
-              {/* Track */}
-              <Circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_R}
-                stroke="rgba(245,230,204,0.08)"
-                strokeWidth={RING_STROKE}
-                fill="none"
-              />
+          <View style={styles.statusCardBody}>
+            <View style={styles.statusTextCol}>
+              <Text style={styles.statusTitle}>{statusTitle}</Text>
+              <Text style={styles.statusSub}>{statusSub}</Text>
+            </View>
 
-              {/* Breathing neon aura — a faint full ring whose opacity pulses */}
-              <AnimatedCircle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_R}
-                stroke={glowColor}
-                strokeWidth={RING_STROKE + 8}
-                fill="none"
-                strokeOpacity={ringPulse.interpolate({ inputRange: [0, 1], outputRange: [0.05, 0.22] }) as unknown as number}
-              />
-
-              {/* Soft bloom behind the progress arc (wider + low opacity) */}
-              {showTip && (
+            <View style={{ width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" }}>
+              <Svg width={RING_SIZE} height={RING_SIZE}>
+                <Defs>
+                  <SvgGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor={gradFrom} />
+                    <Stop offset="0.5" stopColor={gradMid} />
+                    <Stop offset="1" stopColor={gradTo} />
+                  </SvgGradient>
+                </Defs>
                 <Circle
-                  cx={RING_SIZE / 2}
-                  cy={RING_SIZE / 2}
-                  r={RING_R}
-                  stroke={glowColor}
-                  strokeWidth={RING_STROKE + 6}
-                  fill="none"
+                  cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                  stroke="rgba(245,230,204,0.08)" strokeWidth={RING_STROKE} fill="none"
+                />
+                <Circle
+                  cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                  stroke="url(#ringGrad)" strokeWidth={RING_STROKE} fill="none"
                   strokeLinecap="round"
                   strokeDasharray={`${RING_C} ${RING_C}`}
                   strokeDashoffset={ringDashOffset}
                   transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
-                  opacity={0.28}
                 />
-              )}
-
-              {/* Progress arc — neon gradient, rotated -90° so 0% starts at 12 o'clock */}
-              <Circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_R}
-                stroke="url(#ringGrad)"
-                strokeWidth={RING_STROKE}
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={`${RING_C} ${RING_C}`}
-                strokeDashoffset={ringDashOffset}
-                transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
-              />
-
-              {/* Glowing comet head at the progress tip */}
-              {showTip && (
-                <>
-                  <Circle cx={tipX} cy={tipY} r={RING_STROKE * 0.95} fill={glowColor} opacity={0.35} />
-                  <Circle cx={tipX} cy={tipY} r={RING_STROKE / 2 - 1} fill="#FFF6E2" />
-                </>
-              )}
-            </Svg>
-            <View style={styles.ringCenter}>
-              <Text style={[
-                styles.ringPct,
-                (isReadyOrDone || completed) && { color: SUCCESS },
-                !confirmed && { color: "rgba(245,230,204,0.45)" },
-              ]}>
-                {pctLabel}%
-              </Text>
-              <Text style={styles.ringSub}>
-                {completed || isReadyOrDone
-                  ? (isAr ? "اكتمل" : "Complete")
-                  : confirmed
-                    ? (isAr ? "قيد التحضير" : "Preparing")
-                    : (isAr ? "بانتظار التأكيد" : "Pending")}
-              </Text>
+              </Svg>
+              <View style={styles.ringCenter}>
+                <Text style={styles.ringTop}>{isAr ? "الوقت المتوقع" : "Est. time"}</Text>
+                <Text style={[styles.ringTime, isDoneState && { color: SUCCESS }]}>
+                  {isDoneState ? (isAr ? "تم" : "Done") : timeLabel}
+                </Text>
+                {!isDoneState && (
+                  <View style={styles.ringBottomRow}>
+                    <Feather name="clock" size={11} color="rgba(245,230,204,0.55)" />
+                    <Text style={styles.ringBottom}>{isAr ? "دقيقة" : "min"}</Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
+
+          {!completed && (
+            <View style={styles.noteBox}>
+              <View style={styles.noteIcon}>
+                <Feather name="bell" size={15} color={PRIMARY} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.noteTitle}>{isAr ? "نشكرك على صبرك" : "Thank you for your patience"}</Text>
+                <Text style={styles.noteSub}>{isAr ? "سيتم تحضير طلبك بأفضل جودة" : "Your order will be prepared with the best quality"}</Text>
+              </View>
+            </View>
+          )}
         </View>
 
-        {/* ── Order details ── */}
-        <View style={styles.detailsBox}>
-          <View style={styles.detailRow}>
-            <Feather name="hash" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>{isAr ? "رقم الطلب" : "Order #"}</Text>
-            <Text style={styles.detailValue}>#{orderId?.slice(-6)}</Text>
+        {/* ── Order items ── */}
+        {items.map((it, idx) => (
+          <View key={`${it.name}-${idx}`} style={styles.itemCard}>
+            <Feather name="coffee" size={84} color="rgba(232,184,109,0.05)" style={styles.itemWatermark} />
+            <View style={styles.itemInfo}>
+              <Text style={styles.itemName} numberOfLines={2}>{it.name}</Text>
+              <View style={styles.itemChips}>
+                {!!it.selectedSize && (
+                  <View style={styles.itemChip}><Text style={styles.itemChipText}>{it.selectedSize}</Text></View>
+                )}
+                <View style={styles.itemChip}><Text style={styles.itemChipText}>× {it.qty}</Text></View>
+                {!!it.selectedBean && (
+                  <View style={styles.itemChip}>
+                    <Feather name="package" size={11} color={PRIMARY} />
+                    <Text style={styles.itemChipText}>{it.selectedBean}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.itemPriceRow}>
+                {!!it.originalPrice && it.originalPrice > it.price && (
+                  <Text style={styles.itemPriceOld}>{(it.originalPrice * it.qty).toFixed(3)}</Text>
+                )}
+                <Text style={styles.itemPrice}>{(it.price * it.qty).toFixed(3)} {isAr ? "ر.ع" : "OMR"}</Text>
+              </View>
+            </View>
+            <View style={styles.itemImageWrap}>
+              {it.image ? (
+                <Image source={{ uri: it.image }} style={styles.itemImage} resizeMode="cover" />
+              ) : (
+                <View style={styles.itemImagePlaceholder}>
+                  <Feather name="coffee" size={30} color={PRIMARY} />
+                </View>
+              )}
+            </View>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.detailRow}>
-            <Feather name="coffee" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>{isAr ? "عدد المشروبات" : "Drinks"}</Text>
-            <Text style={styles.detailValue}>{drinkQty}</Text>
+        ))}
+
+        {/* ── Order total (when known and multiple items) ── */}
+        {typeof orderTotal === "number" && items.length > 1 && (
+          <View style={styles.totalCard}>
+            <Text style={styles.totalLabel}>{isAr ? "الإجمالي" : "Total"}</Text>
+            <Text style={styles.totalValue}>{orderTotal.toFixed(3)} {isAr ? "ر.ع" : "OMR"}</Text>
           </View>
-          <View style={styles.divider} />
-          <View style={styles.detailRow}>
-            <Feather name="clock" size={14} color={PRIMARY} />
-            <Text style={styles.detailLabel}>{isAr ? "زمن التحضير" : "Prep time"}</Text>
-            <Text style={styles.detailValue}>{totalMin} {isAr ? "د" : "min"}</Text>
+        )}
+
+        {/* ── Info chips ── */}
+        <View style={styles.infoRow}>
+          <View style={styles.infoChip}>
+            <View style={styles.infoIcon}><Feather name="clock" size={14} color={PRIMARY} /></View>
+            <Text style={styles.infoLabel}>{isAr ? "وقت الطلب" : "Order time"}</Text>
+            <Text style={styles.infoValue}>{fmtTime(orderDate)}</Text>
+            <Text style={styles.infoDate}>{fmtDate(orderDate)}</Text>
+          </View>
+          <View style={styles.infoChip}>
+            <View style={styles.infoIcon}><Feather name="check-circle" size={14} color={SUCCESS} /></View>
+            <Text style={styles.infoLabel}>{isAr ? "الاستلام المتوقع" : "Est. pickup"}</Text>
+            <Text style={styles.infoValue}>{fmtTime(pickupDate)}</Text>
+            <Text style={styles.infoDate}>{fmtDate(pickupDate)}</Text>
+          </View>
+          <View style={styles.infoChip}>
+            <View style={styles.infoIcon}><Feather name="shopping-bag" size={14} color={PRIMARY} /></View>
+            <Text style={styles.infoLabel}>{isAr ? "طريقة الاستلام" : "Pickup"}</Text>
+            <Text style={styles.infoValue}>
+              {pickupType === "car"
+                ? (isAr ? "للسيارة" : "Car")
+                : (isAr ? "من الكوفي" : "In-store")}
+            </Text>
+            <Text style={styles.infoDate}>
+              {pickupType === "car"
+                ? (rich?.plateNumber ? `${rich.plateNumber} ${rich.plateSymbol ?? ""}`.trim() : (isAr ? "خدمة السيارة" : "Car service"))
+                : (rich?.tableNumber ? `${isAr ? "طاولة" : "Table"} ${rich.tableNumber}` : (isAr ? "داخل الكوفي" : "Inside cafe"))}
+            </Text>
           </View>
         </View>
 
-        {/* ── Level-up reward (step 4) ── */}
+        {/* ── Copointo Hub loyalty progress ── */}
+        <TouchableOpacity style={styles.hubCard} activeOpacity={0.9} onPress={goHubKeepOrder}>
+          <View style={styles.hubImageWrap}>
+            <Image source={cupLogo} style={styles.hubImage} resizeMode="contain" />
+          </View>
+          <View style={styles.hubInfo}>
+            <Text style={styles.hubTitle}>
+              {isAr ? "حاسب قهوتك للزيادة المستوى في " : "Boost your level in "}
+              <Text style={styles.hubBrand}>Copointo Hub</Text>
+            </Text>
+            <Text style={styles.hubSub}>
+              {isAr
+                ? `الطلب ${freeCoffeeRemaining} مرة أخرى لتحصل على قهوة مجانية`
+                : `Order ${freeCoffeeRemaining} more for a free coffee`}
+            </Text>
+            <View style={styles.hubBarRow}>
+              <View style={styles.hubBarTrack}>
+                <View style={[styles.hubBarFill, { width: `${freeCoffeePct}%` }]} />
+              </View>
+              <Text style={styles.hubPct}>{freeCoffeePct}%</Text>
+            </View>
+          </View>
+          <View style={styles.hubCircle}>
+            <Text style={styles.hubCircleNum}>{ordersThisLevel}</Text>
+            <Text style={styles.hubCircleOf}>{isAr ? `من ${DRINKS_PER_FREE_COFFEE}` : `of ${DRINKS_PER_FREE_COFFEE}`}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* ── Level-up reward (after payment) ── */}
         {completed && (
           <LinearGradient
             colors={[PRIMARY, "#C9985A"]}
@@ -933,11 +864,11 @@ export default function OrderTimerScreen() {
         ) : (
           <Text style={styles.tip}>
             {isAr
-              ? "اترك الشاشة مفتوحة — سيتحرك الشريط تلقائياً مع كل خطوة."
-              : "Keep this screen open — the bar moves with every step."}
+              ? "اترك الشاشة مفتوحة — ستتحدّث الحالة تلقائياً مع كل خطوة."
+              : "Keep this screen open — the status updates with every step."}
           </Text>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -945,140 +876,209 @@ export default function OrderTimerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
 
-  headerRow: { paddingHorizontal: 16, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  backBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 20, borderWidth: 1, borderColor: BORDER,
-    backgroundColor: CARD,
+  // ── Header ──
+  headerRow: {
+    paddingHorizontal: 14, paddingVertical: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8,
   },
-  backBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: CREAM },
-  statusPill: {
+  iconBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
+  },
+  headerCenter: { flex: 1, alignItems: "center" },
+  headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: CREAM, letterSpacing: 0.3 },
+  headerCafeRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
+  headerCafe: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.7)", maxWidth: 160 },
+  helpBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 11, paddingVertical: 8,
+    borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
+  },
+  helpText: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+
+  // ── Status badge ──
+  statusBadgeWrap: { alignItems: "center", paddingBottom: 6 },
+  statusBadge: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: "rgba(232,184,109,0.12)",
+    paddingHorizontal: 16, paddingVertical: 7,
+    backgroundColor: "rgba(232,184,109,0.1)",
     borderRadius: 20, borderWidth: 1, borderColor: BORDER,
   },
+  statusBadgeDone: { borderColor: "rgba(74,222,128,0.45)", backgroundColor: "rgba(74,222,128,0.1)" },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY },
-  statusText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: CREAM },
+  statusBadgeText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: CREAM },
 
-  center: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, gap: 18 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, gap: 14 },
 
-  title: { fontSize: 18, fontFamily: "Inter_700Bold", color: CREAM, letterSpacing: 0.3 },
-
-  // ── Stepper block ──
-  stepperBlock: {
-    width: "100%",
-    backgroundColor: CARD,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: BORDER,
-    paddingHorizontal: 18,
-    paddingTop: 22,
-    paddingBottom: 18,
+  // ── Stepper ──
+  stepperCard: {
+    backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 14, paddingTop: 18, paddingBottom: 12,
+    position: "relative",
   },
-  iconsRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-  iconCol: {
-    flex: 1,
-    alignItems: "center",
-    gap: 8,
-  },
-  nodeShadow: {
+  connectorWrap: {
     position: "absolute",
-    top: -4,
-    width: 52, height: 52, borderRadius: 26,
+    left: 14 + 28, right: 14 + 28, // inset ≈ half a node column so it spans node centres
+    top: 18 + 19, // align to node vertical centre (paddingTop + half node)
+    height: 2,
+  },
+  connectorTrack: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(232,184,109,0.18)", borderRadius: 1 },
+  connectorFill: { position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: PRIMARY, borderRadius: 1 },
+  iconsRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  iconCol: { flex: 1, alignItems: "center", gap: 7 },
+  nodeShadow: {
+    position: "absolute", top: -4,
+    width: 46, height: 46, borderRadius: 23,
     backgroundColor: "rgba(232,184,109,0.35)",
   },
   node: {
-    width: 44, height: 44, borderRadius: 22,
+    width: 38, height: 38, borderRadius: 19,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1.5,
   },
-  nodeIdle: {
-    backgroundColor: "rgba(232,184,109,0.05)",
-    borderColor: "rgba(232,184,109,0.30)",
-  },
+  nodeIdle: { backgroundColor: "#0A0606", borderColor: "rgba(232,184,109,0.3)" },
   nodeReached: {
-    backgroundColor: PRIMARY,
-    borderColor: "#FFD9A0",
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.55,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 4,
+    backgroundColor: PRIMARY, borderColor: "#FFD9A0",
+    shadowColor: PRIMARY, shadowOpacity: 0.55, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 4,
+  },
+  nodeCheck: {
+    position: "absolute", bottom: -3, right: -3,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: SUCCESS, alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: CARD,
   },
   stepLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(245,230,204,0.45)",
-    textAlign: "center",
-    lineHeight: 14,
-    minHeight: 28,
+    fontSize: 10, fontFamily: "Inter_500Medium",
+    color: "rgba(245,230,204,0.45)", textAlign: "center",
+    lineHeight: 13, minHeight: 26,
   },
   stepLabelReached: { color: CREAM, fontFamily: "Inter_600SemiBold" },
   stepLabelCurrent: { color: PRIMARY, fontFamily: "Inter_700Bold" },
+  stepDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: PRIMARY, marginTop: -2 },
 
-  // ── Bar ──
-  barTrackWrap: {
-    width: "100%",
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: TRACK,
-    overflow: "hidden",
-    position: "relative",
+  // ── Current status card ──
+  statusCard: {
+    backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER,
+    padding: 16,
   },
-  barTrack: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: TRACK,
+  statusCardActive: {
+    borderColor: "rgba(232,184,109,0.5)",
+    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 6,
   },
-  barFillWrap: {
-    position: "absolute",
-    left: 0, top: 0, bottom: 0,
-    borderRadius: 5,
-    overflow: "hidden",
+  statusCardDone: { borderColor: "rgba(74,222,128,0.45)" },
+  statusCardHead: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 7, marginBottom: 6 },
+  statusCardHeadText: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: SUCCESS },
+  statusCardBody: { flexDirection: "row", alignItems: "center", gap: 10 },
+  statusTextCol: { flex: 1, gap: 6 },
+  statusTitle: { fontSize: 19, fontFamily: "Inter_700Bold", color: CREAM, lineHeight: 26, textAlign: "right" },
+  statusSub: { fontSize: 12.5, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.6)", lineHeight: 18, textAlign: "right" },
+
+  ringCenter: { position: "absolute", alignItems: "center", justifyContent: "center" },
+  ringTop: { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.6)" },
+  ringTime: {
+    fontSize: 30, lineHeight: 36, fontFamily: "Inter_700Bold", color: PRIMARY,
+    fontVariant: ["tabular-nums"], letterSpacing: 0.5,
+    textShadowColor: "rgba(232,184,109,0.6)", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12,
   },
-  shimmer: {
-    position: "absolute",
-    top: 0, bottom: 0,
-    left: 0,
+  ringBottomRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 1 },
+  ringBottom: { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)" },
+
+  noteBox: {
+    flexDirection: "row", alignItems: "center", gap: 11,
+    marginTop: 14, padding: 12,
+    borderRadius: 14, borderWidth: 1, borderColor: "rgba(232,184,109,0.18)",
+    backgroundColor: "rgba(232,184,109,0.05)",
   },
-  barTick: {
-    position: "absolute",
-    top: 1.5, bottom: 1.5,
-    width: 2,
-    marginLeft: -1,
-    borderRadius: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+  noteIcon: {
+    width: 34, height: 34, borderRadius: 17,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,184,109,0.12)", borderWidth: 1, borderColor: "rgba(232,184,109,0.25)",
+  },
+  noteTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: CREAM, textAlign: "right" },
+  noteSub: { fontSize: 11.5, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)", marginTop: 2, textAlign: "right" },
+
+  // ── Order item ──
+  itemCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: CARD, borderRadius: 18, borderWidth: 1, borderColor: BORDER,
+    padding: 12, overflow: "hidden",
+  },
+  itemWatermark: { position: "absolute", left: -14, bottom: -18 },
+  itemInfo: { flex: 1, gap: 7 },
+  itemName: { fontSize: 15.5, fontFamily: "Inter_700Bold", color: CREAM, textAlign: "right" },
+  itemChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" },
+  itemChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 9, paddingVertical: 4,
+    borderRadius: 9, backgroundColor: "rgba(232,184,109,0.1)", borderWidth: 1, borderColor: "rgba(232,184,109,0.2)",
+  },
+  itemChipText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.8)" },
+  itemPriceRow: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end" },
+  itemPrice: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  itemPriceOld: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.4)", textDecorationLine: "line-through" },
+  itemImageWrap: { width: 72, height: 72, borderRadius: 14, overflow: "hidden" },
+  itemImage: { width: "100%", height: "100%" },
+  itemImagePlaceholder: {
+    width: "100%", height: "100%", alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,184,109,0.08)", borderWidth: 1, borderColor: BORDER, borderRadius: 14,
   },
 
-  headline: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(245,230,204,0.85)",
-    textAlign: "center",
-    lineHeight: 22,
+  totalCard: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 16, paddingVertical: 13,
   },
+  totalLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.6)" },
+  totalValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
 
-  detailsBox: {
-    width: "100%", backgroundColor: CARD, borderRadius: 18,
-    borderWidth: 1, borderColor: BORDER, padding: 16, gap: 10,
+  // ── Info chips row ──
+  infoRow: { flexDirection: "row", gap: 9 },
+  infoChip: {
+    flex: 1, alignItems: "center", gap: 4,
+    backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 6, paddingVertical: 12,
   },
-  detailRow:   { flexDirection: "row", alignItems: "center", gap: 10 },
-  detailLabel: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)" },
-  detailValue: { fontSize: 14, fontFamily: "Inter_700Bold", color: CREAM },
-  divider:     { height: 1, backgroundColor: BORDER },
+  infoIcon: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,184,109,0.1)", borderWidth: 1, borderColor: "rgba(232,184,109,0.2)", marginBottom: 2,
+  },
+  infoLabel: { fontSize: 9.5, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.5)", textAlign: "center" },
+  infoValue: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: CREAM, textAlign: "center" },
+  infoDate: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
 
-  pointsBox: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    paddingHorizontal: 22, paddingVertical: 16,
-    borderRadius: 18,
+  // ── Copointo Hub card ──
+  hubCard: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: CARD, borderRadius: 18, borderWidth: 1, borderColor: BORDER,
+    padding: 13,
   },
-  pointsIcon:  { fontSize: 32 },
+  hubImageWrap: {
+    width: 54, height: 54, borderRadius: 14,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,184,109,0.08)", borderWidth: 1, borderColor: "rgba(232,184,109,0.2)",
+  },
+  hubImage: { width: 38, height: 38 },
+  hubInfo: { flex: 1, gap: 6 },
+  hubTitle: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.8)", textAlign: "right", lineHeight: 18 },
+  hubBrand: { color: PRIMARY, fontFamily: "Inter_700Bold" },
+  hubSub: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)", textAlign: "right" },
+  hubBarRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hubBarTrack: { flex: 1, height: 7, borderRadius: 4, backgroundColor: TRACK, overflow: "hidden" },
+  hubBarFill: { height: "100%", borderRadius: 4, backgroundColor: PRIMARY },
+  hubPct: { fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY, minWidth: 32, textAlign: "left" },
+  hubCircle: {
+    width: 54, height: 54, borderRadius: 27,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.06)",
+  },
+  hubCircleNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: PRIMARY, lineHeight: 22 },
+  hubCircleOf: { fontSize: 9, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)" },
+
+  // ── Reward + CTA ──
+  pointsBox: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 15, borderRadius: 18 },
+  pointsIcon: { fontSize: 30 },
   pointsLabel: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(0,0,0,0.6)" },
   pointsValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#000" },
 
@@ -1086,87 +1086,29 @@ const styles = StyleSheet.create({
   ctaGrad: { paddingVertical: 14, alignItems: "center", justifyContent: "center" },
   ctaText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
 
-  tip: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center", lineHeight: 18 },
+  tip: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center", lineHeight: 18, marginTop: 2 },
 
-  // ── Live countdown timer card ──
-  timerCard: {
-    width: "100%",
-    alignItems: "center",
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
-    marginBottom: 14,
-  },
-  timerCardActive: {
-    borderColor: "rgba(232,184,109,0.6)",
-    backgroundColor: "rgba(232,184,109,0.08)",
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.5,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
-  },
-  timerCardDone: {
-    borderColor: "rgba(74,222,128,0.5)",
-    backgroundColor: "rgba(74,222,128,0.08)",
-    shadowColor: SUCCESS,
-    shadowOpacity: 0.5,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 8,
-  },
-  ringCenter: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  ringPct: {
-    fontSize: 30,
-    lineHeight: 36,
-    fontFamily: "Inter_700Bold",
-    color: PRIMARY,
-    fontVariant: ["tabular-nums"],
-    letterSpacing: 0.3,
-    textShadowColor: "rgba(232,184,109,0.65)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
-  },
-  ringSub: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    color: "rgba(245,230,204,0.65)",
-    marginTop: 4,
-  },
-
-  // ── Top-of-screen step toast banner ──
-  bannerWrap: {
-    position: "absolute",
-    left: 12, right: 12,
-    zIndex: 100, elevation: 12,
-  },
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    backgroundColor: "rgba(15,8,4,0.96)",
-    shadowColor: "#000",
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  bannerIcon: {
-    width: 40, height: 40, borderRadius: 12,
+  // ── Empty state ──
+  emptyWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 40, gap: 12 },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 1,
+    backgroundColor: "rgba(232,184,109,0.08)", borderWidth: 1, borderColor: BORDER, marginBottom: 4,
   },
+  emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: CREAM, textAlign: "center" },
+  emptySub: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)", textAlign: "center", lineHeight: 19, marginBottom: 8 },
+  emptyBtn: { width: "100%", borderRadius: 16, overflow: "hidden" },
+
+  // ── Toast banner ──
+  bannerWrap: { position: "absolute", left: 12, right: 12, zIndex: 100, elevation: 12 },
+  banner: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1,
+    backgroundColor: "rgba(15,8,4,0.96)",
+    shadowColor: "#000", shadowOpacity: 0.45, shadowRadius: 14, shadowOffset: { width: 0, height: 6 },
+  },
+  bannerIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: 1 },
   bannerTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: CREAM },
-  bannerSub:   { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.70)", marginTop: 2, lineHeight: 16 },
+  bannerSub: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.7)", marginTop: 2, lineHeight: 16 },
   bannerClose: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 14 },
 });

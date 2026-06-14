@@ -453,6 +453,20 @@ export default function CartScreen() {
         prepMinutes: prepMin,
         drinkQty,
         startedAt: Date.now(),
+        items: cart.map((i) => ({
+          name: i.name,
+          qty: i.quantity,
+          price: i.price,
+          ...(i.image ? { image: i.image } : {}),
+          ...(i.selectedSize ? { selectedSize: i.selectedSize } : {}),
+          ...(i.selectedBean ? { selectedBean: i.selectedBean } : {}),
+          ...(i.originalPrice && i.originalPrice > i.price ? { originalPrice: i.originalPrice } : {}),
+        })),
+        total: res.order.total ?? finalTotal,
+        type: isDine ? "dine" : "car",
+        ...(isDine
+          ? { tableNumber: dineTable.trim() }
+          : { plateNumber: carPlateNum.trim(), plateSymbol: carPlateChar.trim() }),
       });
       clearCart();
       router.replace({
