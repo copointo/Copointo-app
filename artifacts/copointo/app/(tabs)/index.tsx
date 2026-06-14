@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   ImageBackground,
+  Linking,
   Platform,
   RefreshControl,
   ScrollView,
@@ -251,6 +252,8 @@ export default function HomeScreen() {
       .sort((a, b) => a.km - b.km);
   }, [rawCafes, userLoc, roadKmByCafe, filtered]);
 
+  const nearestRaw = nearby[0]?.c;
+
   // Stable input for the mini-map so the iframe/WebView HTML only rebuilds when
   // the underlying nearby pins actually change (not on every parent re-render).
   const miniMapCafes = useMemo(
@@ -269,6 +272,16 @@ export default function HomeScreen() {
   }, [filtered, user?.cafeProgress]);
 
   const visibleUsed = showAllUsed ? mostUsed : mostUsed.slice(0, 4);
+
+  const openDirections = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (nearestRaw?.lat != null && nearestRaw?.lng != null) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${nearestRaw.lat},${nearestRaw.lng}`;
+      Linking.openURL(url).catch(() => openMap());
+    } else {
+      openMap();
+    }
+  }, [nearestRaw, openMap]);
 
   const chevron = lang === "ar" ? "chevron-left" : "chevron-right";
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
@@ -360,6 +373,20 @@ export default function HomeScreen() {
           </View>
         ) : (
         <>
+          {/* ── Directions to nearest cafe (compact) ── */}
+          {nearestRaw && (
+            <TouchableOpacity
+              onPress={openDirections}
+              activeOpacity={0.85}
+              style={[styles.directionsChip, { borderColor: colors.primary, backgroundColor: colors.secondary }]}
+            >
+              <Feather name="navigation" size={13} color={colors.primary} />
+              <Text style={[styles.directionsChipText, { color: colors.primary }]} numberOfLines={1}>
+                {t("home.directionsNearest")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* ── Map preview ── */}
           <TouchableOpacity
             onPress={openMap}
@@ -525,6 +552,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,6,6,0.85)",
   },
   mapPanelPillText: { fontSize: 10, fontFamily: "Inter_700Bold" },
+
+  // Compact "directions to nearest cafe" chip above the map
+  directionsChip: {
+    alignSelf: "flex-start",
+    flexDirection: "row", alignItems: "center", gap: 6,
+    borderWidth: 1, borderRadius: 999,
+    paddingVertical: 7, paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  directionsChipText: { fontSize: 12, fontFamily: "Inter_700Bold" },
 
   // Featured / most used cards — full-bleed cafe image with gradient overlay
   featuredCard: {
