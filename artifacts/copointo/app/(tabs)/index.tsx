@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  ImageBackground,
   Linking,
   Platform,
   RefreshControl,
@@ -488,49 +489,64 @@ export default function HomeScreen() {
             visibleUsed.map((cafe) => {
               const fav = isFavorite(cafe.id);
               return (
-                <View key={cafe.id} style={[styles.featuredCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.featuredImageWrap}>
-                    <Image source={cafe.image} style={styles.featuredImage} resizeMode="cover" />
-                    <View style={[styles.featuredStatus, { backgroundColor: cafe.isOpen ? colors.success : colors.muted }]}>
-                      <Text style={[styles.featuredStatusText, { color: cafe.isOpen ? "#000" : colors.mutedForeground }]}>
-                        {cafe.isOpen ? t("home.openNow") : t("home.closedNow")}
-                      </Text>
+                <TouchableOpacity
+                  key={cafe.id}
+                  activeOpacity={0.92}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/cafe/${cafe.id}` as any); }}
+                  style={[styles.featuredCard, { borderColor: colors.primary }]}
+                >
+                  <ImageBackground source={cafe.image} style={styles.featuredBg} imageStyle={styles.featuredBgImg}>
+                    <LinearGradient
+                      colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.45)", "rgba(10,6,6,0.96)"]}
+                      locations={[0, 0.45, 1]}
+                      style={StyleSheet.absoluteFill}
+                    />
+
+                    {/* Top row: status + favorite */}
+                    <View style={styles.featuredTopRow}>
+                      <View style={[styles.featuredStatus, { backgroundColor: cafe.isOpen ? colors.success : "rgba(0,0,0,0.55)" }]}>
+                        <View style={[styles.statusDot, { backgroundColor: cafe.isOpen ? "#0A3A0A" : colors.mutedForeground }]} />
+                        <Text style={[styles.featuredStatusText, { color: cafe.isOpen ? "#062406" : "#fff" }]}>
+                          {cafe.isOpen ? t("home.openNow") : t("home.closedNow")}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleFav(cafe.id); }}
+                        activeOpacity={0.85}
+                        style={styles.heartBtn}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Feather name="heart" size={18} color={fav ? "#FF5A7A" : "#fff"} style={fav ? styles.heartOn : undefined} />
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleFav(cafe.id); }}
-                      activeOpacity={0.85}
-                      style={styles.heartBtn}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Feather name="heart" size={18} color={fav ? "#FF5A7A" : "#fff"} style={fav ? styles.heartOn : undefined} />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.featuredContent}>
-                    <View style={styles.featuredTitleRow}>
-                      <Text style={[styles.featuredName, { color: colors.foreground }]} numberOfLines={1}>{cafe.name}</Text>
-                      <Feather name="check-circle" size={15} color={colors.primary} />
+
+                    {/* Bottom content overlaid on the image */}
+                    <View style={styles.featuredOverlay}>
+                      <View style={styles.featuredTitleRow}>
+                        <Text style={styles.featuredName} numberOfLines={1}>{cafe.name}</Text>
+                        <Feather name="check-circle" size={16} color={colors.primary} />
+                      </View>
+                      <View style={styles.featuredBottomRow}>
+                        <View style={styles.featuredMeta}>
+                          <View style={styles.ratingChip}>
+                            <Feather name="star" size={12} color={colors.gold} />
+                            <Text style={styles.ratingChipText}>{cafe.rating}</Text>
+                          </View>
+                          {!!cafe.distance && (
+                            <View style={styles.distChip}>
+                              <Feather name="navigation" size={11} color={colors.primary} />
+                              <Text style={styles.distChipText}>{cafe.distance}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={[styles.orderBtn, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.orderBtnText}>{t("home.orderNow")}</Text>
+                          <Feather name={chevron} size={15} color="#000" />
+                        </View>
+                      </View>
                     </View>
-                    <View style={styles.featuredMeta}>
-                      <Feather name="star" size={13} color={colors.gold} />
-                      <Text style={[styles.featuredMetaText, { color: colors.foreground }]}>{cafe.rating}</Text>
-                      {!!cafe.distance && (
-                        <>
-                          <View style={[styles.dot, { backgroundColor: colors.mutedForeground, marginStart: 8 }]} />
-                          <Feather name="navigation" size={12} color={colors.primary} style={{ marginStart: 8 }} />
-                          <Text style={[styles.featuredMetaText, { color: colors.mutedForeground }]}>{cafe.distance}</Text>
-                        </>
-                      )}
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/cafe/${cafe.id}` as any); }}
-                      activeOpacity={0.9}
-                      style={[styles.orderBtn, { backgroundColor: colors.primary }]}
-                    >
-                      <Text style={styles.orderBtnText}>{t("home.orderNow")}</Text>
-                      <Feather name={chevron} size={15} color="#000" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                  </ImageBackground>
+                </TouchableOpacity>
               );
             })
           )}
@@ -622,26 +638,54 @@ const styles = StyleSheet.create({
   },
   directionsText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
 
-  // Featured / most used cards
-  featuredCard: { borderWidth: 1, borderRadius: 18, overflow: "hidden", marginBottom: 14 },
-  featuredImageWrap: { width: "100%", height: 150 },
-  featuredImage: { width: "100%", height: 150 },
-  featuredStatus: { position: "absolute", top: 10, left: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  // Featured / most used cards — full-bleed cafe image with gradient overlay
+  featuredCard: {
+    borderWidth: 1.5, borderRadius: 22, overflow: "hidden", marginBottom: 16,
+    shadowColor: "#E8B86D", shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  featuredBg: { width: "100%", height: 196, justifyContent: "space-between" },
+  featuredBgImg: { borderRadius: 21 },
+  featuredTopRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    padding: 12,
+  },
+  featuredStatus: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
   featuredStatusText: { fontSize: 10, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
   heartBtn: {
-    position: "absolute", top: 8, right: 8,
-    width: 34, height: 34, borderRadius: 17,
+    width: 36, height: 36, borderRadius: 18,
     backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
   },
   heartOn: {},
-  featuredContent: { padding: 14, gap: 8 },
+  featuredOverlay: { padding: 14, gap: 10 },
   featuredTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  featuredName: { fontSize: 16, fontFamily: "Inter_700Bold", flexShrink: 1 },
-  featuredMeta: { flexDirection: "row", alignItems: "center" },
-  featuredMetaText: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginStart: 4 },
+  featuredName: {
+    fontSize: 19, fontFamily: "Inter_700Bold", flexShrink: 1, color: "#fff",
+    textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+  featuredBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  featuredMeta: { flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 },
+  ratingChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+  },
+  ratingChipText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
+  distChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5,
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.3)",
+  },
+  distChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
   orderBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    borderRadius: 12, paddingVertical: 11, marginTop: 4,
+    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16,
+    shadowColor: "#E8B86D", shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
   },
   orderBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
 
