@@ -420,7 +420,8 @@ export default function HomeScreen() {
               </Text>
             </View>
           ) : (
-            visibleUsed.map((cafe) => {
+            <View style={styles.cafeGrid}>
+            {visibleUsed.map((cafe) => {
               const fav = isFavorite(cafe.id);
               return (
                 <TouchableOpacity
@@ -482,7 +483,8 @@ export default function HomeScreen() {
                   </ImageBackground>
                 </TouchableOpacity>
               );
-            })
+            })}
+            </View>
           )}
         </>
         )}
@@ -564,12 +566,14 @@ const styles = StyleSheet.create({
   directionsChipText: { fontSize: 12, fontFamily: "Inter_700Bold" },
 
   // Featured / most used cards — full-bleed cafe image with gradient overlay
+  cafeGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   featuredCard: {
-    borderWidth: 1.5, borderRadius: 22, overflow: "hidden", marginBottom: 16,
+    width: "48.5%",
+    borderWidth: 1.5, borderRadius: 22, overflow: "hidden", marginBottom: 14,
     shadowColor: "#E8B86D", shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  featuredBg: { width: "100%", height: 196, justifyContent: "space-between" },
+  featuredBg: { width: "100%", height: 176, justifyContent: "space-between" },
   featuredBgImg: { borderRadius: 21 },
   featuredTopRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -587,13 +591,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
   },
   heartOn: {},
-  featuredOverlay: { padding: 14, gap: 10 },
-  featuredTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  featuredOverlay: { padding: 11, gap: 8 },
+  featuredTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   featuredName: {
-    fontSize: 19, fontFamily: "Inter_700Bold", flexShrink: 1, color: "#fff",
+    fontSize: 15, fontFamily: "Inter_700Bold", flexShrink: 1, color: "#fff",
     textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
-  featuredBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  featuredBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   featuredMeta: { flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 },
   ratingChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
@@ -608,11 +612,11 @@ const styles = StyleSheet.create({
   },
   distChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
   orderBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4,
+    borderRadius: 11, paddingVertical: 8, paddingHorizontal: 12,
     shadowColor: "#E8B86D", shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 0 },
   },
-  orderBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
+  orderBtnText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#000" },
 
   empty: { alignItems: "center", justifyContent: "center", paddingVertical: 60, gap: 12 },
   emptyText: { fontSize: 16, fontFamily: "Inter_400Regular" },
