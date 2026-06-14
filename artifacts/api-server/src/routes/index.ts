@@ -26,6 +26,7 @@ import {
   communities, communityInvites,
   type Community, type CommunityInvite, type CommunityRole, type PushToken,
   copointoRedemptions, type CopointoRedemption,
+  payments,
   COPOINTO_CODE_BONUS_RATE, COPOINTO_CODE_COMMISSION_RATE,
   COPOINTO_COIN_PACKS, COPOINTO_USD_TO_OMR,
   purgeUserData,
@@ -154,50 +155,81 @@ router.post("/copointo-code/redeem", async (req, res): Promise<any> => {
   const cafe = resolveCopointoCafe(code, userId);
   if (!cafe) return res.status(400).json({ ok: false, error: "كود غير صالح" });
 
-  // coinsBase must match a known coin package — the commission base is derived
-  // from the package's trusted price, never from whatever the client posts.
-  const coinsBase = Math.max(0, Math.floor(Number(b.coinsBase ?? 0)));
-  const packUsd = COPOINTO_COIN_PACKS[coinsBase];
-  if (!Number.isFinite(coinsBase) || coinsBase <= 0 || packUsd == null) {
-    return res.status(400).json({ ok: false, error: "عدد العملات غير صالح" });
-  }
-  // Trusted price: USD list price → OMR via the server-pinned rate. The client
-  // may still send priceUsd/priceOmr but they are only kept for reference.
-  const priceUsd = packUsd;
-  const priceOmr = Math.round(packUsd * COPOINTO_USD_TO_OMR * 1000) / 1000;
-
-  const coinsBonus = Math.round(coinsBase * COPOINTO_CODE_BONUS_RATE);
-  const coinsTotal = coinsBase + coinsBonus;
-  // Commission in OMR, rounded to 3 decimals (baisa).
-  const commission = Math.round(priceOmr * COPOINTO_CODE_COMMISSION_RATE * 1000) / 1000;
-
   const platform = (() => {
     const p = String(b.platform ?? "").trim().toLowerCase();
     return ["web", "ios", "android"].includes(p) ? p : "web";
   })();
 
-  // Idempotency: one purchase settles once. If the client supplies a payment
-  // reference (OMPay paymentId / store transactionId), a replay returns the
-  // existing row instead of appending a duplicate commission.
+  // A settlement row MUST reference a real purchase event, so paymentRef is
+  // mandatory (OMPay paymentId on web / store transactionId on native). Without
+  // it the ledger could be forged with fabricated commission.
   const paymentRef = typeof b.paymentRef === "string" && b.paymentRef.trim()
     ? b.paymentRef.trim().slice(0, 120) : null;
-  if (paymentRef) {
-    const existing = copointoRedemptions.find(
-      r => r.cafeId === cafe.id && r.paymentRef === paymentRef,
-    );
-    if (existing) {
-      return res.json({
-        ok: true,
-        deduped: true,
-        redemption: {
-          coinsBase: existing.coinsBase,
-          coinsBonus: existing.coinsBonus,
-          coinsTotal: existing.coinsTotal,
-          commission: existing.commission,
-        },
-      });
-    }
+  if (!paymentRef) {
+    return res.status(400).json({ ok: false, error: "مرجع الدفع مطلوب" });
   }
+
+  // Idempotency: one purchase settles exactly once, GLOBALLY (not per cafe), so
+  // a replay — or an attempt to settle the same purchase against a second cafe —
+  // returns the existing row instead of appending duplicate commission.
+  const existing = copointoRedemptions.find(
+    r => r.platform === platform && r.paymentRef === paymentRef,
+  );
+  if (existing) {
+    return res.json({
+      ok: true,
+      deduped: true,
+      redemption: {
+        coinsBase: existing.coinsBase,
+        coinsBonus: existing.coinsBonus,
+        coinsTotal: existing.coinsTotal,
+        commission: existing.commission,
+      },
+    });
+  }
+
+  // Resolve the trusted purchase price + coin count. The commission base is
+  // NEVER taken from client math.
+  let priceOmr: number;
+  let coinsBase: number;
+  if (platform === "web") {
+    // Web is fully server-authoritative: bind to a real, PAID coins payment.
+    // `amount` was already verified against the OMPay-confirmed amount when the
+    // webhook/poll flipped it to "paid", so it is the trusted money figure.
+    const pay = payments.find(
+      p => p.id === paymentRef && p.purpose === "coins" && p.status === "paid",
+    );
+    if (!pay) {
+      return res.status(400).json({ ok: false, error: "تعذّر التحقق من عملية الدفع" });
+    }
+    priceOmr = Math.round(Number(pay.amount) * 1000) / 1000;
+    // Coins are reporting-only here (the actual balance lives on the device);
+    // prefer the count captured server-side at session create.
+    const metaCoins = Math.floor(Number((pay.metadata as any)?.coins ?? 0));
+    coinsBase = metaCoins > 0 ? metaCoins : Math.max(0, Math.floor(Number(b.coinsBase ?? 0)));
+  } else {
+    // Native store IAP (RevenueCat): there is no server payment row to bind to,
+    // and the coin balance is device-local by design. We validate the pack and
+    // derive the price from the trusted pack table, and rely on the mandatory
+    // paymentRef + global idempotency above to prevent replay. (Full store
+    // receipt verification is an app-wide hardening tracked separately.)
+    coinsBase = Math.max(0, Math.floor(Number(b.coinsBase ?? 0)));
+    const packUsd = COPOINTO_COIN_PACKS[coinsBase];
+    if (!Number.isFinite(coinsBase) || coinsBase <= 0 || packUsd == null) {
+      return res.status(400).json({ ok: false, error: "عدد العملات غير صالح" });
+    }
+    priceOmr = Math.round(packUsd * COPOINTO_USD_TO_OMR * 1000) / 1000;
+  }
+  if (!(priceOmr > 0)) {
+    return res.status(400).json({ ok: false, error: "قيمة الشراء غير صالحة" });
+  }
+
+  // USD figure is reference-only; derive it from the trusted OMR price.
+  const priceUsd = Math.round((priceOmr / COPOINTO_USD_TO_OMR) * 100) / 100;
+  const coinsBonus = Math.round(coinsBase * COPOINTO_CODE_BONUS_RATE);
+  const coinsTotal = coinsBase + coinsBonus;
+  // Commission in OMR, rounded to 3 decimals (baisa).
+  const commission = Math.round(priceOmr * COPOINTO_CODE_COMMISSION_RATE * 1000) / 1000;
 
   const row: CopointoRedemption = {
     id: `cr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,

@@ -366,8 +366,17 @@ router.get("/copointo-redemptions", (req: any, res) => {
       monthCount += 1;
     }
   }
+  // Settlement reporting only needs to identify the buyer, not expose a full
+  // phone number, so the phone is masked to its last 3 digits before leaving
+  // the server (this is an open cafe-dashboard read like its sibling endpoints).
+  const maskPhone = (p?: string | null): string | null => {
+    const digits = String(p ?? "").replace(/\D+/g, "");
+    if (!digits) return null;
+    return digits.length <= 3 ? `••• ${digits}` : `••• ${digits.slice(-3)}`;
+  };
+  const safe = list.map(r => ({ ...r, buyerPhone: maskPhone(r.buyerPhone) }));
   res.json({
-    redemptions: list,
+    redemptions: safe,
     monthCommission: Math.round(monthCommission * 1000) / 1000,
     monthCount,
     totalCount: list.length,
