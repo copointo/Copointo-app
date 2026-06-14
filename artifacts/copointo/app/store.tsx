@@ -367,7 +367,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = f.price ?? PRICE_BY_TIER[i] ?? 100;
             const tint = itemTheme(FRAME_TINT[f.id]);
             return (
-              <FadeInItem key={f.id} index={i} style={{ width: "31%" }}>
+              <FadeInItem key={f.id} index={i} style={{ width: "30%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -436,7 +436,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = b.price ?? PRICE_BY_TIER[i] ?? 100;
             const tint = itemTheme(BADGE_TINT[b.id]);
             return (
-              <FadeInItem key={b.id} index={i} style={{ width: "31%" }}>
+              <FadeInItem key={b.id} index={i} style={{ width: "30%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -636,7 +636,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = CHARACTER_PRICE(realIdx);
             const tint = itemTheme(ch.glow ?? ch.ringGradient?.[1] ?? CHAR_TINT[ch.id]);
             return (
-              <FadeInItem key={ch.id} index={i} style={{ width: "31%" }}>
+              <FadeInItem key={ch.id} index={i} style={{ width: "30%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -697,7 +697,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
           {GIFTS.map((g, i) => {
             const owned = giftInventory[g.id] ?? 0;
             return (
-              <FadeInItem key={g.id} index={i} style={{ width: "31%" }}>
+              <FadeInItem key={g.id} index={i} style={{ width: "30%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, itemTheme(g.color), { paddingVertical: 12, alignItems: "center", gap: 4 }]}
                   activeOpacity={0.85}
@@ -1096,7 +1096,7 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 64, height: 64, resizeMode: "contain" },
   itemName: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  bgGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "space-between" },
+  bgGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "flex-start" },
   bgCard: {
     width: "100%",
     minWidth: 0,
