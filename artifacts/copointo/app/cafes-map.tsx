@@ -176,21 +176,40 @@ export default function CafesMapScreen() {
   const [error,    setError]    = useState<string | null>(null);
   const [selected, setSelected] = useState<ApiCafe | null>(null);
 
-  // Fetch cafes (sorted by rating from server) + best-effort current location
+  const [locating, setLocating] = useState(false);
+
+  // Resolve the user's current location. When `prompt` is true we actively ask
+  // for permission (used on first load and by the "locate me" button); otherwise
+  // we only read an already-granted permission silently.
+  const resolveLocation = useCallback(async (prompt: boolean) => {
+    try {
+      const perm = prompt
+        ? await Location.requestForegroundPermissionsAsync()
+        : await Location.getForegroundPermissionsAsync();
+      if (perm.status !== "granted") return false;
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Manual "locate me" button → re-resolve location; updating userLoc rebuilds
+  // the map HTML and re-fits the bounds to include the user pin.
+  const locateMe = useCallback(async () => {
+    setLocating(true);
+    await resolveLocation(true);
+    setLocating(false);
+  }, [resolveLocation]);
+
+  // Fetch cafes (sorted by rating from server) + request current location so the
+  // user pin shows immediately and they can see which cafes are nearby.
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        // Location is best-effort: the home-screen button already requested
-        // permission, so on second visits this resolves silently.
-        try {
-          const { status } = await Location.getForegroundPermissionsAsync();
-          if (status === "granted") {
-            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-            if (alive) setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          }
-        } catch { /* ignore */ }
-
+        await resolveLocation(true);
         const data = await apiFetch<{ cafes: ApiCafe[] }>(
           user ? `/cafes?userId=${encodeURIComponent(user.id)}` : "/cafes"
         );
@@ -304,6 +323,20 @@ export default function CafesMapScreen() {
             mixedContentMode="always"
           />
         )}
+
+        {/* Floating "locate me" button — recenters the map on the user */}
+        {!loading && !error && plottable.length > 0 && (
+          <TouchableOpacity
+            onPress={locateMe}
+            style={[styles.locateBtn, { bottom: insets.bottom + (selected ? 200 : 24) }]}
+            activeOpacity={0.85}
+            disabled={locating}
+          >
+            {locating
+              ? <ActivityIndicator size="small" color="#000" />
+              : <Feather name="navigation" size={20} color="#000" />}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* ── Selected-cafe panel (bottom sheet) ── */}
@@ -358,6 +391,13 @@ const styles = StyleSheet.create({
   headerSub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", marginTop: 2 },
 
   mapWrap: { flex: 1, backgroundColor: BG },
+  locateBtn: {
+    position: "absolute", insetInlineEnd: 16,
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: "#fff",
+    shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8,
+  },
   center:  { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 24 },
   errorText: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", textAlign: "center" },
 

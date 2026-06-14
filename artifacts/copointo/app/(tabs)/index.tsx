@@ -72,11 +72,6 @@ function formatDist(km: number, kmLabel: string, mLabel: string): string {
   return `${km.toFixed(2)} ${kmLabel}`;
 }
 
-/** Thousands-grouped integer (Hermes-safe — toLocaleString grouping is unreliable). */
-function groupNum(n: number): string {
-  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
-
 /** Rough walking time in minutes from a distance in km (~5 km/h). */
 function walkMinutes(km: number): number {
   return Math.max(1, Math.round((km / 5) * 60));
@@ -154,7 +149,6 @@ export default function HomeScreen() {
 
   // ── Profile header figures ──
   const level   = user?.level ?? 0;
-  const points  = user?.points ?? 0;
   const rank    = getRank(level);
 
   const openMap = useCallback(async () => {
@@ -358,13 +352,10 @@ export default function HomeScreen() {
                 <View style={[styles.lvPill, { borderColor: colors.border, backgroundColor: colors.secondary }]}>
                   <Text style={[styles.lvPillText, { color: colors.primary }]}>{rank.icon} Lv {level}</Text>
                 </View>
-                <View style={styles.pointsRow}>
-                  <Feather name="star" size={13} color={colors.gold} />
-                  <Text style={[styles.pointsText, { color: colors.foreground }]}>
-                    {groupNum(points)} <Text style={{ color: colors.mutedForeground }}>{t("home.points")}</Text>
-                  </Text>
-                </View>
               </View>
+              <Text style={[styles.cravingPrompt, { color: colors.primary }]} numberOfLines={1}>
+                {t("home.cravingPrompt")}
+              </Text>
             </View>
           </View>
         </View>
@@ -593,8 +584,7 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
   lvPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10, borderWidth: 1 },
   lvPillText: { fontSize: 11, fontFamily: "Inter_700Bold" },
-  pointsRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  pointsText: { fontSize: 13, fontFamily: "Inter_700Bold" },
+  cravingPrompt: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 6 },
 
   // Search row
   searchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 },
