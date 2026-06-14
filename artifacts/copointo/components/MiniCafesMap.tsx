@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { Platform, View } from "react-native";
 import { WebView } from "react-native-webview";
 
-interface MiniCafe { id: string; name: string; lat: number; lng: number }
+interface MiniCafe { id: string; name: string; lat: number; lng: number; image?: string | null }
 
 /** Serialize JSON for safe embedding inside an inline <script>. Mirrors the
  *  hardening in app/cafes-map.tsx: escapes `</script`, U+2028 and U+2029 so an
@@ -31,11 +31,13 @@ function buildHtml(cafes: MiniCafe[], user: { lat: number; lng: number } | null)
   html, body, #map { margin: 0; padding: 0; height: 100%; background: #000; }
   .leaflet-control-container { display: none; }
   .cafe-pin {
-    width: 30px; height: 30px; border-radius: 50%;
+    position: relative; overflow: hidden;
+    width: 34px; height: 34px; border-radius: 50%;
     background: #E8B86D; border: 3px solid #fff;
     box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-    display: flex; align-items: center; justify-content: center; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
   }
+  .cafe-pin img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .me-pin {
     width: 16px; height: 16px; border-radius: 50%;
     background: #4285F4; border: 3px solid #fff;
@@ -66,9 +68,12 @@ function buildHtml(cafes: MiniCafe[], user: { lat: number; lng: number } | null)
     }).addTo(map);
   }
   var bounds = me ? [[me.lat, me.lng]] : [];
+  function escAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
   cafes.forEach(function (c) {
+    var inner = '\u2615';
+    if (c.image && (c.image.indexOf('http://') === 0 || c.image.indexOf('https://') === 0)) inner += '<img src="' + escAttr(c.image) + '" onerror="this.style.display=&#39;none&#39;"/>';
     L.marker([c.lat, c.lng], {
-      icon: L.divIcon({ className: '', html: '<div class="cafe-pin">\u2615</div>', iconSize: [30, 30], iconAnchor: [15, 15] })
+      icon: L.divIcon({ className: '', html: '<div class="cafe-pin">' + inner + '</div>', iconSize: [34, 34], iconAnchor: [17, 17] })
     }).addTo(map);
     bounds.push([c.lat, c.lng]);
   });

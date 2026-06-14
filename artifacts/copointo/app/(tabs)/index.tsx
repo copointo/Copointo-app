@@ -281,7 +281,7 @@ export default function HomeScreen() {
   // Stable input for the mini-map so the iframe/WebView HTML only rebuilds when
   // the underlying nearby pins actually change (not on every parent re-render).
   const miniMapCafes = useMemo(
-    () => nearby.slice(0, 8).map(({ c }) => ({ id: c.id, name: c.name, lat: c.lat as number, lng: c.lng as number })),
+    () => nearby.slice(0, 8).map(({ c }) => ({ id: c.id, name: c.name, lat: c.lat as number, lng: c.lng as number, image: c.image || null })),
     [nearby],
   );
 
