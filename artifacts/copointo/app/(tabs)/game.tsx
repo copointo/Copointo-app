@@ -791,7 +791,7 @@ const styles = StyleSheet.create({
     shadowColor: PRIMARY, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
   },
 
-  charName: { marginTop: 6, fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 120, textAlign: "center" },
+  charName: { marginTop: -4, fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 120, textAlign: "center" },
 
   heroCol: { width: 72, alignItems: "center", justifyContent: "center", gap: 10 },
   heroBtn: {
