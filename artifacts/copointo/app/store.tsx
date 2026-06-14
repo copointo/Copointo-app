@@ -636,7 +636,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = CHARACTER_PRICE(realIdx);
             const tint = itemTheme(ch.glow ?? ch.ringGradient?.[1] ?? CHAR_TINT[ch.id]);
             return (
-              <FadeInItem key={ch.id} index={i} style={{ width: "30%" }}>
+              <FadeInItem key={ch.id} index={i} style={{ width: "48%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -646,7 +646,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                   }}
                 >
                   <View style={styles.charCardWrap}>
-                    <Character def={ch} size={56} animated />
+                    <Character def={ch} size={72} animated />
                   </View>
                   <Text style={styles.bgName} numberOfLines={1}>{ch.name}</Text>
                   <PriceTag price={price} owned={owned} />
@@ -1188,12 +1188,12 @@ const styles = StyleSheet.create({
   tsModalBubbleText: { fontSize: 15, fontFamily: "Inter_500Medium", lineHeight: 22 },
   charCardWrap: {
     alignSelf: "stretch",
-    paddingVertical: 12, paddingHorizontal: 6,
+    paddingVertical: 18, paddingHorizontal: 8,
     backgroundColor: "rgba(0,0,0,0.55)",
     borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
-    minHeight: 78,
+    minHeight: 100,
   },
   charModalPreview: {
     marginTop: 14,
