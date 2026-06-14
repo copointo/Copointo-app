@@ -571,7 +571,12 @@ export default function GameScreen() {
             )}
             <View style={styles.charPlatform} />
             {!!username && (
-              <Text style={styles.charName} numberOfLines={1}>{username}</Text>
+              <View style={styles.charNameRow}>
+                <Text style={styles.charName} numberOfLines={1}>{username}</Text>
+                {omanRankStr !== "—" && (
+                  <Text style={styles.charRank}>{omanRankStr}</Text>
+                )}
+              </View>
             )}
           </View>
 
@@ -791,7 +796,9 @@ const styles = StyleSheet.create({
     shadowColor: PRIMARY, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
   },
 
-  charName: { marginTop: -16, fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 120, textAlign: "center" },
+  charNameRow: { marginTop: -16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, maxWidth: 140 },
+  charName: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 100, textAlign: "center" },
+  charRank: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   heroCol: { width: 72, alignItems: "center", justifyContent: "center", gap: 10 },
   heroBtn: {
