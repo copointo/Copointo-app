@@ -5,7 +5,7 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Image, Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Image, Platform, StyleSheet, Text, View, useColorScheme } from "react-native";
 
 const COPOINTO_LOGO = require("../../assets/images/copointo-logo.png");
 const COPOINTO_HUB = require("../../assets/images/copointo-hub.png");
@@ -50,12 +50,25 @@ function ClassicTabLayout() {
   const icSize = r.iconSize;
   const labelSize = r.isPhone ? 10 : r.isTablet ? 11 : 12;
 
+  // Single active "panel" that wraps BOTH the icon and the label together.
+  // The default label is hidden (`tabBarShowLabel: false`) and we render it
+  // ourselves inside the pill so the selected highlight covers icon + word.
+  const renderTab = (label: string, icon: React.ReactNode, focused: boolean, color: string) => (
+    <View style={[tabStyles.pill, focused && tabStyles.pillActive]}>
+      {icon}
+      <Text style={[tabStyles.pillLabel, { color, fontSize: labelSize }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: "#E8B86D",
         tabBarInactiveTintColor: "rgba(232,184,109,0.5)",
         headerShown: false,
+        tabBarShowLabel: false,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
@@ -79,10 +92,6 @@ function ClassicTabLayout() {
               ]}
             />
           ) : null,
-        tabBarLabelStyle: {
-          fontFamily: "Inter_500Medium",
-          fontSize: labelSize,
-        },
         tabBarItemStyle: isWeb && (r.isTablet || r.isDesktop)
           ? { maxWidth: 220, alignSelf: "center" }
           : undefined,
@@ -92,74 +101,84 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
-              {isIOS ? (
+          tabBarIcon: ({ color, focused }) =>
+            renderTab(
+              "Home",
+              isIOS ? (
                 <SymbolView name="house" tintColor={color} size={icSize} />
               ) : (
                 <Feather name="home" size={icSize} color={color} />
-              )}
-            </View>
-          ),
+              ),
+              focused,
+              color,
+            ),
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
-              {isIOS ? (
+          tabBarIcon: ({ color, focused }) =>
+            renderTab(
+              "Messages",
+              isIOS ? (
                 <SymbolView name="message" tintColor={color} size={icSize} />
               ) : (
                 <Feather name="message-circle" size={icSize} color={color} />
-              )}
-            </View>
-          ),
+              ),
+              focused,
+              color,
+            ),
         }}
       />
       <Tabs.Screen
         name="videos"
         options={{
           title: "Reels",
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
-              {isIOS ? (
+          tabBarIcon: ({ color, focused }) =>
+            renderTab(
+              "Reels",
+              isIOS ? (
                 <SymbolView name="play.rectangle" tintColor={color} size={icSize} />
               ) : (
                 <Feather name="play-circle" size={icSize} color={color} />
-              )}
-            </View>
-          ),
+              ),
+              focused,
+              color,
+            ),
         }}
       />
       <Tabs.Screen
         name="game"
         options={{
           title: "Copointo Hub",
-          tabBarIcon: ({ focused }) => (
-            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+          tabBarIcon: ({ color, focused }) =>
+            renderTab(
+              "Copointo Hub",
               <Image
                 source={COPOINTO_HUB}
                 style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain", opacity: focused ? 1 : 0.5 }}
-              />
-            </View>
-          ),
+              />,
+              focused,
+              color,
+            ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
-              {isIOS ? (
+          tabBarIcon: ({ color, focused }) =>
+            renderTab(
+              "Profile",
+              isIOS ? (
                 <SymbolView name="person" tintColor={color} size={icSize} />
               ) : (
                 <Feather name="user" size={icSize} color={color} />
-              )}
-            </View>
-          ),
+              ),
+              focused,
+              color,
+            ),
         }}
       />
     </Tabs>
@@ -174,18 +193,19 @@ export default function TabLayout() {
 }
 
 const tabStyles = StyleSheet.create({
-  iconWrap: {
+  pill: {
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 54,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
+    gap: 3,
+    minWidth: 58,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "transparent",
     backgroundColor: "transparent",
   },
-  iconWrapActive: {
+  pillActive: {
     backgroundColor: "rgba(232,184,109,0.15)",
     borderColor: "rgba(232,184,109,0.45)",
     shadowColor: "#E8B86D",
@@ -193,5 +213,9 @@ const tabStyles = StyleSheet.create({
     shadowRadius: 9,
     shadowOffset: { width: 0, height: 0 },
     elevation: 4,
+  },
+  pillLabel: {
+    fontFamily: "Inter_500Medium",
+    marginTop: 1,
   },
 });
