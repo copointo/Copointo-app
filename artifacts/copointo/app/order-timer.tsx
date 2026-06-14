@@ -22,7 +22,6 @@ import { useT } from "@/context/LanguageContext";
 import { apiFetch } from "@/constants/api";
 import { playLevelUpSound } from "@/lib/notification-sound";
 
-const cupLogo = require("../assets/images/copointo-logo.png");
 
 // Ensure OS-level notifications still appear (with their default chime) even
 // while the order-timer screen is in the foreground. Module-level so the
@@ -45,7 +44,6 @@ const BORDER  = "rgba(232,184,109,0.25)";
 const PRIMARY = "#E8B86D";
 const CREAM   = "#F5E6CC";
 const SUCCESS = "#4ADE80";
-const TRACK   = "rgba(232,184,109,0.12)";
 
 const AR_MONTHS = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 const EN_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -186,7 +184,6 @@ interface ServerOrder {
   pointsAwarded?: boolean;
 }
 
-const DRINKS_PER_FREE_COFFEE = 6;
 
 export default function OrderTimerScreen() {
   const insets = useSafeAreaInsets();
@@ -402,8 +399,8 @@ export default function OrderTimerScreen() {
   const pct = (isReadyOrDone || completed) ? 100 : confirmed ? prepProgress : 8;
 
   // SVG ring geometry.
-  const RING_SIZE   = 132;
-  const RING_STROKE = 11;
+  const RING_SIZE   = 112;
+  const RING_STROKE = 10;
   const RING_R      = (RING_SIZE - RING_STROKE) / 2;
   const RING_C      = 2 * Math.PI * RING_R;
   const ringDashOffset = RING_C * (1 - pct / 100);
@@ -413,10 +410,10 @@ export default function OrderTimerScreen() {
   const gradTo    = isDoneState ? "#22C55E" : "#FFD9A0";
   const glowColor = isDoneState ? SUCCESS : PRIMARY;
 
-  // ── MM:SS label shown inside the ring ──
-  const mm = Math.floor(secondsLeft / 60);
-  const ss = secondsLeft % 60;
-  const timeLabel = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+  // ── Countdown percentage shown inside the ring (99.99 → 99.98 → 99.97 …) ──
+  const elapsedSec = PREP_TOTAL_SEC - secondsLeft;
+  const countdownPct = Math.max(0, 99.99 - elapsedSec * 0.01);
+  const pctLabel = `${countdownPct.toFixed(2)}%`;
 
   // ── Status pill text ──
   const pillText = useMemo(() => {
@@ -451,12 +448,6 @@ export default function OrderTimerScreen() {
   const orderDate  = new Date(startedAt);
   const pickupDate = new Date(startedAt + totalMin * 60 * 1000);
 
-  // ── Free-coffee loyalty cycle (mirrors Copointo Hub) ──
-  const level = user?.level ?? 0;
-  const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
-  const freeCoffeeRemaining = ordersThisLevel === 0 ? DRINKS_PER_FREE_COFFEE : DRINKS_PER_FREE_COFFEE - ordersThisLevel;
-  const freeCoffeePct = Math.round((ordersThisLevel / DRINKS_PER_FREE_COFFEE) * 100);
-
   // ── Navigation helpers ──
   const goBackToMenu = () => {
     if (cafeId) router.replace({ pathname: "/cafe/[id]/order", params: { id: cafeId } });
@@ -465,7 +456,6 @@ export default function OrderTimerScreen() {
   const goCafe = () => { if (cafeId) router.push({ pathname: "/cafe/[id]", params: { id: cafeId } }); };
   const goHelp = () => { if (cafeId) router.push({ pathname: "/cafe/[id]/chat", params: { id: cafeId } }); };
   const goHub  = () => { setActiveOrder(null); router.replace("/(tabs)/game"); };
-  const goHubKeepOrder = () => { router.push("/(tabs)/game"); };
 
   // ── Auto-redirect to the Copointo hub once the order is paid/done ──
   const redirectedRef = useRef(false);
@@ -702,16 +692,10 @@ export default function OrderTimerScreen() {
                 />
               </Svg>
               <View style={styles.ringCenter}>
-                <Text style={styles.ringTop}>{isAr ? "الوقت المتوقع" : "Est. time"}</Text>
+                <Text style={styles.ringTop}>{isAr ? "نسبة الإنجاز" : "Progress"}</Text>
                 <Text style={[styles.ringTime, isDoneState && { color: SUCCESS }]}>
-                  {isDoneState ? (isAr ? "تم" : "Done") : timeLabel}
+                  {isDoneState ? (isAr ? "تم" : "Done") : pctLabel}
                 </Text>
-                {!isDoneState && (
-                  <View style={styles.ringBottomRow}>
-                    <Feather name="clock" size={11} color="rgba(245,230,204,0.55)" />
-                    <Text style={styles.ringBottom}>{isAr ? "دقيقة" : "min"}</Text>
-                  </View>
-                )}
               </View>
             </View>
           </View>
@@ -804,34 +788,6 @@ export default function OrderTimerScreen() {
           </View>
         </View>
 
-        {/* ── Copointo Hub loyalty progress ── */}
-        <TouchableOpacity style={styles.hubCard} activeOpacity={0.9} onPress={goHubKeepOrder}>
-          <View style={styles.hubImageWrap}>
-            <Image source={cupLogo} style={styles.hubImage} resizeMode="contain" />
-          </View>
-          <View style={styles.hubInfo}>
-            <Text style={styles.hubTitle}>
-              {isAr ? "حاسب قهوتك للزيادة المستوى في " : "Boost your level in "}
-              <Text style={styles.hubBrand}>Copointo Hub</Text>
-            </Text>
-            <Text style={styles.hubSub}>
-              {isAr
-                ? `الطلب ${freeCoffeeRemaining} مرة أخرى لتحصل على قهوة مجانية`
-                : `Order ${freeCoffeeRemaining} more for a free coffee`}
-            </Text>
-            <View style={styles.hubBarRow}>
-              <View style={styles.hubBarTrack}>
-                <View style={[styles.hubBarFill, { width: `${freeCoffeePct}%` }]} />
-              </View>
-              <Text style={styles.hubPct}>{freeCoffeePct}%</Text>
-            </View>
-          </View>
-          <View style={styles.hubCircle}>
-            <Text style={styles.hubCircleNum}>{ordersThisLevel}</Text>
-            <Text style={styles.hubCircleOf}>{isAr ? `من ${DRINKS_PER_FREE_COFFEE}` : `of ${DRINKS_PER_FREE_COFFEE}`}</Text>
-          </View>
-        </TouchableOpacity>
-
         {/* ── Level-up reward (after payment) ── */}
         {completed && (
           <LinearGradient
@@ -909,7 +865,7 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: PRIMARY },
   statusBadgeText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: CREAM },
 
-  scrollContent: { paddingHorizontal: 16, paddingTop: 8, gap: 14 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 6, gap: 10 },
 
   // ── Stepper ──
   stepperCard: {
@@ -960,7 +916,7 @@ const styles = StyleSheet.create({
   // ── Current status card ──
   statusCard: {
     backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: BORDER,
-    padding: 16,
+    padding: 13,
   },
   statusCardActive: {
     borderColor: "rgba(232,184,109,0.5)",
@@ -971,22 +927,19 @@ const styles = StyleSheet.create({
   statusCardHeadText: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: SUCCESS },
   statusCardBody: { flexDirection: "row", alignItems: "center", gap: 10 },
   statusTextCol: { flex: 1, gap: 6 },
-  statusTitle: { fontSize: 19, fontFamily: "Inter_700Bold", color: CREAM, lineHeight: 26, textAlign: "right" },
+  statusTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: CREAM, lineHeight: 22, textAlign: "right" },
   statusSub: { fontSize: 12.5, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.6)", lineHeight: 18, textAlign: "right" },
 
   ringCenter: { position: "absolute", alignItems: "center", justifyContent: "center" },
   ringTop: { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.6)" },
   ringTime: {
-    fontSize: 30, lineHeight: 36, fontFamily: "Inter_700Bold", color: PRIMARY,
+    fontSize: 21, lineHeight: 26, fontFamily: "Inter_700Bold", color: PRIMARY,
     fontVariant: ["tabular-nums"], letterSpacing: 0.5,
     textShadowColor: "rgba(232,184,109,0.6)", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12,
   },
-  ringBottomRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 1 },
-  ringBottom: { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)" },
-
   noteBox: {
     flexDirection: "row", alignItems: "center", gap: 11,
-    marginTop: 14, padding: 12,
+    marginTop: 10, padding: 10,
     borderRadius: 14, borderWidth: 1, borderColor: "rgba(232,184,109,0.18)",
     backgroundColor: "rgba(232,184,109,0.05)",
   },
@@ -1037,7 +990,7 @@ const styles = StyleSheet.create({
   infoChip: {
     flex: 1, alignItems: "center", gap: 4,
     backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER,
-    paddingHorizontal: 6, paddingVertical: 12,
+    paddingHorizontal: 6, paddingVertical: 9,
   },
   infoIcon: {
     width: 32, height: 32, borderRadius: 16,
@@ -1047,34 +1000,6 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 9.5, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.5)", textAlign: "center" },
   infoValue: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: CREAM, textAlign: "center" },
   infoDate: { fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(245,230,204,0.45)", textAlign: "center" },
-
-  // ── Copointo Hub card ──
-  hubCard: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: CARD, borderRadius: 18, borderWidth: 1, borderColor: BORDER,
-    padding: 13,
-  },
-  hubImageWrap: {
-    width: 54, height: 54, borderRadius: 14,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(232,184,109,0.08)", borderWidth: 1, borderColor: "rgba(232,184,109,0.2)",
-  },
-  hubImage: { width: 38, height: 38 },
-  hubInfo: { flex: 1, gap: 6 },
-  hubTitle: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.8)", textAlign: "right", lineHeight: 18 },
-  hubBrand: { color: PRIMARY, fontFamily: "Inter_700Bold" },
-  hubSub: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)", textAlign: "right" },
-  hubBarRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  hubBarTrack: { flex: 1, height: 7, borderRadius: 4, backgroundColor: TRACK, overflow: "hidden" },
-  hubBarFill: { height: "100%", borderRadius: 4, backgroundColor: PRIMARY },
-  hubPct: { fontSize: 11, fontFamily: "Inter_700Bold", color: PRIMARY, minWidth: 32, textAlign: "left" },
-  hubCircle: {
-    width: 54, height: 54, borderRadius: 27,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: PRIMARY, backgroundColor: "rgba(232,184,109,0.06)",
-  },
-  hubCircleNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: PRIMARY, lineHeight: 22 },
-  hubCircleOf: { fontSize: 9, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.55)" },
 
   // ── Reward + CTA ──
   pointsBox: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 20, paddingVertical: 15, borderRadius: 18 },
