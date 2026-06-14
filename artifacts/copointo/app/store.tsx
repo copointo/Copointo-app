@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BuyCoinsPanel } from "./buy-coins";
 import { useCoins } from "../hooks/useCoins";
 import { BADGES, BadgeDef } from "../data/badges";
 import { useBadges } from "../hooks/useBadges";
@@ -38,7 +37,6 @@ const BG      = "#000000";
 const PRIMARY = "#E8B86D";
 const BORDER  = "rgba(232,184,109,0.25)";
 
-type Section = "coins" | "items" | null;
 type ShopCat =
   | "frames"
   | "badges"
@@ -120,7 +118,6 @@ export default function StoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const [selected, setSelected] = useState<Section>("items");
   const [activeCat, setActiveCat] = useState<ShopCat | null>("characters");
   const { balance } = useCoins();
 
@@ -141,109 +138,53 @@ export default function StoreScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.row}>
-          {/* Buy Coins card */}
-          <TouchableOpacity
-            style={[styles.tile, selected === "coins" && styles.tileSelected]}
-            activeOpacity={0.85}
-            onPress={() => setSelected(s => s === "coins" ? null : "coins")}
+        <View style={styles.panelWrap}>
+          {/* Category icon row */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.catRow}
           >
-            <View style={styles.tileIconWrap}>
-              <Image source={COPOINTO_COIN} style={styles.tileCoin} />
-            </View>
-            <Text style={styles.tileTitle}>شراء عملات Copointo</Text>
-            <Text style={styles.tileSub}>مزايا داخل التطبيق</Text>
-          </TouchableOpacity>
+            {CATEGORIES.map(c => {
+              const isActive = activeCat === c.id;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[styles.catIconBtn, isActive && styles.catIconBtnActive]}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveCat(prev => prev === c.id ? null : c.id);
+                  }}
+                >
+                  {c.id === "frames" ? (
+                    <WingedFrameIcon color={isActive ? "#000" : PRIMARY} />
+                  ) : c.iconLib === "fa5" && c.faIcon ? (
+                    <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
+                  ) : c.iconLib === "mci" && c.mciIcon ? (
+                    <MaterialCommunityIcons name={c.mciIcon as any} size={22} color={isActive ? "#000" : PRIMARY} />
+                  ) : (
+                    <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
 
-          {/* Item Shop card */}
-          <TouchableOpacity
-            style={[styles.tile, selected === "items" && styles.tileSelected]}
-            activeOpacity={0.85}
-            onPress={() => setSelected(s => s === "items" ? null : "items")}
-          >
-            <View style={[styles.tileIconWrap, styles.tileIconBg]}>
-              <View style={styles.itemShopIconWrap}>
-                <FontAwesome5
-                  name="user-astronaut"
-                  size={28}
-                  color={PRIMARY}
-                  solid
-                  style={styles.itemShopIconChar}
-                />
-                <Feather
-                  name="gift"
-                  size={20}
-                  color={PRIMARY}
-                  style={styles.itemShopIconGift}
-                />
-                <Feather
-                  name="image"
-                  size={20}
-                  color={PRIMARY}
-                  style={styles.itemShopIconBg}
-                />
+          {activeCat && (
+            <>
+              <Text style={[styles.catTitle, { color: CAT_THEME[activeCat].accent }]}>
+                {CATEGORIES.find(c => c.id === activeCat)?.label}
+              </Text>
+              <View style={[styles.catPanel, {
+                backgroundColor: CAT_THEME[activeCat].bg,
+                borderColor: CAT_THEME[activeCat].border,
+              }]}>
+                <CategoryPanel cat={activeCat} />
               </View>
-            </View>
-            <Text style={styles.tileTitle}>Item Shop</Text>
-            <Text style={styles.tileSub}>تصفّح العناصر والمزايا</Text>
-          </TouchableOpacity>
+            </>
+          )}
         </View>
-
-        {selected === "coins" && (
-          <View style={styles.panelWrap}>
-            <BuyCoinsPanel />
-          </View>
-        )}
-
-        {selected === "items" && (
-          <View style={styles.panelWrap}>
-            {/* Category icon row */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.catRow}
-            >
-              {CATEGORIES.map(c => {
-                const isActive = activeCat === c.id;
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.catIconBtn, isActive && styles.catIconBtnActive]}
-                    activeOpacity={0.85}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setActiveCat(prev => prev === c.id ? null : c.id);
-                    }}
-                  >
-                    {c.id === "frames" ? (
-                      <WingedFrameIcon color={isActive ? "#000" : PRIMARY} />
-                    ) : c.iconLib === "fa5" && c.faIcon ? (
-                      <FontAwesome5 name={c.faIcon as any} size={18} color={isActive ? "#000" : PRIMARY} solid />
-                    ) : c.iconLib === "mci" && c.mciIcon ? (
-                      <MaterialCommunityIcons name={c.mciIcon as any} size={22} color={isActive ? "#000" : PRIMARY} />
-                    ) : (
-                      <Feather name={c.icon} size={20} color={isActive ? "#000" : PRIMARY} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {activeCat && (
-              <>
-                <Text style={[styles.catTitle, { color: CAT_THEME[activeCat].accent }]}>
-                  {CATEGORIES.find(c => c.id === activeCat)?.label}
-                </Text>
-                <View style={[styles.catPanel, {
-                  backgroundColor: CAT_THEME[activeCat].bg,
-                  borderColor: CAT_THEME[activeCat].border,
-                }]}>
-                  <CategoryPanel cat={activeCat} />
-                </View>
-              </>
-            )}
-          </View>
-        )}
       </ScrollView>
     </View>
   );
