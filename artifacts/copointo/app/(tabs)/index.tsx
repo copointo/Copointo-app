@@ -7,6 +7,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Image,
   ImageBackground,
   Linking,
@@ -126,6 +128,28 @@ function mapCafe(c: ApiCafe, kmLabel: string, mLabel: string, userLat?: number, 
 export default function HomeScreen() {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
+  // Animated shine that sweeps across each cafe panel
+  const shine = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shine, {
+          toValue: 1,
+          duration: 1600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.delay(1100),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shine]);
+  const [cardW, setCardW] = useState(0);
+  const shineX = shine.interpolate({
+    inputRange: [0, 1],
+    outputRange: cardW > 0 ? [-80, cardW + 40] : [-80, 280],
+  });
   const r       = useResponsive();
   const router  = useRouter();
   const { user } = useApp();
@@ -428,12 +452,14 @@ export default function HomeScreen() {
                   key={cafe.id}
                   activeOpacity={0.92}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/cafe/${cafe.id}` as any); }}
-                  style={[styles.featuredCard, { borderColor: colors.primary }]}
+                  onLayout={(e) => { const w = e.nativeEvent.layout.width; if (w && Math.abs(w - cardW) > 1) setCardW(w); }}
+                  style={[styles.featuredCard, { borderColor: colors.primary, backgroundColor: colors.card }]}
                 >
+                  {/* Cafe image */}
                   <ImageBackground source={cafe.image} style={styles.featuredBg} imageStyle={styles.featuredBgImg}>
                     <LinearGradient
-                      colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.45)", "rgba(10,6,6,0.96)"]}
-                      locations={[0, 0.45, 1]}
+                      colors={["rgba(0,0,0,0.40)", "rgba(0,0,0,0.10)", "rgba(0,0,0,0)"]}
+                      locations={[0, 0.5, 1]}
                       style={StyleSheet.absoluteFill}
                     />
 
@@ -454,33 +480,52 @@ export default function HomeScreen() {
                         <Feather name="heart" size={18} color={fav ? "#FF5A7A" : "#fff"} style={fav ? styles.heartOn : undefined} />
                       </TouchableOpacity>
                     </View>
+                  </ImageBackground>
 
-                    {/* Bottom content overlaid on the image */}
-                    <View style={styles.featuredOverlay}>
-                      <View style={styles.featuredTitleRow}>
-                        <Text style={styles.featuredName} numberOfLines={1}>{cafe.name}</Text>
-                        <Feather name="check-circle" size={16} color={colors.primary} />
-                      </View>
-                      <View style={styles.featuredBottomRow}>
-                        <View style={styles.featuredMeta}>
-                          <View style={styles.ratingChip}>
-                            <Feather name="star" size={12} color={colors.gold} />
-                            <Text style={styles.ratingChipText}>{cafe.rating}</Text>
+                  {/* Name, rating & distance below the image */}
+                  <View style={styles.featuredContent}>
+                    <View style={styles.featuredTitleRow}>
+                      <Text style={[styles.featuredName, { color: colors.foreground }]} numberOfLines={1}>{cafe.name}</Text>
+                      <Feather name="check-circle" size={16} color={colors.primary} />
+                    </View>
+                    <View style={styles.featuredBottomRow}>
+                      <View style={styles.featuredMeta}>
+                        <View style={styles.ratingChip}>
+                          <Feather name="star" size={12} color={colors.gold} />
+                          <Text style={styles.ratingChipText}>{cafe.rating}</Text>
+                        </View>
+                        {!!cafe.distance && (
+                          <View style={styles.distChip}>
+                            <Feather name="navigation" size={11} color={colors.primary} />
+                            <Text style={styles.distChipText}>{cafe.distance}</Text>
                           </View>
-                          {!!cafe.distance && (
-                            <View style={styles.distChip}>
-                              <Feather name="navigation" size={11} color={colors.primary} />
-                              <Text style={styles.distChipText}>{cafe.distance}</Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={[styles.orderBtn, { backgroundColor: colors.primary }]}>
-                          <Text style={styles.orderBtnText}>{t("home.orderNow")}</Text>
-                          <Feather name={chevron} size={15} color="#000" />
-                        </View>
+                        )}
+                      </View>
+                      <View style={[styles.orderBtn, { backgroundColor: colors.primary }]}>
+                        <Text style={styles.orderBtnText}>{t("home.orderNow")}</Text>
+                        <Feather name={chevron} size={15} color="#000" />
                       </View>
                     </View>
-                  </ImageBackground>
+                  </View>
+
+                  {/* Animated shine sweeping across the whole panel */}
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[styles.shine, { transform: [{ translateX: shineX }, { rotate: "20deg" }] }]}
+                  >
+                    <LinearGradient
+                      colors={[
+                        "rgba(255,255,255,0)",
+                        "rgba(255,255,255,0.14)",
+                        "rgba(232,184,109,0.32)",
+                        "rgba(255,255,255,0.14)",
+                        "rgba(255,255,255,0)",
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  </Animated.View>
                 </TouchableOpacity>
               );
             })}
@@ -573,8 +618,9 @@ const styles = StyleSheet.create({
     shadowColor: "#E8B86D", shadowOpacity: 0.25, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
     elevation: 6,
   },
-  featuredBg: { width: "100%", height: 176, justifyContent: "space-between" },
-  featuredBgImg: { borderRadius: 21 },
+  featuredBg: { width: "100%", height: 138, justifyContent: "flex-start" },
+  featuredBgImg: { borderTopLeftRadius: 21, borderTopRightRadius: 21 },
+  shine: { position: "absolute", top: -24, bottom: -24, left: 0, width: 64 },
   featuredTopRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     padding: 12,
@@ -591,23 +637,22 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(255,255,255,0.18)",
   },
   heartOn: {},
-  featuredOverlay: { padding: 11, gap: 8 },
+  featuredContent: { padding: 12, gap: 9 },
   featuredTitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   featuredName: {
     fontSize: 15, fontFamily: "Inter_700Bold", flexShrink: 1, color: "#fff",
-    textShadowColor: "rgba(0,0,0,0.6)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },
   featuredBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
   featuredMeta: { flexDirection: "row", alignItems: "center", gap: 7, flexShrink: 1 },
   ratingChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5,
+    backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
   },
   ratingChipText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#fff" },
   distChip: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5,
+    backgroundColor: "rgba(232,184,109,0.10)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5,
     borderWidth: 1, borderColor: "rgba(232,184,109,0.3)",
   },
   distChipText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
