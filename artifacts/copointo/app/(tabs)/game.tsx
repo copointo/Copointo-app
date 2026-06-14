@@ -231,7 +231,7 @@ export default function GameScreen() {
   // a couple levels above + the current one + one below). The full board
   // lives on the dedicated /levels screen, reachable by tapping the ladder.
   const ladderLevels = [level + 2, level + 1, level, level - 1].filter((l) => l >= 0 && l <= 999);
-  const charSize = Math.round(Math.min(150 * s, 190));
+  const charSize = Math.round(Math.min(112 * s, 140));
 
   // ── Sound: play a triumphant chime whenever the user levels up ──
   const prevLevelRef = useRef<number | null>(null);
@@ -421,17 +421,27 @@ export default function GameScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: stripPadBottom }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header: rank pill (left) + level (right) ── */}
+        {/* ── Header: notifications (small) + coffee-levels ── */}
         <View style={styles.header}>
-          <View style={styles.rankChip}>
-            <Text style={styles.rankChipIcon}>{rank.icon}</Text>
-            <Text style={styles.rankChipText}>{rank.name}</Text>
-          </View>
-          <Text style={styles.headerLevel}>
-            <Text style={styles.headerLevelNum}>{level}</Text>
-            <Text style={styles.headerLevelSlash}> / 999 </Text>
-            <Text style={styles.headerLevelLabel}>المستوى</Text>
-          </Text>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
+          >
+            <Feather name="bell" size={17} color={PRIMARY} />
+            {totalUnread > 0 && (
+              <View style={styles.headerBadge}><Text style={styles.badgeText}>{totalUnread}</Text></View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.headerLevelsBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
+          >
+            <Feather name="award" size={16} color={PRIMARY} />
+            <Text style={styles.headerLevelsBtnText}>مستويات الكوفي</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Stats card: level · coins · free coffees ── */}
@@ -515,7 +525,7 @@ export default function GameScreen() {
                       <View style={styles.ladderDot} />
                     </View>
                   )}
-                  <HubDiamond size={isCur ? 50 : 36} value={lvl} highlighted={isCur} done={isDone} />
+                  <HubDiamond size={isCur ? 42 : 30} value={lvl} highlighted={isCur} done={isDone} />
                   {isCur && <Text style={styles.ladderHereLabel}>أنت هنا</Text>}
                 </View>
               );
@@ -694,31 +704,39 @@ const styles = StyleSheet.create({
   // ── Header ──
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 4, paddingTop: 6, paddingBottom: 12,
+    paddingHorizontal: 4, paddingTop: 2, paddingBottom: 6,
   },
-  rankChip: {
+  headerIconBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: PRIMARY_DIM,
+    backgroundColor: "rgba(232,184,109,0.06)",
+    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  headerBadge: {
+    position: "absolute", top: -4, right: -4, minWidth: 18, height: 18,
+    borderRadius: 9, paddingHorizontal: 4,
+    alignItems: "center", justifyContent: "center", backgroundColor: "#E5484D",
+  },
+  headerLevelsBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 14, paddingVertical: 9,
     borderRadius: 22, borderWidth: 1.5, borderColor: PRIMARY_DIM,
     backgroundColor: "rgba(232,184,109,0.06)",
     shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
   },
-  rankChipIcon: { fontSize: 16 },
-  rankChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  headerLevel: { color: PRIMARY },
-  headerLevelNum: { fontSize: 26, fontFamily: "Inter_700Bold", color: PRIMARY },
-  headerLevelSlash: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "rgba(232,184,109,0.7)" },
-  headerLevelLabel: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+  headerLevelsBtnText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // ── Stats card ──
   statsCard: {
     flexDirection: "row", alignItems: "stretch",
     backgroundColor: "rgba(232,184,109,0.06)",
     borderRadius: 20, borderWidth: 1, borderColor: PRIMARY_DIM,
-    paddingVertical: 14, paddingHorizontal: 4, marginBottom: 12,
+    paddingVertical: 10, paddingHorizontal: 4, marginBottom: 8,
   },
-  statCol: { flex: 1, alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 6 },
+  statCol: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 },
   statDivider: { width: 1, backgroundColor: PRIMARY_DIM, marginVertical: 4 },
   statValueRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   statValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
@@ -730,11 +748,11 @@ const styles = StyleSheet.create({
   progressCard: {
     backgroundColor: "rgba(232,184,109,0.06)",
     borderRadius: 20, borderWidth: 1, borderColor: PRIMARY_DIM,
-    paddingVertical: 14, paddingHorizontal: 16, marginBottom: 18,
+    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 8,
   },
   progressCardTitle: {
     fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
-    textAlign: "center", marginBottom: 12,
+    textAlign: "center", marginBottom: 8,
   },
   progressDiamondsRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   progressBarWrap: { flex: 1, justifyContent: "center" },
@@ -744,14 +762,14 @@ const styles = StyleSheet.create({
   },
   progressBarFill: { height: "100%", borderRadius: 4, backgroundColor: PRIMARY },
   progressBarPct: { marginTop: 6, fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  progressSubRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12 },
+  progressSubRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 },
   progressSubIcon: { fontSize: 13 },
   progressSubText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
 
   // ── Middle area ──
   midRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    minHeight: 280, marginBottom: 10,
+    minHeight: 190, marginBottom: 6,
   },
   ladderCol: { width: 80, alignItems: "center", justifyContent: "center" },
   ladderItem: { alignItems: "center" },
@@ -761,21 +779,21 @@ const styles = StyleSheet.create({
 
   centerCol: { flex: 1, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   charGlow: {
-    position: "absolute", width: 200, height: 200, borderRadius: 100,
+    position: "absolute", width: 150, height: 150, borderRadius: 75,
     backgroundColor: "rgba(232,184,109,0.10)",
     shadowColor: PRIMARY, shadowOpacity: 0.6, shadowRadius: 40, shadowOffset: { width: 0, height: 0 },
   },
   charPlatform: {
-    marginTop: 6, width: 130, height: 22, borderRadius: 60,
+    marginTop: 4, width: 104, height: 18, borderRadius: 60,
     backgroundColor: "rgba(232,184,109,0.16)",
     borderWidth: 1, borderColor: PRIMARY_DIM,
     shadowColor: PRIMARY, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
   },
 
-  heroCol: { width: 80, alignItems: "center", justifyContent: "center", gap: 16 },
+  heroCol: { width: 72, alignItems: "center", justifyContent: "center", gap: 10 },
   heroBtn: {
-    width: 64, height: 64, borderRadius: 18,
-    alignItems: "center", justifyContent: "center", gap: 3,
+    width: 52, height: 52, borderRadius: 15,
+    alignItems: "center", justifyContent: "center", gap: 2,
     backgroundColor: "rgba(232,184,109,0.14)",
     borderWidth: 1.5, borderColor: PRIMARY_DIM,
     shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 12,
@@ -784,10 +802,10 @@ const styles = StyleSheet.create({
   heroBtnLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
 
   // ── Bottom feature strip ──
-  bottomStripContent: { flexDirection: "row", gap: 10, paddingVertical: 8, paddingHorizontal: 2 },
+  bottomStripContent: { flexDirection: "row", gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
   miniBtn: {
-    width: 66, alignItems: "center", justifyContent: "center", gap: 4,
-    paddingVertical: 10, paddingHorizontal: 2, borderRadius: 16,
+    width: 60, minHeight: 44, alignItems: "center", justifyContent: "center", gap: 4,
+    paddingVertical: 7, paddingHorizontal: 2, borderRadius: 14,
     backgroundColor: "rgba(232,184,109,0.06)",
     borderWidth: 1, borderColor: PRIMARY_DIM,
   },
