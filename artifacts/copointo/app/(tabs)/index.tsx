@@ -478,12 +478,14 @@ export default function HomeScreen() {
           <TouchableOpacity
             onPress={openMap}
             activeOpacity={0.92}
-            style={[styles.mapPreview, { borderColor: colors.border }]}
+            style={[styles.mapPanel, { borderColor: colors.primary, backgroundColor: colors.card }]}
           >
-            <MiniCafesMap cafes={miniMapCafes} user={userLoc} height={150} />
-            <View style={styles.mapPreviewBadge}>
-              <Feather name="maximize-2" size={12} color="#000" />
-              <Text style={styles.mapPreviewBadgeText}>{t("home.viewFullMap")}</Text>
+            <View style={[styles.mapPanelMap, { borderColor: colors.border }]}>
+              <MiniCafesMap cafes={miniMapCafes} user={userLoc} height={104} />
+              <View style={[styles.mapPanelPill, { borderColor: colors.border }]}>
+                <Feather name="maximize-2" size={11} color={colors.primary} />
+                <Text style={[styles.mapPanelPillText, { color: colors.primary }]}>{t("home.viewFullMap")}</Text>
+              </View>
             </View>
           </TouchableOpacity>
 
@@ -674,14 +676,20 @@ const styles = StyleSheet.create({
   linkRow: { paddingVertical: 2, paddingHorizontal: 2 },
   linkText: { fontSize: 13, fontFamily: "Inter_700Bold" },
 
-  // Map preview
-  mapPreview: { borderWidth: 1, borderRadius: 16, overflow: "hidden", marginBottom: 12 },
-  mapPreviewBadge: {
-    position: "absolute", bottom: 10, right: 10,
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "#E8B86D", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5,
+  // Map preview — compact themed panel
+  mapPanel: {
+    borderWidth: 1.5, borderRadius: 18, padding: 8, marginBottom: 12,
+    shadowColor: "#E8B86D", shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
   },
-  mapPreviewBadgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#000" },
+  mapPanelMap: { borderWidth: 1, borderRadius: 12, overflow: "hidden" },
+  mapPanelPill: {
+    position: "absolute", bottom: 8, insetInlineEnd: 8,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: "rgba(10,6,6,0.85)",
+  },
+  mapPanelPillText: { fontSize: 10, fontFamily: "Inter_700Bold" },
 
   // Nearby rows
   nearbyRow: {
