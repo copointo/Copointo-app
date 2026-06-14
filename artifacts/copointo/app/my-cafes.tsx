@@ -1,8 +1,11 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Platform,
   ScrollView,
   StyleSheet,
@@ -31,6 +34,29 @@ export default function MyCafesScreen() {
     .sort((a, b) => b.level - a.level);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  // Animated shine that sweeps across each cafe panel
+  const shine = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shine, {
+          toValue: 1,
+          duration: 1600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: Platform.OS !== "web",
+        }),
+        Animated.delay(1100),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [shine]);
+  const [cardW, setCardW] = useState(0);
+  const shineX = shine.interpolate({
+    inputRange: [0, 1],
+    outputRange: cardW > 0 ? [-80, cardW + 40] : [-80, 320],
+  });
 
   const handleSelect = (cafeId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -75,7 +101,25 @@ export default function MyCafesScreen() {
                 onPress={() => handleSelect(c.cafeId)}
                 activeOpacity={0.85}
                 disabled={isActive}
+                onLayout={(e) => { const w = e.nativeEvent.layout.width; if (w && Math.abs(w - cardW) > 1) setCardW(w); }}
               >
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.shine, { transform: [{ translateX: shineX }, { rotate: "20deg" }] }]}
+                >
+                  <LinearGradient
+                    colors={[
+                      "rgba(255,255,255,0)",
+                      "rgba(255,255,255,0.14)",
+                      "rgba(232,184,109,0.32)",
+                      "rgba(255,255,255,0.14)",
+                      "rgba(255,255,255,0)",
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </Animated.View>
                 <View style={styles.cardHeader}>
                   <View style={styles.cardIcon}>
                     <Feather name="coffee" size={20} color={PRIMARY} />
@@ -150,7 +194,9 @@ const styles = StyleSheet.create({
     backgroundColor: CARD, borderRadius: 18,
     borderWidth: 1, borderColor: BORDER,
     padding: 14, gap: 12,
+    overflow: "hidden",
   },
+  shine: { position: "absolute", top: -24, bottom: -24, left: 0, width: 64 },
   cardActive: {
     borderColor: PRIMARY,
     shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 10,
