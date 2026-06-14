@@ -452,11 +452,7 @@ export default function GameScreen() {
         </TouchableOpacity>
       )}
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: stripPadBottom }]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={[styles.scrollContent, { flex: 1, paddingBottom: stripPadBottom }]}>
         {/* ── Header: notifications + add-friend (small) · coffee-levels ── */}
         <View style={styles.header}>
           <View style={styles.headerIconsRow}>
@@ -641,11 +637,7 @@ export default function GameScreen() {
         </View>
 
         {/* ── More features (same gold style) ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.bottomStripContent}
-        >
+        <View style={styles.bottomStripContent}>
           <TouchableOpacity
             style={styles.miniBtn}
             activeOpacity={0.85}
@@ -691,8 +683,8 @@ export default function GameScreen() {
             )}
           </TouchableOpacity>
 
-        </ScrollView>
-      </ScrollView>
+        </View>
+      </View>
 
       {/* Celebration modal for newly-earned frame + badge rewards. */}
       <LevelRewardModal
@@ -792,7 +784,7 @@ const styles = StyleSheet.create({
 
   // ── Middle area ──
   midRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     minHeight: 160, marginBottom: 6,
   },
   ladderCol: { width: 80, alignItems: "center", justifyContent: "center" },
@@ -839,7 +831,7 @@ const styles = StyleSheet.create({
   heroBtnLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
 
   // ── Bottom feature strip ──
-  bottomStripContent: { flexDirection: "row", gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
+  bottomStripContent: { flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: 4, paddingHorizontal: 2 },
   miniBtn: {
     width: 60, minHeight: 44, alignItems: "center", justifyContent: "center", gap: 4,
     paddingVertical: 7, paddingHorizontal: 2, borderRadius: 14,
