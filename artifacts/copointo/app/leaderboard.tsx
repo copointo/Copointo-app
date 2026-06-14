@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp, type CafeProgress, type User } from "@/context/AppContext";
+import { useApp, SHOWCASE_USER_ID, type CafeProgress, type User } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useCommunities } from "@/context/CommunityContext";
 import AvatarWithFrame from "@/components/AvatarWithFrame";
@@ -223,20 +223,34 @@ export default function LeaderboardScreen() {
   const sortDesc = (a: Entry, b: Entry) =>
     (b.totalOrders - a.totalOrders) || (hashId(a.id) - hashId(b.id));
 
+  // Showcase/demo competitors (`copointo-showcase-user` and `sc-user-*`) must
+  // NEVER appear in the leaderboard for real players — only the showcase
+  // account itself (logged in as Copointo) should still see the demo roster.
+  // We filter on the client too (not just the server) because the demo rows
+  // can linger in this device's AsyncStorage `registeredUsers` cache after
+  // switching back from the showcase account.
+  const isShowcaseViewer = user?.id === SHOWCASE_USER_ID;
+  const rankableUsers = useMemo<User[]>(() => {
+    if (isShowcaseViewer) return registeredUsers;
+    return registeredUsers.filter(
+      u => u.id !== SHOWCASE_USER_ID && !u.id.startsWith("sc-user-"),
+    );
+  }, [registeredUsers, isShowcaseViewer]);
+
   const entries = useMemo<Entry[]>(() => {
     if (activeTab === "oman") {
-      return registeredUsers.map(toEntry).sort(sortDesc);
+      return rankableUsers.map(toEntry).sort(sortDesc);
     }
     // friends tab: friends + me, but only if user has at least one friend
     if (friends.length === 0) return [];
-    return registeredUsers
+    return rankableUsers
       .filter(u => friends.includes(u.id) || u.id === user?.id)
       .map(toEntry)
       .sort(sortDesc);
     // Note: outgoingRequests / incomingRequests are intentionally part of
     // the dep list so the +/⏳/✓ button states re-render when they change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, registeredUsers, friends, user?.id, outgoingRequests, incomingRequests]);
+  }, [activeTab, rankableUsers, friends, user?.id, outgoingRequests, incomingRequests]);
 
   const handleSendRequest = (id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -262,15 +276,15 @@ export default function LeaderboardScreen() {
   // player drops below the top 10 the chip disappears and whoever overtook
   // them inherits the (lower) reward.
   const omanRankOf = useMemo(() => {
-    const sorted = [...registeredUsers].sort((a, b) =>
+    const sorted = [...rankableUsers].sort((a, b) =>
       ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || (hashId(a.id) - hashId(b.id))
     );
     const map = new Map<string, number>();
     sorted.forEach((u, i) => map.set(u.id, i + 1));
     return map;
-  }, [registeredUsers]);
+  }, [rankableUsers]);
 
-  const panelUser = panelUserId ? registeredUsers.find(u => u.id === panelUserId) ?? null : null;
+  const panelUser = panelUserId ? rankableUsers.find(u => u.id === panelUserId) ?? null : null;
 
   const emptyMsg =
     activeTab === "friends"     ? t("lb.emptyFriends")
