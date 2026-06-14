@@ -432,18 +432,28 @@ export default function GameScreen() {
         contentContainerStyle={[styles.scrollContent, { paddingBottom: stripPadBottom }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header: notifications (small) + coffee-levels ── */}
+        {/* ── Header: notifications + add-friend (small) · coffee-levels ── */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.headerIconBtn}
-            activeOpacity={0.85}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
-          >
-            <Feather name="bell" size={17} color={PRIMARY} />
-            {totalUnread > 0 && (
-              <View style={styles.headerBadge}><Text style={styles.badgeText}>{totalUnread}</Text></View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerIconsRow}>
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              activeOpacity={0.85}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
+            >
+              <Feather name="bell" size={17} color={PRIMARY} />
+              {totalUnread > 0 && (
+                <View style={styles.headerBadge}><Text style={styles.badgeText}>{totalUnread}</Text></View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              activeOpacity={0.85}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
+            >
+              <Feather name="user-plus" size={17} color={PRIMARY} />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={styles.headerLevelsBtn}
@@ -645,14 +655,6 @@ export default function GameScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.miniBtn}
-            activeOpacity={0.85}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
-          >
-            <Feather name="user-plus" size={18} color={PRIMARY} />
-            <Text style={styles.miniBtnLabel}>إضافة صديق</Text>
-          </TouchableOpacity>
         </ScrollView>
       </ScrollView>
 
@@ -693,6 +695,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 4, paddingTop: 2, paddingBottom: 6,
   },
+  headerIconsRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerIconBtn: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: "center", justifyContent: "center",
