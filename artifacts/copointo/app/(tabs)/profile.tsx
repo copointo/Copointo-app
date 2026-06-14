@@ -688,23 +688,67 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: r.hPad, paddingBottom: insets.bottom + 100, gap: 16 }}
       >
-        {/* ── Avatar with double glowing ring + equipped frame ── */}
-        <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={pickImage} activeOpacity={0.85} style={styles.avatarOuterRing}>
-            <AvatarWithFrame size={100} scale={1.7}>
-              <View style={styles.avatarInnerRing}>
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
-                ) : (
-                  <Image source={getDefaultAvatarSource(user?.gender)} style={styles.avatarImg} />
-                )}
+        {/* ── Hero card: avatar · name · rank · level · progress ── */}
+        <View style={styles.heroCard}>
+          {/* Lv badge — top corner */}
+          <View style={styles.lvBadge}>
+            <Text style={styles.lvBadgeLabel}>Lv</Text>
+            <Text style={styles.lvBadgeNum}>{level}</Text>
+          </View>
+
+          <View style={styles.heroTopRow}>
+            {/* Info (right side in RTL) */}
+            <View style={styles.heroInfo}>
+              <View style={styles.heroNameRow}>
+                <Text style={styles.heroCrown}>👑</Text>
+                <Text style={styles.heroName} numberOfLines={1}>{username}</Text>
+                <UserBadge size={20} />
               </View>
-            </AvatarWithFrame>
-            {/* Camera badge bottom-right inside ring */}
-            <View style={styles.cameraBadge}>
-              <Feather name="camera" size={15} color="#FFF" />
+              <Text style={styles.heroHandle} numberOfLines={1}>@{username}</Text>
+              <TouchableOpacity
+                style={styles.rankBadge}
+                activeOpacity={0.85}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRanksOpen(true); }}
+              >
+                <Text style={styles.rankBadgeIcon}>{rank?.icon ?? "☕"}</Text>
+                <Text style={styles.rankBadgeText} numberOfLines={1}>{rank?.nameEn ?? t("profile.coffeeBeginner")}</Text>
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
+
+            {/* Avatar (left side in RTL) — tap to change */}
+            <TouchableOpacity onPress={pickImage} activeOpacity={0.85} style={styles.avatarOuterRing}>
+              <AvatarWithFrame size={100} scale={1.7}>
+                <View style={styles.avatarInnerRing}>
+                  {avatarUri ? (
+                    <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+                  ) : (
+                    <Image source={getDefaultAvatarSource(user?.gender)} style={styles.avatarImg} />
+                  )}
+                </View>
+              </AvatarWithFrame>
+              <View style={styles.cameraBadge}>
+                <Feather name="camera" size={14} color="#FFF" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Progress to next level */}
+          <View style={styles.heroProgressWrap}>
+            <View style={styles.heroProgressTop}>
+              <Text style={styles.heroProgressTitle}>{t("profile.progressTitle")}</Text>
+              <Text style={[styles.heroProgressPct, { color: rank?.color ?? PRIMARY }]}>{Math.round(pct)}%</Text>
+            </View>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: rank?.color ?? PRIMARY }]} />
+            </View>
+            <Text style={styles.heroProgressSub}>
+              {`باقي ${Math.max(0, 100 - Math.round(pct))}% للوصول إلى المستوى ${Math.min(level + 1, 999)}`}
+            </Text>
+          </View>
+        </View>
+
+        {/* Change / remove photo (kept from before) */}
+        <View style={styles.photoActionsRow}>
           {avatarUri && user && (
             <TouchableOpacity
               style={styles.removePhotoBtn}
@@ -753,22 +797,6 @@ export default function ProfileScreen() {
             </View>
           )}
           <Feather name="chevron-left" size={16} color={PRIMARY} style={{ opacity: 0.7 }} />
-        </TouchableOpacity>
-
-        {/* ── Rank pill (tap to view full ranks journey) ── */}
-        <TouchableOpacity
-          style={styles.rankPill}
-          activeOpacity={0.85}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRanksOpen(true); }}
-        >
-          <View style={styles.rankPillIconRing}>
-            <Text style={styles.rankPillIcon}>{rank?.icon ?? "☕"}</Text>
-          </View>
-          <View style={{ flex: 1, alignItems: "flex-end" }}>
-            <Text style={styles.rankPillName}>{rank?.nameEn ?? t("profile.coffeeBeginner")}</Text>
-            <Text style={styles.rankPillSub}>{rank?.name ?? t("profile.coffeeBeginnerAr")}</Text>
-          </View>
-          <Feather name="chevron-left" size={18} color={PRIMARY} style={{ opacity: 0.7 }} />
         </TouchableOpacity>
 
         {(user?.gender === "male" || user?.gender === "female") && (
@@ -879,8 +907,38 @@ export default function ProfileScreen() {
           );
         })()}
 
-        {/* ── Equipped cosmetics showcase ── */}
-        <Text style={styles.cosmeticsTitle}>{t("profile.equippedTitle")}</Text>
+        {/* ── Profile preview (how others see you) ── */}
+        <Text style={styles.cosmeticsTitle}>معاينة ملفك</Text>
+        <View style={styles.previewCard}>
+          <View style={styles.previewCharWrap}>
+            {(() => {
+              const ch = getCharacter(eqCharacterId);
+              return ch
+                ? <Character def={ch} size={52} />
+                : (
+                  <Image
+                    source={avatarUri ? { uri: avatarUri } : getDefaultAvatarSource(user?.gender)}
+                    style={{ width: 52, height: 52, borderRadius: 14 }}
+                  />
+                );
+            })()}
+          </View>
+          <View style={styles.previewInfo}>
+            <View style={styles.heroNameRow}>
+              <Text style={styles.heroCrown}>👑</Text>
+              <Text style={styles.previewName} numberOfLines={1}>{username}</Text>
+              <UserBadge size={18} />
+            </View>
+            <Text style={styles.heroHandle} numberOfLines={1}>@{username}</Text>
+            <View style={styles.rankBadge}>
+              <Text style={styles.rankBadgeIcon}>{rank?.icon ?? "☕"}</Text>
+              <Text style={styles.rankBadgeText} numberOfLines={1}>{rank?.nameEn ?? t("profile.coffeeBeginner")}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Equipped cosmetics showcase (used items) ── */}
+        <Text style={styles.cosmeticsTitle}>الأغراض المستعملة</Text>
         <View style={styles.cosmeticsGrid}>
           {(() => {
             const ch = getCharacter(eqCharacterId);
@@ -913,20 +971,6 @@ export default function ProfileScreen() {
               </View>
             ));
           })()}
-        </View>
-
-        {/* ── Progress bar ── */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>{t("profile.progressTitle")}</Text>
-            <Text style={[styles.progressPct, { color: rank?.color ?? PRIMARY }]}>{Math.round(pct)}%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: rank?.color ?? PRIMARY }]} />
-          </View>
-          <Text style={styles.progressSub}>
-            {rank?.nameEn} {rank?.icon}  →  {nextRank?.nameEn} {nextRank?.icon}
-          </Text>
         </View>
 
         {/* ── Edit fields ── */}
@@ -1315,6 +1359,63 @@ const styles = StyleSheet.create({
   removePhotoBtnText: {
     fontSize: 12, fontFamily: "Inter_700Bold", color: "#FF6B6B",
   },
+
+  // ── Hero card (image-matched) ──
+  heroCard: {
+    backgroundColor: CARD, borderRadius: 24,
+    borderWidth: 1, borderColor: BORDER,
+    padding: 16, gap: 14, marginTop: 8,
+    position: "relative",
+    shadowColor: PRIMARY, shadowOpacity: 0.2,
+    shadowRadius: 16, shadowOffset: { width: 0, height: 0 }, elevation: 4,
+  },
+  heroTopRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  heroInfo: { flex: 1, alignItems: "flex-end", gap: 6 },
+  heroNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  heroCrown: { fontSize: 16 },
+  heroName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 160, textAlign: "right" },
+  heroHandle: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.50)" },
+  rankBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  rankBadgeIcon: { fontSize: 13 },
+  rankBadgeText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY, maxWidth: 150 },
+  lvBadge: {
+    position: "absolute", top: 12, right: 14, zIndex: 5,
+    flexDirection: "row", alignItems: "baseline", gap: 4,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12,
+    backgroundColor: "rgba(232,184,109,0.14)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  lvBadgeLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.65)" },
+  lvBadgeNum: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
+  heroProgressWrap: { gap: 8 },
+  heroProgressTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  heroProgressTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.80)" },
+  heroProgressPct: { fontSize: 14, fontFamily: "Inter_700Bold" },
+  heroProgressSub: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)", textAlign: "right" },
+  photoActionsRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 12, marginTop: -6,
+  },
+
+  // ── Profile preview ("معاينة ملفك") ──
+  previewCard: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    backgroundColor: CARD, borderRadius: 20,
+    borderWidth: 1, borderColor: BORDER, padding: 14,
+  },
+  previewCharWrap: {
+    width: 64, height: 64, borderRadius: 16,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+    backgroundColor: "rgba(232,184,109,0.08)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  previewInfo: { flex: 1, alignItems: "flex-end", gap: 5 },
+  previewName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 180, textAlign: "right" },
 
   // ── Rank pill ──
   rankPill: {
