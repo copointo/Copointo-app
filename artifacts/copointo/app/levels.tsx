@@ -7,7 +7,7 @@ import { RANKS } from "../data/mockData";
 import { RANK_LOGOS } from "../data/rankLogos";
 import { RANK_BADGES } from "../data/rankBadges";
 import { FRAMES } from "../data/frames";
-import { getMilestonesInRange, COIN_PER_MILESTONE } from "../data/coinMilestones";
+import { getMilestonesInRange, getMilestonesUpToLevel, COIN_MILESTONES, COIN_MILESTONE_STEP, COIN_PER_MILESTONE } from "../data/coinMilestones";
 import { useApp } from "../context/AppContext";
 
 const COIN_IMG = require("../assets/images/copointo-coin.png");
@@ -31,11 +31,12 @@ function RankRow({
   const logo = RANK_LOGOS[tier];
   const badge = RANK_BADGES[tier];
   const frame = FRAMES[tier - 1];
-  // Coin milestones (every 50 levels) that fall inside this rank's range —
-  // shown as small reward chips so players can see the upcoming coin
-  // milestone they're racing toward.
+  // Coin milestones (every 2 levels) that fall inside this rank's range —
+  // summarised into a total + earned-so-far progress line for clarity.
   const milestones = getMilestonesInRange(rank.min, rank.max);
   const coinsTotal = milestones.reduce((s, m) => s + m.coins, 0);
+  const reachedInRank = milestones.filter((m) => currentLevel >= m.level).length;
+  const coinsEarnedInRank = reachedInRank * COIN_PER_MILESTONE;
 
   useEffect(() => {
     Animated.parallel([
@@ -136,48 +137,24 @@ function RankRow({
               <View style={styles.coinHeaderRow}>
                 <Image source={COIN_IMG} style={styles.coinHeaderImg} />
                 <Text style={styles.coinHeaderText}>
-                  معالم العملات — اربح {COIN_PER_MILESTONE} عملة كل مستويين
+                  عملات هذه الرتبة — {COIN_PER_MILESTONE} عملة كل مستويين
                 </Text>
               </View>
               <Text style={styles.coinSummary}>
-                مجموع جوائز هذا المستوى:{" "}
+                اربح حتى{" "}
                 <Text style={styles.coinSummaryStrong}>{coinsTotal} عملة</Text>
+                {" "}في هذه الرتبة ({rank.min}–{rank.max})
               </Text>
-              <View style={styles.coinChipsRow}>
-                {milestones.map(m => {
-                  const reached = currentLevel >= m.level;
-                  return (
-                    <View
-                      key={m.level}
-                      style={[
-                        styles.coinChip,
-                        reached ? styles.coinChipReached : styles.coinChipPending,
-                      ]}
-                    >
-                      <Image
-                        source={COIN_IMG}
-                        style={[styles.coinChipImg, !reached && { opacity: 0.45 }]}
-                      />
-                      <Text style={[
-                        styles.coinChipLevel,
-                        reached ? { color: "#000" } : { color: "#FFD66B" },
-                      ]}>
-                        مستوى {m.level}
-                      </Text>
-                      <Text style={[
-                        styles.coinChipAmount,
-                        reached ? { color: "#000" } : { color: "rgba(255,214,107,0.85)" },
-                      ]}>
-                        +{m.coins}
-                      </Text>
-                      {reached && (
-                        <Feather name="check" size={11} color="#000" style={{ marginRight: 1 }} />
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-              {!isUnlocked && (
+              {isUnlocked ? (
+                <View style={styles.coinProgressRow}>
+                  <Image source={COIN_IMG} style={styles.coinHeaderImg} />
+                  <Text style={styles.coinProgressText}>
+                    ربحت{" "}
+                    <Text style={styles.coinSummaryStrong}>{coinsEarnedInRank}</Text>
+                    {" "}من {coinsTotal} عملة
+                  </Text>
+                </View>
+              ) : (
                 <Text style={styles.coinMotivation}>
                   💪 ارفع مستواك لتفتح هذه الجوائز
                 </Text>
@@ -197,6 +174,9 @@ export default function LevelsScreen() {
   // Mirror the actual user level shown on the game screen header.
   const { user } = useApp();
   const currentLevel = user?.level ?? 0;
+  // Coins earned so far across all levels vs. the total pool of level rewards.
+  const earnedCoins = getMilestonesUpToLevel(currentLevel).length * COIN_PER_MILESTONE;
+  const totalCoins = COIN_MILESTONES.length * COIN_PER_MILESTONE;
 
   return (
     <View style={[styles.container, { paddingTop: topPad }]}>
@@ -215,6 +195,39 @@ export default function LevelsScreen() {
         <Text style={styles.intro}>
           تقدّم في الكوفي واربح شعارًا حصريًا مع كل مستوى — كل ما ارتفعت زادت قيمتك في عالم Copointo
         </Text>
+
+        {/* How coins are earned — explained clearly per completed level. */}
+        <View style={styles.ruleCard}>
+          <View style={styles.ruleTopRow}>
+            <View style={styles.ruleCoinBubble}>
+              <Image source={COIN_IMG} style={styles.ruleCoinImg} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.ruleHeadline}>
+                كل مستويين تربح {COIN_PER_MILESTONE} عملة 🪙
+              </Text>
+              <Text style={styles.ruleSub}>
+                كل ما تكمل مستوى كامل (من 0٪ إلى 100٪) تقترب من مكافأتك — وعند إكمال كل {COIN_MILESTONE_STEP} مستويات تُضاف لك {COIN_PER_MILESTONE} عملة تلقائياً
+              </Text>
+            </View>
+          </View>
+          <View style={styles.ruleStatsRow}>
+            <View style={styles.ruleStat}>
+              <Text style={styles.ruleStatValue}>{earnedCoins}</Text>
+              <Text style={styles.ruleStatLabel}>عملات ربحتها</Text>
+            </View>
+            <View style={styles.ruleStatDivider} />
+            <View style={styles.ruleStat}>
+              <Text style={styles.ruleStatValue}>{COIN_PER_MILESTONE}</Text>
+              <Text style={styles.ruleStatLabel}>عملة كل مستويين</Text>
+            </View>
+            <View style={styles.ruleStatDivider} />
+            <View style={styles.ruleStat}>
+              <Text style={styles.ruleStatValue}>{totalCoins}</Text>
+              <Text style={styles.ruleStatLabel}>إجمالي الجوائز</Text>
+            </View>
+          </View>
+        </View>
 
         {RANKS.map((r, i) => (
           <RankRow
@@ -325,6 +338,34 @@ const styles = StyleSheet.create({
   },
   prizeMiniImg: { width: 32, height: 32, resizeMode: "contain" },
   prizeMiniLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  // Coin-rule hero card
+  ruleCard: {
+    backgroundColor: "rgba(232,184,109,0.07)",
+    borderWidth: 1, borderColor: "rgba(255,214,107,0.30)",
+    borderRadius: 18, padding: 14, marginBottom: 6, gap: 12,
+  },
+  ruleTopRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  ruleCoinBubble: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: "rgba(255,214,107,0.12)",
+    borderWidth: 1, borderColor: "rgba(255,214,107,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  ruleCoinImg: { width: 34, height: 34, resizeMode: "contain" },
+  ruleHeadline: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFD66B", marginBottom: 3, textAlign: "right" },
+  ruleSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", lineHeight: 17, textAlign: "right" },
+  ruleStatsRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(0,0,0,0.25)", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 6,
+  },
+  ruleStat: { flex: 1, alignItems: "center", gap: 2 },
+  ruleStatValue: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFD66B" },
+  ruleStatLabel: { fontSize: 9, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.6)", textAlign: "center" },
+  ruleStatDivider: { width: 1, height: 28, backgroundColor: "rgba(255,214,107,0.18)" },
+
+  coinProgressRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+  coinProgressText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
 
   // Coin milestones section
   coinSection: {
