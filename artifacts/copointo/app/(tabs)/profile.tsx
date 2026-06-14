@@ -328,7 +328,7 @@ function FreeCoffeeModal({
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const r = useResponsive();
-  const { user, setUser, logout, deleteAccount, friends, registeredUsers } = useApp();
+  const { user, setUser, logout, deleteAccount, friends, registeredUsers, setActiveGameCafeId } = useApp();
   const router = useRouter();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const { t, dir } = useT();
@@ -898,6 +898,7 @@ export default function ProfileScreen() {
             here in the profile, as a per-cafe list, so users see exactly
             where their progress is concentrated. */}
         <Text style={styles.cosmeticsTitle}>{t("profile.perCafeLevelsTitle")}</Text>
+        <Text style={styles.sectionSubtitle}>{t("profile.perCafeLevelsSubtitle")}</Text>
         {(() => {
           const perCafe = Object.values(user.cafeProgress ?? {})
             .filter((c) => (c.totalOrders ?? 0) > 0 || (c.level ?? 0) > 0)
@@ -912,7 +913,16 @@ export default function ProfileScreen() {
           return (
             <View style={styles.perCafeList}>
               {perCafe.map((c) => (
-                <View key={c.cafeId} style={styles.perCafeRow}>
+                <TouchableOpacity
+                  key={c.cafeId}
+                  style={styles.perCafeRow}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveGameCafeId(c.cafeId);
+                    router.replace("/(tabs)");
+                  }}
+                >
                   <Text style={styles.perCafeName} numberOfLines={1}>{c.cafeName}</Text>
                   <View style={styles.perCafeChipsRow}>
                     <View style={styles.perCafeOrdersChip}>
@@ -925,8 +935,9 @@ export default function ProfileScreen() {
                         {t("profile.perCafeLevelChip", { n: String(c.level ?? 0) })}
                       </Text>
                     </View>
+                    <Feather name="chevron-left" size={16} color={PRIMARY} style={{ opacity: 0.7 }} />
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           );
@@ -1493,6 +1504,11 @@ const styles = StyleSheet.create({
   },
   previewInfo: { flex: 1, alignItems: "flex-end", gap: 5 },
   previewName: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 180, textAlign: "right" },
+  sectionSubtitle: {
+    fontSize: 12, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.55)", textAlign: "right",
+    marginTop: -6, marginBottom: 2, lineHeight: 18,
+  },
 
   // ── Rank pill ──
   rankPill: {
