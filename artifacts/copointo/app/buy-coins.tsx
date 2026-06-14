@@ -307,6 +307,15 @@ export function BuyCoinsPanel() {
   const [codeChecking, setCodeChecking] = useState(false);
   const [codeError, setCodeError] = useState("");
 
+  // Prompt for a Copointo Code first thing when the screen opens, so the buyer
+  // can claim +20% bonus coins (or skip) before choosing a pack. Shown once.
+  const codePrompted = useRef(false);
+  useEffect(() => {
+    if (codePrompted.current) return;
+    codePrompted.current = true;
+    setCodeModal(true);
+  }, []);
+
   const applyCode = async () => {
     const code = codeInput.trim().toUpperCase();
     if (code.length !== 3) { setCodeError("الكود مكوّن من 3 خانات"); return; }
