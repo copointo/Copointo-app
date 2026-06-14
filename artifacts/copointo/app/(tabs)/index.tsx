@@ -9,7 +9,6 @@ import {
   Alert,
   Image,
   ImageBackground,
-  Linking,
   Platform,
   RefreshControl,
   ScrollView,
@@ -72,11 +71,6 @@ function formatDist(km: number, kmLabel: string, mLabel: string): string {
   if (km * 1000 < 30) return `0 ${mLabel}`;
   if (km < 1) return `${Math.round(km * 1000)} ${mLabel}`;
   return `${km.toFixed(2)} ${kmLabel}`;
-}
-
-/** Rough walking time in minutes from a distance in km (~5 km/h). */
-function walkMinutes(km: number): number {
-  return Math.max(1, Math.round((km / 5) * 60));
 }
 
 /** Fetch real driving distance (km) from the public OSRM server; null on failure. */
@@ -257,8 +251,6 @@ export default function HomeScreen() {
       .sort((a, b) => a.km - b.km);
   }, [rawCafes, userLoc, roadKmByCafe, filtered]);
 
-  const nearestRaw = nearby[0]?.c;
-
   // Stable input for the mini-map so the iframe/WebView HTML only rebuilds when
   // the underlying nearby pins actually change (not on every parent re-render).
   const miniMapCafes = useMemo(
@@ -277,16 +269,6 @@ export default function HomeScreen() {
   }, [filtered, user?.cafeProgress]);
 
   const visibleUsed = showAllUsed ? mostUsed : mostUsed.slice(0, 4);
-
-  const openDirections = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (nearestRaw?.lat != null && nearestRaw?.lng != null) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${nearestRaw.lat},${nearestRaw.lng}`;
-      Linking.openURL(url).catch(() => openMap());
-    } else {
-      openMap();
-    }
-  }, [nearestRaw, openMap]);
 
   const chevron = lang === "ar" ? "chevron-left" : "chevron-right";
   const topPadding = Platform.OS === "web" ? 67 : insets.top;
@@ -378,16 +360,7 @@ export default function HomeScreen() {
           </View>
         ) : (
         <>
-          {/* ── Nearby cafes ── */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("home.nearbyMe")}</Text>
-            <TouchableOpacity onPress={openMap} activeOpacity={0.7} style={styles.linkRow}>
-              {openingMap
-                ? <ActivityIndicator size="small" color={colors.primary} />
-                : <Text style={[styles.linkText, { color: colors.primary }]}>{t("home.viewFullMap")}</Text>}
-            </TouchableOpacity>
-          </View>
-
+          {/* ── Map preview ── */}
           <TouchableOpacity
             onPress={openMap}
             activeOpacity={0.92}
@@ -402,55 +375,9 @@ export default function HomeScreen() {
             </View>
           </TouchableOpacity>
 
-          {nearby.slice(0, 3).map(({ c, km }) => {
-            const cafe = apiCafes.find(x => x.id === c.id);
-            const open = cafe?.isOpen ?? isOpen(c.openTime, c.closeTime);
-            return (
-              <TouchableOpacity
-                key={c.id}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(`/cafe/${c.id}`); }}
-                activeOpacity={0.85}
-                style={[styles.nearbyRow, { borderColor: colors.border, backgroundColor: colors.card }]}
-              >
-                <Image
-                  source={cafe?.image ?? require("@/assets/images/icon.png")}
-                  style={styles.nearbyThumb}
-                  resizeMode="cover"
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.nearbyName, { color: colors.foreground }]} numberOfLines={1}>{c.name}</Text>
-                  <View style={styles.nearbyMeta}>
-                    <View style={[styles.dot, { backgroundColor: open ? colors.success : colors.mutedForeground }]} />
-                    <Text style={[styles.nearbyMetaText, { color: open ? colors.success : colors.mutedForeground }]}>
-                      {open ? t("home.openNow") : t("home.closedNow")}
-                    </Text>
-                    <Feather name="navigation" size={11} color={colors.primary} style={{ marginStart: 8 }} />
-                    <Text style={[styles.nearbyMetaText, { color: colors.mutedForeground }]}>{cafe?.distance}</Text>
-                    <Feather name="clock" size={11} color={colors.mutedForeground} style={{ marginStart: 8 }} />
-                    <Text style={[styles.nearbyMetaText, { color: colors.mutedForeground }]}>
-                      {t("home.minutesShort", { count: walkMinutes(km) })}
-                    </Text>
-                  </View>
-                </View>
-                <Feather name={chevron} size={18} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            );
-          })}
-
-          {nearestRaw && (
-            <TouchableOpacity
-              onPress={openDirections}
-              activeOpacity={0.9}
-              style={[styles.directionsBtn, { backgroundColor: colors.primary }]}
-            >
-              <Feather name="navigation" size={16} color="#000" />
-              <Text style={styles.directionsText}>{t("home.directionsNearest")}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* ── Most used cafes ── */}
-          <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("home.mostUsed")}</Text>
+          {/* ── Cafes ── */}
+          <View style={[styles.sectionHeader, { marginTop: 12 }]}>
+            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>{t("home.cafesTitle")}</Text>
             {mostUsed.length > 4 && (
               <TouchableOpacity onPress={() => setShowAllUsed(v => !v)} activeOpacity={0.7} style={styles.linkRow}>
                 <Text style={[styles.linkText, { color: colors.primary }]}>{t("home.viewAll")}</Text>
@@ -598,23 +525,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,6,6,0.85)",
   },
   mapPanelPillText: { fontSize: 10, fontFamily: "Inter_700Bold" },
-
-  // Nearby rows
-  nearbyRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    borderWidth: 1, borderRadius: 14, padding: 10, marginBottom: 10,
-  },
-  nearbyThumb: { width: 50, height: 50, borderRadius: 12, backgroundColor: "#1A1010" },
-  nearbyName: { fontSize: 14, fontFamily: "Inter_700Bold", marginBottom: 4 },
-  nearbyMeta: { flexDirection: "row", alignItems: "center" },
-  nearbyMetaText: { fontSize: 11, fontFamily: "Inter_500Medium", marginStart: 3 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-
-  directionsBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    borderRadius: 14, paddingVertical: 14, marginTop: 4,
-  },
-  directionsText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
 
   // Featured / most used cards — full-bleed cafe image with gradient overlay
   featuredCard: {
