@@ -149,17 +149,12 @@ export default function HomeScreen() {
   const [error,       setError]       = useState<string | null>(null);
   const [userLoc,     setUserLoc]     = useState<{ lat: number; lng: number } | null>(null);
   const [openingMap,  setOpeningMap]  = useState(false);
-  const [fcCount,     setFcCount]     = useState(0);
   const locRequested = useRef(false);
 
-  // ── Loyalty / level figures (truthful — wired to the real free-coffee cycle,
-  // the same forward-progress signal the Copointo Hub uses) ──
-  const level           = user?.level ?? 0;
-  const points          = user?.points ?? 0;
-  const rank            = getRank(level);
-  const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
-  const cyclePct        = Math.round((ordersThisLevel / DRINKS_PER_FREE_COFFEE) * 100);
-  const drinksToFree    = ordersThisLevel === 0 && level > 0 ? DRINKS_PER_FREE_COFFEE : DRINKS_PER_FREE_COFFEE - ordersThisLevel;
+  // ── Profile header figures ──
+  const level   = user?.level ?? 0;
+  const points  = user?.points ?? 0;
+  const rank    = getRank(level);
 
   const openMap = useCallback(async () => {
     if (openingMap) return;
@@ -200,17 +195,6 @@ export default function HomeScreen() {
       } catch { /* permission denied or unavailable */ }
     })();
   }, []);
-
-  // Available (unredeemed) free coffees → drives the "claim" badge.
-  useEffect(() => {
-    const phone = user?.phone;
-    if (!phone) return;
-    apiFetch<{ coffees: { redeemedAt: string | null }[] }>(
-      `/free-coffees?phone=${encodeURIComponent(phone)}`,
-    )
-      .then((d) => setFcCount(d.coffees.filter((c) => !c.redeemedAt).length))
-      .catch(() => { /* non-critical — leave at 0 */ });
-  }, [user?.phone]);
 
   const [roadKmByCafe, setRoadKmByCafe] = useState<Record<string, number>>({});
 
@@ -317,7 +301,7 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background, alignItems: "center" }]}>
      <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
 
-      {/* ── Top action bar (globe / bell / gift) ── */}
+      {/* ── Top action bar (language toggle) ── */}
       <View style={[styles.topBar, { paddingTop: topPadding + 10, paddingHorizontal: r.hPad }]}>
         <TouchableOpacity
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggle(); }}
@@ -330,25 +314,6 @@ export default function HomeScreen() {
             {lang === "ar" ? t("lang.toggleToEn") : t("lang.toggleToAr")}
           </Text>
         </TouchableOpacity>
-
-        <View style={styles.topIcons}>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/sent-gifts" as any); }}
-            activeOpacity={0.85}
-            style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-            accessibilityLabel="Gifts"
-          >
-            <Feather name="gift" size={18} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications" as any); }}
-            activeOpacity={0.85}
-            style={[styles.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-            accessibilityLabel="Notifications"
-          >
-            <Feather name="bell" size={18} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
       </View>
 
       <ScrollView
@@ -400,39 +365,6 @@ export default function HomeScreen() {
                 </View>
               </View>
             </View>
-          </View>
-
-          {/* Loyalty / free-coffee card */}
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/(tabs)/game" as any); }}
-            activeOpacity={0.9}
-            style={[styles.loyaltyCard, { borderColor: colors.border, backgroundColor: colors.card }]}
-          >
-            <Text style={styles.loyaltyCup}>☕</Text>
-            <Text style={[styles.loyaltyFrac, { color: colors.foreground }]}>
-              {ordersThisLevel}/{DRINKS_PER_FREE_COFFEE}
-            </Text>
-            <Text style={[styles.loyaltyLabel, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {t("home.freeCoffee")}
-            </Text>
-            <View style={[styles.claimBtn, { backgroundColor: fcCount > 0 ? colors.primary : colors.secondary }]}>
-              <Text style={[styles.claimText, { color: fcCount > 0 ? "#000" : colors.primary }]}>
-                {t("home.claim")}{fcCount > 0 ? ` (${fcCount})` : ""}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Level progress bar ── */}
-        <View style={[styles.progressWrap, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <View style={styles.progressTop}>
-            <Text style={[styles.progressSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {t("home.drinksToFree", { count: drinksToFree })}
-            </Text>
-            <Text style={[styles.progressPct, { color: colors.primary }]}>{cyclePct}%</Text>
-          </View>
-          <View style={[styles.progressTrack, { backgroundColor: colors.secondary }]}>
-            <View style={[styles.progressFill, { width: `${Math.max(cyclePct, 4)}%`, backgroundColor: colors.primary }]} />
           </View>
         </View>
 
@@ -617,8 +549,6 @@ const styles = StyleSheet.create({
 
   // Top bar
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 8 },
-  topIcons: { flexDirection: "row", gap: 8 },
-  iconBtn: { width: 38, height: 38, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   langBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1,
@@ -649,22 +579,6 @@ const styles = StyleSheet.create({
   lvPillText: { fontSize: 11, fontFamily: "Inter_700Bold" },
   pointsRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   pointsText: { fontSize: 13, fontFamily: "Inter_700Bold" },
-
-  // Loyalty card
-  loyaltyCard: { width: 96, borderWidth: 1, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 8, alignItems: "center", gap: 2 },
-  loyaltyCup: { fontSize: 18 },
-  loyaltyFrac: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  loyaltyLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
-  claimBtn: { marginTop: 6, borderRadius: 10, paddingVertical: 5, paddingHorizontal: 12, alignSelf: "stretch", alignItems: "center" },
-  claimText: { fontSize: 11, fontFamily: "Inter_700Bold" },
-
-  // Progress
-  progressWrap: { borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 16 },
-  progressTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  progressSub: { fontSize: 12, fontFamily: "Inter_600SemiBold", flex: 1 },
-  progressPct: { fontSize: 13, fontFamily: "Inter_700Bold", marginStart: 8 },
-  progressTrack: { height: 8, borderRadius: 4, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 4 },
 
   // Search row
   searchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 },
