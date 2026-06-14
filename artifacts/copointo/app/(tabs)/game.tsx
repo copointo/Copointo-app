@@ -222,6 +222,8 @@ export default function GameScreen() {
   const coinMilestones = useCoinMilestones(level);
   const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
 
+  const username = user?.gameUsername || user?.name || "";
+
   // ── National (Oman) ranking — mirrors profile.tsx so both screens agree ──
   const hasActivity = (user?.level ?? 0) > 0 || (user?.totalOrders ?? 0) > 0 || (user?.points ?? 0) > 0;
   const omanRankStr = (() => {
@@ -558,6 +560,9 @@ export default function GameScreen() {
               </View>
             )}
             <View style={styles.charPlatform} />
+            {!!username && (
+              <Text style={styles.charName} numberOfLines={1}>{username}</Text>
+            )}
           </View>
 
           {/* Hero buttons */}
@@ -818,6 +823,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: PRIMARY_DIM,
     shadowColor: PRIMARY, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
   },
+
+  charName: { marginTop: 6, fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 120, textAlign: "center" },
 
   heroCol: { width: 72, alignItems: "center", justifyContent: "center", gap: 10 },
   heroBtn: {
