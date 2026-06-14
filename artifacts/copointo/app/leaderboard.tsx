@@ -601,6 +601,21 @@ export default function LeaderboardScreen() {
               )}
             </View>
           );
+          // Small gender badge anchored to the BOTTOM-LEFT corner of the row:
+          // boy (👦, blue ring) / girl (👧, pink ring). Hidden when unknown.
+          const genderBadge = entry.gender ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.genderCornerBadge,
+                { borderColor: entry.gender === "female" ? "#FF6B9D" : "#4FC3F7" },
+              ]}
+            >
+              <Text style={styles.genderCornerEmoji}>
+                {entry.gender === "female" ? "👧" : "👦"}
+              </Text>
+            </View>
+          ) : null;
           // Wrap rows that have a background in UsernameBackground so the
           // animated card shows for every player (not just the current user).
           // Rows without a background fall back to the plain entryRow style.
@@ -621,6 +636,7 @@ export default function LeaderboardScreen() {
                 >
                   <View style={styles.entryRowContent}>{rowInner}</View>
                   {rankBadge}
+                  {genderBadge}
                 </UsernameBackground>
               </TouchableOpacity>
             );
@@ -637,6 +653,7 @@ export default function LeaderboardScreen() {
             >
               {rowInner}
               {rankBadge}
+              {genderBadge}
             </TouchableOpacity>
           );
         })}
@@ -1260,6 +1277,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.35)",
     resizeMode: "cover",
+  },
+  genderCornerBadge: {
+    position: "absolute",
+    bottom: -6,
+    left: -6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+  },
+  genderCornerEmoji: {
+    fontSize: 12,
+    textAlign: "center",
   },
 });
 
