@@ -238,22 +238,11 @@ export default function GameScreen() {
   // (0→100% across the 6 levels between free drinks) — a genuine fractional
   // forward-progress signal, not an invented coins-to-level mechanic.
   const freeCoffeeCyclePct = Math.round((ordersThisLevel / DRINKS_PER_FREE_COFFEE) * 100);
-  // Vertical scrolling ladder: a wide window of levels around the current one
-  // (higher levels at the top, descending). Scrollable, with a button to snap
-  // back to the current level. The full board lives on /levels (tap a level).
-  const ladderTop = Math.min(level + 15, 999);
-  const ladderBottom = Math.max(level - 15, 0);
-  const ladderLevels: number[] = [];
-  for (let l = ladderTop; l >= ladderBottom; l--) ladderLevels.push(l);
+  // Compact vertical ladder around the current level (mirrors the mockup:
+  // a couple levels above + the current one + one below). The full board
+  // lives on the dedicated /levels screen, reachable by tapping the ladder.
+  const ladderLevels = [level + 2, level + 1, level, level - 1].filter((l) => l >= 0 && l <= 999);
   const charSize = Math.round(Math.min(112 * s, 140));
-
-  // Ladder scroll control — recenter on the current level
-  const ladderRef = useRef<ScrollView>(null);
-  const currentItemYRef = useRef(0);
-  const didLadderScrollRef = useRef(false);
-  const scrollToCurrent = useCallback((animated = true) => {
-    ladderRef.current?.scrollTo({ y: Math.max(0, currentItemYRef.current - 60), animated });
-  }, []);
 
   // ── Sound: play a triumphant chime whenever the user levels up ──
   const prevLevelRef = useRef<number | null>(null);
@@ -546,52 +535,29 @@ export default function GameScreen() {
 
         {/* ── Middle: ladder · character · hero buttons ── */}
         <View style={styles.midRow}>
-          {/* Level ladder — vertical scroll + recenter button */}
-          <View style={styles.ladderCol}>
-            <ScrollView
-              ref={ladderRef}
-              style={styles.ladderScroll}
-              contentContainerStyle={styles.ladderScrollContent}
-              showsVerticalScrollIndicator={false}
-              onContentSizeChange={() => {
-                if (!didLadderScrollRef.current) {
-                  didLadderScrollRef.current = true;
-                  scrollToCurrent(false);
-                }
-              }}
-            >
-              {ladderLevels.map((lvl, i) => {
-                const isCur  = lvl === level;
-                const isDone = lvl < level;
-                return (
-                  <TouchableOpacity
-                    key={lvl}
-                    style={styles.ladderItem}
-                    activeOpacity={0.85}
-                    onLayout={isCur ? (e) => { currentItemYRef.current = e.nativeEvent.layout.y; } : undefined}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/levels"); }}
-                  >
-                    {i > 0 && (
-                      <View style={styles.ladderConnector}>
-                        <View style={styles.ladderDot} />
-                        <View style={styles.ladderDot} />
-                      </View>
-                    )}
-                    <HubDiamond size={isCur ? 42 : 30} value={lvl} highlighted={isCur} done={isDone} />
-                    {isCur && <Text style={styles.ladderHereLabel}>أنت هنا</Text>}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.ladderRecenterBtn}
-              activeOpacity={0.85}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); scrollToCurrent(true); }}
-            >
-              <Feather name="crosshair" size={14} color={PRIMARY} />
-              <Text style={styles.ladderRecenterText}>مستواي</Text>
-            </TouchableOpacity>
-          </View>
+          {/* Level ladder (tap → full board) */}
+          <TouchableOpacity
+            style={styles.ladderCol}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/levels"); }}
+          >
+            {ladderLevels.map((lvl, i) => {
+              const isCur  = lvl === level;
+              const isDone = lvl < level;
+              return (
+                <View key={lvl} style={styles.ladderItem}>
+                  {i > 0 && (
+                    <View style={styles.ladderConnector}>
+                      <View style={styles.ladderDot} />
+                      <View style={styles.ladderDot} />
+                    </View>
+                  )}
+                  <HubDiamond size={isCur ? 42 : 30} value={lvl} highlighted={isCur} done={isDone} />
+                  {isCur && <Text style={styles.ladderHereLabel}>أنت هنا</Text>}
+                </View>
+              );
+            })}
+          </TouchableOpacity>
 
           {/* Character on a glowing platform */}
           <View style={styles.centerCol}>
