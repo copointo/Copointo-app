@@ -737,20 +737,27 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Progress to next free coffee */}
-          <View style={styles.heroProgressWrap}>
-            <View style={styles.heroProgressTop}>
-              <Text style={styles.heroProgressTitle}>التقدّم للكوفي المجاني</Text>
-              <Text style={[styles.heroProgressPct, { color: PRIMARY }]}>{freeCoffeeCyclePct}%</Text>
+          {/* Progress to next free coffee — distinct reward theme */}
+          <View style={[styles.freeCoffeeProgressCard, levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE && styles.freeCoffeeProgressCardReady]}>
+            <View style={styles.freeCoffeeProgressTop}>
+              <View style={styles.freeCoffeeProgressTitleWrap}>
+                <View style={styles.freeCoffeeGiftBubble}>
+                  <Text style={styles.freeCoffeeGiftIcon}>🎁</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.freeCoffeeProgressTitle}>كوفي مجاني ☕</Text>
+                  <Text style={styles.freeCoffeeProgressHint}>
+                    {levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE
+                      ? "جاهز للاستلام الآن!"
+                      : `باقي ${levelsToFreeCoffee} مستوى للحصول عليه`}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.freeCoffeeProgressPct}>{freeCoffeeCyclePct}%</Text>
             </View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${freeCoffeeCyclePct}%` as any, backgroundColor: PRIMARY }]} />
+            <View style={styles.freeCoffeeTrack}>
+              <View style={[styles.freeCoffeeFill, { width: `${freeCoffeeCyclePct}%` as any }]} />
             </View>
-            <Text style={styles.heroProgressSub}>
-              {levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE
-                ? "🎁 كوفي مجاني متاح الآن!"
-                : `باقي ${levelsToFreeCoffee} مستوى للكوفي المجاني`}
-            </Text>
           </View>
         </View>
 
@@ -1404,6 +1411,45 @@ const styles = StyleSheet.create({
   heroProgressTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.80)" },
   heroProgressPct: { fontSize: 14, fontFamily: "Inter_700Bold" },
   heroProgressSub: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)", textAlign: "right" },
+
+  // ── Free-coffee reward progress (distinct emerald theme) ──
+  freeCoffeeProgressCard: {
+    backgroundColor: "rgba(74,222,128,0.07)",
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: "rgba(74,222,128,0.40)",
+    padding: 12,
+    gap: 10,
+  },
+  freeCoffeeProgressCardReady: {
+    backgroundColor: "rgba(74,222,128,0.16)",
+    borderColor: "rgba(74,222,128,0.75)",
+    shadowColor: "#4ADE80",
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
+  },
+  freeCoffeeProgressTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  freeCoffeeProgressTitleWrap: { flexDirection: "row", alignItems: "center", gap: 10 },
+  freeCoffeeGiftBubble: {
+    width: 38, height: 38, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(74,222,128,0.18)",
+    borderWidth: 1, borderColor: "rgba(74,222,128,0.45)",
+  },
+  freeCoffeeGiftIcon: { fontSize: 18 },
+  freeCoffeeProgressTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#7CF0A8", textAlign: "right" },
+  freeCoffeeProgressHint: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.60)", textAlign: "right", marginTop: 1 },
+  freeCoffeeProgressPct: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#7CF0A8" },
+  freeCoffeeTrack: {
+    height: 9, borderRadius: 999, overflow: "hidden",
+    backgroundColor: "rgba(74,222,128,0.14)",
+  },
+  freeCoffeeFill: {
+    height: "100%", borderRadius: 999,
+    backgroundColor: "#4ADE80",
+  },
   photoActionsRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 12, marginTop: -6,
