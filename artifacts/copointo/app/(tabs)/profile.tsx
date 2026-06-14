@@ -820,53 +820,48 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* ── Stats grid ── */}
-        <View style={styles.statsGrid}>
-          {/* Row 1 */}
-          <View style={styles.statsRow}>
-            <View style={[styles.statBox, styles.statBoxCard]}>
-              <Text style={styles.statIcon}>👥</Text>
-              <Text style={styles.statValue}>{friendsCount}</Text>
-              <Text style={styles.statLabel}>{t("profile.statFriends")}</Text>
-            </View>
-            <View style={[styles.statBox, styles.statBoxCard]}>
-              <Text style={styles.statIcon}>⭐</Text>
-              <Text style={styles.statValue}>{level}</Text>
-              <Text style={styles.statLabel}>{t("profile.statLevel")}</Text>
-            </View>
-            <View style={[styles.statBox, styles.statBoxCard]}>
-              <Text style={styles.statIcon}>☕</Text>
-              <Text style={styles.statValue}>{freeCoffees}</Text>
-              <Text style={styles.statLabel}>{t("profile.statFreeCoffees")}</Text>
-            </View>
+        {/* ── Stats strip (compact, side-by-side) ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.statStrip}
+        >
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>👥</Text>
+            <Text style={styles.statChipValue}>{friendsCount}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statFriends")}</Text>
           </View>
-          {/* Row 2 */}
-          <View style={styles.statsRow}>
-            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
-              <Text style={styles.statIcon}>🎁</Text>
-              <Text style={[styles.statValue, { color: "#FF6B9D" }]}>{giftsReceived}</Text>
-              <Text style={styles.statLabel}>{t("profile.statGiftsReceived")}</Text>
-            </View>
-            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
-              <Text style={styles.statIcon}>💝</Text>
-              <Text style={[styles.statValue, { color: "#A78BFA" }]}>{giftsSent}</Text>
-              <Text style={styles.statLabel}>{t("profile.statGiftsSent")}</Text>
-            </View>
-            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
-              <Text style={styles.statIcon}>🇴🇲</Text>
-              <Text style={styles.statValue}>{omanRankStr}</Text>
-              <Text style={styles.statLabel}>{t("profile.statOmanRank")}</Text>
-            </View>
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>⭐</Text>
+            <Text style={styles.statChipValue}>{level}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statLevel")}</Text>
           </View>
-          {/* Row 3 */}
-          <View style={styles.statsRow}>
-            <View style={[styles.statBox, styles.statBoxCard, { flex: 1 }]}>
-              <Text style={styles.statIcon}>👫</Text>
-              <Text style={styles.statValue}>{friendsRankStr}</Text>
-              <Text style={styles.statLabel}>{t("profile.statFriendsRank")}</Text>
-            </View>
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>☕</Text>
+            <Text style={styles.statChipValue}>{freeCoffees}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statFreeCoffees")}</Text>
           </View>
-        </View>
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>🎁</Text>
+            <Text style={[styles.statChipValue, { color: "#FF6B9D" }]}>{giftsReceived}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statGiftsReceived")}</Text>
+          </View>
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>💝</Text>
+            <Text style={[styles.statChipValue, { color: "#A78BFA" }]}>{giftsSent}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statGiftsSent")}</Text>
+          </View>
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>🇴🇲</Text>
+            <Text style={styles.statChipValue}>{omanRankStr}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statOmanRank")}</Text>
+          </View>
+          <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
+            <Text style={styles.statChipIcon}>👫</Text>
+            <Text style={styles.statChipValue}>{friendsRankStr}</Text>
+            <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statFriendsRank")}</Text>
+          </View>
+        </ScrollView>
 
         {/* ── Per-cafe level breakdown ──
             Level is conceptually per-cafe (e.g. 6 total drinks = 4 at cafe A
@@ -1555,6 +1550,13 @@ const styles = StyleSheet.create({
   // ── Stats (glowing cards) ──
   statsGrid: { gap: 12 },
   statsRow:  { flexDirection: "row", gap: 12, marginTop: 8 },
+  statStrip: { flexDirection: "row", gap: 8, paddingVertical: 8, paddingHorizontal: 2 },
+  statChip: {
+    flex: 0, width: 74, paddingVertical: 10, paddingHorizontal: 4, gap: 3,
+  },
+  statChipIcon:  { fontSize: 18 },
+  statChipValue: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
+  statChipLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
   cosmeticsTitle: {
     fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF",
     textAlign: "right", marginTop: 8, marginBottom: 4,
