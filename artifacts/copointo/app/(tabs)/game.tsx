@@ -492,14 +492,6 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── National (Oman) ranking ── */}
-        <View style={styles.omanRankRow}>
-          <View style={styles.omanRankChip}>
-            <Text style={styles.omanRankIcon}>🇴🇲</Text>
-            <Text style={styles.omanRankText} numberOfLines={1}>{`ترتيبك ${omanRankStr} في عُمان`}</Text>
-          </View>
-        </View>
-
         {/* ── Progress to next level ── */}
         <View style={styles.progressCard}>
           <Text style={styles.progressCardTitle}>التقدم إلى المستوى التالي</Text>
@@ -520,6 +512,12 @@ export default function GameScreen() {
                 ? "قهوة مجانية متاحة الآن!"
                 : `باقي ${DRINKS_PER_FREE_COFFEE - ordersThisLevel} مستوى للقهوة المجانية`}
             </Text>
+          </View>
+          <View style={styles.omanRankRow}>
+            <View style={styles.omanRankChip}>
+              <Text style={styles.omanRankIcon}>🇴🇲</Text>
+              <Text style={styles.omanRankText} numberOfLines={1}>{`ترتيبك ${omanRankStr} في عُمان`}</Text>
+            </View>
           </View>
         </View>
 
@@ -762,7 +760,10 @@ const styles = StyleSheet.create({
   statCoinImg: { width: 22, height: 22, resizeMode: "contain" },
 
   // ── Oman national ranking chip ──
-  omanRankRow: { alignItems: "center", marginBottom: 10 },
+  omanRankRow: {
+    alignItems: "center", marginTop: 8, paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: "rgba(232,184,109,0.15)",
+  },
   omanRankChip: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
