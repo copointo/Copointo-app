@@ -84,12 +84,12 @@ router.post("/cafes", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  // Copointo Code (optional, per-cafe referral). Only validate the code when
-  // the feature is enabled AND a code was supplied; an empty code with the
-  // toggle on just leaves the cafe without a usable code (effectively off).
+  // Copointo Code (optional, per-cafe referral). When the feature is enabled the
+  // code MUST be a valid, unique 3-char code — an empty/short code with the
+  // toggle on is rejected (never persist an "enabled but unusable" state).
   const codeEnabled = req.body.copointoCodeEnabled === true;
   const code = normalizeCopointoCode(req.body.copointoCode);
-  if (codeEnabled && code) {
+  if (codeEnabled) {
     const codeErr = validateCopointoCode(code, null);
     if (codeErr) return res.status(409).json({ error: codeErr });
   }
@@ -183,14 +183,12 @@ router.patch("/cafes/:id", async (req, res): Promise<any> => {
   // sends the toggle, so older clients that omit it leave the code untouched.
   if (typeof b.copointoCodeEnabled === "boolean") {
     if (b.copointoCodeEnabled) {
+      // Enabling REQUIRES a valid, unique 3-char code — reject empty/short so we
+      // never persist an "enabled but unusable" state.
       const code = normalizeCopointoCode(b.copointoCode);
-      if (code) {
-        const codeErr = validateCopointoCode(code, cafe.id);
-        if (codeErr) return res.status(409).json({ error: codeErr });
-        cafe.copointoCode = code;
-      } else {
-        cafe.copointoCode = "";
-      }
+      const codeErr = validateCopointoCode(code, cafe.id);
+      if (codeErr) return res.status(409).json({ error: codeErr });
+      cafe.copointoCode = code;
       cafe.copointoCodeEnabled = true;
     } else {
       // Disabled — keep the stored code string but stop honoring it. (We clear
