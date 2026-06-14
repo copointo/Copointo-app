@@ -367,7 +367,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = f.price ?? PRICE_BY_TIER[i] ?? 100;
             const tint = itemTheme(FRAME_TINT[f.id]);
             return (
-              <FadeInItem key={f.id} index={i} style={{ width: "48%" }}>
+              <FadeInItem key={f.id} index={i} style={{ width: "31%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -377,8 +377,8 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                   }}
                 >
                   <View style={styles.framePreviewWrap}>
-                    <AvatarWithFrame size={64} frameId={f.id}>
-                      <Image source={avatarSource} style={{ width: 64, height: 64, borderRadius: 32 }} />
+                    <AvatarWithFrame size={52} frameId={f.id}>
+                      <Image source={avatarSource} style={{ width: 52, height: 52, borderRadius: 26 }} />
                     </AvatarWithFrame>
                   </View>
                   <Text style={styles.bgName} numberOfLines={1}>{f.name}</Text>
@@ -436,7 +436,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = b.price ?? PRICE_BY_TIER[i] ?? 100;
             const tint = itemTheme(BADGE_TINT[b.id]);
             return (
-              <FadeInItem key={b.id} index={i} style={{ width: "48%" }}>
+              <FadeInItem key={b.id} index={i} style={{ width: "31%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -636,7 +636,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
             const price = CHARACTER_PRICE(realIdx);
             const tint = itemTheme(ch.glow ?? ch.ringGradient?.[1] ?? CHAR_TINT[ch.id]);
             return (
-              <FadeInItem key={ch.id} index={i} style={{ width: "48%" }}>
+              <FadeInItem key={ch.id} index={i} style={{ width: "31%" }}>
                 <TouchableOpacity
                   style={[styles.bgCard, tint]}
                   activeOpacity={0.85}
@@ -646,7 +646,7 @@ function CategoryPanel({ cat }: { cat: ShopCat }) {
                   }}
                 >
                   <View style={styles.charCardWrap}>
-                    <Character def={ch} size={72} animated />
+                    <Character def={ch} size={56} animated />
                   </View>
                   <Text style={styles.bgName} numberOfLines={1}>{ch.name}</Text>
                   <PriceTag price={price} owned={owned} />
@@ -1188,12 +1188,12 @@ const styles = StyleSheet.create({
   tsModalBubbleText: { fontSize: 15, fontFamily: "Inter_500Medium", lineHeight: 22 },
   charCardWrap: {
     alignSelf: "stretch",
-    paddingVertical: 18, paddingHorizontal: 8,
+    paddingVertical: 12, paddingHorizontal: 6,
     backgroundColor: "rgba(0,0,0,0.55)",
     borderRadius: 12,
     alignItems: "center", justifyContent: "center",
     borderWidth: 1, borderColor: "rgba(255,255,255,0.10)",
-    minHeight: 100,
+    minHeight: 78,
   },
   charModalPreview: {
     marginTop: 14,
@@ -1230,7 +1230,7 @@ const styles = StyleSheet.create({
   previewCoffeeChipText: { fontSize: 11.5, fontFamily: "Inter_700Bold", color: "#4FC3F7" },
   framePreviewWrap: {
     width: "100%", alignItems: "center", justifyContent: "center",
-    paddingVertical: 16,
+    paddingVertical: 10,
   },
   modalBackdrop: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.75)",
@@ -1273,8 +1273,8 @@ const styles = StyleSheet.create({
     paddingVertical: 13, borderRadius: 12,
   },
   modalBuyOwnedText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#000" },
-  badgeImgWrap: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
-  badgeImgLg: { width: 96, height: 96, resizeMode: "contain" },
+  badgeImgWrap: { width: 64, height: 64, alignItems: "center", justifyContent: "center" },
+  badgeImgLg: { width: 64, height: 64, resizeMode: "contain" },
   priceTag: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: "rgba(232,184,109,0.10)",
