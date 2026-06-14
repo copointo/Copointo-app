@@ -21,6 +21,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SearchBar } from "@/components/SearchBar";
 import { MiniCafesMap } from "@/components/MiniCafesMap";
+import AvatarWithFrame from "@/components/AvatarWithFrame";
+import { getDefaultAvatarSource } from "@/lib/defaultAvatar";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { useColors } from "@/hooks/useColors";
@@ -321,19 +323,21 @@ export default function HomeScreen() {
         <View style={styles.profileRow}>
           <View style={styles.profileLeft}>
             <View style={styles.avatarWrap}>
-              <LinearGradient
-                colors={["#E8B86D", "#7A5A2E"]}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.avatarRing}
-              >
-                <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
-                  <Image
-                    source={require("@/assets/images/copointo-logo.png")}
-                    style={styles.avatarImg}
-                    resizeMode="contain"
-                  />
-                </View>
-              </LinearGradient>
+              <AvatarWithFrame size={58} scale={1.5}>
+                <LinearGradient
+                  colors={["#E8B86D", "#7A5A2E"]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={styles.avatarRing}
+                >
+                  <View style={[styles.avatarInner, { backgroundColor: colors.card }]}>
+                    <Image
+                      source={user?.avatar ? { uri: user.avatar } : getDefaultAvatarSource(user?.gender as ("male" | "female" | undefined))}
+                      style={styles.avatarPhoto}
+                      resizeMode="cover"
+                    />
+                  </View>
+                </LinearGradient>
+              </AvatarWithFrame>
               <View style={[styles.avatarLevelBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
                 <Text style={styles.avatarLevelText}>{level}</Text>
               </View>
@@ -556,7 +560,7 @@ const styles = StyleSheet.create({
   avatarWrap: { width: 58, height: 58 },
   avatarRing: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
   avatarInner: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  avatarImg: { width: 38, height: 38 },
+  avatarPhoto: { width: 50, height: 50, borderRadius: 25 },
   avatarLevelBadge: {
     position: "absolute", bottom: -2, right: -2,
     minWidth: 22, height: 22, borderRadius: 11, borderWidth: 2,
