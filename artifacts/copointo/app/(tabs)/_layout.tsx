@@ -53,7 +53,7 @@ function ClassicTabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: "#E8B86D",
-        tabBarInactiveTintColor: "#E8B86D",
+        tabBarInactiveTintColor: "rgba(232,184,109,0.5)",
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
@@ -91,47 +91,58 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={icSize} />
-            ) : (
-              <Feather name="home" size={icSize} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+              {isIOS ? (
+                <SymbolView name="house" tintColor={color} size={icSize} />
+              ) : (
+                <Feather name="home" size={icSize} color={color} />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
           title: "Messages",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="message" tintColor={color} size={icSize} />
-            ) : (
-              <Feather name="message-circle" size={icSize} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+              {isIOS ? (
+                <SymbolView name="message" tintColor={color} size={icSize} />
+              ) : (
+                <Feather name="message-circle" size={icSize} color={color} />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="videos"
         options={{
           title: "Reels",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="play.rectangle" tintColor={color} size={icSize} />
-            ) : (
-              <Feather name="play-circle" size={icSize} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+              {isIOS ? (
+                <SymbolView name="play.rectangle" tintColor={color} size={icSize} />
+              ) : (
+                <Feather name="play-circle" size={icSize} color={color} />
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen
         name="game"
         options={{
           title: "Copointo Hub",
-          tabBarIcon: () => (
-            <Image
-              source={COPOINTO_LOGO}
-              style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain" }}
-            />
+          tabBarIcon: ({ focused }) => (
+            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+              <Image
+                source={COPOINTO_LOGO}
+                style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain", opacity: focused ? 1 : 0.5 }}
+              />
+            </View>
           ),
         }}
       />
@@ -139,12 +150,15 @@ function ClassicTabLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person" tintColor={color} size={icSize} />
-            ) : (
-              <Feather name="user" size={icSize} color={color} />
-            ),
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
+              {isIOS ? (
+                <SymbolView name="person" tintColor={color} size={icSize} />
+              ) : (
+                <Feather name="user" size={icSize} color={color} />
+              )}
+            </View>
+          ),
         }}
       />
     </Tabs>
@@ -157,3 +171,26 @@ export default function TabLayout() {
   }
   return <ClassicTabLayout />;
 }
+
+const tabStyles = StyleSheet.create({
+  iconWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 54,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "transparent",
+    backgroundColor: "transparent",
+  },
+  iconWrapActive: {
+    backgroundColor: "rgba(232,184,109,0.15)",
+    borderColor: "rgba(232,184,109,0.45)",
+    shadowColor: "#E8B86D",
+    shadowOpacity: 0.55,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+});
