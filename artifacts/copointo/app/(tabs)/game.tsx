@@ -17,7 +17,7 @@ import { useCoins } from "@/hooks/useCoins";
 
 const COPOINTO_COIN = require("../../assets/images/copointo-coin.png");
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp, DAILY_LEVEL_CAP } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { getRank } from "@/data/mockData";
@@ -29,7 +29,6 @@ import { useCoinMilestones } from "@/hooks/useCoinMilestones";
 import CoinMilestoneModal from "@/components/CoinMilestoneModal";
 import GiftFeedRain from "@/components/GiftFeedRain";
 import CoinGiftModal from "@/components/CoinGiftModal";
-import { LEVEL_REWARDS } from "@/data/levelRewards";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
 import { useCharacters } from "@/hooks/useCharacters";
@@ -221,18 +220,7 @@ export default function GameScreen() {
   const rank      = getRank(level);
   const levelRewards = useLevelRewards(level);
   const coinMilestones = useCoinMilestones(level);
-  const nextReward = LEVEL_REWARDS.find(rw => rw.unlockLevel > level);
-  const levelsToNextReward = nextReward ? nextReward.unlockLevel - level : 0;
   const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
-  const nextFreeLevel   = ordersThisLevel === 0 ? 0 : DRINKS_PER_FREE_COFFEE - ordersThisLevel;
-
-  // ── Daily level cap progress (resets each calendar day) ──
-  const todayStr = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  })();
-  const levelsTodayUsed = (user?.levelsTodayDate === todayStr) ? (user?.levelsToday ?? 0) : 0;
-  const dailyCapReached = levelsTodayUsed >= DAILY_LEVEL_CAP;
 
   // ── Hub layout helpers ──
   // The "progress to next level" bar uses the real free-coffee cycle
@@ -446,19 +434,13 @@ export default function GameScreen() {
           </Text>
         </View>
 
-        {/* ── Stats card: energy · coins · next reward ── */}
+        {/* ── Stats card: level · coins · free coffees ── */}
         <View style={styles.statsCard}>
-          {/* Energy (daily level cap) */}
+          {/* Level + rank name */}
           <View style={styles.statCol}>
-            <Feather
-              name={dailyCapReached ? "lock" : "zap"}
-              size={18}
-              color={dailyCapReached ? "#EF5350" : PRIMARY}
-            />
-            <Text style={[styles.statValue, dailyCapReached && { color: "#EF5350" }]}>
-              {levelsTodayUsed}/{DAILY_LEVEL_CAP}
-            </Text>
-            <Text style={styles.statLabel}>الطاقة</Text>
+            <Text style={styles.statRankIcon}>{rank.icon}</Text>
+            <Text style={styles.statValue}>{level}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>{rank.name}</Text>
           </View>
 
           <View style={styles.statDivider} />
@@ -479,17 +461,16 @@ export default function GameScreen() {
 
           <View style={styles.statDivider} />
 
-          {/* Next reward */}
-          <View style={styles.statCol}>
-            <Feather name="gift" size={18} color={PRIMARY} />
-            {nextReward ? (
-              <Text style={styles.statGiftText} numberOfLines={3}>
-                متبقي {levelsToNextReward} مستوى لجائزة "{nextReward.rankName}"
-              </Text>
-            ) : (
-              <Text style={styles.statGiftText}>وصلت لأعلى جائزة 🎉</Text>
-            )}
-          </View>
+          {/* Unused free coffees → free-coffee codes modal */}
+          <TouchableOpacity
+            style={styles.statCol}
+            activeOpacity={0.85}
+            onPress={openFreeCoffee}
+          >
+            <Feather name="coffee" size={18} color={PRIMARY} />
+            <Text style={styles.statValue}>{fcAvailableCount}</Text>
+            <Text style={styles.statLabel} numberOfLines={1}>قهوة مجانية</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Progress to next level ── */}
@@ -741,12 +722,9 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: PRIMARY_DIM, marginVertical: 4 },
   statValueRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   statValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  statRankIcon: { fontSize: 18, lineHeight: 22 },
   statLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.6)" },
   statCoinImg: { width: 22, height: 22, resizeMode: "contain" },
-  statGiftText: {
-    fontSize: 10, fontFamily: "Inter_600SemiBold",
-    color: "rgba(255,255,255,0.85)", textAlign: "center", lineHeight: 14,
-  },
 
   // ── Progress card ──
   progressCard: {
