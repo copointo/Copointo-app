@@ -262,6 +262,9 @@ export function BuyCoinsPanel() {
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  // Web: instant "redirecting to checkout" overlay shown the moment a pack is
+  // tapped, so the wait for the OMPay session feels responsive.
+  const [webRedirecting, setWebRedirecting] = useState(false);
   // Native IAP: confirm dialog (custom modal — Alert.alert is unreliable for
   // purchase confirmation per the RevenueCat guidance).
   const [pendingPack, setPendingPack] = useState<{ pack: Pack; rcPackage: PurchasesPackage; priceLabel: string } | null>(null);
@@ -443,6 +446,9 @@ export function BuyCoinsPanel() {
   // this screen the mount effect picks it up and credits the coins.
   const handleBuyWeb = async (p: Pack) => {
     setBusyId(p.id);
+    // Show the "redirecting to checkout" overlay immediately so the wait for the
+    // OMPay session feels instant, even before the network call resolves.
+    setWebRedirecting(true);
     try {
       // Bring the shopper back to this exact screen after the hosted checkout.
       const returnUrl = typeof window !== "undefined" ? window.location.href : undefined;
@@ -471,9 +477,15 @@ export function BuyCoinsPanel() {
         const opened =
           typeof window !== "undefined" ? window.open(payment.checkoutUrl, "_blank") : null;
         setBusyId(null);
-        if (!opened && typeof window !== "undefined") {
-          // Popups blocked → last resort: navigate this frame anyway.
+        if (opened) {
+          // New tab handles checkout; this page stays put, so drop the overlay.
+          setWebRedirecting(false);
+        } else if (typeof window !== "undefined") {
+          // Popups blocked → last resort: navigate this frame anyway. If the
+          // sandbox also blocks top-navigation, the assignment silently no-ops
+          // (no throw), so a watchdog clears the overlay to avoid a dead-end UI.
           window.location.href = payment.checkoutUrl;
+          setTimeout(() => setWebRedirecting(false), 1500);
         }
       } else if (typeof window !== "undefined") {
         // Real site (top-level): go straight to the gateway in the same tab.
@@ -481,6 +493,7 @@ export function BuyCoinsPanel() {
       }
     } catch (e: any) {
       setBusyId(null);
+      setWebRedirecting(false);
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
     }
   };
@@ -549,6 +562,17 @@ export function BuyCoinsPanel() {
             <TouchableOpacity onPress={() => setPendingPack(null)}>
               <Text style={styles.webPayCancel}>إلغاء</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Web: redirecting-to-checkout overlay (shown the instant a pack is tapped) */}
+      <Modal visible={webRedirecting} transparent animationType="fade">
+        <View style={styles.verifyOverlay}>
+          <View style={styles.verifyCard}>
+            <ActivityIndicator color={PRIMARY} size="large" />
+            <Text style={styles.verifyText}>جارٍ توجيهك إلى صفحة الدفع…</Text>
+            <Text style={styles.verifySub}>لحظات من فضلك</Text>
           </View>
         </View>
       </Modal>
