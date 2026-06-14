@@ -25,6 +25,9 @@ import {
   reports,
   communities, communityInvites,
   type Community, type CommunityInvite, type CommunityRole, type PushToken,
+  copointoRedemptions, type CopointoRedemption,
+  COPOINTO_CODE_BONUS_RATE, COPOINTO_CODE_COMMISSION_RATE,
+  COPOINTO_COIN_PACKS, COPOINTO_USD_TO_OMR,
   purgeUserData,
   persistStore,
   flushNow,
@@ -101,6 +104,126 @@ router.get("/cafes/:id", async (req, res) => {
       active: c.active,
       lat: c.lat, lng: c.lng,
     }
+  });
+});
+
+// ─── Copointo Code (per-cafe referral) ─────────────────────────────────
+// Resolve the cafe that owns a given code (enabled + active only). Showcase
+// cafes' codes only resolve for a showcase viewer, mirroring cafe visibility.
+function resolveCopointoCafe(rawCode: string, userId: string) {
+  const code = String(rawCode ?? "").trim().toUpperCase();
+  if (!code) return null;
+  const viewer = isShowcaseViewer(userId);
+  return (
+    cafes.find(
+      c =>
+        c.active &&
+        c.copointoCodeEnabled &&
+        (c.copointoCode ?? "").toUpperCase() === code &&
+        (viewer || !c.showcaseOnly),
+    ) ?? null
+  );
+}
+
+// Mobile checks a code BEFORE paying so it can show the owning cafe + the +20%
+// bonus. Authoritative: only an enabled, active cafe's code validates.
+router.get("/copointo-code/validate", (req, res): any => {
+  const code   = String(req.query.code ?? "").trim();
+  const userId = String(req.query.userId ?? "").trim();
+  if (!code) return res.status(400).json({ valid: false, error: "الكود مطلوب" });
+  const cafe = resolveCopointoCafe(code, userId);
+  if (!cafe) {
+    return res.json({ valid: false, error: "كود غير صالح" });
+  }
+  return res.json({
+    valid: true,
+    cafeId: cafe.id,
+    cafeName: cafe.name,
+    bonusPercent: Math.round(COPOINTO_CODE_BONUS_RATE * 100),
+  });
+});
+
+// Mobile records a redemption AFTER a successful coin purchase. The server
+// re-validates the code, resolves the cafe, and recomputes the +20% bonus and
+// 10% commission from trusted rates (never the client's math). Coins live on
+// the device, so this row is purely the settlement ledger the cafe reads.
+router.post("/copointo-code/redeem", async (req, res): Promise<any> => {
+  const b = req.body ?? {};
+  const code     = String(b.code ?? "").trim();
+  const userId   = String(b.userId ?? "").trim();
+  const cafe = resolveCopointoCafe(code, userId);
+  if (!cafe) return res.status(400).json({ ok: false, error: "كود غير صالح" });
+
+  // coinsBase must match a known coin package — the commission base is derived
+  // from the package's trusted price, never from whatever the client posts.
+  const coinsBase = Math.max(0, Math.floor(Number(b.coinsBase ?? 0)));
+  const packUsd = COPOINTO_COIN_PACKS[coinsBase];
+  if (!Number.isFinite(coinsBase) || coinsBase <= 0 || packUsd == null) {
+    return res.status(400).json({ ok: false, error: "عدد العملات غير صالح" });
+  }
+  // Trusted price: USD list price → OMR via the server-pinned rate. The client
+  // may still send priceUsd/priceOmr but they are only kept for reference.
+  const priceUsd = packUsd;
+  const priceOmr = Math.round(packUsd * COPOINTO_USD_TO_OMR * 1000) / 1000;
+
+  const coinsBonus = Math.round(coinsBase * COPOINTO_CODE_BONUS_RATE);
+  const coinsTotal = coinsBase + coinsBonus;
+  // Commission in OMR, rounded to 3 decimals (baisa).
+  const commission = Math.round(priceOmr * COPOINTO_CODE_COMMISSION_RATE * 1000) / 1000;
+
+  const platform = (() => {
+    const p = String(b.platform ?? "").trim().toLowerCase();
+    return ["web", "ios", "android"].includes(p) ? p : "web";
+  })();
+
+  // Idempotency: one purchase settles once. If the client supplies a payment
+  // reference (OMPay paymentId / store transactionId), a replay returns the
+  // existing row instead of appending a duplicate commission.
+  const paymentRef = typeof b.paymentRef === "string" && b.paymentRef.trim()
+    ? b.paymentRef.trim().slice(0, 120) : null;
+  if (paymentRef) {
+    const existing = copointoRedemptions.find(
+      r => r.cafeId === cafe.id && r.paymentRef === paymentRef,
+    );
+    if (existing) {
+      return res.json({
+        ok: true,
+        deduped: true,
+        redemption: {
+          coinsBase: existing.coinsBase,
+          coinsBonus: existing.coinsBonus,
+          coinsTotal: existing.coinsTotal,
+          commission: existing.commission,
+        },
+      });
+    }
+  }
+
+  const row: CopointoRedemption = {
+    id: `cr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    cafeId: cafe.id,
+    cafeName: cafe.name,
+    code: (cafe.copointoCode ?? "").toUpperCase(),
+    userId: userId || null,
+    buyerName: typeof b.buyerName === "string" ? b.buyerName.slice(0, 80) : null,
+    buyerPhone: typeof b.buyerPhone === "string" ? b.buyerPhone.slice(0, 40) : null,
+    coinsBase,
+    coinsBonus,
+    coinsTotal,
+    priceUsd,
+    priceOmr,
+    commission,
+    platform,
+    paymentRef,
+    // Hide demo buyers' redemptions from a real cafe's settlement report.
+    showcaseOnly: cafe.showcaseOnly || isShowcaseViewer(userId) ? true : undefined,
+    createdAt: new Date().toISOString(),
+  };
+  copointoRedemptions.push(row);
+  try { await flushNow(); } catch { /* persist safety net retries */ }
+  return res.json({
+    ok: true,
+    redemption: { coinsBase, coinsBonus, coinsTotal, commission },
   });
 });
 

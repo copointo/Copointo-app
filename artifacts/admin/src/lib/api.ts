@@ -127,6 +127,19 @@ export const api = {
   deleteChatInfo:(id: string, cid: string) => req<any>("DELETE", `${C(id)}/chat/${cid}`),
   cafeInvoices:  (id: string)              => req<any>("GET",    `${C(id)}/invoices`),
 
+  // Copointo Code redemptions (per-cafe referral settlement report)
+  copointoRedemptions: (id: string) =>
+    req<{
+      redemptions: Array<{
+        id: string; cafeName: string; code: string;
+        buyerName?: string | null; buyerPhone?: string | null;
+        coinsBase: number; coinsBonus: number; coinsTotal: number;
+        priceUsd?: number | null; priceOmr: number; commission: number;
+        platform: string; createdAt: string;
+      }>;
+      monthCommission: number; monthCount: number; totalCount: number;
+    }>("GET", `${C(id)}/copointo-redemptions`),
+
   // Gift vouchers (قسائم شرائية)
   giftVouchers:        (id: string)             => req<any>("GET",    `${C(id)}/gift-vouchers`),
   confirmGiftVoucher:  (id: string, vid: string)=> req<any>("POST",   `${C(id)}/gift-vouchers/${vid}/confirm`),

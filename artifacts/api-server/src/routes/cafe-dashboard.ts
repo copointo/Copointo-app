@@ -5,7 +5,7 @@ import path from "node:path";
 import { uploadReelFile, deleteReelFile } from "../lib/objectStorage";
 import { cafes, users, menuItems, tables, orders, bookings, chatInfos, invoices, cafeViews, discountCodes,
   expenses, invoiceTemplates, freeCoffees, inventoryItems,
-  reels, reelLikes, reelComments, reelViews, giftVouchers,
+  reels, reelLikes, reelComments, reelViews, giftVouchers, copointoRedemptions,
   type MenuItem, type CafeTable, type Order, type TableBooking, type ChatInfo, type Invoice, type CafeView, type DiscountCode,
   type Expense, type InvoiceTemplate, type InvoiceType, type FreeCoffee, type InventoryItem,
   type Reel, type GiftVoucher, persistStore } from "../store";
@@ -343,6 +343,35 @@ router.get("/gift-vouchers", (req: any, res) => {
     .filter(v => v.cafeId === cafeId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   res.json({ vouchers: list });
+});
+
+// ── Copointo Code redemptions (settlement report) ──────────────────────
+// The cafe dashboard reads its referral ledger here. Demo/showcase buyers'
+// rows are excluded so a real cafe never sees fake commission. Also returns
+// the current-calendar-month commission total so the dashboard can headline
+// "you are owed X this month".
+router.get("/copointo-redemptions", (req: any, res) => {
+  const cafeId = req.params.cafeId;
+  const list = copointoRedemptions
+    .filter(r => r.cafeId === cafeId && !r.showcaseOnly)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const now = new Date();
+  const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  let monthCommission = 0;
+  let monthCount = 0;
+  for (const r of list) {
+    if ((r.createdAt ?? "").startsWith(monthPrefix)) {
+      monthCommission += r.commission ?? 0;
+      monthCount += 1;
+    }
+  }
+  res.json({
+    redemptions: list,
+    monthCommission: Math.round(monthCommission * 1000) / 1000,
+    monthCount,
+    totalCount: list.length,
+  });
 });
 
 router.post("/gift-vouchers/:id/confirm", (req: any, res): any => {

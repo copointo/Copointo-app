@@ -13,6 +13,27 @@ import { deleteReelFile } from "../lib/objectStorage";
 import { geocodeAddress } from "../utils/geocode";
 import { sendPushToUser, sendPushToAll } from "../lib/push";
 
+// ── Copointo Code helpers (per-cafe referral) ───────────────────────────
+// Codes are exactly 3 chars from an unambiguous A-Z/2-9 alphabet (no I,O,0,1),
+// stored UPPER-CASE, and unique across all cafes (case-insensitive). Returns
+// the normalized code or an error message for the super-admin to surface.
+const COPOINTO_CODE_RE = /^[A-Z2-9]{3}$/;
+function normalizeCopointoCode(raw: unknown): string {
+  return String(raw ?? "").trim().toUpperCase();
+}
+/** Validate a desired code for `cafeId` (omit cafeId when adding). Returns an
+ *  Arabic error string when invalid/taken, or null when OK. */
+function validateCopointoCode(code: string, cafeId: string | null): string | null {
+  if (!COPOINTO_CODE_RE.test(code)) {
+    return "كود Copointo يجب أن يكون 3 أحرف/أرقام (A-Z، 2-9)";
+  }
+  const taken = cafes.some(
+    c => c.id !== cafeId && (c.copointoCode ?? "").toUpperCase() === code,
+  );
+  if (taken) return "هذا الكود مستخدم من قبل كوفي آخر، اختر كوداً مختلفاً";
+  return null;
+}
+
 // Same on-disk reels folder used by the cafe-dashboard upload route.
 // Kept here so the super-admin "delete cafe" path can clean up legacy
 // `file:` reel uploads without round-tripping through the cafe routes.
@@ -62,6 +83,17 @@ router.post("/cafes", async (req, res) => {
   if (!name || !ownerPhone || !openTime || !closeTime || !managerPassword) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+
+  // Copointo Code (optional, per-cafe referral). Only validate the code when
+  // the feature is enabled AND a code was supplied; an empty code with the
+  // toggle on just leaves the cafe without a usable code (effectively off).
+  const codeEnabled = req.body.copointoCodeEnabled === true;
+  const code = normalizeCopointoCode(req.body.copointoCode);
+  if (codeEnabled && code) {
+    const codeErr = validateCopointoCode(code, null);
+    if (codeErr) return res.status(409).json({ error: codeErr });
+  }
+
   const today = new Date().toISOString().split("T")[0];
   const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
   const finalAddress = address || "عُمان";
@@ -102,6 +134,8 @@ router.post("/cafes", async (req, res) => {
     address: finalAddress,
     lat: finalLat,
     lng: finalLng,
+    copointoCodeEnabled: codeEnabled,
+    copointoCode: codeEnabled ? code : "",
   };
   cafes.push(newCafe);
   // Synchronous flush — without this the new cafe lives only in memory
@@ -144,6 +178,28 @@ router.patch("/cafes/:id", async (req, res): Promise<any> => {
     cafe.subscriptionAmount = Number(b.subscriptionAmount);
   }
   if (Array.isArray(b.tags)) cafe.tags = b.tags;
+
+  // Copointo Code (per-cafe referral). Only touched when the client actually
+  // sends the toggle, so older clients that omit it leave the code untouched.
+  if (typeof b.copointoCodeEnabled === "boolean") {
+    if (b.copointoCodeEnabled) {
+      const code = normalizeCopointoCode(b.copointoCode);
+      if (code) {
+        const codeErr = validateCopointoCode(code, cafe.id);
+        if (codeErr) return res.status(409).json({ error: codeErr });
+        cafe.copointoCode = code;
+      } else {
+        cafe.copointoCode = "";
+      }
+      cafe.copointoCodeEnabled = true;
+    } else {
+      // Disabled — keep the stored code string but stop honoring it. (We clear
+      // it so the unique-code pool frees up immediately.)
+      cafe.copointoCodeEnabled = false;
+      cafe.copointoCode = "";
+    }
+  }
+
   // Images — empty string from the client means "clear it".
   if (typeof b.logo  === "string") cafe.logo  = b.logo;
   if (typeof b.image === "string") cafe.image = b.image;

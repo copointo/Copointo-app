@@ -36,7 +36,7 @@ import reelsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_09_51_PM_178
 import barcodeTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_12_59_PM_1780269184354.png";
 import vouchersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_13_55_PM_1780269239920.png";
 
-type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers";
+type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers" | "copointo";
 
 // ── Bell sound (Web Audio API — repeats for ~3s) ─────────────
 function playSyntheticBell() {
@@ -389,6 +389,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"reels",     label:"Copointo ريلز",     icon: Video            },
   { id:"barcode",   label:"الباركود",          icon: QrCode           },
   { id:"vouchers",  label:"القسائم الشرائية",  icon: Gift             },
+  { id:"copointo",  label:"كود Copointo",       icon: Tag              },
 ];
 
 // Tabs that use a custom image as their button face (instead of a lucide icon).
@@ -6207,6 +6208,7 @@ export default function CafeDashboardPage() {
         {tab === "reels"     && <ReelsTab     id={id} />}
         {tab === "barcode"   && <BarcodeTab   id={id} cafeName={cafe?.name} />}
         {tab === "vouchers"  && <VouchersTab  id={id} cafeName={cafe?.name} />}
+        {tab === "copointo"  && <CopointoCodeTab id={id} />}
       </div>
 
     </div>
@@ -7475,6 +7477,109 @@ function VouchersTab({ id, cafeName }: { id: string; cafeName?: string }) {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Copointo Code Tab (كود Copointo — per-cafe referral) ──────────
+// Read-only settlement report: every coin purchase made with this cafe's code
+// earns the cafe a 10% commission (in OMR), billed monthly. Buyers get +20%
+// bonus coins at the same price. Demo/showcase redemptions are filtered server-
+// side so the numbers here are real money owed.
+function CopointoCodeTab({ id }: { id: string }) {
+  const [data, setData]       = useState<{
+    redemptions: any[]; monthCommission: number; monthCount: number; totalCount: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.copointoRedemptions(id)
+      .then(d => setData(d))
+      .catch(() => setData({ redemptions: [], monthCommission: 0, monthCount: 0, totalCount: 0 }))
+      .finally(() => setLoading(false));
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  const platformLabel = (p: string) =>
+    p === "ios" ? "آيفون" : p === "android" ? "أندرويد" : "ويب";
+
+  const totalCommission = (data?.redemptions ?? [])
+    .reduce((s, r) => s + (Number(r.commission) || 0), 0);
+
+  return (
+    <div className="dash-stagger space-y-5">
+      {/* Summary header */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatBox label="عمولة هذا الشهر"   value={`${(data?.monthCommission ?? 0).toFixed(3)} OMR`} Icon={Percent} />
+        <StatBox label="عمليات هذا الشهر"  value={data?.monthCount ?? 0}                           Icon={Tag} />
+        <StatBox label="إجمالي العمليات"   value={data?.totalCount ?? 0}                           Icon={CheckCircle} />
+        <StatBox label="إجمالي العمولة"    value={`${totalCommission.toFixed(3)} OMR`}             Icon={Wallet} />
+      </div>
+
+      {/* Explainer */}
+      <Card className="p-4 text-sm text-muted-foreground leading-relaxed">
+        عند شراء أي زبون للعملات باستخدام كود الكوفي، يحصل الزبون على <span className="text-primary font-bold">+20% عملات إضافية</span> بنفس السعر،
+        ويحصل الكوفي على <span className="text-primary font-bold">عمولة 10%</span> من قيمة الشراء. تُحتسب العمولة شهرياً وتُسوّى في نهاية كل شهر.
+      </Card>
+
+      {loading ? <Loader /> : (data?.redemptions.length ?? 0) === 0 ? (
+        <Card className="p-8 text-center text-muted-foreground text-sm">
+          لا توجد عمليات شراء عبر الكود حتى الآن.
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {data!.redemptions.map(r => (
+            <Card key={r.id} className="p-5">
+              <div className="flex items-start gap-4 flex-wrap">
+                {/* Commission badge */}
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#E8B86D] to-[#B8884A] text-black flex flex-col items-center justify-center shrink-0">
+                  <Percent size={18} />
+                  <div className="text-sm font-bold leading-tight mt-0.5">{Number(r.commission).toFixed(3)}</div>
+                  <div className="text-[9px] font-bold opacity-70">OMR</div>
+                </div>
+
+                {/* Details */}
+                <div className="flex-1 min-w-[240px] space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/15 text-primary">
+                      كود {r.code}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-input text-muted-foreground">
+                      {platformLabel(r.platform)}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {new Date(r.createdAt).toLocaleString("ar-OM")}
+                    </span>
+                  </div>
+
+                  <div className="grid sm:grid-cols-3 gap-2 text-sm">
+                    <div className="bg-input/50 rounded-lg p-2.5">
+                      <div className="text-[10px] text-muted-foreground mb-0.5">الزبون</div>
+                      <div className="font-semibold text-foreground">{r.buyerName || "—"}</div>
+                      {!!r.buyerPhone && <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">{r.buyerPhone}</div>}
+                    </div>
+                    <div className="bg-input/50 rounded-lg p-2.5">
+                      <div className="text-[10px] text-muted-foreground mb-0.5">العملات</div>
+                      <div className="font-semibold text-foreground">{Number(r.coinsTotal).toLocaleString("en-US")}</div>
+                      <div className="text-xs text-green-400 mt-0.5">+{Number(r.coinsBonus).toLocaleString("en-US")} مكافأة</div>
+                    </div>
+                    <div className="bg-input/50 rounded-lg p-2.5">
+                      <div className="text-[10px] text-muted-foreground mb-0.5">قيمة الشراء</div>
+                      <div className="font-semibold text-foreground">{Number(r.priceOmr).toFixed(3)} OMR</div>
+                      <div className="text-xs text-primary mt-0.5">عمولتك: {Number(r.commission).toFixed(3)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+
+          <p className="text-center text-[11px] text-muted-foreground pt-1">
+            تُحتسب العمولة وتُسوّى شهرياً.
+          </p>
         </div>
       )}
     </div>

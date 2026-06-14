@@ -6,6 +6,13 @@ export interface Cafe {
   website: string;
   createdAt: string; rating: number; tags: string[]; address: string; image: string;
   lat?: number; lng?: number;
+  /** Copointo Code (per-cafe referral). When enabled, the cafe has a short
+   *  3-character code customers can enter when buying coins: the buyer gets a
+   *  +20% coin bonus (same price) and the cafe earns a 10% commission settled
+   *  monthly (see CopointoRedemption). Code is stored UPPER-CASE and is unique
+   *  across all cafes (case-insensitive). */
+  copointoCodeEnabled?: boolean;
+  copointoCode?: string;
   /** When true, this row is part of the "Copointo" showcase/demo bundle and
    *  must be hidden from every endpoint unless the requesting user is the
    *  showcase user (see showcase-seed.ts). */
@@ -285,6 +292,65 @@ export interface Payment {
   paidAt?: string | null;
 }
 export const payments: Payment[] = [];
+
+// ─── Copointo Code redemptions (per-cafe referral) ──────────────────────
+/** One row per coin purchase made with a cafe's Copointo Code. The buyer
+ *  always pays the normal price; the bonus (+20% coins) is granted on top
+ *  client-side, and the cafe earns a 10% commission that Copointo settles
+ *  with the cafe monthly. Coins live on the device, so this collection is the
+ *  authoritative settlement ledger the cafe dashboard reads. The server
+ *  recomputes `coinsBonus`/`commission` from trusted rates so the report never
+ *  trusts client math. Amounts are reported in OMR (Oman's currency). */
+export interface CopointoRedemption {
+  id: string;
+  cafeId: string;
+  /** Snapshot of cafe name + code at redemption time (cafe may rename later). */
+  cafeName: string;
+  code: string;
+  userId?: string | null;
+  buyerName?: string | null;
+  buyerPhone?: string | null;
+  /** Coins the package normally grants (before the referral bonus). */
+  coinsBase: number;
+  /** +20% bonus coins the buyer received on top (server-computed). */
+  coinsBonus: number;
+  /** coinsBase + coinsBonus — what actually landed in the buyer's balance. */
+  coinsTotal: number;
+  /** Package list price in USD (shown in-app) — for reference only. */
+  priceUsd?: number | null;
+  /** Price in OMR used as the commission base. */
+  priceOmr: number;
+  /** 10% of priceOmr (server-computed) — the cafe's settlement amount. */
+  commission: number;
+  /** "web" (OMPay) | "ios" | "android" (store IAP). */
+  platform: string;
+  /** Idempotency key: OMPay paymentId (web) or store transactionId (native).
+   *  Used to reject replays so one purchase can't be settled twice. */
+  paymentRef?: string | null;
+  /** Hidden from real cafes when the buyer is a showcase/demo viewer. */
+  showcaseOnly?: boolean;
+  createdAt: string;
+}
+export const copointoRedemptions: CopointoRedemption[] = [];
+
+/** Copointo Code economics — server-authoritative so neither the buyer's app
+ *  nor the cafe dashboard can fudge the numbers. */
+export const COPOINTO_CODE_BONUS_RATE      = 0.20; // +20% coins for the buyer
+export const COPOINTO_CODE_COMMISSION_RATE = 0.10; // 10% of price to the cafe
+
+/** Coin packages — MUST mirror PACKS + USD_TO_OMR in copointo/app/buy-coins.tsx.
+ *  Keyed by base coins so the redeem endpoint can derive the OMR commission base
+ *  from a trusted price instead of whatever the client posts. Change both sides
+ *  together. */
+export const COPOINTO_USD_TO_OMR = 0.384;
+export const COPOINTO_COIN_PACKS: Record<number, number /* priceUsd */> = {
+  500: 0.99,
+  1500: 4.99,
+  4500: 9.99,
+  12500: 19.99,
+  30000: 49.99,
+  80000: 99.99,
+};
 
 export interface FreeCoffee {
   id: string;
@@ -735,7 +801,7 @@ const COLLECTIONS: Record<string, any[]> = {
   inventoryItems, reels, reelLikes, reelComments, reelViews, broadcasts,
   usernameRegistry, cafeRatings, friendRequests, friendships, chatMessages,
   reports, coinGifts, giftVouchers, pushTokens, webPushSubscriptions, monthlySeasons,
-  communities, communityInvites, progressAdjustments, payments,
+  communities, communityInvites, progressAdjustments, payments, copointoRedemptions,
 };
 const COLLECTION_KEYS = Object.keys(COLLECTIONS);
 
@@ -1134,6 +1200,7 @@ export function purgeCafeData(id: string): boolean {
   purgeBy(inventoryItems);
   purgeBy(cafeRatings);
   purgeBy(giftVouchers);
+  purgeBy(copointoRedemptions);
 
   // invoiceTemplates uses cafeId but the row id is `${cafeId}|${type}`,
   // so a straight cafeId scan still works.

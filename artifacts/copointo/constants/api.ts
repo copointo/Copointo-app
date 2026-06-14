@@ -136,6 +136,71 @@ export async function getPaymentStatus(
  *  browser/WebView detects this URL to know the shopper finished. */
 export const PAYMENT_RETURN_URL = `${API_BASE}/payments/return`;
 
+// ─── Copointo Code (per-cafe referral) ──────────────────────────────────
+export interface CopointoCodeValidation {
+  valid: boolean;
+  cafeId?: string;
+  cafeName?: string;
+  bonusPercent?: number;
+  error?: string;
+}
+
+/** Check a Copointo Code before paying. Resolves the owning cafe (enabled +
+ *  active only). Never throws — returns `{ valid:false }` on any error so the
+ *  buy flow can keep going without a code. */
+export async function validateCopointoCode(
+  code: string,
+  userId?: string | null,
+): Promise<CopointoCodeValidation> {
+  try {
+    const qs = new URLSearchParams({ code, userId: userId ?? "" }).toString();
+    const res = await fetchWithTimeout(`${API_BASE}/copointo-code/validate?${qs}`);
+    if (!res.ok) return { valid: false, error: `validate error ${res.status}` };
+    return (await res.json()) as CopointoCodeValidation;
+  } catch (e: any) {
+    return { valid: false, error: String(e?.message ?? e) };
+  }
+}
+
+export interface RedeemCopointoCodeInput {
+  code: string;
+  userId?: string | null;
+  buyerName?: string | null;
+  buyerPhone?: string | null;
+  coinsBase: number;
+  priceUsd?: number | null;
+  priceOmr: number;
+  platform?: "web" | "ios" | "android";
+  /** OMPay paymentId (web) / store transactionId (native) — server dedupes on it
+   *  so a replay of the same purchase can't double-count the cafe's commission. */
+  paymentRef?: string | null;
+}
+
+/** Record a Copointo Code redemption AFTER a successful coin purchase. The
+ *  server recomputes the bonus/commission authoritatively; coins are credited
+ *  on-device. Best-effort: never throws so a logging failure can't block the
+ *  already-completed purchase. */
+export async function redeemCopointoCode(
+  input: RedeemCopointoCodeInput,
+): Promise<{ ok: boolean; coinsBonus?: number; coinsTotal?: number; error?: string }> {
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/copointo-code/redeem`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      let error = `redeem error ${res.status}`;
+      try { const j = await res.json(); if (j?.error) error = j.error; } catch {}
+      return { ok: false, error };
+    }
+    const j = (await res.json()) as { ok: boolean; redemption?: { coinsBonus: number; coinsTotal: number } };
+    return { ok: !!j.ok, coinsBonus: j.redemption?.coinsBonus, coinsTotal: j.redemption?.coinsTotal };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
+
 /** Resolve a chat-media reference to a fetchable URL.
  *  - `gcs:chat-media/<uuid>.<ext>` → `${API_BASE}/chat-media/<encoded>/stream`
  *  - anything else (http, data, file) is returned as-is.

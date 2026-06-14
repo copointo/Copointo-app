@@ -12,13 +12,14 @@ interface Cafe {
   subscriptionStart: string; subscriptionEnd: string;
   website: string;
   rating: number; address: string; tags: string[]; lat?: number; lng?: number;
+  copointoCodeEnabled?: boolean; copointoCode?: string;
 }
 
 const today = new Date().toISOString().split("T")[0];
 const nextYear = new Date(); nextYear.setFullYear(nextYear.getFullYear() + 1);
 const nextYearStr = nextYear.toISOString().split("T")[0];
 
-const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, subscriptionAmount: "300", website: "", lat: "", lng: "" };
+const EMPTY = { name: "", ownerName: "", ownerPhone: "", logo: "", image: "", openTime: "07:00", closeTime: "23:00", managerPassword: "", address: "", tags: "", subscriptionStart: today, subscriptionEnd: nextYearStr, subscriptionAmount: "300", website: "", lat: "", lng: "", copointoCodeEnabled: false, copointoCode: "" };
 
 // Public production domain — all generated links (QRs, copy-link, print) are
 // derived from this fixed domain, NOT from window.location.origin, so the
@@ -237,6 +238,8 @@ export default function CafesPage() {
       // Google Maps URL with embedded coordinates (parseLatLng below).
       lat:                "",
       lng:                "",
+      copointoCodeEnabled: !!c.copointoCodeEnabled,
+      copointoCode:        (c.copointoCode ?? "").toUpperCase(),
     });
     setLogoPreview(c.logo  ?? "");
     setCoverPreview(c.image ?? "");
@@ -259,6 +262,12 @@ export default function CafesPage() {
       const coords = (!form.lat || !form.lng) ? parseLatLng(form.website) : null;
       const lat = coords?.lat ?? form.lat;
       const lng = coords?.lng ?? form.lng;
+      // Copointo Code: normalize to uppercase; when the toggle is off, send an
+      // empty code so the server clears any previously-saved code.
+      const copointoCodeEnabled = !!form.copointoCodeEnabled;
+      const copointoCode = copointoCodeEnabled
+        ? String(form.copointoCode ?? "").trim().toUpperCase()
+        : "";
       const payload = {
         ...form,
         lat,
@@ -267,6 +276,8 @@ export default function CafesPage() {
         subscriptionStart: form.subscriptionStart,
         subscriptionEnd:   form.subscriptionEnd,
         subscriptionAmount: Number(form.subscriptionAmount) || 0,
+        copointoCodeEnabled,
+        copointoCode,
       };
       if (isEditing && editingId) {
         // Don't send empty password — server treats empty as "keep existing".
@@ -702,6 +713,49 @@ export default function CafesPage() {
                       />
                       <span className="text-sm font-bold text-primary whitespace-nowrap">ريال عماني / OMR</span>
                     </div>
+                  </div>
+
+                  {/* Copointo Code — per-cafe referral */}
+                  <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-foreground space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-primary mb-1">🎟️ كود Copointo</p>
+                        <p className="text-muted-foreground text-xs">
+                          كود من 3 خانات يمنح الزبون +20% عملات إضافية بنفس السعر، ويحصل الكوفي على عمولة 10% تُسوّى شهرياً.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, copointoCodeEnabled: !f.copointoCodeEnabled }))}
+                        className={`shrink-0 w-12 h-7 rounded-full transition-colors relative ${form.copointoCodeEnabled ? "bg-primary" : "bg-muted"}`}
+                        aria-pressed={form.copointoCodeEnabled}
+                      >
+                        <span
+                          className={`absolute top-0.5 w-6 h-6 rounded-full bg-white transition-all ${form.copointoCodeEnabled ? "left-0.5" : "right-0.5"}`}
+                        />
+                      </button>
+                    </div>
+                    {form.copointoCodeEnabled && (
+                      <input
+                        type="text"
+                        maxLength={3}
+                        value={form.copointoCode}
+                        onChange={e =>
+                          setForm(f => ({
+                            ...f,
+                            copointoCode: e.target.value.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 3),
+                          }))
+                        }
+                        placeholder="مثال: AB7"
+                        dir="ltr"
+                        className="w-full bg-input border border-border rounded-xl px-3 py-2.5 text-center text-lg font-bold tracking-[0.4em] text-foreground focus:outline-none focus:ring-2 focus:ring-primary uppercase"
+                      />
+                    )}
+                    {form.copointoCodeEnabled && (
+                      <p className="text-muted-foreground text-[11px]">
+                        أحرف إنجليزية كبيرة وأرقام فقط (بدون 0 و 1 و O و I لتفادي الالتباس).
+                      </p>
+                    )}
                   </div>
                 </>
               )}

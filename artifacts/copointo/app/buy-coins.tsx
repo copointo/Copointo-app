@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { createPaymentSession, getPaymentStatus } from "../constants/api";
+import { createPaymentSession, getPaymentStatus, validateCopointoCode, redeemCopointoCode } from "../constants/api";
 import { useApp } from "../context/AppContext";
 import { useCoins } from "../hooks/useCoins";
 import { coinsForPackage, useSubscription, type PurchasesPackage } from "../lib/revenuecat";
@@ -44,6 +44,14 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 const USD_TO_OMR = 0.384;
 const usdToOmr = (usd: number) => Math.round(usd * USD_TO_OMR * 1000) / 1000;
 const fmtOmr = (omr: number) => omr.toFixed(3);
+
+// Copointo Code: a valid per-cafe code grants the buyer +20% bonus coins at the
+// SAME price. Coins are credited on-device, so the bonus is applied here at
+// credit time; the server independently recomputes it for the cafe's 10%
+// commission ledger. Keep this in lockstep with COPOINTO_CODE_BONUS_RATE on the
+// server.
+const CODE_BONUS_RATE = 0.20;
+const codeBonusCoins = (base: number) => Math.round(base * CODE_BONUS_RATE);
 
 // A growing pile/stack of coins per tier
 function CoinVisual({ tier }: { tier: Pack["tier"] }) {
@@ -201,19 +209,30 @@ function AnimatedTile({ p, index, busy, onPress, priceLabel, disabled }: { p: Pa
 // returns from the gateway.
 const PENDING_KEY = "copointo:pendingCoinPayment";
 
-function savePendingPayment(paymentId: string, token: string, coins: number) {
+// Optional Copointo-Code context carried through the full-page OMPay navigation
+// so the +20% bonus + settlement log can be applied when we return and credit.
+interface PendingRedeemCtx { code: string; priceUsd: number | null; priceOmr: number; }
+
+function savePendingPayment(
+  paymentId: string,
+  token: string,
+  coins: number,
+  redeem?: PendingRedeemCtx | null,
+) {
   if (typeof window === "undefined" || !window.localStorage) return;
   try {
     window.localStorage.setItem(
       PENDING_KEY,
-      JSON.stringify({ paymentId, token, coins, ts: Date.now() }),
+      JSON.stringify({ paymentId, token, coins, redeem: redeem ?? null, ts: Date.now() }),
     );
   } catch {
     /* storage unavailable (private mode) — return polling just won't resume */
   }
 }
 
-function loadPendingPayment(): { paymentId: string; token: string; coins: number } | null {
+function loadPendingPayment():
+  | { paymentId: string; token: string; coins: number; redeem: PendingRedeemCtx | null }
+  | null {
   if (typeof window === "undefined" || !window.localStorage) return null;
   try {
     const raw = window.localStorage.getItem(PENDING_KEY);
@@ -222,7 +241,11 @@ function loadPendingPayment(): { paymentId: string; token: string; coins: number
     if (!o?.paymentId || !o?.token || typeof o?.coins !== "number") return null;
     // Ignore stale markers (> 1 hour) so an abandoned payment never resumes.
     if (o.ts && Date.now() - o.ts > 60 * 60 * 1000) return null;
-    return { paymentId: o.paymentId, token: o.token, coins: o.coins };
+    const redeem: PendingRedeemCtx | null =
+      o.redeem && typeof o.redeem.code === "string"
+        ? { code: o.redeem.code, priceUsd: o.redeem.priceUsd ?? null, priceOmr: Number(o.redeem.priceOmr) || 0 }
+        : null;
+    return { paymentId: o.paymentId, token: o.token, coins: o.coins, redeem };
   } catch {
     return null;
   }
@@ -274,6 +297,35 @@ export function BuyCoinsPanel() {
   const activePoll = useRef<string | null>(null);
   const credited = useRef<Set<string>>(new Set());
 
+  // Copointo Code (per-cafe referral). Applied once for the session; grants the
+  // buyer +20% bonus coins at the same price. Stored in a ref too so the web
+  // OMPay return-handler (which re-reads from the marker) and any closures see
+  // the latest value without stale state.
+  const [appliedCode, setAppliedCode] = useState<{ code: string; cafeName: string } | null>(null);
+  const [codeModal, setCodeModal] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeChecking, setCodeChecking] = useState(false);
+  const [codeError, setCodeError] = useState("");
+
+  const applyCode = async () => {
+    const code = codeInput.trim().toUpperCase();
+    if (code.length !== 3) { setCodeError("الكود مكوّن من 3 خانات"); return; }
+    setCodeChecking(true);
+    setCodeError("");
+    const r = await validateCopointoCode(code, user?.id ?? null);
+    setCodeChecking(false);
+    if (!r.valid || !r.cafeId) {
+      setCodeError("كود غير صالح، تأكد من الكود وحاول مجدداً");
+      return;
+    }
+    setAppliedCode({ code, cafeName: r.cafeName ?? "" });
+    setCodeModal(false);
+    setCodeInput("");
+    setCodeError("");
+  };
+
+  const clearCode = () => { setAppliedCode(null); setCodeInput(""); setCodeError(""); };
+
   // Map a coin pack to its live RevenueCat package (by the "coins_<n>"
   // identifier seeded in RevenueCat). Returns null in Expo Go preview / when
   // offerings haven't loaded.
@@ -290,6 +342,44 @@ export function BuyCoinsPanel() {
     await addCoins(coins);
     return true;
   };
+
+  // Credit a completed purchase, applying the Copointo-Code +20% bonus when a
+  // code is in play, then best-effort logging the redemption for the cafe's
+  // settlement report. `dedupeKey` null → always credit (store gave no txn id);
+  // otherwise credit at most once. Returns the breakdown for the success alert.
+  const creditWithBonus = async (
+    dedupeKey: string | null,
+    baseCoins: number,
+    redeemCtx: { code: string; priceUsd: number | null; priceOmr: number; platform: "web" | "ios" | "android" } | null,
+  ): Promise<{ credited: boolean; total: number; bonus: number }> => {
+    const bonus = redeemCtx ? codeBonusCoins(baseCoins) : 0;
+    const total = baseCoins + bonus;
+    const credited = dedupeKey
+      ? await creditOnce(dedupeKey, total)
+      : (await addCoins(total), true);
+    // Only log the redemption on the FIRST credit so a re-credit attempt can't
+    // double-count the cafe's commission.
+    if (credited && redeemCtx) {
+      redeemCopointoCode({
+        code: redeemCtx.code,
+        userId: user?.id ?? null,
+        buyerName: user?.name ?? null,
+        buyerPhone: user?.phone ?? null,
+        coinsBase: baseCoins,
+        priceUsd: redeemCtx.priceUsd,
+        priceOmr: redeemCtx.priceOmr,
+        platform: redeemCtx.platform,
+        // Server dedupes on this so a replay can't double-count the commission.
+        paymentRef: dedupeKey,
+      }).catch(() => { /* settlement log is best-effort; coins already credited */ });
+    }
+    return { credited, total, bonus };
+  };
+
+  const successMsg = (total: number, bonus: number) =>
+    bonus > 0
+      ? `تم إضافة ${fmt(total)} عملة إلى رصيدك (منها ${fmt(bonus)} مكافأة كود +20%).`
+      : `تم إضافة ${fmt(total)} عملة إلى رصيدك.`;
 
   useEffect(() => {
     Animated.parallel([
@@ -313,6 +403,7 @@ export function BuyCoinsPanel() {
     coins: number,
     abortOnFailure = true,
     maxMs = 4 * 60 * 1000,
+    redeemCtx: { code: string; priceUsd: number | null; priceOmr: number; platform: "web" | "ios" | "android" } | null = null,
   ) => {
     if (activePoll.current === paymentId) return; // a loop is already running
     activePoll.current = paymentId;
@@ -330,12 +421,12 @@ export function BuyCoinsPanel() {
       }
       if (pollCancel.current) return stop();
       if (status === "paid") {
-        const didCredit = await creditOnce(paymentId, coins);
+        const { credited: didCredit, total, bonus } = await creditWithBonus(paymentId, coins, redeemCtx);
         clearPendingPayment();
         setVerifying(false);
         setBusyId(null);
         if (didCredit) {
-          Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(coins)} عملة إلى رصيدك.`);
+          Alert.alert("تم الدفع ✅", successMsg(total, bonus));
         }
         return stop();
       }
@@ -371,7 +462,10 @@ export function BuyCoinsPanel() {
     if (!IS_WEB) return;
     const pending = loadPendingPayment();
     if (pending) {
-      startPolling(pending.paymentId, pending.token, pending.coins, true, 90 * 1000);
+      const redeemCtx = pending.redeem
+        ? { code: pending.redeem.code, priceUsd: pending.redeem.priceUsd, priceOmr: pending.redeem.priceOmr, platform: "web" as const }
+        : null;
+      startPolling(pending.paymentId, pending.token, pending.coins, true, 90 * 1000, redeemCtx);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -415,11 +509,21 @@ export function BuyCoinsPanel() {
       // stable transaction id we dedupe on it (guards any double-resolution of
       // the same transaction). Concurrent double-taps are already blocked by
       // `busyId` + the confirm modal, so a missing id still credits exactly once.
-      const credited = result.transactionId
-        ? await creditOnce(result.transactionId, pending.pack.coins)
-        : (await addCoins(pending.pack.coins), true);
+      const redeemCtx = appliedCode
+        ? {
+            code: appliedCode.code,
+            priceUsd: pending.pack.price,
+            priceOmr: usdToOmr(pending.pack.price),
+            platform: (Platform.OS === "ios" ? "ios" : "android") as "ios" | "android",
+          }
+        : null;
+      const { credited, total, bonus } = await creditWithBonus(
+        result.transactionId ?? null,
+        pending.pack.coins,
+        redeemCtx,
+      );
       if (credited) {
-        Alert.alert("تم الدفع ✅", `تم إضافة ${fmt(pending.pack.coins)} عملة إلى رصيدك.`);
+        Alert.alert("تم الدفع ✅", successMsg(total, bonus));
       }
     } catch (e: any) {
       Alert.alert("تعذّر الدفع", String(e?.message ?? e));
@@ -466,8 +570,15 @@ export function BuyCoinsPanel() {
       if (!payment.checkoutUrl) throw new Error("تعذّر فتح صفحة الدفع");
 
       // Persist so the credit survives the full-page navigation to OMPay; the
-      // page we return to picks the marker back up and credits the coins.
-      savePendingPayment(payment.id, token, p.coins);
+      // page we return to picks the marker back up and credits the coins. Carry
+      // the Copointo Code (if applied) so the +20% bonus + settlement log are
+      // applied on return.
+      savePendingPayment(
+        payment.id,
+        token,
+        p.coins,
+        appliedCode ? { code: appliedCode.code, priceUsd: p.price, priceOmr: usdToOmr(p.price) } : null,
+      );
 
       if (isEmbedded()) {
         // In-editor preview only: the framed app can't navigate to the gateway,
@@ -503,6 +614,31 @@ export function BuyCoinsPanel() {
       <Animated.Text style={[styles.intro, { opacity: introOpacity, transform: [{ translateY: introTranslate }] }]}>
         اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً
       </Animated.Text>
+
+      {/* Copointo Code banner — applied for the whole session before paying */}
+      {appliedCode ? (
+        <View style={styles.codeApplied}>
+          <View style={styles.codeAppliedInfo}>
+            <Text style={styles.codeAppliedBadge}>كود {appliedCode.code} · +20% عملات</Text>
+            {!!appliedCode.cafeName && (
+              <Text style={styles.codeAppliedCafe}>من {appliedCode.cafeName}</Text>
+            )}
+          </View>
+          <TouchableOpacity onPress={clearCode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x-circle" size={20} color={PRIMARY} />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.codePrompt}
+          onPress={() => { setCodeError(""); setCodeModal(true); }}
+          activeOpacity={0.85}
+        >
+          <Feather name="tag" size={16} color={PRIMARY} />
+          <Text style={styles.codePromptText}>هل لديك كود Copointo؟ احصل على +20% عملات</Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.grid}>
         {PACKS.map((p, i) => {
           // On native, the price comes only from the live store package — never
@@ -561,6 +697,47 @@ export function BuyCoinsPanel() {
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setPendingPack(null)}>
               <Text style={styles.webPayCancel}>إلغاء</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Copointo Code entry */}
+      <Modal
+        visible={codeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCodeModal(false)}
+      >
+        <View style={styles.verifyOverlay}>
+          <View style={styles.webPayCard}>
+            <Text style={styles.webPayTitle}>كود Copointo</Text>
+            <Text style={styles.webPaySub}>
+              أدخل كود الكوفي المكوّن من 3 خانات لتحصل على +20% عملات إضافية بنفس السعر.
+            </Text>
+            <TextInput
+              value={codeInput}
+              onChangeText={(t) => setCodeInput(t.toUpperCase().replace(/[^A-Z2-9]/g, "").slice(0, 3))}
+              placeholder="ABC"
+              placeholderTextColor="rgba(232,184,109,0.4)"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={3}
+              style={styles.codeInput}
+            />
+            {!!codeError && <Text style={styles.codeErrorText}>{codeError}</Text>}
+            <TouchableOpacity
+              style={[styles.webPayBtn, codeChecking && { opacity: 0.6 }]}
+              onPress={applyCode}
+              disabled={codeChecking}
+              activeOpacity={0.85}
+            >
+              {codeChecking
+                ? <ActivityIndicator color="#000" size="small" />
+                : <Text style={styles.webPayBtnText}>تطبيق الكود</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setCodeModal(false); setCodeError(""); }}>
+              <Text style={styles.webPayCancel}>تخطّي</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -713,4 +890,26 @@ const styles = StyleSheet.create({
   },
   webPayBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#000" },
   webPayCancel: { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.5)", paddingTop: 2 },
+
+  // Copointo Code banner + entry
+  codePrompt: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "rgba(232,184,109,0.08)", borderWidth: 1, borderColor: BORDER,
+    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
+  },
+  codePromptText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "center" },
+  codeApplied: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(232,184,109,0.12)", borderWidth: 1, borderColor: PRIMARY,
+    borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14, gap: 10,
+  },
+  codeAppliedInfo: { flex: 1, alignItems: "flex-end" },
+  codeAppliedBadge: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "right" },
+  codeAppliedCafe: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", textAlign: "right", marginTop: 2 },
+  codeInput: {
+    alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: BORDER,
+    borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, color: "#FFF",
+    fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center", letterSpacing: 8,
+  },
+  codeErrorText: { fontSize: 12, fontFamily: "Inter_400Regular", color: "#FF8A8A", textAlign: "center" },
 });
