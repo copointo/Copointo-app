@@ -378,34 +378,37 @@ export function BuyCoinsPanel() {
   };
 
   // Credit a completed purchase, applying the Copointo-Code +20% bonus when a
-  // code is in play, then best-effort logging the redemption for the cafe's
-  // settlement report. `dedupeKey` null → always credit (store gave no txn id);
-  // otherwise credit at most once. Returns the breakdown for the success alert.
+  // code is in play, then best-effort logging EVERY purchase (code or not) to
+  // the server's single purchase ledger (powers the super-admin store report
+  // and the cafe settlement). `ctx` is always provided; `ctx.code` is "" for a
+  // plain store purchase. `dedupeKey` null → always credit (store gave no txn
+  // id); otherwise credit at most once. Returns the breakdown for the alert.
   const creditWithBonus = async (
     dedupeKey: string | null,
     baseCoins: number,
-    redeemCtx: { code: string; priceUsd: number | null; priceOmr: number; platform: "web" | "ios" | "android" } | null,
+    ctx: { code: string | null; priceUsd: number | null; priceOmr: number; platform: "web" | "ios" | "android" },
   ): Promise<{ credited: boolean; total: number; bonus: number }> => {
-    const bonus = redeemCtx ? codeBonusCoins(baseCoins) : 0;
+    const hasCode = !!ctx.code;
+    const bonus = hasCode ? codeBonusCoins(baseCoins) : 0;
     const total = baseCoins + bonus;
     const credited = dedupeKey
       ? await creditOnce(dedupeKey, total)
       : (await addCoins(total), true);
-    // Only log the redemption on the FIRST credit so a re-credit attempt can't
-    // double-count the cafe's commission.
-    if (credited && redeemCtx) {
+    // Log only on the FIRST credit (and only when we have a payment ref the
+    // server can dedupe on) so a re-credit attempt can't double-count.
+    if (credited && dedupeKey) {
       redeemCopointoCode({
-        code: redeemCtx.code,
+        code: ctx.code ?? "",
         userId: user?.id ?? null,
         buyerName: user?.name ?? null,
         buyerPhone: user?.phone ?? null,
         coinsBase: baseCoins,
-        priceUsd: redeemCtx.priceUsd,
-        priceOmr: redeemCtx.priceOmr,
-        platform: redeemCtx.platform,
-        // Server dedupes on this so a replay can't double-count the commission.
+        priceUsd: ctx.priceUsd,
+        priceOmr: ctx.priceOmr,
+        platform: ctx.platform,
+        // Server dedupes on this so a replay can't double-count the purchase.
         paymentRef: dedupeKey,
-      }).catch(() => { /* settlement log is best-effort; coins already credited */ });
+      }).catch(() => { /* purchase log is best-effort; coins already credited */ });
     }
     return { credited, total, bonus };
   };
@@ -437,7 +440,7 @@ export function BuyCoinsPanel() {
     coins: number,
     abortOnFailure = true,
     maxMs = 4 * 60 * 1000,
-    redeemCtx: { code: string; priceUsd: number | null; priceOmr: number; platform: "web" | "ios" | "android" } | null = null,
+    redeemCtx: { code: string | null; priceUsd: number | null; priceOmr: number; platform: "web" | "ios" | "android" } = { code: null, priceUsd: null, priceOmr: 0, platform: "web" },
   ) => {
     if (activePoll.current === paymentId) return; // a loop is already running
     activePoll.current = paymentId;
@@ -496,9 +499,15 @@ export function BuyCoinsPanel() {
     if (!IS_WEB) return;
     const pending = loadPendingPayment();
     if (pending) {
-      const redeemCtx = pending.redeem
-        ? { code: pending.redeem.code, priceUsd: pending.redeem.priceUsd, priceOmr: pending.redeem.priceOmr, platform: "web" as const }
-        : null;
+      // Always pass a web context so EVERY web purchase is logged (the server
+      // derives the real price from the PAID payment); the code is carried only
+      // when one was applied before checkout.
+      const redeemCtx = {
+        code: pending.redeem?.code ?? null,
+        priceUsd: pending.redeem?.priceUsd ?? null,
+        priceOmr: pending.redeem?.priceOmr ?? 0,
+        platform: "web" as const,
+      };
       startPolling(pending.paymentId, pending.token, pending.coins, true, 90 * 1000, redeemCtx);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -555,14 +564,14 @@ export function BuyCoinsPanel() {
       // stable transaction id we dedupe on it (guards any double-resolution of
       // the same transaction). Concurrent double-taps are already blocked by
       // `busyId` + the confirm modal, so a missing id still credits exactly once.
-      const redeemCtx = appliedCode
-        ? {
-            code: appliedCode.code,
-            priceUsd: pending.pack.price,
-            priceOmr: usdToOmr(pending.pack.price),
-            platform: (Platform.OS === "ios" ? "ios" : "android") as "ios" | "android",
-          }
-        : null;
+      // Always pass a context so EVERY native purchase is logged; carry the
+      // code only when one was applied (it drives the +20% bonus + commission).
+      const redeemCtx = {
+        code: appliedCode ? appliedCode.code : null,
+        priceUsd: pending.pack.price,
+        priceOmr: usdToOmr(pending.pack.price),
+        platform: (Platform.OS === "ios" ? "ios" : "android") as "ios" | "android",
+      };
       const { credited, total, bonus } = await creditWithBonus(
         result.transactionId ?? null,
         pending.pack.coins,

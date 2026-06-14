@@ -186,4 +186,12 @@ export const api = {
                                                     req<any>("DELETE", `${C(id)}/reels/${rid}/comments/${cid}`),
   reelsNotifications:  (id: string, since: string) =>
                                                     req<any>("GET",    `${C(id)}/reels-notifications?since=${encodeURIComponent(since)}`),
+
+  // ── Store Purchases (super-admin) ──
+  // View 1: every coin purchase (user data, coins, price, profit).
+  copointoPurchases: () => req<any>("GET", `${A}/copointo-purchases`),
+  // Views 2 & 3: per code-enabled cafe — code purchases, accumulated due, cycle.
+  copointoCafes:     () => req<any>("GET", `${A}/copointo-cafes`),
+  // "تم الدفع": settle a cafe's outstanding due (resets its accumulated amount).
+  settleCopointoCafe: (cafeId: string) => req<any>("POST", `${A}/copointo-cafes/${cafeId}/settle`),
 };

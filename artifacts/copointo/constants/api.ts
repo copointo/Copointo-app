@@ -163,6 +163,8 @@ export async function validateCopointoCode(
 }
 
 export interface RedeemCopointoCodeInput {
+  /** Empty string for a plain Copointo-store purchase (no referral code). The
+   *  server still records it in the single purchase ledger (zero commission). */
   code: string;
   userId?: string | null;
   buyerName?: string | null;

@@ -5,6 +5,7 @@ import {
   cafes, users, broadcasts, chatMessages, friendScope, persistStore, flushNow, reports,
   purgeUserData, purgeCafeData, reels, wipeAllData,
   communities, communityInvites, orders, freeCoffees, progressAdjustments,
+  copointoRedemptions,
   type Cafe, type Broadcast, type ChatMsg, type Report, type ProgressAdjustment,
   type AppUser,
 } from "../store";
@@ -136,6 +137,8 @@ router.post("/cafes", async (req, res) => {
     lng: finalLng,
     copointoCodeEnabled: codeEnabled,
     copointoCode: codeEnabled ? code : "",
+    // Anchor the monthly settlement cycle the moment the code goes live.
+    copointoCodeEnabledAt: codeEnabled ? new Date().toISOString() : undefined,
   };
   cafes.push(newCafe);
   // Synchronous flush — without this the new cafe lives only in memory
@@ -190,6 +193,9 @@ router.patch("/cafes/:id", async (req, res): Promise<any> => {
       if (codeErr) return res.status(409).json({ error: codeErr });
       cafe.copointoCode = code;
       cafe.copointoCodeEnabled = true;
+      // Anchor the monthly settlement cycle the first time the code goes live;
+      // keep the original anchor across later disable / re-enable cycles.
+      if (!cafe.copointoCodeEnabledAt) cafe.copointoCodeEnabledAt = new Date().toISOString();
     } else {
       // Disabled — keep the stored code string but stop honoring it. (We clear
       // it so the unique-code pool frees up immediately.)
@@ -268,6 +274,148 @@ router.delete("/cafes/:id", (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// ── Copointo "Store Purchases" (super-admin) ────────────────────────────
+// Single source: the copointoRedemptions ledger (every coin purchase, code or
+// not). Showcase/demo rows are excluded from all financial views.
+const isReal = (r: { showcaseOnly?: boolean }) => !r.showcaseOnly;
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+// GET /api/admin/copointo-purchases
+// View 1 — "مشتريات المتجر Copointo": EVERY user coin purchase with full buyer
+// details, coins, price, the cafe code used (if any) and Copointo's profit
+// (price minus any cafe commission). Newest first.
+router.get("/copointo-purchases", (_req, res) => {
+  const rows = copointoRedemptions
+    .filter(isReal)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(r => {
+      const commission = r.commission ?? 0;
+      const priceOmr = r.priceOmr ?? 0;
+      return {
+        id: r.id,
+        createdAt: r.createdAt,
+        userId: r.userId ?? null,
+        buyerName: r.buyerName ?? null,
+        buyerPhone: r.buyerPhone ?? null,
+        coinsBase: r.coinsBase ?? 0,
+        coinsBonus: r.coinsBonus ?? 0,
+        coinsTotal: r.coinsTotal ?? 0,
+        priceOmr: round3(priceOmr),
+        priceUsd: r.priceUsd ?? null,
+        code: r.code ?? null,
+        cafeId: r.cafeId ?? null,
+        cafeName: r.cafeName ?? null,
+        commission: round3(commission),
+        // Copointo keeps the whole price on a code-less sale, and price minus
+        // the cafe's 10% on a code sale.
+        profit: round3(priceOmr - commission),
+        platform: r.platform ?? null,
+      };
+    });
+  const totalRevenue = round3(rows.reduce((s, r) => s + r.priceOmr, 0));
+  const totalProfit = round3(rows.reduce((s, r) => s + r.profit, 0));
+  const totalCommission = round3(rows.reduce((s, r) => s + r.commission, 0));
+  res.json({
+    purchases: rows,
+    count: rows.length,
+    totalRevenue,
+    totalProfit,
+    totalCommission,
+  });
+});
+
+// GET /api/admin/copointo-cafes
+// Views 2 & 3 — per code-enabled cafe: its code purchases, the accumulated due
+// (commission since the last settlement), the monthly cycle dates and how many
+// days remain in the current cycle. A cafe is listed if its code is currently
+// enabled OR it still has past code purchases (so dues never disappear when a
+// code is later disabled).
+router.get("/copointo-cafes", (_req, res) => {
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const summaries = cafes
+    .filter(c => !c.showcaseOnly)
+    .map(cafe => {
+      const rows = copointoRedemptions
+        .filter(r => r.cafeId === cafe.id && isReal(r))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      if (!cafe.copointoCodeEnabled && rows.length === 0) return null;
+
+      // Cycle anchor: last settlement if any, else when the code went live, else
+      // the cafe's creation date (legacy cafes enabled before enabledAt existed).
+      const enabledAt = cafe.copointoCodeEnabledAt ?? null;
+      const settledAt = cafe.copointoSettledAt ?? null;
+      const cycleStartIso = settledAt ?? enabledAt ?? cafe.createdAt;
+      const cycleStartMs = Date.parse(cycleStartIso) || now;
+      // Next bill = anchor + 1 calendar month.
+      const nextBill = new Date(cycleStartMs);
+      nextBill.setMonth(nextBill.getMonth() + 1);
+      const nextBillMs = nextBill.getTime();
+      const daysLeft = Math.max(0, Math.ceil((nextBillMs - now) / DAY));
+      const overdue = nextBillMs <= now;
+
+      // Outstanding due = commission for purchases AFTER the cycle anchor.
+      let accumulatedDue = 0;
+      let dueCount = 0;
+      let totalCommission = 0;
+      for (const r of rows) {
+        const c = r.commission ?? 0;
+        totalCommission += c;
+        if (Date.parse(r.createdAt) >= cycleStartMs) {
+          accumulatedDue += c;
+          dueCount += 1;
+        }
+      }
+
+      return {
+        cafeId: cafe.id,
+        cafeName: cafe.name,
+        code: (cafe.copointoCode ?? "").toUpperCase() || null,
+        codeEnabled: !!cafe.copointoCodeEnabled,
+        enabledAt,
+        settledAt,
+        cycleStartAt: cycleStartIso,
+        nextBillAt: nextBill.toISOString(),
+        daysLeft,
+        overdue,
+        accumulatedDue: round3(accumulatedDue),
+        dueCount,
+        totalCommission: round3(totalCommission),
+        purchaseCount: rows.length,
+        purchases: rows.map(r => ({
+          id: r.id,
+          createdAt: r.createdAt,
+          buyerName: r.buyerName ?? null,
+          buyerPhone: r.buyerPhone ?? null,
+          code: r.code ?? null,
+          coinsTotal: r.coinsTotal ?? 0,
+          priceOmr: round3(r.priceOmr ?? 0),
+          commission: round3(r.commission ?? 0),
+          platform: r.platform ?? null,
+        })),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => b.accumulatedDue - a.accumulatedDue);
+
+  const totalDue = round3(summaries.reduce((s, c) => s + c.accumulatedDue, 0));
+  res.json({ cafes: summaries, totalDue, count: summaries.length });
+});
+
+// POST /api/admin/copointo-cafes/:cafeId/settle
+// View 3 — "تم الدفع": records that the cafe's outstanding due was paid out by
+// stamping copointoSettledAt = now. The accumulated due resets to zero (future
+// commission accrues against the new anchor); the full purchase history is
+// preserved.
+router.post("/copointo-cafes/:cafeId/settle", async (req, res): Promise<any> => {
+  const cafe = cafes.find(c => c.id === req.params.cafeId);
+  if (!cafe) return res.status(404).json({ error: "Cafe not found" });
+  cafe.copointoSettledAt = new Date().toISOString();
+  try { await flushNow(); } catch { /* persistStore safety net will retry */ }
+  res.json({ ok: true, settledAt: cafe.copointoSettledAt });
 });
 
 // ── POST /api/admin/wipe-everything ───────

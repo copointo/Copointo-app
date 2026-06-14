@@ -144,16 +144,23 @@ router.get("/copointo-code/validate", (req, res): any => {
   });
 });
 
-// Mobile records a redemption AFTER a successful coin purchase. The server
-// re-validates the code, resolves the cafe, and recomputes the +20% bonus and
-// 10% commission from trusted rates (never the client's math). Coins live on
-// the device, so this row is purely the settlement ledger the cafe reads.
+// Mobile records EVERY successful coin purchase here (with or without a code).
+// This is the single ledger the super-admin "Store Purchases" report reads:
+//   - WITH a valid code  → resolves the cafe, recomputes the +20% bonus and the
+//                          10% commission from trusted rates (never client math).
+//   - WITHOUT a code (or an unresolvable one) → a plain Copointo-store purchase:
+//                          no cafe, no bonus, zero commission — still logged so
+//                          the "all purchases" view is complete.
+// Coins live on the device; this row is purely the reporting/settlement ledger.
 router.post("/copointo-code/redeem", async (req, res): Promise<any> => {
   const b = req.body ?? {};
   const code     = String(b.code ?? "").trim();
   const userId   = String(b.userId ?? "").trim();
-  const cafe = resolveCopointoCafe(code, userId);
-  if (!cafe) return res.status(400).json({ ok: false, error: "كود غير صالح" });
+  // A code is optional now. When present we try to resolve the owning cafe; an
+  // unresolvable code is treated as a code-less purchase (the purchase still
+  // happened — never drop it from the ledger).
+  const cafe = code ? resolveCopointoCafe(code, userId) : null;
+  const hasCode = !!cafe;
 
   const platform = (() => {
     const p = String(b.platform ?? "").trim().toLowerCase();
@@ -226,16 +233,20 @@ router.post("/copointo-code/redeem", async (req, res): Promise<any> => {
 
   // USD figure is reference-only; derive it from the trusted OMR price.
   const priceUsd = Math.round((priceOmr / COPOINTO_USD_TO_OMR) * 100) / 100;
-  const coinsBonus = Math.round(coinsBase * COPOINTO_CODE_BONUS_RATE);
+  // Bonus + commission ONLY apply to a real code purchase. A plain Copointo-store
+  // purchase grants no bonus and owes no cafe commission.
+  const coinsBonus = hasCode ? Math.round(coinsBase * COPOINTO_CODE_BONUS_RATE) : 0;
   const coinsTotal = coinsBase + coinsBonus;
   // Commission in OMR, rounded to 3 decimals (baisa).
-  const commission = Math.round(priceOmr * COPOINTO_CODE_COMMISSION_RATE * 1000) / 1000;
+  const commission = hasCode
+    ? Math.round(priceOmr * COPOINTO_CODE_COMMISSION_RATE * 1000) / 1000
+    : 0;
 
   const row: CopointoRedemption = {
     id: `cr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    cafeId: cafe.id,
-    cafeName: cafe.name,
-    code: (cafe.copointoCode ?? "").toUpperCase(),
+    cafeId: cafe ? cafe.id : null,
+    cafeName: cafe ? cafe.name : null,
+    code: cafe ? (cafe.copointoCode ?? "").toUpperCase() : null,
     userId: userId || null,
     buyerName: typeof b.buyerName === "string" ? b.buyerName.slice(0, 80) : null,
     buyerPhone: typeof b.buyerPhone === "string" ? b.buyerPhone.slice(0, 40) : null,
@@ -247,8 +258,8 @@ router.post("/copointo-code/redeem", async (req, res): Promise<any> => {
     commission,
     platform,
     paymentRef,
-    // Hide demo buyers' redemptions from a real cafe's settlement report.
-    showcaseOnly: cafe.showcaseOnly || isShowcaseViewer(userId) ? true : undefined,
+    // Hide demo buyers' purchases from real cafe + super-admin financial views.
+    showcaseOnly: (cafe?.showcaseOnly || isShowcaseViewer(userId)) ? true : undefined,
     createdAt: new Date().toISOString(),
   };
   copointoRedemptions.push(row);

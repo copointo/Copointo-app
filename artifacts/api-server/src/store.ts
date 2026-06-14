@@ -13,6 +13,14 @@ export interface Cafe {
    *  across all cafes (case-insensitive). */
   copointoCodeEnabled?: boolean;
   copointoCode?: string;
+  /** ISO timestamp set the FIRST time the Copointo Code is enabled for this
+   *  cafe. Anchors the monthly settlement cycle shown in the super-admin dues
+   *  view. Set once and never cleared (survives disable / re-enable). */
+  copointoCodeEnabledAt?: string;
+  /** ISO timestamp of the last super-admin "تم الدفع" settlement. The cafe's
+   *  outstanding due = commission accrued AFTER this instant (or after
+   *  copointoCodeEnabledAt when never settled). */
+  copointoSettledAt?: string;
   /** When true, this row is part of the "Copointo" showcase/demo bundle and
    *  must be hidden from every endpoint unless the requesting user is the
    *  showcase user (see showcase-seed.ts). */
@@ -303,10 +311,16 @@ export const payments: Payment[] = [];
  *  trusts client math. Amounts are reported in OMR (Oman's currency). */
 export interface CopointoRedemption {
   id: string;
-  cafeId: string;
-  /** Snapshot of cafe name + code at redemption time (cafe may rename later). */
-  cafeName: string;
-  code: string;
+  /** Owning cafe for a CODE purchase. `null`/absent for a plain Copointo-store
+   *  purchase (no referral code) — those still land here so this collection is
+   *  the single ledger of EVERY coin purchase the super-admin reports on. The
+   *  per-cafe settlement report filters by cafeId, so code-less rows never
+   *  pollute it. */
+  cafeId?: string | null;
+  /** Snapshot of cafe name + code at redemption time (cafe may rename later).
+   *  Absent for code-less purchases. */
+  cafeName?: string | null;
+  code?: string | null;
   userId?: string | null;
   buyerName?: string | null;
   buyerPhone?: string | null;
@@ -1183,7 +1197,7 @@ export function purgeCafeData(id: string): boolean {
   }
 
   // Cafe-scoped collections — straight purge by cafeId.
-  const purgeBy = <T extends { cafeId?: string }>(arr: T[]) => {
+  const purgeBy = <T extends { cafeId?: string | null }>(arr: T[]) => {
     for (let i = arr.length - 1; i >= 0; i--) {
       if (arr[i]!.cafeId === id) arr.splice(i, 1);
     }

@@ -9,7 +9,8 @@ import CopointoHubPage   from "@/pages/CopointoHubPage";
 import ReportsPage       from "@/pages/ReportsPage";
 import CommunitiesPage   from "@/pages/CommunitiesPage";
 import CafeDashboardPage, { ManagerAnalyticsPage } from "@/pages/CafeDashboardPage";
-import { LayoutDashboard, Coffee, Users, Gamepad2, AlertCircle, ArrowRight, Users2 } from "lucide-react";
+import StorePurchasesPage from "@/pages/StorePurchasesPage";
+import { LayoutDashboard, Coffee, Users, Gamepad2, AlertCircle, ArrowRight, Users2, ShoppingBag } from "lucide-react";
 import logoUrl from "@/assets/copointo-logo.png";
 
 const queryClient = new QueryClient();
@@ -63,6 +64,14 @@ function HomePage() {
       Icon:    Users2,
       label:   "المجتمعات",
       sub:     "أعضاء وتصنيف وحظر المجتمعات",
+      grad:    "from-[#0A0606] via-[#050303] to-black",
+      border:  "border-[#E8B86D]/40",
+    },
+    {
+      href:    "/store-purchases",
+      Icon:    ShoppingBag,
+      label:   "مشتريات المتجر",
+      sub:     "مشتريات العملات ومستحقات الكافيهات",
       grad:    "from-[#0A0606] via-[#050303] to-black",
       border:  "border-[#E8B86D]/40",
     },
@@ -144,6 +153,9 @@ function ReportsWrapped() {
 }
 function CommunitiesWrapped() {
   return <PageLayout title="المجتمعات"><CommunitiesPage /></PageLayout>;
+}
+function StorePurchasesWrapped() {
+  return <PageLayout title="مشتريات المتجر"><StorePurchasesPage /></PageLayout>;
 }
 
 // ─── Domain gate ────────────────────────────────────────────────
@@ -283,6 +295,7 @@ function AdminApp() {
       <Route path="/copointo-hub" component={GateWrap(CopointoHubWrapped)} />
       <Route path="/reports"      component={GateWrap(ReportsWrapped)} />
       <Route path="/communities"  component={GateWrap(CommunitiesWrapped)} />
+      <Route path="/store-purchases" component={GateWrap(StorePurchasesWrapped)} />
       {/* Cafe-owner routes — accessible from any domain. */}
       <Route path="/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
       <Route path="/cafe/:id"           component={CafeDashboardPage}/>
