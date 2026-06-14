@@ -54,7 +54,7 @@ function safeJsonForScript(value: unknown): string {
 }
 
 function buildMapHtml(opts: {
-  cafes: { id: string; name: string; lat: number; lng: number }[];
+  cafes: { id: string; name: string; lat: number; lng: number; image?: string }[];
   user: { lat: number; lng: number } | null;
   youLabel: string;
 }): string {
@@ -72,12 +72,13 @@ function buildMapHtml(opts: {
 <style>
   html, body, #map { margin: 0; padding: 0; height: 100%; background: #000; }
   .cafe-pin {
-    width: 38px; height: 38px; border-radius: 50%;
+    width: 44px; height: 44px; border-radius: 50%;
     background: #E8B86D; border: 3px solid #fff;
     box-shadow: 0 4px 10px rgba(0,0,0,0.4);
     display: flex; align-items: center; justify-content: center;
-    font-size: 20px; cursor: pointer;
+    font-size: 20px; cursor: pointer; overflow: hidden;
   }
+  .cafe-pin img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .me-pin {
     width: 18px; height: 18px; border-radius: 50%;
     background: #4285F4; border: 3px solid #fff;
@@ -131,11 +132,17 @@ function buildMapHtml(opts: {
   // Cafe pins
   var bounds = me ? [[me.lat, me.lng]] : [];
   cafes.forEach(function (c) {
+    var img = (c.image && (c.image.indexOf('http') === 0 || c.image.indexOf('data:') === 0))
+      ? c.image.replace(/"/g, '%22')
+      : null;
+    var inner = img
+      ? '<div class="cafe-pin"><img src="' + img + '" onerror="this.parentNode.textContent=\\'☕\\'" /></div>'
+      : '<div class="cafe-pin">☕</div>';
     var icon = L.divIcon({
       className: '',
-      html: '<div class="cafe-pin">☕</div>',
-      iconSize: [38, 38],
-      iconAnchor: [19, 19],
+      html: inner,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
     });
     var m = L.marker([c.lat, c.lng], { icon: icon }).addTo(map);
     m.on('click', function () {
@@ -207,7 +214,7 @@ export default function CafesMapScreen() {
   const youLabel = t("cafesMap.youLabel");
   const html = useMemo(
     () => buildMapHtml({
-      cafes: plottable.map(c => ({ id: c.id, name: c.name, lat: c.lat, lng: c.lng })),
+      cafes: plottable.map(c => ({ id: c.id, name: c.name, lat: c.lat, lng: c.lng, image: c.image })),
       user:  userLoc,
       youLabel,
     }),
