@@ -737,26 +737,29 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Progress to next free coffee — distinct reward theme */}
+          {/* Compact level → next-level progress with free-coffee reward theme */}
           <View style={[styles.freeCoffeeProgressCard, levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE && styles.freeCoffeeProgressCardReady]}>
-            <View style={styles.freeCoffeeProgressTop}>
-              <View style={styles.freeCoffeeProgressTitleWrap}>
-                <View style={styles.freeCoffeeGiftBubble}>
-                  <Text style={styles.freeCoffeeGiftIcon}>🎁</Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.freeCoffeeProgressTitle}>كوفي مجاني ☕</Text>
-                  <Text style={styles.freeCoffeeProgressHint}>
-                    {levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE
-                      ? "جاهز للاستلام الآن!"
-                      : `باقي ${levelsToFreeCoffee} مستوى للحصول عليه`}
-                  </Text>
+            <View style={styles.fcLevelRow}>
+              <View style={styles.fcLevelChip}>
+                <Text style={styles.fcLevelChipText}>{level}</Text>
+              </View>
+              <View style={styles.fcBarMid}>
+                <Text style={styles.freeCoffeeProgressPct}>{freeCoffeeCyclePct}%</Text>
+                <View style={styles.freeCoffeeTrack}>
+                  <View style={[styles.freeCoffeeFill, { width: `${freeCoffeeCyclePct}%` as any }]} />
                 </View>
               </View>
-              <Text style={styles.freeCoffeeProgressPct}>{freeCoffeeCyclePct}%</Text>
+              <View style={styles.fcLevelChip}>
+                <Text style={styles.fcLevelChipText}>{level + 1}</Text>
+              </View>
             </View>
-            <View style={styles.freeCoffeeTrack}>
-              <View style={[styles.freeCoffeeFill, { width: `${freeCoffeeCyclePct}%` as any }]} />
+            <View style={styles.fcCoffeeRow}>
+              <Text style={styles.fcCoffeeIcon}>☕</Text>
+              <Text style={styles.freeCoffeeProgressHint}>
+                {levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE
+                  ? "كوفي مجاني جاهز للاستلام الآن!"
+                  : `باقي ${levelsToFreeCoffee} مستوى للقهوة المجانية`}
+              </Text>
             </View>
           </View>
         </View>
@@ -1430,26 +1433,27 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     elevation: 5,
   },
-  freeCoffeeProgressTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  freeCoffeeProgressTitleWrap: { flexDirection: "row", alignItems: "center", gap: 10 },
-  freeCoffeeGiftBubble: {
-    width: 38, height: 38, borderRadius: 12,
+  fcLevelRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  fcLevelChip: {
+    minWidth: 30, height: 30, borderRadius: 9, paddingHorizontal: 6,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(74,222,128,0.18)",
+    backgroundColor: "rgba(74,222,128,0.16)",
     borderWidth: 1, borderColor: "rgba(74,222,128,0.45)",
   },
-  freeCoffeeGiftIcon: { fontSize: 18 },
-  freeCoffeeProgressTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#7CF0A8", textAlign: "right" },
-  freeCoffeeProgressHint: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.60)", textAlign: "right", marginTop: 1 },
-  freeCoffeeProgressPct: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#7CF0A8" },
+  fcLevelChipText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#7CF0A8" },
+  fcBarMid: { flex: 1, gap: 4 },
+  freeCoffeeProgressPct: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#7CF0A8", textAlign: "center" },
   freeCoffeeTrack: {
-    height: 9, borderRadius: 999, overflow: "hidden",
+    height: 8, borderRadius: 999, overflow: "hidden",
     backgroundColor: "rgba(74,222,128,0.14)",
   },
   freeCoffeeFill: {
     height: "100%", borderRadius: 999,
     backgroundColor: "#4ADE80",
   },
+  fcCoffeeRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  fcCoffeeIcon: { fontSize: 14 },
+  freeCoffeeProgressHint: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.70)", textAlign: "center" },
   photoActionsRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 12, marginTop: -6,
