@@ -1124,45 +1124,52 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Support button (above logout) ── */}
-        <TouchableOpacity
-          style={styles.supportBtn}
-          onPress={() => router.push("/support")}
-          activeOpacity={0.85}
-        >
-          <Feather name="help-circle" size={17} color={PRIMARY} />
-          <Text style={styles.supportText}>{t("profile.support")}</Text>
-        </TouchableOpacity>
+        {/* ── Account actions — tidy 2×2 grid of square tiles ── */}
+        <View style={styles.actionGrid}>
+          <TouchableOpacity
+            style={styles.actionTile}
+            onPress={() => router.push("/support")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.actionTileIcon}>
+              <Feather name="help-circle" size={22} color={PRIMARY} />
+            </View>
+            <Text style={styles.actionTileText} numberOfLines={2}>{t("profile.support")}</Text>
+          </TouchableOpacity>
 
-        {/* ── Privacy & Governance button (above logout) ── */}
-        <TouchableOpacity
-          style={styles.privacyBtn}
-          onPress={() => router.push("/privacy")}
-          activeOpacity={0.85}
-        >
-          <Feather name="shield" size={17} color={PRIMARY} />
-          <Text style={styles.privacyText}>{t("profile.privacy")}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionTile}
+            onPress={() => router.push("/privacy")}
+            activeOpacity={0.85}
+          >
+            <View style={styles.actionTileIcon}>
+              <Feather name="shield" size={22} color={PRIMARY} />
+            </View>
+            <Text style={styles.actionTileText} numberOfLines={2}>{t("profile.privacy")}</Text>
+          </TouchableOpacity>
 
-        {/* ── Logout button ── */}
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={() => setConfirmOpen(true)}
-          activeOpacity={0.85}
-        >
-          <Feather name="log-out" size={17} color={DANGER} />
-          <Text style={styles.logoutText}>{t("profile.logout")}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionTile, styles.actionTileDanger]}
+            onPress={() => setConfirmOpen(true)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.actionTileIcon, styles.actionTileIconDanger]}>
+              <Feather name="log-out" size={22} color={DANGER} />
+            </View>
+            <Text style={[styles.actionTileText, styles.actionTileTextDanger]} numberOfLines={2}>{t("profile.logout")}</Text>
+          </TouchableOpacity>
 
-        {/* ── Delete account permanently ── */}
-        <TouchableOpacity
-          style={styles.deleteAcctBtn}
-          onPress={() => { setDeleteText(""); setDeleteOpen(true); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="trash-2" size={17} color={DANGER} />
-          <Text style={styles.deleteAcctText}>{t("profile.deleteAccount")}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionTile, styles.actionTileDangerDashed]}
+            onPress={() => { setDeleteText(""); setDeleteOpen(true); }}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.actionTileIcon, styles.actionTileIconDanger]}>
+              <Feather name="trash-2" size={22} color={DANGER} />
+            </View>
+            <Text style={[styles.actionTileText, styles.actionTileTextDanger]} numberOfLines={2}>{t("profile.deleteAccount")}</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Username modal */}
@@ -1658,22 +1665,30 @@ const styles = StyleSheet.create({
   fieldValue: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   divider:    { height: 1, backgroundColor: "rgba(232,184,109,0.18)", marginHorizontal: 18 },
 
-  // Logout
-  logoutBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
-    backgroundColor: `${DANGER}15`, borderWidth: 1, borderColor: `${DANGER}40`,
-    paddingVertical: 11, borderRadius: 13, marginTop: 4,
+  // ── Account action grid — tidy square tiles ──
+  actionGrid: {
+    flexDirection: "row", flexWrap: "wrap",
+    justifyContent: "space-between", rowGap: 12,
+    marginTop: 6, marginBottom: 6,
   },
-  logoutText: { fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
-
-  // Delete account permanently (destructive — sits below logout)
-  deleteAcctBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
-    backgroundColor: "transparent",
-    borderWidth: 1, borderColor: `${DANGER}80`, borderStyle: "dashed",
-    paddingVertical: 11, borderRadius: 13, marginTop: 10, marginBottom: 6,
+  actionTile: {
+    width: "48%", aspectRatio: 1.05,
+    alignItems: "center", justifyContent: "center", gap: 10,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(232,184,109,0.07)",
+    borderWidth: 1, borderColor: BORDER, borderRadius: 18,
   },
-  deleteAcctText: { fontSize: 13.5, fontFamily: "Inter_700Bold", color: DANGER },
+  actionTileDanger: { backgroundColor: `${DANGER}12`, borderColor: `${DANGER}40` },
+  actionTileDangerDashed: { backgroundColor: "transparent", borderColor: `${DANGER}66`, borderStyle: "dashed" },
+  actionTileIcon: {
+    width: 50, height: 50, borderRadius: 15,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "rgba(232,184,109,0.12)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.3)",
+  },
+  actionTileIconDanger: { backgroundColor: `${DANGER}1A`, borderColor: `${DANGER}55` },
+  actionTileText: { fontSize: 13.5, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "center" },
+  actionTileTextDanger: { color: DANGER },
 
   // Notifications opt-in
   notifRow: {
@@ -1708,23 +1723,6 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
   notifText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
-
-  // Support
-  supportBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
-    backgroundColor: `${PRIMARY}12`, borderWidth: 1, borderColor: `${PRIMARY}40`,
-    paddingVertical: 11, borderRadius: 13, marginTop: 4, marginBottom: 10,
-  },
-  supportText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
-
-  // Privacy & Governance
-  privacyBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1, borderColor: `${PRIMARY}30`,
-    paddingVertical: 11, borderRadius: 13, marginBottom: 10,
-  },
-  privacyText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Modal
   modalOverlay: {
