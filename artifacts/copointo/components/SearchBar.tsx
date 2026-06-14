@@ -20,7 +20,9 @@ export function SearchBar({ value, onChangeText, placeholder = "Search cafes..."
 
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <Feather name="search" size={18} color={colors.mutedForeground} />
+      <View style={[styles.iconWrap, { backgroundColor: colors.secondary }]}>
+        <Feather name="search" size={17} color={colors.primary} />
+      </View>
       <TextInput
         style={[styles.input, { color: colors.foreground }]}
         value={value}
@@ -35,8 +37,9 @@ export function SearchBar({ value, onChangeText, placeholder = "Search cafes..."
             onClear?.();
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={[styles.clearBtn, { backgroundColor: colors.secondary }]}
         >
-          <Feather name="x" size={16} color={colors.mutedForeground} />
+          <Feather name="x" size={14} color={colors.mutedForeground} />
         </TouchableOpacity>
       )}
     </View>
@@ -47,16 +50,36 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     gap: 10,
+    shadowColor: "#E8B86D",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  iconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
   },
   input: {
     flex: 1,
     fontSize: 15,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Inter_500Medium",
     padding: 0,
+  },
+  clearBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: "center",
+    justifyContent: "center",
+    marginEnd: 4,
   },
 });

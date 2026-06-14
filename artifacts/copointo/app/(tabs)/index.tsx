@@ -136,7 +136,6 @@ export default function HomeScreen() {
   const { isFavorite, toggle: toggleFav } = useFavorites();
 
   const [search,      setSearch]      = useState("");
-  const [openOnly,    setOpenOnly]    = useState(false);
   const [showAllUsed, setShowAllUsed] = useState(false);
   const [rawCafes,    setRawCafes]    = useState<ApiCafe[]>([]);
   const [apiCafes,    setApiCafes]    = useState<Cafe[]>([]);
@@ -235,15 +234,14 @@ export default function HomeScreen() {
 
   useEffect(() => { fetchCafes(); }, [fetchCafes]);
 
-  // Search + "open only" filter applied to every list on the screen.
+  // Search filter applied to every list on the screen.
   const filtered = useMemo(() =>
     apiCafes.filter(c =>
-      (!openOnly || c.isOpen) &&
       (!search ||
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.category.toLowerCase().includes(search.toLowerCase()) ||
         c.tags.some(tag => tag.includes(search)))
-    ), [apiCafes, search, openOnly]);
+    ), [apiCafes, search]);
 
   // Nearby cafes — those with coordinates, sorted by best-known distance.
   // Respects the same search + "open only" filter as the rest of the screen.
@@ -360,22 +358,9 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── Search + filter ── */}
+        {/* ── Search ── */}
         <View style={styles.searchRow}>
-          <View style={{ flex: 1 }}>
-            <SearchBar value={search} onChangeText={setSearch} placeholder={t("home.searchPlaceholder")} />
-          </View>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setOpenOnly(v => !v); }}
-            activeOpacity={0.85}
-            style={[styles.filterBtn, {
-              borderColor: colors.border,
-              backgroundColor: openOnly ? colors.primary : colors.card,
-            }]}
-            accessibilityLabel="Filter open cafes"
-          >
-            <Feather name="sliders" size={18} color={openOnly ? "#000" : colors.primary} />
-          </TouchableOpacity>
+          <SearchBar value={search} onChangeText={setSearch} placeholder={t("home.searchPlaceholder")} />
         </View>
 
         {loading ? (
@@ -587,8 +572,7 @@ const styles = StyleSheet.create({
   cravingPrompt: { fontSize: 13, fontFamily: "Inter_600SemiBold", marginTop: 6 },
 
   // Search row
-  searchRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 },
-  filterBtn: { width: 46, height: 46, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  searchRow: { marginBottom: 18 },
 
   // Sections
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
