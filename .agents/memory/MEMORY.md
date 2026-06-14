@@ -18,3 +18,4 @@
 - [api-server no hot-reload](api-server-no-hot-reload.md) — api-server serves stale code until its workflow is restarted; new response fields read undefined; always restart + curl the live endpoint to verify.
 - [Copointo iPad responsive](copointo-ipad-responsive.md) — hub scaling gated behind r.scale (=1 on phone); left FAB stack has fixed +70px steps so cap transform scale at 1.2 or it overlaps.
 - [Order-timer re-entry](order-timer-reentry.md) — order-timer reads activeOrder (fallback to params); history.tsx re-enters with NO params, so params-only breaks polling + rich UI.
+- [Copointo inline-HTML map XSS](copointo-inline-map-xss.md) — any Leaflet/WebView HTML embed must reuse the hardened script-JSON serializer (escape </script + U+2028/2029), not just escape `<`.
