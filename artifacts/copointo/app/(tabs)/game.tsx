@@ -2,7 +2,7 @@ import { Feather, FontAwesome5 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
   Modal,
@@ -17,7 +17,7 @@ import { useCoins } from "@/hooks/useCoins";
 
 const COPOINTO_COIN = require("../../assets/images/copointo-coin.png");
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApp } from "@/context/AppContext";
+import { useApp, SHOWCASE_USER_ID } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { useResponsive } from "@/hooks/useResponsive";
 import { getRank } from "@/data/mockData";
@@ -163,7 +163,7 @@ function HubDiamond({
 export default function GameScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
-  const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests, registeredUsers }  = useApp();
+  const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests, registeredUsers, friends }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
   const r = useResponsive();
   const s = r.scale;
@@ -224,14 +224,39 @@ export default function GameScreen() {
 
   const username = user?.gameUsername || user?.name || "";
 
-  // ── National (Oman) ranking — mirrors profile.tsx so both screens agree ──
   const hasActivity = (user?.level ?? 0) > 0 || (user?.totalOrders ?? 0) > 0 || (user?.points ?? 0) > 0;
-  const omanRankStr = (() => {
-    if (!hasActivity) return "—";
-    const sorted = [...registeredUsers].sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
-    const idx = sorted.findIndex((u) => u.id === user?.id);
-    return idx >= 0 ? `#${idx + 1}` : "—";
-  })();
+
+  // ── Rankings — mirror /leaderboard EXACTLY so the numbers match the screen
+  // the button navigates to: rank by totalOrders (coffee count) desc, ties
+  // broken by an FNV-1a hash of `id`, and the same showcase-user filter.
+  const { omanRankStr, friendsRankStr } = useMemo(() => {
+    const hashId = (str: string) => {
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      return h;
+    };
+    const sortDesc = (a: typeof registeredUsers[number], b: typeof registeredUsers[number]) =>
+      ((b.totalOrders ?? 0) - (a.totalOrders ?? 0)) || (hashId(a.id) - hashId(b.id));
+    const isShowcaseViewer = user?.id === SHOWCASE_USER_ID;
+    const rankable = isShowcaseViewer
+      ? registeredUsers
+      : registeredUsers.filter((u) => u.id !== SHOWCASE_USER_ID && !u.id.startsWith("sc-user-"));
+
+    const omanSorted = [...rankable].sort(sortDesc);
+    const omanIdx = omanSorted.findIndex((u) => u.id === user?.id);
+    const oman = omanIdx >= 0 ? `#${omanIdx + 1}` : "—";
+
+    const friendsSorted = rankable
+      .filter((u) => u.id === user?.id || friends.includes(u.id))
+      .sort(sortDesc);
+    const friendsIdx = friendsSorted.findIndex((u) => u.id === user?.id);
+    const friendsRank = friendsIdx >= 0 ? `#${friendsIdx + 1}` : "—";
+
+    return { omanRankStr: oman, friendsRankStr: friendsRank };
+  }, [registeredUsers, friends, user?.id]);
 
   // ── Hub layout helpers ──
   // The "progress to next level" bar uses the real free-coffee cycle
@@ -565,12 +590,24 @@ export default function GameScreen() {
             )}
             <View style={styles.charPlatform} />
             {!!username && (
-              <View style={styles.charNameRow}>
-                <Text style={styles.charName} numberOfLines={1}>{username}</Text>
-                {omanRankStr !== "—" && (
-                  <Text style={styles.charRank}>{omanRankStr}</Text>
-                )}
-              </View>
+              <Text style={styles.charName} numberOfLines={1}>{username}</Text>
+            )}
+            {hasActivity && (
+              <TouchableOpacity
+                style={styles.rankButton}
+                activeOpacity={0.85}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/leaderboard"); }}
+              >
+                <View style={styles.rankSeg}>
+                  <Text style={styles.rankSegIcon}>🇴🇲</Text>
+                  <Text style={styles.rankSegValue}>{omanRankStr}</Text>
+                </View>
+                <View style={styles.rankDivider} />
+                <View style={styles.rankSeg}>
+                  <Text style={styles.rankSegIcon}>👥</Text>
+                  <Text style={styles.rankSegValue}>{friendsRankStr}</Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -777,9 +814,18 @@ const styles = StyleSheet.create({
     shadowColor: PRIMARY, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
   },
 
-  charNameRow: { marginTop: -16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, maxWidth: 140 },
-  charName: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 100, textAlign: "center" },
-  charRank: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY },
+  charName: { marginTop: -16, fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 140, textAlign: "center" },
+  rankButton: {
+    marginTop: 8, flexDirection: "row", alignItems: "center", alignSelf: "stretch",
+    justifyContent: "center", gap: 10,
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 14,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
+  },
+  rankSeg: { flexDirection: "row", alignItems: "center", gap: 5 },
+  rankSegIcon: { fontSize: 16 },
+  rankSegValue: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  rankDivider: { width: 1, height: 16, backgroundColor: "rgba(232,184,109,0.35)" },
 
   heroCol: { width: 72, alignItems: "center", justifyContent: "center", gap: 10 },
   heroBtn: {
