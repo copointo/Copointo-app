@@ -525,12 +525,6 @@ export default function GameScreen() {
                 : `باقي ${DRINKS_PER_FREE_COFFEE - ordersThisLevel} مستوى للقهوة المجانية`}
             </Text>
           </View>
-          <View style={styles.omanRankRow}>
-            <View style={styles.omanRankChip}>
-              <Text style={styles.omanRankIcon}>🇴🇲</Text>
-              <Text style={styles.omanRankText} numberOfLines={1}>{`ترتيبك ${omanRankStr} في عُمان`}</Text>
-            </View>
-          </View>
         </View>
 
         {/* ── Middle: ladder · character · hero buttons ── */}
@@ -738,19 +732,6 @@ const styles = StyleSheet.create({
   statRankIcon: { fontSize: 18, lineHeight: 22 },
   statLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.6)" },
   statCoinImg: { width: 22, height: 22, resizeMode: "contain" },
-
-  // ── Oman national ranking chip ──
-  omanRankRow: {
-    alignItems: "center", marginTop: 6, paddingTop: 6,
-  },
-  omanRankChip: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: "rgba(232,184,109,0.10)",
-    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
-  },
-  omanRankIcon: { fontSize: 14 },
-  omanRankText: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // ── Progress (panel-less, compact) ──
   progressCard: {
