@@ -4,7 +4,6 @@ import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Dimensions,
   Image,
   Modal,
   Platform,
@@ -21,7 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp, DAILY_LEVEL_CAP } from "@/context/AppContext";
 import { useCommunities } from "@/context/CommunityContext";
 import { useResponsive } from "@/hooks/useResponsive";
-import { RANKS, getRank } from "@/data/mockData";
+import { getRank } from "@/data/mockData";
 import { apiFetch } from "@/constants/api";
 import { playLevelUpSound, playNotificationChime } from "@/lib/notification-sound";
 import { useRankOvertakeNotifier } from "@/lib/use-rank-overtake";
@@ -31,7 +30,6 @@ import CoinMilestoneModal from "@/components/CoinMilestoneModal";
 import GiftFeedRain from "@/components/GiftFeedRain";
 import CoinGiftModal from "@/components/CoinGiftModal";
 import { LEVEL_REWARDS } from "@/data/levelRewards";
-import { getNextCoinMilestone, COIN_PER_MILESTONE, isCoinMilestone } from "@/data/coinMilestones";
 import LevelRewardModal from "@/components/LevelRewardModal";
 import Character from "@/components/Character";
 import { useCharacters } from "@/hooks/useCharacters";
@@ -46,28 +44,17 @@ interface GameStatus {
   gameSuspendedAt?: string | null;
 }
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 const BG      = "#000000";
 const PRIMARY = "#E8B86D";
 const PRIMARY_DIM = "rgba(232,184,109,0.30)";
 const PRIMARY_FAINT = "rgba(232,184,109,0.12)";
-const PURPLE  = "#7B5CFF";
 
-const SZ_CURRENT = 110;
-const SZ_OTHER   = 78;
 // Qualifying drinks (== levels) between each free-coffee reward. Reward lands
 // at levels 6, 12, 18, … — must stay in lockstep with the server award rule
 // (DRINKS_PER_FREE_COFFEE in api-server cafe-dashboard.ts).
 const DRINKS_PER_FREE_COFFEE = 6;
-const SZ_DONE    = 60;
 
-const outerSz = (s: number) => Math.ceil(s * Math.SQRT2);
-
-const POSITIONS = [-90, 0, 90];
-
-const BEFORE = 12;
-const AFTER  = 48;
+const outerSz = (size: number) => Math.ceil(size * Math.SQRT2);
 
 interface FreeCoffeeItem {
   id: string;
@@ -143,6 +130,37 @@ function FreeCoffeeModal({
   );
 }
 
+// ── Rotated-square level marker used by the progress card + the side ladder ──
+function HubDiamond({
+  size, value, highlighted, done,
+}: { size: number; value: number; highlighted?: boolean; done?: boolean }) {
+  const osZ = outerSz(size);
+  return (
+    <View style={{ width: osZ, height: osZ, alignItems: "center", justifyContent: "center" }}>
+      {highlighted && (
+        <View style={[styles.currentHalo, { width: osZ + 26, height: osZ + 26 }]} />
+      )}
+      <View style={[styles.diamond, {
+        width: size, height: size,
+        borderColor: PRIMARY,
+        borderWidth: highlighted ? 2.5 : 1.5,
+        shadowColor: PRIMARY,
+        shadowOpacity: highlighted ? 0.95 : done ? 0.3 : 0.5,
+        shadowRadius: highlighted ? 18 : done ? 6 : 10,
+        opacity: done ? 0.6 : 1,
+      }]}>
+        <View style={styles.diamondInner}>
+          <Text style={{
+            fontFamily: "Inter_700Bold",
+            color: highlighted ? PRIMARY : "#FFF",
+            fontSize: size * 0.34,
+          }}>{value}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function GameScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
@@ -150,9 +168,6 @@ export default function GameScreen() {
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
   const r = useResponsive();
   const s = r.scale;
-  // Floating controls scale a little less than the board so the fixed +70px
-  // vertical stack offsets on the left never overlap (capped at the tablet step).
-  const fabScale = Math.min(s, 1.2);
   const { toast: overtakeToast, dismiss: dismissOvertake } = useRankOvertakeNotifier();
   const unseenSentGifts = useUnseenSentGifts();
 
@@ -180,12 +195,7 @@ export default function GameScreen() {
       refreshCommunities();
     }, [refreshCommunities]),
   );
-  const scrollRef = useRef<ScrollView>(null);
-  const [showGoBack, setShowGoBack] = useState(false);
-  const [boardH, setBoardH] = useState(0);
-  // Actual measured Y position of the current-level tile inside the
-  // scroll content. Set via onLayout once the tile renders.
-  const [currentTileMeasuredY, setCurrentTileMeasuredY] = useState<number | null>(null);
+
   const [status, setStatus] = useState<GameStatus | null>(null);
 
   // Poll game-suspension status from server (keyed by phone).
@@ -195,7 +205,7 @@ export default function GameScreen() {
       const phone = user?.phone;
       if (!phone) { setStatus(null); return; }
       apiFetch<GameStatus>(`/user-status?phone=${encodeURIComponent(phone)}`)
-        .then(s => { if (!cancelled) setStatus(s); })
+        .then(st => { if (!cancelled) setStatus(st); })
         .catch(() => { /* network errors → leave game accessible */ });
       return () => { cancelled = true; };
     }, [user?.phone]),
@@ -204,20 +214,17 @@ export default function GameScreen() {
   const isBlocked = !!(status && (status.gameBanned || status.gameSuspended));
 
   // Per-cafe view: when a cafe is selected, the entire game screen reflects
-  // the user's progress AT THAT CAFE (level, rank, board, milestones, etc.).
+  // the user's progress AT THAT CAFE (level, rank, milestones, etc.).
   // If no cafe has been selected yet (brand-new user), fall back to the
   // global aggregate so the screen never goes blank.
   const level     = activeCafe ? activeCafe.level : (user?.level ?? 0);
   const rank      = getRank(level);
   const levelRewards = useLevelRewards(level);
   const coinMilestones = useCoinMilestones(level);
-  const nextReward = LEVEL_REWARDS.find(r => r.unlockLevel > level);
+  const nextReward = LEVEL_REWARDS.find(rw => rw.unlockLevel > level);
   const levelsToNextReward = nextReward ? nextReward.unlockLevel - level : 0;
-  const nextCoinMilestone = getNextCoinMilestone(level);
-  const levelsToNextCoin  = nextCoinMilestone ? nextCoinMilestone.level - level : 0;
   const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
   const nextFreeLevel   = ordersThisLevel === 0 ? 0 : DRINKS_PER_FREE_COFFEE - ordersThisLevel;
-  const overallProgress = Math.min((level / 999) * 100, 100);
 
   // ── Daily level cap progress (resets each calendar day) ──
   const todayStr = (() => {
@@ -227,34 +234,16 @@ export default function GameScreen() {
   const levelsTodayUsed = (user?.levelsTodayDate === todayStr) ? (user?.levelsToday ?? 0) : 0;
   const dailyCapReached = levelsTodayUsed >= DAILY_LEVEL_CAP;
 
-  const startLvl = Math.max(0,    level - BEFORE);
-  const endLvl   = Math.min(999, level + AFTER);
-
-  const visibleLevels = Array.from(
-    { length: endLvl - startLvl + 1 },
-    (_, i) => endLvl - i
-  );
-
-  const ROW_H = outerSz(SZ_OTHER) + 14 + 2;
-
-  const currentIdxInList = endLvl - level;
-  const currentTileY     = currentIdxInList * ROW_H;
-
-  // Center the current tile inside the actual board viewport (not the full
-  // screen) so the button always lands on the user's current level.
-  // Prefer the actual measured Y from the tile's onLayout (accurate even
-  // when row heights vary because of milestone labels / free-coffee hints);
-  // fall back to the index-based estimate before the measurement arrives.
-  const computeTarget = useCallback(() => {
-    const viewport = boardH > 0 ? boardH : SCREEN_HEIGHT * 0.7;
-    const tileY = currentTileMeasuredY ?? currentTileY;
-    return Math.max(0, tileY - viewport / 2 + ROW_H / 2);
-  }, [boardH, currentTileMeasuredY, currentTileY, ROW_H]);
-
-  useEffect(() => {
-    const target = computeTarget();
-    setTimeout(() => scrollRef.current?.scrollTo({ y: target, animated: false }), 250);
-  }, [level, boardH, currentTileMeasuredY]);
+  // ── Hub layout helpers ──
+  // The "progress to next level" bar uses the real free-coffee cycle
+  // (0→100% across the 6 levels between free drinks) — a genuine fractional
+  // forward-progress signal, not an invented coins-to-level mechanic.
+  const freeCoffeeCyclePct = Math.round((ordersThisLevel / DRINKS_PER_FREE_COFFEE) * 100);
+  // Compact vertical ladder around the current level (mirrors the mockup:
+  // a couple levels above + the current one + one below). The full board
+  // lives on the dedicated /levels screen, reachable by tapping the ladder.
+  const ladderLevels = [level + 2, level + 1, level, level - 1].filter((l) => l >= 0 && l <= 999);
+  const charSize = Math.round(Math.min(150 * s, 190));
 
   // ── Sound: play a triumphant chime whenever the user levels up ──
   const prevLevelRef = useRef<number | null>(null);
@@ -280,8 +269,6 @@ export default function GameScreen() {
   }, [incomingRequests.length, incomingInvites.length]);
 
   // ── Unread Copointo broadcasts (system messages from super-admin) ──
-  // Polls the public broadcasts endpoint and counts ones newer than the
-  // last-seen timestamp stored when the user last opened /notifications.
   const [unreadBroadcasts, setUnreadBroadcasts] = useState(0);
   // ── Unread free coffees (newly-earned, not yet seen on /notifications) ──
   const [unreadFreeCoffees, setUnreadFreeCoffees] = useState(0);
@@ -296,9 +283,9 @@ export default function GameScreen() {
     apiFetch<{ coffees: FreeCoffeeItem[] }>(
       `/free-coffees?phone=${encodeURIComponent(phone)}`,
     )
-      .then(r => {
+      .then(res => {
         if (cancelled) return;
-        const all = (r.coffees ?? []).slice().sort((a, b) => {
+        const all = (res.coffees ?? []).slice().sort((a, b) => {
           const au = a.redeemedAt ? 1 : 0;
           const bu = b.redeemedAt ? 1 : 0;
           if (au !== bu) return au - bu;
@@ -315,9 +302,9 @@ export default function GameScreen() {
   const refreshBadges = useCallback(async () => {
     try {
       const uid = user?.id ? `?userId=${encodeURIComponent(user.id)}` : "";
-      const r = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>(`/broadcasts${uid}`);
+      const res = await apiFetch<{ broadcasts: { id: string; createdAt: string }[] }>(`/broadcasts${uid}`);
       const lastSeen = (await AsyncStorage.getItem("copointo_broadcast_last_seen_v1")) ?? "";
-      setUnreadBroadcasts((r.broadcasts ?? []).filter(b => b.createdAt > lastSeen).length);
+      setUnreadBroadcasts((res.broadcasts ?? []).filter(b => b.createdAt > lastSeen).length);
     } catch { /* ignore */ }
     const phone = user?.phone?.trim();
     if (!phone) { setUnreadFreeCoffees(0); return; }
@@ -346,22 +333,22 @@ export default function GameScreen() {
     useCallback(() => { refreshBadges(); }, [refreshBadges])
   );
 
-  const handleScroll = useCallback(
-    (e: any) => {
-      const y       = e.nativeEvent.contentOffset.y;
-      const targetY = computeTarget();
-      setShowGoBack(Math.abs(y - targetY) > 160);
-    },
-    [computeTarget]
-  );
-
-  const goToCurrent = () => {
+  const openFreeCoffee = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const target = computeTarget();
-    scrollRef.current?.scrollTo({ y: target, animated: true });
-  };
+    setFcOpen(true);
+    // Mark free coffees as seen so the bell badge clears (these are now
+    // surfaced here + in profile instead of the notifications screen).
+    try {
+      await AsyncStorage.setItem("copointo_free_coffee_last_seen_v1", new Date().toISOString());
+      setUnreadFreeCoffees(0);
+    } catch { /* ignore */ }
+  }, []);
+
+  const totalUnread =
+    incomingRequests.length + incomingInvites.length + unreadBroadcasts + unreadFreeCoffees;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const stripPadBottom = Platform.OS === "web" ? 96 : insets.bottom + 80;
 
   // ── Suspension/Ban screen (replaces game UI; other tabs keep working) ──
   if (isBlocked && status) {
@@ -423,300 +410,12 @@ export default function GameScreen() {
     <View style={[styles.container, { paddingTop: topPad, alignItems: "center" }]}>
      <View style={{ width: "100%", maxWidth: r.contentMaxWidth, flex: 1 }}>
 
-      {/* ── Notifications bell (top-left) ── */}
-      <TouchableOpacity
-        style={[styles.bellTopLeft, { top: topPad + 8, transform: [{ scale: fabScale }], transformOrigin: "left top" }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
-        activeOpacity={0.85}
-      >
-        <Feather name="bell" size={20} color={PRIMARY} />
-        {(incomingRequests.length + incomingInvites.length + unreadBroadcasts + unreadFreeCoffees) > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{incomingRequests.length + incomingInvites.length + unreadBroadcasts + unreadFreeCoffees}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      {/* ── Add friend (top-right) ── */}
-      <TouchableOpacity
-        style={[styles.addFriendTopRight, { top: topPad + 8, transform: [{ scale: fabScale }], transformOrigin: "right top" }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
-        activeOpacity={0.85}
-      >
-        <Feather name="user-plus" size={20} color={PRIMARY} />
-      </TouchableOpacity>
-
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <Text style={styles.headerLevel}>
-          <Text style={styles.headerLevelNum}>{level}</Text>
-          <Text style={styles.headerLevelSlash}> / 999 </Text>
-          <Text style={styles.headerLevelLabel}>المستوى</Text>
-        </Text>
-        <View style={styles.rankChip}>
-          <Text style={styles.rankChipIcon}>{rank.icon}</Text>
-          <Text style={styles.rankChipText}>{rank.name}</Text>
-        </View>
-      </View>
-
-      {nextReward && (
-        <View style={styles.nextRewardBanner}>
-          <Feather name="gift" size={14} color={PRIMARY} />
-          <Text style={styles.nextRewardText}>
-            {levelsToNextReward === 1
-              ? `متبقي مستوى واحد لجائزة "${nextReward.rankName}"`
-              : `متبقي ${levelsToNextReward} مستويات لجائزة "${nextReward.rankName}"`}
-          </Text>
-        </View>
-      )}
-
-      {/* ── Compact pills row: coins + cafe + daily cap (icon-only) ── */}
-      <View style={styles.compactPillsRow}>
-        {/* Coins pill: coin icon + balance + plus (no text label) */}
-        <TouchableOpacity
-          style={styles.compactCoinsPill}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/buy-coins"); }}
-          activeOpacity={0.85}
-        >
-          <Image source={COPOINTO_COIN} style={styles.compactCoinsImg} />
-          <Text style={styles.compactCoinsText}>{coinBalance.toLocaleString("en-US")}</Text>
-          <Feather name="plus-circle" size={14} color={PRIMARY} />
-        </TouchableOpacity>
-
-        {/* Active cafe pill — shown only when there's an active cafe.
-            Compact, single line, truncates long names. */}
-        {activeCafe && (
-          <TouchableOpacity
-            style={styles.compactCafePill}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/my-cafes"); }}
-            activeOpacity={0.85}
-          >
-            <Feather name="coffee" size={12} color={PRIMARY} />
-            <Text style={styles.compactCafeText} numberOfLines={1}>{activeCafe.cafeName}</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Daily cap pill: bolt icon + "used/cap" only — no Arabic label */}
-        <View style={[
-          styles.compactDailyPill,
-          dailyCapReached && styles.compactDailyPillFull,
-        ]}>
-          <Feather
-            name={dailyCapReached ? "lock" : "zap"}
-            size={12}
-            color={dailyCapReached ? "#EF5350" : PRIMARY}
-          />
-          <Text style={[
-            styles.compactDailyText,
-            dailyCapReached && { color: "#EF5350" },
-          ]}>
-            {levelsTodayUsed}/{DAILY_LEVEL_CAP}
-          </Text>
-        </View>
-      </View>
-
-      {/* ── Progress bar + Free indicator ── */}
-      <View style={styles.progressRow}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${overallProgress}%` as any }]} />
-          <View style={[styles.progressGlow, { width: `${overallProgress}%` as any }]} />
-        </View>
-        <Text style={styles.progressNote}>
-          {nextFreeLevel === 0 ? "☕ Free!" : `☕ −${nextFreeLevel}`}
-        </Text>
-      </View>
-
-      {/* ── Game Board ── */}
-      <ScrollView
-        ref={scrollRef}
-        style={styles.board}
-        contentContainerStyle={styles.boardContent}
-        showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
-        scrollEventThrottle={40}
-        onLayout={e => setBoardH(e.nativeEvent.layout.height)}
-      >
-        <View style={{ height: 16 }} />
-
-        {visibleLevels.map((lvl) => {
-          const isCurrent    = lvl === level;
-          const isDone       = lvl < level;
-          const isFreeCoffee = lvl > 0 && lvl % DRINKS_PER_FREE_COFFEE === 0;
-          const isCoinLvl    = isCoinMilestone(lvl);
-          const sz           = (isCurrent ? SZ_CURRENT : isDone ? SZ_DONE : SZ_OTHER) * s;
-          const osZ          = outerSz(sz);
-          const xOff         = POSITIONS[lvl % 3] * s;
-          const rankForLvl   = RANKS.find((r) => r.min === lvl);
-
-          return (
-            <View
-              key={lvl}
-              style={{ alignItems: "center" }}
-              onLayout={isCurrent ? (e) => setCurrentTileMeasuredY(e.nativeEvent.layout.y) : undefined}
-            >
-
-              {/* ── Tier milestone label ── */}
-              {rankForLvl && lvl > 0 && (() => {
-                const earned = lvl <= level;
-                const isNextReward = !earned && nextReward?.unlockLevel === lvl;
-                const stepsAway = lvl - level;
-                return (
-                  <View style={[styles.milestone, earned && styles.milestoneEarned, isNextReward && styles.milestoneNext]}>
-                    <Text style={styles.milestoneText}>{rankForLvl.icon}  {rankForLvl.name}</Text>
-                    {earned ? (
-                      <View style={styles.milestoneEarnedChip}>
-                        <Feather name="check" size={10} color="#000" />
-                        <Text style={styles.milestoneEarnedChipText}>تم ربح الجوائز</Text>
-                      </View>
-                    ) : isNextReward ? (
-                      <View style={styles.milestoneNextChip}>
-                        <Feather name="gift" size={10} color={PRIMARY} />
-                        <Text style={styles.milestoneNextChipText}>
-                          {stepsAway === 1 ? "متبقي مستوى واحد للجائزة" : `متبقي ${stepsAway} مستويات للجائزة`}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                );
-              })()}
-
-              {/* ── Dotted connector above (diagonal, follows snake from upper tile to this tile) ── */}
-              {lvl < endLvl && (() => {
-                const xAbove = POSITIONS[(lvl + 1) % 3];
-                const xBelow = xOff;
-                const N = 5;
-                return (
-                  <View style={styles.dottedConnector}>
-                    {Array.from({ length: N }).map((_, i) => {
-                      const t = (i + 1) / (N + 1);
-                      const x = xAbove + (xBelow - xAbove) * t;
-                      return (
-                        <View
-                          key={i}
-                          style={[styles.dot, { transform: [{ translateX: x }] }]}
-                        />
-                      );
-                    })}
-                  </View>
-                );
-              })()}
-
-              {/* ── Diamond tile ── */}
-              <View style={{
-                width: osZ, height: osZ,
-                alignItems: "center", justifyContent: "center",
-                transform: [{ translateX: xOff }],
-                marginVertical: 6,
-              }}>
-                {/* Glow halo behind current tile */}
-                {isCurrent && (
-                  <View style={[styles.currentHalo, { width: osZ + 60, height: osZ + 60 }]} />
-                )}
-
-                {/* Equipped companion character — floats above the current level tile */}
-                {isCurrent && equippedCharacter && (
-                  <View pointerEvents="none" style={{
-                    position: "absolute",
-                    top: -Math.round(sz * 1.10),
-                    alignItems: "center", justifyContent: "center",
-                  }}>
-                    <Character def={equippedCharacter} size={Math.round(sz * 1.00)} />
-                  </View>
-                )}
-
-                <View style={[
-                  styles.diamond,
-                  {
-                    width: sz, height: sz,
-                    borderColor: isCoinLvl ? "#FFD66B" : PRIMARY,
-                    borderWidth: isCurrent ? 2.5 : isCoinLvl ? 2 : 1.5,
-                    shadowColor: isCoinLvl ? "#FFD66B" : PRIMARY,
-                    shadowOpacity: isCurrent ? 0.95 : isCoinLvl ? 0.85 : isDone ? 0.35 : 0.55,
-                    shadowRadius:  isCurrent ? 22 : isCoinLvl ? 16 : isDone ? 6 : 12,
-                  }
-                ]}>
-                  {/* Coin milestone overlay — sits on the diamond tile for
-                      levels 50, 100, 150 ... so users see the bonus reward
-                      right where they're aiming on the main game board. */}
-                  {isCoinLvl && (
-                    <>
-                      <View style={[styles.coinTileBadge, { top: -10, right: -10 }]}>
-                        <Image source={COPOINTO_COIN} style={styles.coinTileBadgeImg} />
-                        <Text style={styles.coinTileBadgeText}>+{COIN_PER_MILESTONE}</Text>
-                      </View>
-                      <View style={[styles.coinTileGlowRing, { width: sz + 12, height: sz + 12 }]} pointerEvents="none" />
-                    </>
-                  )}
-                  <View style={styles.diamondInner}>
-                    {isCurrent ? (
-                      <>
-                        <Text style={[styles.curHere, { fontSize: sz * 0.16 }]} numberOfLines={1}>أنت هنا</Text>
-                        <Text style={[styles.curNum, { fontSize: sz * 0.20 }]}>{lvl}</Text>
-                      </>
-                    ) : isDone ? (
-                      <Text style={styles.doneCheck}>✓</Text>
-                    ) : (
-                      <>
-                        <Text style={[styles.futureNum, { fontSize: sz * 0.32 }]}>{lvl}</Text>
-                        <FontAwesome5 name="lock" size={sz * 0.16} color={PRIMARY} style={{ marginTop: 2 }} />
-                      </>
-                    )}
-                  </View>
-                </View>
-              </View>
-
-              {/* ── Free-coffee hint label (future multiples of DRINKS_PER_FREE_COFFEE) ── */}
-              {isFreeCoffee && !isDone && !isCurrent && (
-                <View style={[styles.freeHint, { transform: [{ translateX: xOff > 0 ? -30 : xOff < 0 ? 30 : 0 }] }]}>
-                  <Text style={styles.freeHintText}>{"▲ ☕ اصل لهذا المستوى للحصول على مشروب مجاني"}</Text>
-                </View>
-              )}
-
-              {/* ── Coin milestone hint label (every 50 levels) ── */}
-              {isCoinLvl && !isCurrent && (
-                <View style={[styles.coinHint, { transform: [{ translateX: xOff > 0 ? -30 : xOff < 0 ? 30 : 0 }] }]}>
-                  <Image source={COPOINTO_COIN} style={styles.coinHintImg} />
-                  <Text style={styles.coinHintText}>
-                    {isDone
-                      ? `ربحت ${COIN_PER_MILESTONE} عملة من هذا المستوى`
-                      : `اصل لهذا المستوى واربح ${COIN_PER_MILESTONE} عملة`}
-                  </Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-
-        {/* Bottom spacer — half of viewport so the bottom tiles (e.g. level 0)
-            can actually be centered by goToCurrent without being clamped. */}
-        <View style={{ height: Math.max(Platform.OS === "web" ? 130 : insets.bottom + 120, boardH * 0.55) }} />
-      </ScrollView>
-
-      {/* ── "Go to my level" button (sits ABOVE the المستويات button on the left) ── */}
-      {showGoBack && (
-        <TouchableOpacity
-          style={[styles.goBackBtn, {
-            left: 20,
-            bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 58 + 12,
-            transform: [{ scale: fabScale }],
-            transformOrigin: "left bottom",
-          }]}
-          onPress={goToCurrent}
-          activeOpacity={0.85}
-        >
-          <Feather name="crosshair" size={16} color="#000" />
-          <Text style={styles.goBackText}>اذهب إلى مستواي</Text>
-        </TouchableOpacity>
-      )}
-
       {/* ── Rank-overtake toast ── */}
       {overtakeToast && (
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => { dismissOvertake(); router.push("/leaderboard"); }}
-          style={[styles.overtakeToast, {
-            top: Platform.OS === "web" ? 80 : insets.top + 12,
-          }]}
+          style={[styles.overtakeToast, { top: Platform.OS === "web" ? 80 : insets.top + 12 }]}
         >
           <Text style={styles.overtakeIcon}>⚡</Text>
           <View style={{ flex: 1 }}>
@@ -729,171 +428,255 @@ export default function GameScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ── Floating action buttons ── */}
-      <View style={[styles.fabGroup, {
-        bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
-        transform: [{ scale: fabScale }],
-        transformOrigin: "right bottom",
-      }]}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: stripPadBottom }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Header: rank pill (left) + level (right) ── */}
+        <View style={styles.header}>
+          <View style={styles.rankChip}>
+            <Text style={styles.rankChipIcon}>{rank.icon}</Text>
+            <Text style={styles.rankChipText}>{rank.name}</Text>
+          </View>
+          <Text style={styles.headerLevel}>
+            <Text style={styles.headerLevelNum}>{level}</Text>
+            <Text style={styles.headerLevelSlash}> / 999 </Text>
+            <Text style={styles.headerLevelLabel}>المستوى</Text>
+          </Text>
+        </View>
 
-        {/* Play & Win — العب واربح (orange, distinctive mini-game) */}
-        <TouchableOpacity
-          style={styles.fabPlayWin}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/play-win"); }}
-          activeOpacity={0.85}
-        >
-          <FontAwesome5 name="gamepad" size={18} color="#FFF" />
-          <Text style={styles.fabPlayWinLabel}>العب واربح</Text>
-        </TouchableOpacity>
+        {/* ── Stats card: energy · coins · next reward ── */}
+        <View style={styles.statsCard}>
+          {/* Energy (daily level cap) */}
+          <View style={styles.statCol}>
+            <Feather
+              name={dailyCapReached ? "lock" : "zap"}
+              size={18}
+              color={dailyCapReached ? "#EF5350" : PRIMARY}
+            />
+            <Text style={[styles.statValue, dailyCapReached && { color: "#EF5350" }]}>
+              {levelsTodayUsed}/{DAILY_LEVEL_CAP}
+            </Text>
+            <Text style={styles.statLabel}>الطاقة</Text>
+          </View>
 
-        {/* Communities — انشاء مجتمع (blue) */}
-        <TouchableOpacity
-          style={[styles.fabThemed, { backgroundColor: "#4A90E2", shadowColor: "#4A90E2" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="users" size={18} color="#FFF" />
-          <Text style={styles.fabThemedLabel}>انشاء مجتمع</Text>
-          {incomingInvites.length > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{incomingInvites.length}</Text>
+          <View style={styles.statDivider} />
+
+          {/* Coins → buy-coins */}
+          <TouchableOpacity
+            style={styles.statCol}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/buy-coins"); }}
+          >
+            <Image source={COPOINTO_COIN} style={styles.statCoinImg} />
+            <View style={styles.statValueRow}>
+              <Text style={styles.statValue}>{coinBalance.toLocaleString("en-US")}</Text>
+              <Feather name="plus-circle" size={13} color={PRIMARY} />
             </View>
-          )}
-        </TouchableOpacity>
+            <Text style={styles.statLabel}>العملات</Text>
+          </TouchableOpacity>
 
-        {/* Store — المتجر (green) */}
-        <TouchableOpacity
-          style={[styles.fabThemed, { backgroundColor: "#4CAF50", shadowColor: "#4CAF50" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/store"); }}
-          activeOpacity={0.85}
+          <View style={styles.statDivider} />
+
+          {/* Next reward */}
+          <View style={styles.statCol}>
+            <Feather name="gift" size={18} color={PRIMARY} />
+            {nextReward ? (
+              <Text style={styles.statGiftText} numberOfLines={3}>
+                متبقي {levelsToNextReward} مستوى لجائزة "{nextReward.rankName}"
+              </Text>
+            ) : (
+              <Text style={styles.statGiftText}>وصلت لأعلى جائزة 🎉</Text>
+            )}
+          </View>
+        </View>
+
+        {/* ── Progress to next level ── */}
+        <View style={styles.progressCard}>
+          <Text style={styles.progressCardTitle}>التقدم إلى المستوى التالي</Text>
+          <View style={styles.progressDiamondsRow}>
+            <HubDiamond size={40} value={level} highlighted />
+            <View style={styles.progressBarWrap}>
+              <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarFill, { width: `${Math.max(freeCoffeeCyclePct, 4)}%` as any }]} />
+              </View>
+              <Text style={styles.progressBarPct}>{freeCoffeeCyclePct}%</Text>
+            </View>
+            <HubDiamond size={40} value={Math.min(level + 1, 999)} />
+          </View>
+          <View style={styles.progressSubRow}>
+            <Text style={styles.progressSubIcon}>☕</Text>
+            <Text style={styles.progressSubText}>
+              {level > 0 && ordersThisLevel === 0
+                ? "قهوة مجانية متاحة الآن!"
+                : `باقي ${DRINKS_PER_FREE_COFFEE - ordersThisLevel} مستوى للقهوة المجانية`}
+            </Text>
+          </View>
+        </View>
+
+        {/* ── Middle: ladder · character · hero buttons ── */}
+        <View style={styles.midRow}>
+          {/* Level ladder (tap → full board) */}
+          <TouchableOpacity
+            style={styles.ladderCol}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/levels"); }}
+          >
+            {ladderLevels.map((lvl, i) => {
+              const isCur  = lvl === level;
+              const isDone = lvl < level;
+              return (
+                <View key={lvl} style={styles.ladderItem}>
+                  {i > 0 && (
+                    <View style={styles.ladderConnector}>
+                      <View style={styles.ladderDot} />
+                      <View style={styles.ladderDot} />
+                    </View>
+                  )}
+                  <HubDiamond size={isCur ? 50 : 36} value={lvl} highlighted={isCur} done={isDone} />
+                  {isCur && <Text style={styles.ladderHereLabel}>أنت هنا</Text>}
+                </View>
+              );
+            })}
+          </TouchableOpacity>
+
+          {/* Character on a glowing platform */}
+          <View style={styles.centerCol}>
+            <View style={styles.charGlow} />
+            {equippedCharacter ? (
+              <Character def={equippedCharacter} size={charSize} />
+            ) : (
+              <View style={{ width: charSize, height: charSize, alignItems: "center", justifyContent: "center" }}>
+                <FontAwesome5 name="user-astronaut" size={charSize * 0.5} color={PRIMARY} />
+              </View>
+            )}
+            <View style={styles.charPlatform} />
+          </View>
+
+          {/* Hero buttons */}
+          <View style={styles.heroCol}>
+            <TouchableOpacity
+              style={styles.heroBtn}
+              activeOpacity={0.85}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/play-win"); }}
+            >
+              <FontAwesome5 name="gamepad" size={20} color={PRIMARY} />
+              <Text style={styles.heroBtnLabel}>العب واربح</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.heroBtn}
+              activeOpacity={0.85}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/store"); }}
+            >
+              <Feather name="shopping-bag" size={20} color={PRIMARY} />
+              <Text style={styles.heroBtnLabel}>المتجر</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.heroBtn}
+              activeOpacity={0.85}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
+            >
+              <Feather name="package" size={20} color={PRIMARY} />
+              <Text style={styles.heroBtnLabel}>أغراضي</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── More features (same gold style) ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.bottomStripContent}
         >
-          <View style={styles.storeIconWrap}>
-            <FontAwesome5
-              name="user-astronaut"
-              size={16}
-              color="#FFF"
-              style={styles.storeIconChar}
-            />
-            <Feather
-              name="gift"
-              size={11}
-              color="#FFF"
-              style={styles.storeIconGift}
-            />
-            <Feather
-              name="image"
-              size={11}
-              color="#FFF"
-              style={styles.storeIconBg}
-            />
-          </View>
-          <Text style={styles.fabThemedLabel}>المتجر</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
+          >
+            <Feather name="bell" size={18} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>الإشعارات</Text>
+            {totalUnread > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{totalUnread}</Text></View>
+            )}
+          </TouchableOpacity>
 
-        {/* My Collection — اغراضي (purple) */}
-        <TouchableOpacity
-          style={[styles.fabThemed, { backgroundColor: "#9B59E8", shadowColor: "#9B59E8" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/collection"); }}
-          activeOpacity={0.85}
-        >
-          <Feather name="package" size={18} color="#FFF" />
-          <Text style={styles.fabThemedLabel}>اغراضي</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/leaderboard"); }}
+          >
+            <FontAwesome5 name="trophy" size={17} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>التصنيف</Text>
+          </TouchableOpacity>
 
-        {/* Leaderboard - purple distinctive */}
-        <TouchableOpacity
-          style={styles.fabLeaderboard}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/leaderboard"); }}
-          activeOpacity={0.85}
-        >
-          <FontAwesome5 name="trophy" size={22} color="#FFF" />
-          <Text style={styles.fabLeaderboardLabel}>التصنيف</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
+          >
+            <Feather name="award" size={18} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>المستويات</Text>
+          </TouchableOpacity>
 
-      </View>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/communities"); }}
+          >
+            <Feather name="users" size={18} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>المجتمعات</Text>
+            {incomingInvites.length > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{incomingInvites.length}</Text></View>
+            )}
+          </TouchableOpacity>
 
-      {/* Free coffee (small) - sits directly above مستوى الكافيهات on the LEFT (gold) */}
-      <TouchableOpacity
-        style={[styles.fabFreeCoffee, {
-          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70 + 70 + 70,
-          transform: [{ scale: fabScale }],
-          transformOrigin: "left bottom",
-        }]}
-        onPress={async () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          setFcOpen(true);
-          // Mark free coffees as seen so the bell badge clears (these are now
-          // surfaced here + in profile instead of the notifications screen).
-          try {
-            await AsyncStorage.setItem("copointo_free_coffee_last_seen_v1", new Date().toISOString());
-            setUnreadFreeCoffees(0);
-          } catch { /* ignore */ }
-        }}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.fabFreeCoffeeIcon}>🎁</Text>
-        <Text style={styles.fabFreeCoffeeLabel}>الكوفي المجاني</Text>
-        {fcAvailableCount > 0 && (
-          <View style={styles.fabFreeCoffeeBadge}>
-            <Text style={styles.fabFreeCoffeeBadgeText}>{fcAvailableCount}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/my-cafes"); }}
+          >
+            <Feather name="coffee" size={18} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>مستوى الكافيهات</Text>
+            {cafeIds.length > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{cafeIds.length}</Text></View>
+            )}
+          </TouchableOpacity>
 
-      {/* My Cafés - sits directly above الهدايا المرسلة on the LEFT (orange) */}
-      <TouchableOpacity
-        style={[styles.fabSentGifts, {
-          backgroundColor: "#FF8A3D",
-          shadowColor: "#FF8A3D",
-          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70 + 70,
-          transform: [{ scale: fabScale }],
-          transformOrigin: "left bottom",
-        }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/my-cafes"); }}
-        activeOpacity={0.85}
-      >
-        <Feather name="coffee" size={18} color="#FFF" />
-        <Text style={styles.fabSentGiftsLabel}>مستوى الكافيهات</Text>
-        {cafeIds.length > 0 && (
-          <View style={styles.cafeCountBadge}>
-            <Text style={styles.cafeCountText}>{cafeIds.length}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={openFreeCoffee}
+          >
+            <Text style={styles.miniBtnEmoji}>🎁</Text>
+            <Text style={styles.miniBtnLabel}>الكوفي المجاني</Text>
+            {fcAvailableCount > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{fcAvailableCount}</Text></View>
+            )}
+          </TouchableOpacity>
 
-      {/* Sent Gifts - sits directly above المستويات on the LEFT */}
-      <TouchableOpacity
-        style={[styles.fabSentGifts, {
-          bottom: (Platform.OS === "web" ? 90 : insets.bottom + 80) + 70,
-          transform: [{ scale: fabScale }],
-          transformOrigin: "left bottom",
-        }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/sent-gifts"); }}
-        activeOpacity={0.85}
-      >
-        <Feather name="gift" size={18} color="#FFF" />
-        <Text style={styles.fabSentGiftsLabel}>الهدايا المرسلة</Text>
-        {unseenSentGifts > 0 && (
-          <View style={styles.sentGiftsBadge}>
-            <Text style={styles.sentGiftsBadgeText}>{unseenSentGifts}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/sent-gifts"); }}
+          >
+            <Feather name="gift" size={18} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>الهدايا المرسلة</Text>
+            {unseenSentGifts > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{unseenSentGifts}</Text></View>
+            )}
+          </TouchableOpacity>
 
-      {/* Levels - gold, mirrors Leaderboard on the LEFT */}
-      <TouchableOpacity
-        style={[styles.fabLevels, {
-          bottom: Platform.OS === "web" ? 90 : insets.bottom + 80,
-          transform: [{ scale: fabScale }],
-          transformOrigin: "left bottom",
-        }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
-        activeOpacity={0.85}
-      >
-        <Feather name="award" size={18} color="#000" />
-        <Text style={styles.fabLevelsLabel}>المستويات</Text>
-      </TouchableOpacity>
-     </View>
+          <TouchableOpacity
+            style={styles.miniBtn}
+            activeOpacity={0.85}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/add-friend"); }}
+          >
+            <Feather name="user-plus" size={18} color={PRIMARY} />
+            <Text style={styles.miniBtnLabel}>إضافة صديق</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </ScrollView>
 
       {/* Celebration modal for newly-earned frame + badge rewards. */}
       <LevelRewardModal
@@ -910,8 +693,7 @@ export default function GameScreen() {
       />
 
       {/* Global gift feed — falling-rain animation for any gift sent on
-          the platform since the user's last visit to this page. Lives only
-          on the Levels page so the rain never interrupts other screens. */}
+          the platform since the user's last visit to this page. */}
       <GiftFeedRain />
 
       <FreeCoffeeModal visible={fcOpen} onClose={() => setFcOpen(false)} coffees={fcList} />
@@ -920,23 +702,19 @@ export default function GameScreen() {
           full-screen celebration modal that credits the local balance. */}
       <CoinGiftModal />
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4 },
+
+  // ── Header ──
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 8,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 4, paddingTop: 6, paddingBottom: 12,
   },
-  headerLevel: { color: PRIMARY },
-  headerLevelNum: { fontSize: 26, fontFamily: "Inter_700Bold", color: PRIMARY },
-  headerLevelSlash: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: PRIMARY },
-  headerLevelLabel: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: PRIMARY },
   rankChip: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 14, paddingVertical: 8,
@@ -947,140 +725,122 @@ const styles = StyleSheet.create({
   },
   rankChipIcon: { fontSize: 16 },
   rankChipText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  progressRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 20, gap: 12, paddingBottom: 14,
-  },
-  progressTrack: {
-    flex: 1, height: 4, borderRadius: 2,
-    backgroundColor: "rgba(232,184,109,0.10)", overflow: "visible",
-  },
-  progressFill: {
-    height: "100%", borderRadius: 2,
-    backgroundColor: PRIMARY,
-  },
-  progressGlow: {
-    position: "absolute", left: 0, top: -2, height: 8, borderRadius: 4,
-    backgroundColor: "transparent",
-    shadowColor: PRIMARY, shadowOpacity: 1, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  progressNote: {
-    fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF",
-    minWidth: 64, textAlign: "right",
-  },
-  board: { flex: 1 },
-  boardContent: { alignItems: "center", paddingHorizontal: 20 },
-  milestone: {
-    borderWidth: 1, borderColor: PRIMARY_DIM, borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 6,
+  headerLevel: { color: PRIMARY },
+  headerLevelNum: { fontSize: 26, fontFamily: "Inter_700Bold", color: PRIMARY },
+  headerLevelSlash: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "rgba(232,184,109,0.7)" },
+  headerLevelLabel: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+
+  // ── Stats card ──
+  statsCard: {
+    flexDirection: "row", alignItems: "stretch",
     backgroundColor: "rgba(232,184,109,0.06)",
-    marginTop: 18, marginBottom: 4,
+    borderRadius: 20, borderWidth: 1, borderColor: PRIMARY_DIM,
+    paddingVertical: 14, paddingHorizontal: 4, marginBottom: 12,
   },
-  milestoneText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: PRIMARY, textAlign: "center" },
-  milestoneEarned: {
-    borderColor: PRIMARY,
-    backgroundColor: "rgba(232,184,109,0.14)",
+  statCol: { flex: 1, alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 6 },
+  statDivider: { width: 1, backgroundColor: PRIMARY_DIM, marginVertical: 4 },
+  statValueRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  statValue: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFF" },
+  statLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.6)" },
+  statCoinImg: { width: 22, height: 22, resizeMode: "contain" },
+  statGiftText: {
+    fontSize: 10, fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.85)", textAlign: "center", lineHeight: 14,
   },
-  milestoneNext: {
-    borderColor: PRIMARY,
+
+  // ── Progress card ──
+  progressCard: {
+    backgroundColor: "rgba(232,184,109,0.06)",
+    borderRadius: 20, borderWidth: 1, borderColor: PRIMARY_DIM,
+    paddingVertical: 14, paddingHorizontal: 16, marginBottom: 18,
+  },
+  progressCardTitle: {
+    fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
+    textAlign: "center", marginBottom: 12,
+  },
+  progressDiamondsRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  progressBarWrap: { flex: 1, justifyContent: "center" },
+  progressBarTrack: {
+    height: 8, borderRadius: 4,
+    backgroundColor: "rgba(232,184,109,0.12)", overflow: "hidden",
+  },
+  progressBarFill: { height: "100%", borderRadius: 4, backgroundColor: PRIMARY },
+  progressBarPct: { marginTop: 6, fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  progressSubRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12 },
+  progressSubIcon: { fontSize: 13 },
+  progressSubText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
+
+  // ── Middle area ──
+  midRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    minHeight: 280, marginBottom: 10,
+  },
+  ladderCol: { width: 80, alignItems: "center", justifyContent: "center" },
+  ladderItem: { alignItems: "center" },
+  ladderConnector: { flexDirection: "column", alignItems: "center", gap: 3, paddingVertical: 3 },
+  ladderDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: PRIMARY, opacity: 0.6 },
+  ladderHereLabel: { marginTop: 2, fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
+
+  centerCol: { flex: 1, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
+  charGlow: {
+    position: "absolute", width: 200, height: 200, borderRadius: 100,
     backgroundColor: "rgba(232,184,109,0.10)",
-    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 10,
+    shadowColor: PRIMARY, shadowOpacity: 0.6, shadowRadius: 40, shadowOffset: { width: 0, height: 0 },
   },
-  milestoneEarnedChip: {
-    marginTop: 6, alignSelf: "center",
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: PRIMARY,
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
-  },
-  milestoneEarnedChipText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
-  milestoneNextChip: {
-    marginTop: 6, alignSelf: "center",
-    flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: "rgba(232,184,109,0.12)",
-    borderWidth: 1, borderColor: PRIMARY,
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
-  },
-  milestoneNextChipText: { fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
-  nextRewardBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    alignSelf: "center",
-    marginTop: 8, marginBottom: 4,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 14,
+  charPlatform: {
+    marginTop: 6, width: 130, height: 22, borderRadius: 60,
+    backgroundColor: "rgba(232,184,109,0.16)",
     borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.08)",
+    shadowColor: PRIMARY, shadowOpacity: 0.7, shadowRadius: 18, shadowOffset: { width: 0, height: 0 },
   },
-  nextRewardText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFF" },
-  nextCoinBanner: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    alignSelf: "center",
-    marginTop: 4, marginBottom: 4,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: "rgba(255,214,107,0.45)",
-    backgroundColor: "rgba(255,214,107,0.10)",
-    shadowColor: "#FFD66B", shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 0 },
-    elevation: 3,
+
+  heroCol: { width: 80, alignItems: "center", justifyContent: "center", gap: 16 },
+  heroBtn: {
+    width: 64, height: 64, borderRadius: 18,
+    alignItems: "center", justifyContent: "center", gap: 3,
+    backgroundColor: "rgba(232,184,109,0.14)",
+    borderWidth: 1.5, borderColor: PRIMARY_DIM,
+    shadowColor: PRIMARY, shadowOpacity: 0.5, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 }, elevation: 6,
   },
-  nextCoinImg: { width: 22, height: 22, resizeMode: "contain" },
-  nextCoinText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF", flexShrink: 1 },
-  nextCoinHint: {
-    fontSize: 11, fontFamily: "Inter_700Bold", color: "#000",
-    backgroundColor: "#FFD66B",
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8,
+  heroBtnLabel: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+
+  // ── Bottom feature strip ──
+  bottomStripContent: { flexDirection: "row", gap: 10, paddingVertical: 8, paddingHorizontal: 2 },
+  miniBtn: {
+    width: 66, alignItems: "center", justifyContent: "center", gap: 4,
+    paddingVertical: 10, paddingHorizontal: 2, borderRadius: 16,
+    backgroundColor: "rgba(232,184,109,0.06)",
+    borderWidth: 1, borderColor: PRIMARY_DIM,
   },
-  dottedConnector: {
-    height: 18,
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 1,
-  },
-  dot: {
-    width: 3, height: 3, borderRadius: 2,
-    backgroundColor: PRIMARY,
-    opacity: 0.65,
-  },
+  miniBtnEmoji: { fontSize: 17 },
+  miniBtnLabel: { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)", textAlign: "center" },
+
+  // ── Diamonds (shared by HubDiamond) ──
   diamond: {
-    borderRadius: 14,
-    backgroundColor: "#0A0606",
+    borderRadius: 12, backgroundColor: "#0A0606",
     transform: [{ rotate: "45deg" }],
     alignItems: "center", justifyContent: "center",
-    shadowOffset: { width: 0, height: 0 }, elevation: 8,
+    shadowOffset: { width: 0, height: 0 }, elevation: 6,
   },
+  diamondInner: { transform: [{ rotate: "-45deg" }], alignItems: "center", justifyContent: "center" },
   currentHalo: {
-    position: "absolute",
-    borderRadius: 999,
+    position: "absolute", borderRadius: 999,
     backgroundColor: "rgba(232,184,109,0.18)",
-    shadowColor: PRIMARY,
-    shadowOpacity: 0.9,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 0 },
+    shadowColor: PRIMARY, shadowOpacity: 0.9, shadowRadius: 24, shadowOffset: { width: 0, height: 0 },
   },
-  diamondInner: {
-    transform: [{ rotate: "-45deg" }],
-    alignItems: "center", justifyContent: "center", gap: 1,
+
+  // ── Badge ──
+  badge: {
+    position: "absolute", top: -5, right: -5,
+    minWidth: 20, height: 20, borderRadius: 10,
+    backgroundColor: "#EF5350",
+    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4, borderWidth: 1.5, borderColor: BG,
   },
-  curEmoji:  {},
-  curHere:   { color: "#E8B86D", fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
-  curNum:    { fontFamily: "Inter_700Bold", color: "#FFF" },
-  doneCheck: { fontSize: 22, color: "rgba(232,184,109,0.55)", fontFamily: "Inter_700Bold" },
-  futureNum: { fontFamily: "Inter_700Bold", color: "#FFF" },
-  goBackBtn: {
-    position: "absolute", flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20,
-    backgroundColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 12, elevation: 8,
-  },
-  goBackText: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#000" },
-  fabGroup: {
-    position: "absolute",
-    right: 20,
-    alignItems: "center",
-    gap: 12,
-  },
+  badgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
+
+  // ── Rank-overtake toast ──
   overtakeToast: {
     position: "absolute",
     left: 16, right: 16,
@@ -1093,277 +853,9 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   overtakeIcon: { fontSize: 22 },
-  overtakeTitle: {
-    fontSize: 13, fontFamily: "Inter_700Bold", color: "#000",
-    marginBottom: 2,
-  },
-  overtakeSub: {
-    fontSize: 11, fontFamily: "Inter_500Medium",
-    color: "rgba(0,0,0,0.75)",
-  },
-  bellTopLeft: {
-    position: "absolute",
-    left: 16,
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "#0A0606",
-    borderWidth: 1.5, borderColor: PRIMARY_DIM,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
-    zIndex: 50,
-  },
-  addFriendTopRight: {
-    position: "absolute",
-    right: 16,
-    width: 42, height: 42, borderRadius: 21,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "#0A0606",
-    borderWidth: 1.5, borderColor: PRIMARY_DIM,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
-    zIndex: 50,
-  },
-  fabWithLabel: {
-    alignItems: "center",
-    gap: 3,
-  },
-  fabThemed: {
-    width: 48, height: 48, borderRadius: 14,
-    alignItems: "center", justifyContent: "center", gap: 2,
-    paddingHorizontal: 2,
-    borderWidth: 1.2, borderColor: "rgba(255,255,255,0.18)",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 10, elevation: 6,
-  },
-  fabThemedLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
-    color: "#FFF", textAlign: "center",
-  },
-  fabSmall: {
-    width: 54, height: 54, borderRadius: 16,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "#0A0606",
-    borderWidth: 1.5, borderColor: PRIMARY_DIM,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.45, shadowRadius: 10, elevation: 6,
-  },
-  storeIconWrap: {
-    width: 32, height: 32, alignItems: "center", justifyContent: "center",
-  },
-  storeIconChar: {
-    position: "absolute", top: -1, left: 7,
-  },
-  storeIconGift: {
-    position: "absolute", bottom: -2, left: -2,
-  },
-  storeIconBg: {
-    position: "absolute", bottom: -2, right: -2,
-  },
-  fabSmallLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold", color: PRIMARY,
-    marginTop: 2,
-  },
-  badge: {
-    position: "absolute", top: -5, right: -5,
-    minWidth: 20, height: 20, borderRadius: 10,
-    backgroundColor: "#EF5350",
-    alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 4,
-    borderWidth: 1.5, borderColor: BG,
-  },
-  badgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
-  cafeCountBadge: {
-    position: "absolute", top: -5, right: -5,
-    minWidth: 20, height: 20, borderRadius: 10,
-    backgroundColor: PRIMARY,
-    alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 4,
-    borderWidth: 1.5, borderColor: BG,
-  },
-  cafeCountText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#000" },
-  sentGiftsBadge: {
-    position: "absolute", top: -5, right: -5,
-    minWidth: 20, height: 20, borderRadius: 10,
-    backgroundColor: "#E8484C",
-    alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 5,
-    borderWidth: 1.5, borderColor: BG,
-  },
-  sentGiftsBadgeText: { fontSize: 11, fontFamily: "Inter_700Bold", color: "#fff" },
-  cafePill: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    alignSelf: "center",
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.08)",
-    marginBottom: 6, maxWidth: "85%",
-  },
-  cafePillEmpty: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    alignSelf: "center",
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.04)",
-    marginBottom: 6, maxWidth: "90%",
-  },
-  cafePillText: {
-    fontSize: 12, fontFamily: "Inter_600SemiBold",
-    color: PRIMARY, maxWidth: 220,
-  },
-  coinsPill: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    alignSelf: "center",
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.08)",
-    marginBottom: 6, maxWidth: "90%",
-  },
-  coinsPillImg: { width: 18, height: 18, resizeMode: "contain" },
-  coinsPillText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
-  coinsPillLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)" },
-  // Compact horizontal row that replaces the previous stacked pills above
-  // the level board. Three pills (coins / active-cafe / daily-cap) sit side
-  // by side and stay icon-first to free up vertical space for the levels.
-  compactPillsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    gap: 6,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  compactCoinsPill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.08)",
-  },
-  compactCoinsImg: { width: 16, height: 16, resizeMode: "contain" },
-  compactCoinsText: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
-  compactCafePill: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.08)",
-    maxWidth: 160,
-  },
-  compactCafeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: PRIMARY, maxWidth: 130 },
-  compactDailyPill: {
-    flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.06)",
-  },
-  compactDailyPillFull: {
-    borderColor: "rgba(239,83,80,0.55)",
-    backgroundColor: "rgba(239,83,80,0.10)",
-  },
-  compactDailyText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
-  dailyCapPill: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    alignSelf: "center",
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    backgroundColor: "rgba(232,184,109,0.06)",
-    marginBottom: 8, maxWidth: "92%",
-  },
-  dailyCapPillFull: {
-    borderColor: "rgba(239,83,80,0.55)",
-    backgroundColor: "rgba(239,83,80,0.10)",
-  },
-  dailyCapText: {
-    fontSize: 11, fontFamily: "Inter_600SemiBold",
-    color: PRIMARY,
-  },
-  fabPlayWin: {
-    width: 54, height: 54, borderRadius: 15,
-    alignItems: "center", justifyContent: "center", gap: 2,
-    backgroundColor: "#FF7A1A",
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.22)",
-    shadowColor: "#FF7A1A", shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 16, elevation: 10,
-  },
-  fabPlayWinLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
-    color: "#FFF", textAlign: "center",
-  },
-  fabLeaderboard: {
-    width: 70, height: 70, borderRadius: 18,
-    alignItems: "center", justifyContent: "center", gap: 3,
-    backgroundColor: PURPLE,
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
-    shadowColor: PURPLE, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
-  },
-  fabLeaderboardLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
-    color: "#FFF", textAlign: "center",
-  },
-  fabSentGifts: {
-    position: "absolute",
-    left: 20,
-    width: 58, height: 58, borderRadius: 16,
-    alignItems: "center", justifyContent: "center", gap: 2,
-    paddingHorizontal: 3,
-    backgroundColor: "#E8484C",
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
-    shadowColor: "#E8484C", shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
-    zIndex: 60,
-  },
-  fabSentGiftsLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
-    color: "#FFF", textAlign: "center",
-  },
-  fabLevels: {
-    position: "absolute",
-    left: 20,
-    width: 58, height: 58, borderRadius: 16,
-    alignItems: "center", justifyContent: "center", gap: 2,
-    backgroundColor: PRIMARY,
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.18)",
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7, shadowRadius: 16, elevation: 10,
-    zIndex: 60,
-  },
-  fabLevelsLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
-    color: "#000", textAlign: "center",
-  },
-  // ── Small free-coffee FAB (above مستوى الكافيهات) ──
-  fabFreeCoffee: {
-    position: "absolute",
-    left: 25,
-    width: 48, height: 48, borderRadius: 14,
-    alignItems: "center", justifyContent: "center", gap: 1,
-    paddingHorizontal: 2,
-    backgroundColor: "rgba(232,184,109,0.16)",
-    borderWidth: 1.5, borderColor: PRIMARY,
-    shadowColor: PRIMARY, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 12, elevation: 9,
-    zIndex: 60,
-  },
-  fabFreeCoffeeIcon: { fontSize: 16 },
-  fabFreeCoffeeLabel: {
-    fontSize: 9, fontFamily: "Inter_700Bold",
-    color: PRIMARY, textAlign: "center",
-  },
-  fabFreeCoffeeBadge: {
-    position: "absolute", top: -5, right: -5,
-    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
-    backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
-    borderWidth: 1.5, borderColor: "#000",
-  },
-  fabFreeCoffeeBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#000" },
+  overtakeTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: "#000", marginBottom: 2 },
+  overtakeSub: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(0,0,0,0.75)" },
+
   // ── Free coffee codes modal ──
   fcOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.7)",
@@ -1406,50 +898,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(229,83,83,0.18)", borderWidth: 1, borderColor: "rgba(229,83,83,0.5)",
   },
   fcStatusPillUsedText: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#E55353" },
-  freeHint: {
-    marginTop: 5, marginBottom: 4,
-    backgroundColor: PRIMARY_FAINT,
-    borderWidth: 1, borderColor: PRIMARY_DIM,
-    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7,
-    maxWidth: 215, alignItems: "center",
-  },
-  freeHintText: {
-    fontSize: 11, fontFamily: "Inter_600SemiBold",
-    color: PRIMARY, textAlign: "center",
-  },
-  coinTileBadge: {
-    position: "absolute",
-    flexDirection: "row", alignItems: "center", gap: 3,
-    backgroundColor: "#FFD66B",
-    borderWidth: 1.5, borderColor: "#000",
-    borderRadius: 12, paddingHorizontal: 6, paddingVertical: 2,
-    shadowColor: "#FFD66B", shadowOpacity: 0.9, shadowRadius: 8, elevation: 6,
-    zIndex: 5,
-  },
-  coinTileBadgeImg: { width: 14, height: 14, resizeMode: "contain" },
-  coinTileBadgeText: {
-    fontSize: 10, fontFamily: "Inter_700Bold", color: "#000",
-  },
-  coinTileGlowRing: {
-    position: "absolute",
-    borderRadius: 4,
-    borderWidth: 1, borderColor: "rgba(255,214,107,0.55)",
-    transform: [{ rotate: "45deg" }],
-  },
-  coinHint: {
-    marginTop: 5, marginBottom: 4,
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "rgba(255,214,107,0.10)",
-    borderWidth: 1, borderColor: "rgba(255,214,107,0.45)",
-    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 7,
-    maxWidth: 250,
-  },
-  coinHintImg: { width: 18, height: 18, resizeMode: "contain" },
-  coinHintText: {
-    flexShrink: 1,
-    fontSize: 11, fontFamily: "Inter_700Bold",
-    color: "#FFD66B", textAlign: "center",
-  },
+
+  // ── Suspension / ban screen ──
   blockedScroll: {
     paddingHorizontal: 24, paddingTop: 24, paddingBottom: 80,
     alignItems: "center",
