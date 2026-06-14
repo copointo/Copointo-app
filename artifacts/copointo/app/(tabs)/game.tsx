@@ -636,18 +636,6 @@ export default function GameScreen() {
           <TouchableOpacity
             style={styles.miniBtn}
             activeOpacity={0.85}
-            onPress={openFreeCoffee}
-          >
-            <Text style={styles.miniBtnEmoji}>🎁</Text>
-            <Text style={styles.miniBtnLabel}>الكوفي المجاني</Text>
-            {fcAvailableCount > 0 && (
-              <View style={styles.badge}><Text style={styles.badgeText}>{fcAvailableCount}</Text></View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.miniBtn}
-            activeOpacity={0.85}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/sent-gifts"); }}
           >
             <Feather name="gift" size={18} color={PRIMARY} />
