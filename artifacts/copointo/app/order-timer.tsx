@@ -454,7 +454,6 @@ export default function OrderTimerScreen() {
     else router.back();
   };
   const goCafe = () => { if (cafeId) router.push({ pathname: "/cafe/[id]", params: { id: cafeId } }); };
-  const goHelp = () => { if (cafeId) router.push({ pathname: "/cafe/[id]/chat", params: { id: cafeId } }); };
   const goHub  = () => { setActiveOrder(null); router.replace("/(tabs)/game"); };
 
   // ── Auto-redirect to the Copointo hub once the order is paid/done ──
@@ -610,11 +609,6 @@ export default function OrderTimerScreen() {
               <Feather name="chevron-left" size={14} color="rgba(245,230,204,0.55)" />
             </View>
           )}
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={goHelp} style={styles.helpBtn} activeOpacity={0.85}>
-          <Feather name="headphones" size={15} color={PRIMARY} />
-          <Text style={styles.helpText}>{isAr ? "مساعدة" : "Help"}</Text>
         </TouchableOpacity>
       </View>
 
@@ -846,12 +840,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: CREAM, letterSpacing: 0.3 },
   headerCafeRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
   headerCafe: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: "rgba(245,230,204,0.7)", maxWidth: 160 },
-  helpBtn: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 11, paddingVertical: 8,
-    borderRadius: 18, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD,
-  },
-  helpText: { fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: PRIMARY },
 
   // ── Status badge ──
   statusBadgeWrap: { alignItems: "center", paddingBottom: 6 },
