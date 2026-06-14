@@ -372,7 +372,7 @@ export default function GameScreen() {
     incomingRequests.length + incomingInvites.length + unreadBroadcasts + unreadFreeCoffees;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const stripPadBottom = Platform.OS === "web" ? 96 : insets.bottom + 80;
+  const stripPadBottom = Platform.OS === "web" ? 56 : insets.bottom + 44;
 
   // ── Suspension/Ban screen (replaces game UI; other tabs keep working) ──
   if (isBlocked && status) {
