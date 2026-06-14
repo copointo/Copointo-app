@@ -1557,13 +1557,18 @@ const styles = StyleSheet.create({
   // ── Stats (glowing cards) ──
   statsGrid: { gap: 12 },
   statsRow:  { flexDirection: "row", gap: 12, marginTop: 8 },
-  statStrip: { flexDirection: "row", gap: 8, paddingVertical: 8, paddingHorizontal: 2 },
+  statStrip: { flexDirection: "row", gap: 10, paddingVertical: 8, paddingHorizontal: 2 },
   statChip: {
-    flex: 0, width: 74, paddingVertical: 10, paddingHorizontal: 4, gap: 3,
+    flex: 0, width: 82, height: 82,
+    paddingVertical: 8, paddingHorizontal: 4, gap: 4,
+    borderRadius: 14,
+    justifyContent: "center",
+    borderWidth: 1.5, borderColor: "rgba(232,184,109,0.55)",
+    backgroundColor: "#120C0C",
   },
-  statChipIcon:  { fontSize: 18 },
-  statChipValue: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFF" },
-  statChipLabel: { fontSize: 10, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center" },
+  statChipIcon:  { fontSize: 22 },
+  statChipValue: { fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFF" },
+  statChipLabel: { fontSize: 10, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.7)", textAlign: "center" },
   cosmeticsTitle: {
     fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF",
     textAlign: "right", marginTop: 8, marginBottom: 4,
