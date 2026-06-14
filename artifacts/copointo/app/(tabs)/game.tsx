@@ -736,8 +736,7 @@ const styles = StyleSheet.create({
 
   // ── Oman national ranking chip ──
   omanRankRow: {
-    alignItems: "center", marginTop: 8, paddingTop: 8,
-    borderTopWidth: 1, borderTopColor: "rgba(232,184,109,0.15)",
+    alignItems: "center", marginTop: 6, paddingTop: 6,
   },
   omanRankChip: {
     flexDirection: "row", alignItems: "center", gap: 6,
@@ -748,32 +747,30 @@ const styles = StyleSheet.create({
   omanRankIcon: { fontSize: 14 },
   omanRankText: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY },
 
-  // ── Progress card ──
+  // ── Progress (panel-less, compact) ──
   progressCard: {
-    backgroundColor: "rgba(232,184,109,0.06)",
-    borderRadius: 20, borderWidth: 1, borderColor: PRIMARY_DIM,
-    paddingVertical: 10, paddingHorizontal: 16, marginBottom: 8,
+    paddingVertical: 2, marginBottom: 4,
   },
   progressCardTitle: {
-    fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY,
-    textAlign: "center", marginBottom: 8,
+    fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY,
+    textAlign: "center", marginBottom: 5,
   },
   progressDiamondsRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   progressBarWrap: { flex: 1, justifyContent: "center" },
   progressBarTrack: {
-    height: 8, borderRadius: 4,
+    height: 7, borderRadius: 4,
     backgroundColor: "rgba(232,184,109,0.12)", overflow: "hidden",
   },
   progressBarFill: { height: "100%", borderRadius: 4, backgroundColor: PRIMARY },
-  progressBarPct: { marginTop: 6, fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
-  progressSubRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8 },
+  progressBarPct: { marginTop: 4, fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFF", textAlign: "center" },
+  progressSubRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 5 },
   progressSubIcon: { fontSize: 13 },
   progressSubText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)" },
 
   // ── Middle area ──
   midRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    minHeight: 190, marginBottom: 6,
+    minHeight: 160, marginBottom: 6,
   },
   ladderCol: { width: 80, alignItems: "center", justifyContent: "center" },
   ladderItem: { alignItems: "center" },
