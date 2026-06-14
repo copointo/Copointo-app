@@ -820,12 +820,8 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* ── Stats strip (compact, side-by-side) ── */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.statStrip}
-        >
+        {/* ── Stats grid (wrapped rows, all visible) ── */}
+        <View style={styles.statStrip}>
           <View style={[styles.statBox, styles.statBoxCard, styles.statChip]}>
             <Text style={styles.statChipIcon}>👥</Text>
             <Text style={styles.statChipValue}>{friendsCount}</Text>
@@ -861,7 +857,7 @@ export default function ProfileScreen() {
             <Text style={styles.statChipValue}>{friendsRankStr}</Text>
             <Text style={styles.statChipLabel} numberOfLines={1}>{t("profile.statFriendsRank")}</Text>
           </View>
-        </ScrollView>
+        </View>
 
         {/* ── Per-cafe level breakdown ──
             Level is conceptually per-cafe (e.g. 6 total drinks = 4 at cafe A
@@ -1557,9 +1553,13 @@ const styles = StyleSheet.create({
   // ── Stats (glowing cards) ──
   statsGrid: { gap: 12 },
   statsRow:  { flexDirection: "row", gap: 12, marginTop: 8 },
-  statStrip: { flexDirection: "row", gap: 12, paddingVertical: 8, paddingHorizontal: 2 },
+  statStrip: {
+    flexDirection: "row", flexWrap: "wrap",
+    justifyContent: "center", alignItems: "center",
+    gap: 12, paddingVertical: 8, paddingHorizontal: 2,
+  },
   statChip: {
-    flex: 0, width: 108, height: 108,
+    flexGrow: 1, flexBasis: "29%", minWidth: 100, maxWidth: 150, height: 112,
     paddingVertical: 10, paddingHorizontal: 6, gap: 6,
     borderRadius: 18,
     justifyContent: "center",
