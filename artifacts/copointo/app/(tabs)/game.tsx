@@ -603,31 +603,10 @@ export default function GameScreen() {
           <TouchableOpacity
             style={styles.miniBtn}
             activeOpacity={0.85}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/notifications"); }}
-          >
-            <Feather name="bell" size={18} color={PRIMARY} />
-            <Text style={styles.miniBtnLabel}>الإشعارات</Text>
-            {totalUnread > 0 && (
-              <View style={styles.badge}><Text style={styles.badgeText}>{totalUnread}</Text></View>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.miniBtn}
-            activeOpacity={0.85}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/leaderboard"); }}
           >
             <FontAwesome5 name="trophy" size={17} color={PRIMARY} />
             <Text style={styles.miniBtnLabel}>التصنيف</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.miniBtn}
-            activeOpacity={0.85}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/levels"); }}
-          >
-            <Feather name="award" size={18} color={PRIMARY} />
-            <Text style={styles.miniBtnLabel}>المستويات</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
