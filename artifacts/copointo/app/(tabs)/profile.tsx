@@ -709,7 +709,6 @@ export default function ProfileScreen() {
                 <Text style={styles.heroName} numberOfLines={1}>{username}</Text>
                 <UserBadge size={20} />
               </View>
-              <Text style={styles.heroHandle} numberOfLines={1}>@{username}</Text>
               <TouchableOpacity
                 style={styles.rankBadge}
                 activeOpacity={0.85}
@@ -735,6 +734,15 @@ export default function ProfileScreen() {
                 <Feather name="camera" size={14} color="#FFF" />
               </View>
             </TouchableOpacity>
+          </View>
+
+          {/* Username + Oman ranking (under the character) */}
+          <View style={styles.heroSubRow}>
+            <Text style={styles.heroHandle} numberOfLines={1}>@{username}</Text>
+            <View style={styles.omanRankChip}>
+              <Text style={styles.omanRankIcon}>🇴🇲</Text>
+              <Text style={styles.omanRankText} numberOfLines={1}>{`ترتيبك ${omanRankStr} في عُمان`}</Text>
+            </View>
           </View>
 
           {/* Compact level → next-level progress with free-coffee reward theme */}
@@ -1392,6 +1400,18 @@ const styles = StyleSheet.create({
   heroCrown: { fontSize: 16 },
   heroName: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFF", maxWidth: 160, textAlign: "right" },
   heroHandle: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.50)" },
+  heroSubRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 10, flexWrap: "wrap",
+  },
+  omanRankChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: BORDER,
+  },
+  omanRankIcon: { fontSize: 13 },
+  omanRankText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
   rankBadge: {
     flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
