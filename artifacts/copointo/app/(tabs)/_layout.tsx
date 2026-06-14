@@ -8,6 +8,7 @@ import React from "react";
 import { Image, Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 const COPOINTO_LOGO = require("../../assets/images/copointo-logo.png");
+const COPOINTO_HUB = require("../../assets/images/copointo-hub.png");
 import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
 
@@ -27,7 +28,7 @@ function NativeTabLayout() {
         <Label>Reels</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="game">
-        <Icon src={COPOINTO_LOGO} />
+        <Icon src={COPOINTO_HUB} />
         <Label>Copointo Hub</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
@@ -139,7 +140,7 @@ function ClassicTabLayout() {
           tabBarIcon: ({ focused }) => (
             <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapActive]}>
               <Image
-                source={COPOINTO_LOGO}
+                source={COPOINTO_HUB}
                 style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain", opacity: focused ? 1 : 0.5 }}
               />
             </View>
