@@ -614,6 +614,11 @@ export default function ProfileScreen() {
   const nextRank = getRank(Math.min(level + 1, 1000));
   const pct   = rank ? ((level - rank.min) / Math.max(rank.max - rank.min, 1)) * 100 : 0;
   const freeCoffees = Math.floor((user.totalOrders ?? 0) / 6);
+  // Progress within the current free-coffee cycle (free coffee every 6 levels — matches game.tsx + api-server)
+  const DRINKS_PER_FREE_COFFEE = 6;
+  const levelsIntoCycle = level % DRINKS_PER_FREE_COFFEE;
+  const freeCoffeeCyclePct = Math.round((levelsIntoCycle / DRINKS_PER_FREE_COFFEE) * 100);
+  const levelsToFreeCoffee = DRINKS_PER_FREE_COFFEE - levelsIntoCycle;
   const giftsReceived = useReceivedGifts(user.id);
   const giftsSent     = useSentGifts(user.id);
   const { equipped: eqCharacterId } = useCharacters();
@@ -732,17 +737,19 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Progress to next level */}
+          {/* Progress to next free coffee */}
           <View style={styles.heroProgressWrap}>
             <View style={styles.heroProgressTop}>
-              <Text style={styles.heroProgressTitle}>{t("profile.progressTitle")}</Text>
-              <Text style={[styles.heroProgressPct, { color: rank?.color ?? PRIMARY }]}>{Math.round(pct)}%</Text>
+              <Text style={styles.heroProgressTitle}>التقدّم للكوفي المجاني</Text>
+              <Text style={[styles.heroProgressPct, { color: PRIMARY }]}>{freeCoffeeCyclePct}%</Text>
             </View>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: rank?.color ?? PRIMARY }]} />
+              <View style={[styles.progressFill, { width: `${freeCoffeeCyclePct}%` as any, backgroundColor: PRIMARY }]} />
             </View>
             <Text style={styles.heroProgressSub}>
-              {`باقي ${Math.max(0, 100 - Math.round(pct))}% للوصول إلى المستوى ${Math.min(level + 1, 999)}`}
+              {levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE
+                ? "🎁 كوفي مجاني متاح الآن!"
+                : `باقي ${levelsToFreeCoffee} مستوى للكوفي المجاني`}
             </Text>
           </View>
         </View>
