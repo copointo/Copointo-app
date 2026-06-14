@@ -267,7 +267,7 @@ export default function GameScreen() {
   // a couple levels above + the current one + one below). The full board
   // lives on the dedicated /levels screen, reachable by tapping the ladder.
   const ladderLevels = [level + 2, level + 1, level, level - 1].filter((l) => l >= 0 && l <= 999);
-  const charSize = Math.round(Math.min(112 * s, 140));
+  const charSize = Math.round(Math.min(94 * s, 118));
 
   // ── Sound: play a triumphant chime whenever the user levels up ──
   const prevLevelRef = useRef<number | null>(null);
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
 
   centerCol: { flex: 1, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   charGlow: {
-    position: "absolute", width: 150, height: 150, borderRadius: 75,
+    position: "absolute", width: 124, height: 124, borderRadius: 62,
     backgroundColor: "rgba(232,184,109,0.10)",
     shadowColor: PRIMARY, shadowOpacity: 0.6, shadowRadius: 40, shadowOffset: { width: 0, height: 0 },
   },
