@@ -1069,8 +1069,8 @@ export default function ProfileScreen() {
                 width: "100%",
                 backgroundColor: notifEnabled ? "rgba(232,184,109,0.10)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${notifEnabled ? PRIMARY : "rgba(232,184,109,0.25)"}`,
-                borderRadius: 14,
-                padding: "10px 14px",
+                borderRadius: 13,
+                padding: "9px 14px",
                 cursor: notifBusy ? "not-allowed" : "pointer",
                 color: PRIMARY,
                 fontFamily: "Inter_700Bold",
@@ -1321,11 +1321,11 @@ const styles = StyleSheet.create({
   emptySub:   { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: 12 },
   loginBtn:   {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: PRIMARY, paddingVertical: 16, paddingHorizontal: 28,
-    borderRadius: 16, shadowColor: PRIMARY, shadowOpacity: 0.4,
+    backgroundColor: PRIMARY, paddingVertical: 13, paddingHorizontal: 26,
+    borderRadius: 14, shadowColor: PRIMARY, shadowOpacity: 0.4,
     shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
-  loginBtnText: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" },
+  loginBtnText: { fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF" },
 
   // ── Avatar (double glowing ring) ──
   avatarSection: { alignItems: "center", gap: 10, marginTop: 44 },
@@ -1375,7 +1375,7 @@ const styles = StyleSheet.create({
 
   // ── Hero card (image-matched) ──
   heroCard: {
-    backgroundColor: CARD, borderRadius: 24,
+    backgroundColor: CARD, borderRadius: 20,
     borderWidth: 1, borderColor: BORDER,
     padding: 16, gap: 14, marginTop: 8,
     position: "relative",
@@ -1489,36 +1489,36 @@ const styles = StyleSheet.create({
 
   // ── Rank pill ──
   rankPill: {
-    flexDirection: "row", alignItems: "center", gap: 16,
-    backgroundColor: CARD, borderRadius: 22,
+    flexDirection: "row", alignItems: "center", gap: 14,
+    backgroundColor: CARD, borderRadius: 18,
     borderWidth: 1, borderColor: BORDER,
-    paddingVertical: 14, paddingHorizontal: 20,
+    paddingVertical: 11, paddingHorizontal: 18,
     shadowColor: PRIMARY, shadowOpacity: 0.18,
     shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
     elevation: 4,
   },
   rankPillIconRing: {
-    width: 50, height: 50, borderRadius: 25,
+    width: 44, height: 44, borderRadius: 22,
     borderWidth: 1.5, borderColor: PRIMARY,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "rgba(232,184,109,0.08)",
     shadowColor: PRIMARY, shadowOpacity: 0.5,
     shadowRadius: 10, shadowOffset: { width: 0, height: 0 },
   },
-  rankPillIcon: { fontSize: 24 },
-  rankPillName: { fontSize: 18, fontFamily: "Inter_700Bold", color: PRIMARY },
+  rankPillIcon: { fontSize: 21 },
+  rankPillName: { fontSize: 16, fontFamily: "Inter_700Bold", color: PRIMARY },
   rankPillSub:  { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(232,184,109,0.55)", marginTop: 2 },
 
   // ── Free coffee button (small, above rank pill) ──
   freeCoffeeBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     alignSelf: "stretch", marginBottom: 10,
-    backgroundColor: "rgba(232,184,109,0.08)", borderRadius: 16,
+    backgroundColor: "rgba(232,184,109,0.08)", borderRadius: 13,
     borderWidth: 1, borderColor: BORDER,
-    paddingVertical: 10, paddingHorizontal: 16,
+    paddingVertical: 9, paddingHorizontal: 14,
   },
-  freeCoffeeBtnIcon: { fontSize: 18 },
-  freeCoffeeBtnText: { flex: 1, fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "right" },
+  freeCoffeeBtnIcon: { fontSize: 17 },
+  freeCoffeeBtnText: { flex: 1, fontSize: 13.5, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "right" },
   freeCoffeeBtnBadge: {
     minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6,
     backgroundColor: PRIMARY, alignItems: "center", justifyContent: "center",
@@ -1579,9 +1579,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cosmeticEmptyText: { fontSize: 13, color: "rgba(255,255,255,0.55)", fontFamily: "Inter_400Regular" },
-  statBox:   { alignItems: "center", gap: 8, paddingVertical: 18, paddingHorizontal: 8 },
+  statBox:   { alignItems: "center", gap: 6, paddingVertical: 14, paddingHorizontal: 8 },
   statBoxCard: {
-    flex: 1, backgroundColor: CARD, borderRadius: 22,
+    flex: 1, backgroundColor: CARD, borderRadius: 18,
     borderWidth: 1, borderColor: BORDER,
     shadowColor: PRIMARY, shadowOpacity: 0.22,
     shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
@@ -1635,18 +1635,18 @@ const styles = StyleSheet.create({
 
   // ── Edit fields ──
   fieldsCard: {
-    backgroundColor: CARD, borderRadius: 22, borderWidth: 1,
+    backgroundColor: CARD, borderRadius: 18, borderWidth: 1,
     borderColor: BORDER, overflow: "hidden",
     shadowColor: PRIMARY, shadowOpacity: 0.18,
     shadowRadius: 14, shadowOffset: { width: 0, height: 0 },
     elevation: 3,
   },
   fieldRow: {
-    flexDirection: "row", alignItems: "center", gap: 14,
-    paddingHorizontal: 18, paddingVertical: 18,
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 16, paddingVertical: 13,
   },
   fieldIcon: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 38, height: 38, borderRadius: 11,
     borderWidth: 1, borderColor: PRIMARY,
     backgroundColor: "rgba(232,184,109,0.10)",
     alignItems: "center", justifyContent: "center",
@@ -1658,20 +1658,20 @@ const styles = StyleSheet.create({
 
   // Logout
   logoutBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
     backgroundColor: `${DANGER}15`, borderWidth: 1, borderColor: `${DANGER}40`,
-    paddingVertical: 14, borderRadius: 16, marginTop: 4,
+    paddingVertical: 11, borderRadius: 13, marginTop: 4,
   },
-  logoutText: { fontSize: 15, fontFamily: "Inter_700Bold", color: DANGER },
+  logoutText: { fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
 
   // Delete account permanently (destructive — sits below logout)
   deleteAcctBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
     backgroundColor: "transparent",
     borderWidth: 1, borderColor: `${DANGER}80`, borderStyle: "dashed",
-    paddingVertical: 14, borderRadius: 16, marginTop: 10, marginBottom: 6,
+    paddingVertical: 11, borderRadius: 13, marginTop: 10, marginBottom: 6,
   },
-  deleteAcctText: { fontSize: 14, fontFamily: "Inter_700Bold", color: DANGER },
+  deleteAcctText: { fontSize: 13.5, fontFamily: "Inter_700Bold", color: DANGER },
 
   // Notifications opt-in
   notifRow: {
@@ -1682,9 +1682,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: "rgba(232,184,109,0.25)",
-    borderRadius: 14,
+    borderRadius: 13,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
   notifRowOn: {
     backgroundColor: "rgba(232,184,109,0.10)",
@@ -1697,32 +1697,32 @@ const styles = StyleSheet.create({
     color: PRIMARY,
   },
   notifBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
     backgroundColor: `${PRIMARY}18`, borderWidth: 1, borderColor: `${PRIMARY}55`,
-    paddingVertical: 14, borderRadius: 16, marginTop: 4, marginBottom: 10,
+    paddingVertical: 11, borderRadius: 13, marginTop: 4, marginBottom: 10,
   },
   notifBtnOn: {
     backgroundColor: `${PRIMARY}08`, borderColor: `${PRIMARY}30`,
     borderStyle: "dashed",
   },
-  notifText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  notifText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Support
   supportBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
     backgroundColor: `${PRIMARY}12`, borderWidth: 1, borderColor: `${PRIMARY}40`,
-    paddingVertical: 14, borderRadius: 16, marginTop: 4, marginBottom: 10,
+    paddingVertical: 11, borderRadius: 13, marginTop: 4, marginBottom: 10,
   },
-  supportText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  supportText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Privacy & Governance
   privacyBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1, borderColor: `${PRIMARY}30`,
-    paddingVertical: 14, borderRadius: 16, marginBottom: 10,
+    paddingVertical: 11, borderRadius: 13, marginBottom: 10,
   },
-  privacyText: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
+  privacyText: { fontSize: 14, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // Modal
   modalOverlay: {
@@ -1754,12 +1754,12 @@ const styles = StyleSheet.create({
   eyeBtn:  { padding: 8 },
   modalBtns: { flexDirection: "row", gap: 12 },
   cancelBtn: {
-    flex: 1, borderRadius: 14, borderWidth: 1, borderColor: BORDER,
-    alignItems: "center", paddingVertical: 14,
+    flex: 1, borderRadius: 13, borderWidth: 1, borderColor: BORDER,
+    alignItems: "center", paddingVertical: 12,
   },
-  cancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.50)" },
-  saveBtn:   { flex: 1, borderRadius: 14, backgroundColor: PRIMARY, alignItems: "center", paddingVertical: 14 },
-  saveText:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFF" },
+  cancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.50)" },
+  saveBtn:   { flex: 1, borderRadius: 13, backgroundColor: PRIMARY, alignItems: "center", paddingVertical: 12 },
+  saveText:  { fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFF" },
 
   // Tabs
   tabsRow: {
