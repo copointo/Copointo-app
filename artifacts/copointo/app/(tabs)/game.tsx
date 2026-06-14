@@ -163,7 +163,7 @@ function HubDiamond({
 export default function GameScreen() {
   const insets    = useSafeAreaInsets();
   const router    = useRouter();
-  const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests }  = useApp();
+  const { user, activeGameCafeId, setActiveGameCafeId, incomingRequests, registeredUsers }  = useApp();
   const { incomingInvites, refresh: refreshCommunities } = useCommunities();
   const r = useResponsive();
   const s = r.scale;
@@ -221,6 +221,15 @@ export default function GameScreen() {
   const levelRewards = useLevelRewards(level);
   const coinMilestones = useCoinMilestones(level);
   const ordersThisLevel = level % DRINKS_PER_FREE_COFFEE;
+
+  // ── National (Oman) ranking — mirrors profile.tsx so both screens agree ──
+  const hasActivity = (user?.level ?? 0) > 0 || (user?.totalOrders ?? 0) > 0 || (user?.points ?? 0) > 0;
+  const omanRankStr = (() => {
+    if (!hasActivity) return "—";
+    const sorted = [...registeredUsers].sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+    const idx = sorted.findIndex((u) => u.id === user?.id);
+    return idx >= 0 ? `#${idx + 1}` : "—";
+  })();
 
   // ── Hub layout helpers ──
   // The "progress to next level" bar uses the real free-coffee cycle
@@ -483,6 +492,14 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* ── National (Oman) ranking ── */}
+        <View style={styles.omanRankRow}>
+          <View style={styles.omanRankChip}>
+            <Text style={styles.omanRankIcon}>🇴🇲</Text>
+            <Text style={styles.omanRankText} numberOfLines={1}>{`ترتيبك ${omanRankStr} في عُمان`}</Text>
+          </View>
+        </View>
+
         {/* ── Progress to next level ── */}
         <View style={styles.progressCard}>
           <Text style={styles.progressCardTitle}>التقدم إلى المستوى التالي</Text>
@@ -743,6 +760,17 @@ const styles = StyleSheet.create({
   statRankIcon: { fontSize: 18, lineHeight: 22 },
   statLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.6)" },
   statCoinImg: { width: 22, height: 22, resizeMode: "contain" },
+
+  // ── Oman national ranking chip ──
+  omanRankRow: { alignItems: "center", marginBottom: 10 },
+  omanRankChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: "rgba(232,184,109,0.10)",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
+  },
+  omanRankIcon: { fontSize: 14 },
+  omanRankText: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY },
 
   // ── Progress card ──
   progressCard: {

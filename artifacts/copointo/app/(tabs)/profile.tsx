@@ -709,6 +709,7 @@ export default function ProfileScreen() {
                 <Text style={styles.heroName} numberOfLines={1}>{username}</Text>
                 <UserBadge size={20} />
               </View>
+              <Text style={styles.heroHandle} numberOfLines={1}>@{username}</Text>
               <TouchableOpacity
                 style={styles.rankBadge}
                 activeOpacity={0.85}
@@ -736,38 +737,14 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Username + Oman ranking (under the character) */}
-          <View style={styles.heroSubRow}>
-            <Text style={styles.heroHandle} numberOfLines={1}>@{username}</Text>
-            <View style={styles.omanRankChip}>
-              <Text style={styles.omanRankIcon}>🇴🇲</Text>
-              <Text style={styles.omanRankText} numberOfLines={1}>{`ترتيبك ${omanRankStr} في عُمان`}</Text>
+          {/* Progress within the current rank */}
+          <View style={styles.heroProgressWrap}>
+            <View style={styles.heroProgressTop}>
+              <Text style={styles.heroProgressTitle}>{t("profile.progressTitle")}</Text>
+              <Text style={styles.heroProgressPct}>{Math.round(pct)}%</Text>
             </View>
-          </View>
-
-          {/* Compact level → next-level progress with free-coffee reward theme */}
-          <View style={[styles.freeCoffeeProgressCard, levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE && styles.freeCoffeeProgressCardReady]}>
-            <View style={styles.fcLevelRow}>
-              <View style={styles.fcLevelChip}>
-                <Text style={styles.fcLevelChipText}>{level}</Text>
-              </View>
-              <View style={styles.fcBarMid}>
-                <Text style={styles.freeCoffeeProgressPct}>{freeCoffeeCyclePct}%</Text>
-                <View style={styles.freeCoffeeTrack}>
-                  <View style={[styles.freeCoffeeFill, { width: `${freeCoffeeCyclePct}%` as any }]} />
-                </View>
-              </View>
-              <View style={styles.fcLevelChip}>
-                <Text style={styles.fcLevelChipText}>{level + 1}</Text>
-              </View>
-            </View>
-            <View style={styles.fcCoffeeRow}>
-              <Text style={styles.fcCoffeeIcon}>☕</Text>
-              <Text style={styles.freeCoffeeProgressHint}>
-                {levelsToFreeCoffee === DRINKS_PER_FREE_COFFEE
-                  ? "كوفي مجاني جاهز للاستلام الآن!"
-                  : `باقي ${levelsToFreeCoffee} مستوى للقهوة المجانية`}
-              </Text>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.max(pct, 4)}%` as any, backgroundColor: PRIMARY }]} />
             </View>
           </View>
         </View>
