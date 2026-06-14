@@ -307,14 +307,13 @@ export function BuyCoinsPanel() {
   const [codeChecking, setCodeChecking] = useState(false);
   const [codeError, setCodeError] = useState("");
 
-  // Prompt for a Copointo Code first thing when the screen opens, so the buyer
-  // can claim +20% bonus coins (or skip) before choosing a pack. Shown once.
-  const codePrompted = useRef(false);
-  useEffect(() => {
-    if (codePrompted.current) return;
-    codePrompted.current = true;
-    setCodeModal(true);
-  }, []);
+  // Copointo Code gate: the panel is shown the first time the buyer taps a pack
+  // to purchase. After they apply a code or skip, the tapped purchase resumes,
+  // and later taps go straight through. A ref mirrors the applied code so the
+  // web checkout closure (built right after applying) reads it without stale state.
+  const appliedCodeRef = useRef<{ code: string; cafeName: string } | null>(null);
+  const codeGateDone = useRef(false);
+  const pendingBuyRef = useRef<Pack | null>(null);
 
   const applyCode = async () => {
     const code = codeInput.trim().toUpperCase();
@@ -327,13 +326,39 @@ export function BuyCoinsPanel() {
       setCodeError("كود غير صالح، تأكد من الكود وحاول مجدداً");
       return;
     }
-    setAppliedCode({ code, cafeName: r.cafeName ?? "" });
+    const applied = { code, cafeName: r.cafeName ?? "" };
+    appliedCodeRef.current = applied;
+    setAppliedCode(applied);
     setCodeModal(false);
+    setCodeInput("");
+    setCodeError("");
+    continuePendingBuy();
+  };
+
+  const clearCode = () => {
+    appliedCodeRef.current = null;
+    setAppliedCode(null);
     setCodeInput("");
     setCodeError("");
   };
 
-  const clearCode = () => { setAppliedCode(null); setCodeInput(""); setCodeError(""); };
+  // Skip the code panel (no bonus) and resume any purchase that opened it.
+  const skipCode = () => {
+    setCodeModal(false);
+    setCodeError("");
+    setCodeInput("");
+    continuePendingBuy();
+  };
+
+  // Once the gate is resolved (code applied or skipped), resume the exact pack
+  // the buyer tapped to open the panel. Opened from the banner (no pending pack)
+  // it simply marks the gate done.
+  const continuePendingBuy = () => {
+    codeGateDone.current = true;
+    const p = pendingBuyRef.current;
+    pendingBuyRef.current = null;
+    if (p) proceedBuy(p);
+  };
 
   // Map a coin pack to its live RevenueCat package (by the "coins_<n>"
   // identifier seeded in RevenueCat). Returns null in Expo Go preview / when
@@ -481,10 +506,22 @@ export function BuyCoinsPanel() {
 
   // Entry point for a pack tap. iOS/Android go through Apple/Google IAP; web
   // keeps the OMPay hosted checkout.
-  const handleBuy = (p: Pack) => {
-    if (busyId) return;
+  const proceedBuy = (p: Pack) => {
     if (IS_WEB) return handleBuyWeb(p);
     return handleBuyNativeTap(p);
+  };
+
+  const handleBuy = (p: Pack) => {
+    if (busyId) return;
+    // First purchase tap → show the Copointo Code panel (apply +20% or skip),
+    // then resume this exact pack. Once resolved, later taps buy directly.
+    if (!codeGateDone.current && !appliedCode) {
+      pendingBuyRef.current = p;
+      setCodeError("");
+      setCodeModal(true);
+      return;
+    }
+    proceedBuy(p);
   };
 
   // ─── Native IAP (iOS/Android) ──────────────────────────────────────
@@ -586,7 +623,7 @@ export function BuyCoinsPanel() {
         payment.id,
         token,
         p.coins,
-        appliedCode ? { code: appliedCode.code, priceUsd: p.price, priceOmr: usdToOmr(p.price) } : null,
+        appliedCodeRef.current ? { code: appliedCodeRef.current.code, priceUsd: p.price, priceOmr: usdToOmr(p.price) } : null,
       );
 
       if (isEmbedded()) {
@@ -640,7 +677,7 @@ export function BuyCoinsPanel() {
       ) : (
         <TouchableOpacity
           style={styles.codePrompt}
-          onPress={() => { setCodeError(""); setCodeModal(true); }}
+          onPress={() => { pendingBuyRef.current = null; setCodeError(""); setCodeModal(true); }}
           activeOpacity={0.85}
         >
           <Feather name="tag" size={16} color={PRIMARY} />
@@ -716,7 +753,7 @@ export function BuyCoinsPanel() {
         visible={codeModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setCodeModal(false)}
+        onRequestClose={() => { setCodeModal(false); pendingBuyRef.current = null; }}
       >
         <View style={styles.verifyOverlay}>
           <View style={styles.webPayCard}>
@@ -745,7 +782,7 @@ export function BuyCoinsPanel() {
                 ? <ActivityIndicator color="#000" size="small" />
                 : <Text style={styles.webPayBtnText}>تطبيق الكود</Text>}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setCodeModal(false); setCodeError(""); }}>
+            <TouchableOpacity onPress={skipCode}>
               <Text style={styles.webPayCancel}>تخطّي</Text>
             </TouchableOpacity>
           </View>
