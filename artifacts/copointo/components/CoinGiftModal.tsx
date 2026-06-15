@@ -145,13 +145,15 @@ export default function CoinGiftModal() {
     }
   };
 
-  if (!current) return null;
-
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
 
+  // Keep the Modal mounted and drive it with `visible`. On iOS/iPad unmounting a
+  // presented Modal (the old `if (!current) return null`) can leave the native
+  // dialog stuck on screen, so the claim button appeared to do nothing.
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={() => { /* must claim */ }}>
+    <Modal visible={!!current} transparent animationType="fade" onRequestClose={() => { /* must claim */ }}>
       <View style={styles.backdrop}>
+        {current && (
         <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
           {/* Confetti corners */}
           <Text style={[styles.confetti, { top: 8,  left: 12 }]}>🎉</Text>
@@ -199,6 +201,7 @@ export default function CoinGiftModal() {
             <Text style={styles.queueHint}>+{queue.length} هدية أخرى بانتظارك</Text>
           )}
         </Animated.View>
+        )}
       </View>
     </Modal>
   );

@@ -102,14 +102,15 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
     return () => clearTimeout(t);
   }, [visible, gift?.id, visibleCount, totalDur]);
 
-  if (!visible || !gift) return null;
-
+  // Keep the Modal mounted and drive it with `visible` so iOS/iPad dismisses it
+  // cleanly. Unmounting a presented Modal can leave it stuck on screen.
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent>
+    <Modal visible={visible && !!gift} transparent animationType="none" statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onDone}>
         {/* No backdrop dim — gift overlay is fully transparent so the
             screen underneath stays visible. */}
-
+        {gift && (
+        <>
         {/* Particle layer — branches by gift.animationKind. */}
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           {animKind === "burst"  && <BurstScene  gift={gift} duration={totalDur} />}
@@ -181,6 +182,8 @@ export default function GiftAnimation({ gift, fromName, toName, visible, onDone,
               <Text style={styles.skipText}>تخطي</Text>
             </TouchableOpacity>
           </Animated.View>
+        )}
+        </>
         )}
       </Pressable>
     </Modal>

@@ -48,10 +48,17 @@ export default function CharacterMigrationNotice() {
     ensureDefaultCharacterEquipped(user.gender).catch(() => {});
   }, [user?.gender]);
 
-  if (!pending) return null;
-
+  // Keep the Modal mounted at all times and drive it with `visible`. On iOS/iPad
+  // unmounting a presented Modal (the old `if (!pending) return null`) can leave
+  // the native dialog stuck on screen, so the dismiss button appeared to do
+  // nothing. Toggling `visible` lets the native modal dismiss cleanly.
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={() => setPending(null)}>
+    <Modal
+      visible={!!pending}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setPending(null)}
+    >
       <View style={styles.backdrop}>
         <View style={styles.card}>
           <Text style={styles.title}>تم تحديث الشخصيات ✨</Text>
@@ -64,13 +71,13 @@ export default function CharacterMigrationNotice() {
           </Text>
           <View style={styles.refundRow}>
             <Image source={COIN} style={styles.coin} />
-            <Text style={styles.refundAmount}>+{pending.amount.toLocaleString("en")}</Text>
-            <Text style={styles.refundSub}>({pending.count} شخصية)</Text>
+            <Text style={styles.refundAmount}>+{(pending?.amount ?? 0).toLocaleString("en")}</Text>
+            <Text style={styles.refundSub}>({pending?.count ?? 0} شخصية)</Text>
           </View>
           <Text style={styles.hint}>
             تقدر تتفرّج على الشخصيات الجديدة في المتجر 🎁
           </Text>
-          <TouchableOpacity style={styles.btn} onPress={() => setPending(null)}>
+          <TouchableOpacity style={styles.btn} onPress={() => setPending(null)} activeOpacity={0.85}>
             <Text style={styles.btnText}>تمام</Text>
           </TouchableOpacity>
         </View>

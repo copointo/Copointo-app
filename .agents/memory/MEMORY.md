@@ -21,3 +21,4 @@
 - [Copointo Code settlement integrity](copointo-code-settlement-integrity.md) — per-cafe referral redeem is a real money ledger: derive price server-side from coin packs (ignore client priceOmr) + dedupe on paymentRef.
 - [Order-timer re-entry](order-timer-reentry.md) — order-timer reads activeOrder (fallback to params); history.tsx re-enters with NO params, so params-only breaks polling + rich UI.
 - [Copointo inline-HTML map XSS](copointo-inline-map-xss.md) — any Leaflet/WebView HTML embed must reuse the hardened script-JSON serializer (escape </script + U+2028/2029), not just escape `<`.
+- [iOS Modal unmount stuck](ios-modal-unmount-stuck.md) — RN <Modal> dismissed by unmounting (early-return null) sticks on iPad → Apple 2.1(a) reject; always drive with the `visible` prop + guard inner JSX.
