@@ -27,3 +27,12 @@ bridges `+968…` ↔ bare local). When adding/auditing any phone-keyed read,
 canonicalize both sides. Verify with a production SQL simulation of the key
 function before/after — confirm it matches the target user and does NOT bleed
 into other users sharing a partial digit sequence.
+
+**WRITE side must match the READ side.** The award/issuance path (e.g.
+`awardOrderProgress`) must resolve the user with the SAME canonical key the read
+path uses, else a reward is never *created* (a different, subtler failure than
+created-but-invisible). Prefer `order.userId` first, then exact phone, then the
+canonical key. On the canonical fallback, only auto-credit an **unambiguous**
+single match (`filter(...).length === 1`) — never `find()` the first of several,
+or a duplicate national number credits the wrong account. Showcase/non-numeric
+handles fall through to exact match (canonical key is empty for them).

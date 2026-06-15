@@ -47,6 +47,11 @@ const BG      = "#000000";
 const PRIMARY = "#E8B86D";
 const PRIMARY_DIM = "rgba(232,184,109,0.30)";
 const PRIMARY_FAINT = "rgba(232,184,109,0.12)";
+// Distinct GREEN accent for the free-coffee milestone (every 6 levels). Used to
+// make the reward level unmistakable on the ladder + progress panel + codes.
+const GREEN       = "#34D17B";
+const GREEN_DIM   = "rgba(52,209,123,0.40)";
+const GREEN_FAINT = "rgba(52,209,123,0.14)";
 
 // Qualifying drinks (== levels) between each free-coffee reward. Reward lands
 // at levels 6, 12, 18, … — must stay in lockstep with the server award rule
@@ -86,6 +91,13 @@ function FreeCoffeeModal({
             تحصل على كوب قهوة مجاني بعد كل ٦ مشروبات — استخدم الكود في نفس الكوفي الذي ربحته فيه.
           </Text>
 
+          <View style={styles.fcInfoBox}>
+            <Text style={styles.fcInfoLine}>• تربح كوفي مجاني عند كل ٦ مشروبات: المستويات ٦، ١٢، ١٨، ٢٤ ...</Text>
+            <Text style={styles.fcInfoLine}>• المستويات بين المضاعفات (مثل ٢١) لا يظهر فيها كود — كودك القادم عند المضاعف التالي.</Text>
+            <Text style={styles.fcInfoLine}>• يظهر الكود هنا بحالة «صالح للاستعمال» وتستخدمه في نفس الكوفي الذي ربحته فيه.</Text>
+            <Text style={styles.fcInfoLine}>• تُحتسب المشروبات عند طباعة الفاتورة في الكافيه.</Text>
+          </View>
+
           <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
             {coffees.length === 0 && (
               <View style={styles.fcEmptyWrap}>
@@ -95,7 +107,7 @@ function FreeCoffeeModal({
             )}
 
             {available.map(c => (
-              <View key={`fc-av-${c.id}`} style={styles.fcCodeRow}>
+              <View key={`fc-av-${c.id}`} style={[styles.fcCodeRow, styles.fcCodeRowOk]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.fcCodeValue}>{c.code}</Text>
                   <Text style={styles.fcCodeMeta}>
@@ -103,7 +115,8 @@ function FreeCoffeeModal({
                   </Text>
                 </View>
                 <View style={styles.fcStatusPillOk}>
-                  <Text style={styles.fcStatusPillOkText}>متاح</Text>
+                  <Feather name="check-circle" size={12} color={GREEN} />
+                  <Text style={styles.fcStatusPillOkText}>صالح للاستعمال</Text>
                 </View>
               </View>
             ))}
@@ -131,27 +144,41 @@ function FreeCoffeeModal({
 
 // ── Rotated-square level marker used by the progress card + the side ladder ──
 function HubDiamond({
-  size, value, highlighted, done,
-}: { size: number; value: number; highlighted?: boolean; done?: boolean }) {
+  size, value, highlighted, done, milestone,
+}: { size: number; value: number; highlighted?: boolean; done?: boolean; milestone?: boolean }) {
   const osZ = outerSz(size);
+  // Milestone (free-coffee) levels render in GREEN so the reward level is
+  // unmistakable; everything else keeps the gold theme.
+  const accent = milestone ? GREEN : PRIMARY;
   return (
     <View style={{ width: osZ, height: osZ, alignItems: "center", justifyContent: "center" }}>
       {highlighted && (
-        <View style={[styles.currentHalo, { width: osZ + 26, height: osZ + 26 }]} />
+        <View style={[styles.currentHalo, {
+          width: osZ + 26, height: osZ + 26,
+          backgroundColor: milestone ? GREEN_FAINT : "rgba(232,184,109,0.18)",
+          shadowColor: accent,
+        }]} />
+      )}
+      {milestone && !highlighted && (
+        <View style={[styles.currentHalo, {
+          width: osZ + 16, height: osZ + 16,
+          backgroundColor: GREEN_FAINT, shadowColor: GREEN,
+          shadowOpacity: 0.7, shadowRadius: 16,
+        }]} />
       )}
       <View style={[styles.diamond, {
         width: size, height: size,
-        borderColor: PRIMARY,
-        borderWidth: highlighted ? 2.5 : 1.5,
-        shadowColor: PRIMARY,
-        shadowOpacity: highlighted ? 0.95 : done ? 0.3 : 0.5,
-        shadowRadius: highlighted ? 18 : done ? 6 : 10,
+        borderColor: accent,
+        borderWidth: (highlighted || milestone) ? 2.5 : 1.5,
+        shadowColor: accent,
+        shadowOpacity: highlighted ? 0.95 : milestone ? 0.85 : done ? 0.3 : 0.5,
+        shadowRadius: highlighted ? 18 : milestone ? 14 : done ? 6 : 10,
         opacity: done ? 0.6 : 1,
       }]}>
         <View style={styles.diamondInner}>
           <Text style={{
             fontFamily: "Inter_700Bold",
-            color: highlighted ? PRIMARY : "#FFF",
+            color: milestone ? GREEN : (highlighted ? PRIMARY : "#FFF"),
             fontSize: size * 0.34,
           }}>{value}</Text>
         </View>
@@ -263,6 +290,14 @@ export default function GameScreen() {
   // (0→100% across the 6 levels between free drinks) — a genuine fractional
   // forward-progress signal, not an invented coins-to-level mechanic.
   const freeCoffeeCyclePct = Math.round((ordersThisLevel / DRINKS_PER_FREE_COFFEE) * 100);
+  // A free coffee is earned at every multiple of DRINKS_PER_FREE_COFFEE
+  // (levels 6, 12, 18, 24…). `atMilestone` = the user is sitting exactly on a
+  // reward level right now; `nextMilestone` = the level their next code lands.
+  const atMilestone   = level > 0 && ordersThisLevel === 0;
+  const barPct        = atMilestone ? 100 : freeCoffeeCyclePct;
+  const nextMilestone = atMilestone
+    ? level
+    : (Math.floor(level / DRINKS_PER_FREE_COFFEE) + 1) * DRINKS_PER_FREE_COFFEE;
   // Compact vertical ladder around the current level (mirrors the mockup:
   // a couple levels above + the current one + one below). The full board
   // lives on the dedicated /levels screen, reachable by tapping the ladder.
@@ -525,28 +560,37 @@ export default function GameScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Progress to next level ── */}
-        <View style={styles.progressCard}>
-          <Text style={styles.progressCardTitle}>التقدم إلى المستوى التالي</Text>
+        {/* ── Free-coffee progress panel (tap → full explanation + codes) ── */}
+        <TouchableOpacity style={styles.progressCard} activeOpacity={0.85} onPress={openFreeCoffee}>
+          <View style={styles.fcPanelTitleRow}>
+            <Text style={styles.fcPanelTitle}>🎁 الكوفي المجاني</Text>
+            <View style={styles.fcPanelInfoChip}>
+              <Feather name="info" size={11} color={GREEN} />
+              <Text style={styles.fcPanelInfoChipText}>كيف يعمل؟</Text>
+            </View>
+          </View>
           <View style={styles.progressDiamondsRow}>
-            <HubDiamond size={40} value={level} highlighted />
+            <HubDiamond size={40} value={level} highlighted milestone={atMilestone} />
             <View style={styles.progressBarWrap}>
               <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: `${Math.max(freeCoffeeCyclePct, 4)}%` as any }]} />
+                <View style={[
+                  styles.progressBarFill,
+                  { width: `${Math.max(barPct, 4)}%` as any, backgroundColor: atMilestone ? GREEN : PRIMARY },
+                ]} />
               </View>
-              <Text style={styles.progressBarPct}>{freeCoffeeCyclePct}%</Text>
+              <Text style={styles.progressBarPct}>{barPct}%</Text>
             </View>
-            <HubDiamond size={40} value={Math.min(level + 1, 999)} />
+            <HubDiamond size={40} value={Math.min(nextMilestone, 999)} milestone />
           </View>
           <View style={styles.progressSubRow}>
             <Text style={styles.progressSubIcon}>☕</Text>
-            <Text style={styles.progressSubText}>
-              {level > 0 && ordersThisLevel === 0
-                ? "قهوة مجانية متاحة الآن!"
-                : `باقي ${DRINKS_PER_FREE_COFFEE - ordersThisLevel} مستوى للقهوة المجانية`}
+            <Text style={[styles.progressSubText, atMilestone && { color: GREEN }]}>
+              {atMilestone
+                ? "🎉 احصل على الكوفي المجاني الآن!"
+                : `باقي ${DRINKS_PER_FREE_COFFEE - ordersThisLevel} مشروبات للكوفي المجاني (مستوى ${nextMilestone})`}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* ── Middle: ladder · character · hero buttons ── */}
         <View style={styles.midRow}>
@@ -559,6 +603,7 @@ export default function GameScreen() {
             {ladderLevels.map((lvl, i) => {
               const isCur  = lvl === level;
               const isDone = lvl < level;
+              const isMilestone = lvl > 0 && lvl % DRINKS_PER_FREE_COFFEE === 0;
               return (
                 <View key={lvl} style={styles.ladderItem}>
                   {i > 0 && (
@@ -567,8 +612,10 @@ export default function GameScreen() {
                       <View style={styles.ladderDot} />
                     </View>
                   )}
-                  <HubDiamond size={isCur ? 42 : 30} value={lvl} highlighted={isCur} done={isDone} />
-                  {isCur && <Text style={styles.ladderHereLabel}>أنت هنا</Text>}
+                  <HubDiamond size={isCur ? 42 : 30} value={lvl} highlighted={isCur} done={isDone} milestone={isMilestone} />
+                  {isMilestone
+                    ? <Text style={styles.ladderFreeLabel}>كوفي مجاني</Text>
+                    : (isCur ? <Text style={styles.ladderHereLabel}>أنت هنا</Text> : null)}
                 </View>
               );
             })}
@@ -792,6 +839,17 @@ const styles = StyleSheet.create({
   ladderConnector: { flexDirection: "column", alignItems: "center", gap: 3, paddingVertical: 3 },
   ladderDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: PRIMARY, opacity: 0.6 },
   ladderHereLabel: { marginTop: 2, fontSize: 10, fontFamily: "Inter_700Bold", color: PRIMARY },
+  ladderFreeLabel: { marginTop: 2, fontSize: 8.5, fontFamily: "Inter_700Bold", color: GREEN, textAlign: "center" },
+
+  // ── Free-coffee panel (Hub progress card) ──
+  fcPanelTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 5 },
+  fcPanelTitle: { fontSize: 13, fontFamily: "Inter_700Bold", color: PRIMARY },
+  fcPanelInfoChip: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+    backgroundColor: GREEN_FAINT, borderWidth: 1, borderColor: GREEN_DIM,
+  },
+  fcPanelInfoChipText: { fontSize: 10.5, fontFamily: "Inter_700Bold", color: GREEN },
 
   centerCol: { flex: 1, alignItems: "center", justifyContent: "center", alignSelf: "stretch" },
   charGlow: {
@@ -898,6 +956,14 @@ const styles = StyleSheet.create({
     fontSize: 12, fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.55)", textAlign: "right", marginTop: 8, lineHeight: 18,
   },
+  fcInfoBox: {
+    marginTop: 10, padding: 12, borderRadius: 14,
+    backgroundColor: "rgba(52,209,123,0.07)", borderWidth: 1, borderColor: GREEN_DIM, gap: 5,
+  },
+  fcInfoLine: {
+    fontSize: 11.5, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.82)", textAlign: "right", lineHeight: 18,
+  },
   fcEmptyWrap: { alignItems: "center", paddingVertical: 30, gap: 8 },
   fcEmptyIcon: { fontSize: 40 },
   fcEmptyText: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.5)" },
@@ -907,6 +973,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
     paddingVertical: 12, paddingHorizontal: 14, marginBottom: 10,
   },
+  fcCodeRowOk: {
+    backgroundColor: "rgba(52,209,123,0.07)", borderColor: GREEN_DIM,
+  },
   fcCodeRowUsed: {
     backgroundColor: "rgba(229,83,83,0.08)", borderColor: "rgba(229,83,83,0.4)",
   },
@@ -914,10 +983,11 @@ const styles = StyleSheet.create({
   fcCodeValueUsed: { color: "#E55353", textDecorationLine: "line-through" },
   fcCodeMeta: { fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.55)", marginTop: 3, textAlign: "right" },
   fcStatusPillOk: {
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999,
-    backgroundColor: "rgba(232,184,109,0.18)", borderWidth: 1, borderColor: "rgba(232,184,109,0.30)",
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    backgroundColor: "rgba(52,209,123,0.16)", borderWidth: 1, borderColor: GREEN_DIM,
   },
-  fcStatusPillOkText: { fontSize: 12, fontFamily: "Inter_700Bold", color: PRIMARY },
+  fcStatusPillOkText: { fontSize: 11, fontFamily: "Inter_700Bold", color: GREEN },
   fcStatusPillUsed: {
     paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999,
     backgroundColor: "rgba(229,83,83,0.18)", borderWidth: 1, borderColor: "rgba(229,83,83,0.5)",

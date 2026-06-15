@@ -663,15 +663,51 @@ router.get("/orders/:orderId", (req, res): any => {
 // the drink tally, or the free-coffee loyalty milestone.
 const LEVEL_MIN_DRINK_PRICE = 0.8;
 
+// Canonical Omani phone key: digits-only → strip leading zeros → strip a
+// leading 968 country code → require exactly 8 national digits (else ""). This
+// mirrors GET /free-coffees so the AWARD side matches the READ side. A user who
+// registered as "+96812345678" but whose order carries the bare "12345678"
+// (or vice-versa) now resolves to the same account. Without this, milestone
+// free-coffee codes were sometimes never created at all — the old exact-match
+// lookup silently failed on format drift, which is exactly why the codes
+// appeared for some users but not others.
+function canonicalPhoneKey(p: unknown): string {
+  let d = String(p ?? "").replace(/\D+/g, "").replace(/^0+/, "");
+  if (d.startsWith("968") && d.length > 8) d = d.slice(3);
+  return d.length === 8 ? d : "";
+}
+/** Resolve the registered Copointo user an order belongs to. Prefers the
+ *  explicit account id, then an exact phone match, then a canonical Omani
+ *  national-number match. Returns null when no account can be resolved. */
+function findRegisteredUser(order: any) {
+  if (order?.userId) {
+    const byId = users.find(u => u.id === order.userId);
+    if (byId) return byId;
+  }
+  const phone = String(order?.customerPhone ?? "").trim();
+  if (phone) {
+    const exact = users.find(u => u.phone === phone);
+    if (exact) return exact;
+    const key = canonicalPhoneKey(phone);
+    if (key) {
+      // Only auto-credit on an UNAMBIGUOUS canonical match. If two accounts
+      // somehow share the same 8-digit national number, refuse to guess — an
+      // exact phone or an explicit userId would have resolved above.
+      const matches = users.filter(u => canonicalPhoneKey(u.phone) === key);
+      if (matches.length === 1) return matches[0]!;
+    }
+  }
+  return null;
+}
+
 function awardOrderProgress(order: any) {
   if (order.pointsAwarded) return;
-  // Direct in-cafe orders without a registered customer phone do NOT contribute
-  // to game/loyalty progress. If the cashier captured a verified game-user
-  // phone (and the lookup matched a real user), we DO award progress just like
-  // any normal order.
+  // Direct in-cafe orders without a registered customer account do NOT
+  // contribute to game/loyalty progress. If the cashier captured a verified
+  // game-user (and the lookup matched a real account), we DO award progress
+  // just like any normal order.
   if (order.source === "direct") {
-    const phone = String(order.customerPhone ?? "").trim();
-    const matched = phone ? users.find(u => u.phone === phone) : null;
+    const matched = findRegisteredUser(order);
     if (!matched) {
       order.pointsAwarded = true;
       return;
@@ -713,7 +749,7 @@ function awardOrderProgress(order: any) {
       }, 0)
     : 0;
   if (drinks > 0) {
-    const u = users.find(u => u.phone === order.customerPhone);
+    const u = findRegisteredUser(order);
     if (u) {
       // ── Per-cafe progress bump (critical for admin-set consistency) ──
       // Admin's super-admin "set" mode recomputes user.totalOrders from
