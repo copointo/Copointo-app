@@ -411,8 +411,14 @@ export default function OrderTimerScreen() {
   const glowColor = isDoneState ? SUCCESS : PRIMARY;
 
   // ── Countdown percentage shown inside the ring (99.99 → 99.98 → 99.97 …) ──
-  const elapsedSec = PREP_TOTAL_SEC - secondsLeft;
-  const countdownPct = Math.max(0, 99.99 - elapsedSec * 0.01);
+  // Mirrors the high-resolution prep progress so the number glides from 99.99
+  // down to 0 across the WHOLE prep window (3 min per drink) instead of the old
+  // 0.01-per-second crawl. prepProgress ticks every 50ms, giving the smooth
+  // two-decimal countdown the customer expects.
+  const countdownPct =
+    (isReadyOrDone || completed) ? 0 :
+    confirmed                    ? Math.max(0, 99.99 * (1 - prepProgress / 100)) :
+                                   99.99;
   const pctLabel = `${countdownPct.toFixed(2)}%`;
 
   // ── Status pill text ──
