@@ -39,52 +39,57 @@ export default function CoinMilestoneModal({ milestone, remaining, onDismiss }: 
     return () => { loop.stop(); };
   }, [milestone, scale, opacity, spin, glow]);
 
-  if (!milestone) return null;
+  // Keep the Modal mounted at all times and drive it with `visible`. On iOS/iPad
+  // unmounting a presented Modal (the old `if (!milestone) return null`) can
+  // leave the native dialog stuck on screen, so the dismiss button appeared to
+  // do nothing. Toggling `visible` lets the native modal dismiss cleanly.
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "720deg"] });
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
 
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={onDismiss}>
-      <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-          <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
-          <View style={styles.confettiTop}>
-            <Text style={styles.confetti}>🎊</Text>
-            <Text style={styles.confetti}>💰</Text>
-            <Text style={styles.confetti}>🎊</Text>
-          </View>
+    <Modal transparent animationType="fade" visible={!!milestone} onRequestClose={onDismiss}>
+      {milestone && (
+        <Pressable style={styles.backdrop} onPress={onDismiss}>
+          <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+            <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
+            <View style={styles.confettiTop}>
+              <Text style={styles.confetti}>🎊</Text>
+              <Text style={styles.confetti}>💰</Text>
+              <Text style={styles.confetti}>🎊</Text>
+            </View>
 
-          <Text style={styles.title}>مكافأة المستوى {milestone.level}!</Text>
-          <Text style={styles.subtitle}>وصلت لمعلَمٍ جديد — استلم جائزتك</Text>
+            <Text style={styles.title}>مكافأة المستوى {milestone.level}!</Text>
+            <Text style={styles.subtitle}>وصلت لمعلَمٍ جديد — استلم جائزتك</Text>
 
-          <Animated.View style={[styles.coinBubble, { transform: [{ rotate }] }]}>
-            <Image
-              source={require("../assets/images/copointo-coin.png")}
-              style={styles.coinImg}
-            />
-          </Animated.View>
+            <Animated.View style={[styles.coinBubble, { transform: [{ rotate }] }]}>
+              <Image
+                source={require("../assets/images/copointo-coin.png")}
+                style={styles.coinImg}
+              />
+            </Animated.View>
 
-          <View style={styles.amountRow}>
-            <Text style={styles.amount}>+{milestone.coins}</Text>
-            <Image
-              source={require("../assets/images/copointo-coin.png")}
-              style={styles.amountCoinImg}
-            />
-            <Text style={styles.amountLabel}>عملة</Text>
-          </View>
+            <View style={styles.amountRow}>
+              <Text style={styles.amount}>+{milestone.coins}</Text>
+              <Image
+                source={require("../assets/images/copointo-coin.png")}
+                style={styles.amountCoinImg}
+              />
+              <Text style={styles.amountLabel}>عملة</Text>
+            </View>
 
-          <Text style={styles.hint}>
-            تمت إضافتها إلى محفظتك تلقائياً 🎉
-          </Text>
-
-          <Pressable style={styles.cta} onPress={onDismiss}>
-            <Feather name="check" size={16} color="#000" />
-            <Text style={styles.ctaText}>
-              {remaining > 1 ? `رائع — التالي (${remaining - 1})` : "رائع"}
+            <Text style={styles.hint}>
+              تمت إضافتها إلى محفظتك تلقائياً 🎉
             </Text>
-          </Pressable>
-        </Animated.View>
-      </Pressable>
+
+            <Pressable style={styles.cta} onPress={onDismiss}>
+              <Feather name="check" size={16} color="#000" />
+              <Text style={styles.ctaText}>
+                {remaining > 1 ? `رائع — التالي (${remaining - 1})` : "رائع"}
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      )}
     </Modal>
   );
 }

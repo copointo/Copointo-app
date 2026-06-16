@@ -38,33 +38,40 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
-    return (
-      <View style={styles.splash}>
-        <View style={styles.brand}>
-          <View style={styles.logo}>
-            <Image
-              source={require("../assets/images/copointo-logo.png")}
-              style={{ width: 76, height: 76, resizeMode: "contain" }}
-            />
-          </View>
-          <Text style={styles.brandName}>{t("auth.brandName")}</Text>
-          <Text style={styles.brandSub}>{t("auth.brandSub")}</Text>
-          <View style={styles.lockHint}>
-            <Feather name="lock" size={14} color={PRIMARY} />
-            <Text style={styles.lockHintText}>{t("auth.lockHint")}</Text>
+  // Keep the AuthModal mounted across the login transition and drive it with
+  // `visible`. On iOS/iPad, UNMOUNTING a presented Modal (the old approach of
+  // rendering it only inside the `!user` branch) can leave the native dialog
+  // stuck on screen — so after a successful login the modal lingered and taps
+  // "produced no further action". Toggling `visible` dismisses it cleanly and
+  // reveals the app underneath.
+  return (
+    <>
+      {user ? (
+        <>{children}</>
+      ) : (
+        <View style={styles.splash}>
+          <View style={styles.brand}>
+            <View style={styles.logo}>
+              <Image
+                source={require("../assets/images/copointo-logo.png")}
+                style={{ width: 76, height: 76, resizeMode: "contain" }}
+              />
+            </View>
+            <Text style={styles.brandName}>{t("auth.brandName")}</Text>
+            <Text style={styles.brandSub}>{t("auth.brandSub")}</Text>
+            <View style={styles.lockHint}>
+              <Feather name="lock" size={14} color={PRIMARY} />
+              <Text style={styles.lockHintText}>{t("auth.lockHint")}</Text>
+            </View>
           </View>
         </View>
-        {/* Always-on, non-dismissible auth modal so the gate cannot be
-            bypassed (no close button, back-press is a no-op).
-            ⚠️ TEMP DEV-ONLY skip-login button lives INSIDE the modal,
-            rendered just above the "تسجيل الدخول" submit button. */}
-        <AuthModal visible={true} onClose={() => {}} dismissible={false} />
-      </View>
-    );
-  }
-
-  return <>{children}</>;
+      )}
+      {/* Always-on, non-dismissible auth modal so the gate cannot be
+          bypassed (no close button, back-press is a no-op). Mounted at all
+          times and toggled via `visible` so it dismisses cleanly on iPad. */}
+      <AuthModal visible={!user} onClose={() => {}} dismissible={false} />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

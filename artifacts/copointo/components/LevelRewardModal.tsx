@@ -38,55 +38,60 @@ export default function LevelRewardModal({ reward, remaining, onDismiss }: Props
     return () => { loop.stop(); };
   }, [reward, scale, opacity, glow]);
 
-  if (!reward) return null;
-  const frame = FRAMES.find(f => f.id === reward.frameId);
-  const badge = BADGES.find(b => b.id === reward.badgeId);
+  // Keep the Modal mounted at all times and drive it with `visible`. On iOS/iPad
+  // unmounting a presented Modal (the old `if (!reward) return null`) can leave
+  // the native dialog stuck on screen, so the dismiss button appeared to do
+  // nothing. Toggling `visible` lets the native modal dismiss cleanly.
+  const frame = reward ? FRAMES.find(f => f.id === reward.frameId) : undefined;
+  const badge = reward ? BADGES.find(b => b.id === reward.badgeId) : undefined;
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] });
 
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={onDismiss}>
-      <Pressable style={styles.backdrop} onPress={onDismiss}>
-        <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-          <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
-          <View style={styles.confettiTop}>
-            <Text style={styles.confetti}>🎉</Text>
-            <Text style={styles.confetti}>🏆</Text>
-            <Text style={styles.confetti}>🎉</Text>
-          </View>
-          <Text style={styles.title}>تهانئ!</Text>
-          <Text style={styles.subtitle}>
-            تم ربح هذه الجائزة لوصولك المستوى {reward.unlockLevel}
-          </Text>
-          <Text style={styles.rankName}>{reward.rankName}</Text>
-
-          <View style={styles.prizesRow}>
-            {frame && (
-              <View style={styles.prizeBox}>
-                <Image source={frame.source} style={styles.prizeImg} />
-                <Text style={styles.prizeLabel}>{frame.name}</Text>
-                <View style={styles.prizeChip}><Text style={styles.prizeChipText}>إطار</Text></View>
-              </View>
-            )}
-            {badge && (
-              <View style={styles.prizeBox}>
-                <Image source={badge.source} style={styles.prizeImg} />
-                <Text style={styles.prizeLabel}>{badge.name}</Text>
-                <View style={styles.prizeChip}><Text style={styles.prizeChipText}>وسام</Text></View>
-              </View>
-            )}
-          </View>
-
-          <Pressable style={styles.cta} onPress={onDismiss}>
-            <Feather name="check" size={16} color="#000" />
-            <Text style={styles.ctaText}>
-              {remaining > 1 ? `رائع — التالي (${remaining - 1})` : "رائع"}
+    <Modal transparent animationType="fade" visible={!!reward} onRequestClose={onDismiss}>
+      {reward && (
+        <Pressable style={styles.backdrop} onPress={onDismiss}>
+          <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+            <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
+            <View style={styles.confettiTop}>
+              <Text style={styles.confetti}>🎉</Text>
+              <Text style={styles.confetti}>🏆</Text>
+              <Text style={styles.confetti}>🎉</Text>
+            </View>
+            <Text style={styles.title}>تهانئ!</Text>
+            <Text style={styles.subtitle}>
+              تم ربح هذه الجائزة لوصولك المستوى {reward.unlockLevel}
             </Text>
-          </Pressable>
-          <Text style={styles.hint}>
-            تجد جوائزك في "أغراضي" داخل المتجر
-          </Text>
-        </Animated.View>
-      </Pressable>
+            <Text style={styles.rankName}>{reward.rankName}</Text>
+
+            <View style={styles.prizesRow}>
+              {frame && (
+                <View style={styles.prizeBox}>
+                  <Image source={frame.source} style={styles.prizeImg} />
+                  <Text style={styles.prizeLabel}>{frame.name}</Text>
+                  <View style={styles.prizeChip}><Text style={styles.prizeChipText}>إطار</Text></View>
+                </View>
+              )}
+              {badge && (
+                <View style={styles.prizeBox}>
+                  <Image source={badge.source} style={styles.prizeImg} />
+                  <Text style={styles.prizeLabel}>{badge.name}</Text>
+                  <View style={styles.prizeChip}><Text style={styles.prizeChipText}>وسام</Text></View>
+                </View>
+              )}
+            </View>
+
+            <Pressable style={styles.cta} onPress={onDismiss}>
+              <Feather name="check" size={16} color="#000" />
+              <Text style={styles.ctaText}>
+                {remaining > 1 ? `رائع — التالي (${remaining - 1})` : "رائع"}
+              </Text>
+            </Pressable>
+            <Text style={styles.hint}>
+              تجد جوائزك في "أغراضي" داخل المتجر
+            </Text>
+          </Animated.View>
+        </Pressable>
+      )}
     </Modal>
   );
 }
