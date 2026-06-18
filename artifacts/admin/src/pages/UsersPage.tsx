@@ -414,14 +414,14 @@ export default function UsersPage() {
       setUsers(prev => prev.map(u => u.id === adjTarget.id ? { ...u, ...res.user } : u));
       setAdjTarget(t => t ? { ...t, ...res.user } : t);
       const cafeName = bd.find(b => b.cafeId === awardCafeId)?.cafeName || "الكوفي المختار";
-      const wiped = Number(res.wipedFreeCoffees) || 0;
+      const awarded = Number(res.newlyAwardedFreeCoffees) || 0;
       setAdjOk(
         `✓ تم ضبط ${cafeName} → المستوى ${lvl} • ${ord} كوب` +
-        ` — وتم تصفير العملات والعناصر${wiped > 0 ? ` وحذف ${wiped} قهوة مجانية` : ""} 🧹`,
+        `${awarded > 0 ? ` — وأُضيفت ${awarded} قهوة مجانية 🎁` : ""}` +
+        ` — لم يتأثر شيء من العملات أو العناصر أو القهوات المجانية ✅`,
       );
-      // The user list also carries the freshly wiped coins/items; refresh both
-      // the per-cafe breakdown and the free-coffee roster.
-      setAllFreeCoffees(prev => prev.filter(f => normalizePhone(f.userPhone) !== normalizePhone(adjTarget.phone)));
+      // Additive edit: nothing is wiped. Refresh the per-cafe breakdown; the
+      // free-coffee roster auto-refreshes via the 2 s poll above.
       void loadBreakdown(adjTarget.id);
     } catch (e: any) {
       setAdjErr(e?.message?.substring(0, 200) || "تعذّر التعديل");

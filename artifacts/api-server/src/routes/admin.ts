@@ -759,13 +759,12 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
         );
       }
     }
-    // Editing a user's level / cafe count WIPES their earnings (coins +
-    // owned cosmetics + every free coffee). The milestone-award block above
-    // may have queued new coffees on an increase; wiping deletes those too
-    // so the final state is a clean slate. syncVersion is bumped inside
-    // wipeUserEarnings so the mobile client overwrites local storage.
-    const wipedFreeCoffeesSet = wipeUserEarnings(user);
-    newlyAwardedSet = 0;
+    // Leveling up is PURELY ADDITIVE: editing a user's level / cafe count
+    // must NEVER wipe their coins, owned cosmetics, or existing free
+    // coffees. Any milestone free coffees queued by the award block above
+    // are KEPT. We do not bump syncVersion here (coins/cosmetics are
+    // untouched, so there is nothing for the mobile client to overwrite) —
+    // the level/orders change reaches the device via the adjustment record.
     const adjSet: ProgressAdjustment = {
       id:          `pa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       userId:      user.id,
@@ -780,7 +779,7 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     };
     progressAdjustments.unshift(adjSet);
     persistStore();
-    return res.json({ user, newlyAwardedFreeCoffees: 0, wipedFreeCoffees: wipedFreeCoffeesSet, adjustment: adjSet });
+    return res.json({ user, newlyAwardedFreeCoffees: newlyAwardedSet, wipedFreeCoffees: 0, adjustment: adjSet });
   }
 
   // ── Legacy delta mode (kept for backward compat) ──────────────────────
@@ -864,11 +863,10 @@ router.post("/users/:id/adjust-progress", (req, res): any => {
     claimedAt:   null,
   };
   progressAdjustments.unshift(adj);
-  // Same earnings-wipe policy as set mode: any change to level/orders nukes
-  // coins + cosmetics + free coffees and bumps syncVersion.
-  const wipedFreeCoffees = wipeUserEarnings(user);
+  // Leveling up is PURELY ADDITIVE: never wipe coins / cosmetics / free
+  // coffees on a progress edit. Milestone coffees awarded above are kept.
   persistStore();
-  res.json({ user, newlyAwardedFreeCoffees: 0, wipedFreeCoffees, adjustment: adj });
+  res.json({ user, newlyAwardedFreeCoffees: newlyAwarded, wipedFreeCoffees: 0, adjustment: adj });
 });
 
 // ── POST /api/admin/users/:id/message ──────
