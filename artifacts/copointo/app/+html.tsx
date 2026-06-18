@@ -62,7 +62,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta property="og:site_name" content="Copointo" />
         <meta property="og:title" content="Copointo — دليل الكوفيهات في سلطنة عمان" />
         <meta property="og:description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
-        <meta property="og:image" content="/copointo-logo.png" />
+        <meta property="og:image" content="https://copointo.com/copointo-logo.png" />
         <meta property="og:url" content="https://copointo.com/" />
         <meta property="og:locale" content="ar_OM" />
 
@@ -70,7 +70,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Copointo — دليل الكوفيهات في سلطنة عمان" />
         <meta name="twitter:description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
-        <meta name="twitter:image" content="/copointo-logo.png" />
+        <meta name="twitter:image" content="https://copointo.com/copointo-logo.png" />
 
         {/* Structured data for Google search results — Organization schema
             (with explicit `logo`) is what Google uses to show the brand

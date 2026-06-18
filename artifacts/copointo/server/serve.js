@@ -207,53 +207,121 @@ function isNoindexRoute(pathname) {
  * block just before </head> so structured-data crawlers (Google, Bing) see
  * a page-level schema without needing to execute JavaScript.
  */
+const SITE_ORIGIN = "https://copointo.com";
+const LOGO_ABS = `${SITE_ORIGIN}/copointo-logo.png`;
+
+/**
+ * Upsert a <meta> tag: replace its content if the tag already exists, else
+ * inject a fresh tag before </head>. Needed because the Expo SPA export emits
+ * a minimal index.html that lacks most SEO/social tags (it does NOT honour the
+ * full +html.tsx <head>), so a plain .replace() would silently no-op.
+ */
+function setMeta(html, attr, key, content) {
+  const re = new RegExp(`(<meta\\s+${attr}="${key}"\\s+content=")[^"]*(")`, "i");
+  if (re.test(html)) return html.replace(re, `$1${content}$2`);
+  return html.replace("</head>", `  <meta ${attr}="${key}" content="${content}" />\n</head>`);
+}
+
+/** Upsert a <link rel=...> tag (replace href if present, else inject). */
+function setLink(html, rel, href, extraAttrs = "") {
+  const re = new RegExp(`(<link\\s+rel="${rel}"[^>]*href=")[^"]*(")`, "i");
+  if (re.test(html)) return html.replace(re, `$1${href}$2`);
+  const extra = extraAttrs ? ` ${extraAttrs}` : "";
+  return html.replace("</head>", `  <link rel="${rel}"${extra} href="${href}" />\n</head>`);
+}
+
+/**
+ * Ensure the Copointo brand favicon + logo schema are present on every served
+ * page, regardless of whether the Expo build emitted them. This is what makes
+ * the logo appear (a) in the browser tab, (b) next to the site in Google search
+ * results (Organization schema `logo`), and (c) in WhatsApp/Twitter/Facebook
+ * link previews (og:image, absolute URL).
+ */
+function ensureBrandAssets(html, includeOrgSchema) {
+  let out = html;
+
+  if (!/rel="icon"/i.test(out)) {
+    out = out.replace(
+      "</head>",
+      `  <link rel="icon" type="image/png" href="/copointo-logo.png" />\n` +
+        `  <link rel="apple-touch-icon" href="/copointo-logo.png" />\n</head>`
+    );
+  }
+
+  // og:image / twitter:image MUST be absolute or social scrapers drop them.
+  out = setMeta(out, "property", "og:image", LOGO_ABS);
+  out = setMeta(out, "name", "twitter:image", LOGO_ABS);
+
+  // Organization + WebSite schema (with absolute `logo`) — the signal Google
+  // uses to show the brand logo beside the site. Inject once, on the home page.
+  if (includeOrgSchema && !/"@type":\s*"Organization"/.test(out)) {
+    const org = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Copointo",
+      alternateName: "كوبوينتو",
+      url: `${SITE_ORIGIN}/`,
+      logo: LOGO_ABS,
+      image: LOGO_ABS,
+      areaServed: "OM",
+      sameAs: ["https://www.instagram.com/copointo._"],
+    });
+    const site = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "Copointo",
+      alternateName: "كوبوينتو",
+      url: `${SITE_ORIGIN}/`,
+      inLanguage: "ar-OM",
+      publisher: {
+        "@type": "Organization",
+        name: "Copointo",
+        url: `${SITE_ORIGIN}/`,
+        logo: { "@type": "ImageObject", url: LOGO_ABS },
+      },
+    });
+    out = out.replace(
+      "</head>",
+      `  <script type="application/ld+json">${org}</script>\n` +
+        `  <script type="application/ld+json">${site}</script>\n</head>`
+    );
+  }
+
+  return out;
+}
+
 function buildHtmlForRoute(html, pathname) {
   // Normalize trailing slash so /videos/ resolves the same as /videos.
   const key = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
   const meta = ROUTE_META[key];
-  if (!meta) return html;
 
-  let out = html;
+  // Brand favicon + absolute social image apply to EVERY served page. The
+  // Organization/WebSite logo schema is injected only on the home page.
+  let out = ensureBrandAssets(html, pathname === "/" || pathname === "");
+  if (!meta) return out;
 
-  out = out.replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`);
+  // Title (the SPA shell always has a <title>, so replace is enough; fall back
+  // to injection just in case).
+  if (/<title>[^<]*<\/title>/i.test(out)) {
+    out = out.replace(/<title>[^<]*<\/title>/i, `<title>${meta.title}</title>`);
+  } else {
+    out = out.replace("</head>", `  <title>${meta.title}</title>\n</head>`);
+  }
 
-  out = out.replace(
-    /(<meta\s+name="description"\s+content=")[^"]*(")/,
-    `$1${meta.description}$2`
-  );
+  out = setMeta(out, "name", "description", meta.description);
+  out = setLink(out, "canonical", meta.canonical);
+  out = setMeta(out, "property", "og:type", "website");
+  out = setMeta(out, "property", "og:site_name", "Copointo");
+  out = setMeta(out, "property", "og:title", meta.title);
+  out = setMeta(out, "property", "og:description", meta.description);
+  out = setMeta(out, "property", "og:url", meta.ogUrl);
+  out = setMeta(out, "property", "og:locale", "ar_OM");
+  out = setMeta(out, "name", "twitter:card", "summary_large_image");
+  out = setMeta(out, "name", "twitter:title", meta.title);
+  out = setMeta(out, "name", "twitter:description", meta.description);
 
-  out = out.replace(
-    /(<link\s+rel="canonical"\s+href=")[^"]*(")/,
-    `$1${meta.canonical}$2`
-  );
-
-  out = out.replace(
-    /(<meta\s+property="og:title"\s+content=")[^"]*(")/,
-    `$1${meta.title}$2`
-  );
-
-  out = out.replace(
-    /(<meta\s+property="og:description"\s+content=")[^"]*(")/,
-    `$1${meta.description}$2`
-  );
-
-  out = out.replace(
-    /(<meta\s+property="og:url"\s+content=")[^"]*(")/,
-    `$1${meta.ogUrl}$2`
-  );
-
-  out = out.replace(
-    /(<meta\s+name="twitter:title"\s+content=")[^"]*(")/,
-    `$1${meta.title}$2`
-  );
-
-  out = out.replace(
-    /(<meta\s+name="twitter:description"\s+content=")[^"]*(")/,
-    `$1${meta.description}$2`
-  );
-
-  // For non-home routes inject a route-specific WebPage JSON-LD block.
-  // The home route already has Organisation + WebSite JSON-LD in +html.tsx.
+  // For non-home routes inject a route-specific WebPage/CollectionPage JSON-LD
+  // block. The home route gets Organization + WebSite from ensureBrandAssets.
   if (pathname !== "/") {
     const webPageJsonLd = JSON.stringify({
       "@context": "https://schema.org",
@@ -262,7 +330,7 @@ function buildHtmlForRoute(html, pathname) {
       description: meta.description,
       url: meta.canonical,
       inLanguage: "ar-OM",
-      isPartOf: { "@type": "WebSite", url: "https://copointo.com/", name: "Copointo" },
+      isPartOf: { "@type": "WebSite", url: `${SITE_ORIGIN}/`, name: "Copointo" },
     });
     out = out.replace(
       "</head>",

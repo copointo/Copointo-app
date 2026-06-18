@@ -24,3 +24,5 @@
 - [Order-timer re-entry](order-timer-reentry.md) — order-timer reads activeOrder (fallback to params); history.tsx re-enters with NO params, so params-only breaks polling + rich UI.
 - [Copointo inline-HTML map XSS](copointo-inline-map-xss.md) — any Leaflet/WebView HTML embed must reuse the hardened script-JSON serializer (escape </script + U+2028/2029), not just escape `<`.
 - [Admin level edits additive](copointo-admin-level-additive.md) — admin adjust-progress must NEVER wipe coins/cosmetics/free coffees; only /wipe-earnings wipes; don't bump syncVersion on a level edit.
+
+- [Copointo web head injection](copointo-web-head-injection.md) — web is a pure Expo SPA; +html.tsx <head> is IGNORED, serve.js UPSERT is the only reliable place for favicon/OG/JSON-LD; images must be absolute.
