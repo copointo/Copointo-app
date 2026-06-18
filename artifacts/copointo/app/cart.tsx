@@ -141,6 +141,8 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, cart, cartTotal, cartCount, updateQuantity, removeFromCart, clearCart, addOrder, setActiveOrder } = useApp();
+  // الاسم يؤخذ تلقائياً من اسم المستخدم المسجّل (لا يُكتب يدوياً في الطلب).
+  const displayName = (user?.gameUsername || user?.name || "").trim();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -322,13 +324,19 @@ export default function CartScreen() {
 
   const submitOrder = async () => {
     const isDine = orderType === "dine";
+    // الاسم يُؤخذ من الحساب المسجّل؛ نمنع الإرسال إن لم يتوفر اسم حساب.
+    if (!displayName) {
+      Alert.alert(
+        "الاسم غير متوفر",
+        "لم نتمكّن من قراءة اسم حسابك. الرجاء تعيين اسم المستخدم من صفحة الملف الشخصي ثم إعادة المحاولة.",
+      );
+      return;
+    }
     const nextErrors: typeof errors = {};
     if (isDine) {
-      if (!dineName.trim())  nextErrors.name  = true;
       if (!dinePhone.trim()) nextErrors.phone = true;
       if (!dineTable.trim()) nextErrors.table = true;
     } else {
-      if (!carName.trim())      nextErrors.name      = true;
       if (!carPhone.trim())     nextErrors.phone     = true;
       if (!carPlateNum.trim())  nextErrors.plateNum  = true;
       if (!carPlateChar.trim()) nextErrors.plateChar = true;
@@ -337,8 +345,7 @@ export default function CartScreen() {
       setErrors(nextErrors);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       // Jump to the first invalid field in visual order
-      if (nextErrors.name) scrollToField(nameRef);
-      else if (nextErrors.phone) scrollToField(phoneRef);
+      if (nextErrors.phone) scrollToField(phoneRef);
       else if (nextErrors.table) scrollToField(tableRef);
       else if (nextErrors.plateNum || nextErrors.plateChar) scrollToField(plateRef);
       return;
@@ -364,7 +371,7 @@ export default function CartScreen() {
         0,
       );
       const prepMin  = totalQty * 3; // 3 minutes per item
-      const customerName   = isDine ? dineName.trim() : carName.trim();
+      const customerName   = displayName;
       const customerPhone  = isDine ? dinePhone.trim() : carPhone.trim();
       const payload: any = {
         customerName,
@@ -571,14 +578,16 @@ export default function CartScreen() {
 
           {/* Fields */}
           <View style={styles.fields}>
-            <Field
-              ref={nameRef}
-              label="الاسم الكامل" icon="👤"
-              value={isDine ? dineName : carName}
-              onChange={(v) => { (isDine ? setDineName : setCarName)(v); clearError("name"); }}
-              placeholder="أدخل اسمك الكامل"
-              error={errors.name}
-            />
+            {/* الاسم يُعرض تلقائياً من حساب المستخدم المسجّل — غير قابل للتعديل */}
+            <View style={fStyles.wrap} ref={nameRef}>
+              <Text style={fStyles.label}>👤  الاسم</Text>
+              <View style={styles.readonlyField}>
+                <Text style={styles.readonlyValue} numberOfLines={1}>
+                  {displayName || "—"}
+                </Text>
+                <Text style={styles.readonlyBadge}>اسم حسابك</Text>
+              </View>
+            </View>
             <Field
               ref={phoneRef}
               label="رقم الهاتف" icon="📞"
@@ -1151,6 +1160,15 @@ const styles = StyleSheet.create({
   bannerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" },
   bannerSub:   { fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)" },
   fields:      { gap: 14 },
+
+  // Read-only name (taken from the registered account)
+  readonlyField: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: "rgba(232,184,109,0.08)", borderRadius: 14,
+    borderWidth: 1, borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 10,
+  },
+  readonlyValue: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", color: PRIMARY },
+  readonlyBadge: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.45)" },
 
   // Plate
   plateWrap:      { gap: 6 },
