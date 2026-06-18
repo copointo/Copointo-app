@@ -17,6 +17,7 @@
 - [Admin gold surface theme](admin-gold-surface-theme.md) — cafe dashboard unified to gold gradient surfaces; order-status cards + small controls intentionally NOT gilded (don't "fix").
 - [api-server no hot-reload](api-server-no-hot-reload.md) — api-server serves stale code until its workflow is restarted; new response fields read undefined; always restart + curl the live endpoint to verify.
 - [Copointo iPad responsive](copointo-ipad-responsive.md) — hub scaling gated behind r.scale (=1 on phone); left FAB stack has fixed +70px steps so cap transform scale at 1.2 or it overlaps.
+- [Redeemed free coffee = no progress](copointo-free-coffee-no-progress.md) — awardOrderProgress credits paidDrinks=max(0,drinks-freeDrinks); redeemed free cups must never raise level/milestone.
 - [iOS/iPad modal unmount bug](ios-modal-unmount-bug.md) — never conditionally UNMOUNT a presented RN <Modal> (incl. auth-gate branch swap); toggle `visible` or it sticks on iPad → Apple 2.1 reject.
 - [Copointo purchases ledger & dues](copointo-purchases-ledger.md) — copointoRedemptions = single canonical ledger for EVERY coin purchase (code optional); cafe report filters by cafeId; dues anchor = settledAt||enabledAt||createdAt.
 - [Copointo Code settlement integrity](copointo-code-settlement-integrity.md) — per-cafe referral redeem is a real money ledger: derive price server-side from coin packs (ignore client priceOmr) + dedupe on paymentRef.

@@ -748,7 +748,34 @@ function awardOrderProgress(order: any) {
         return s + q;
       }, 0)
     : 0;
-  if (drinks > 0) {
+  // Free-coffee redemptions must NOT raise the player's level: a redeemed
+  // free coffee is a reward being CONSUMED, not a new paid drink. Subtract
+  // each redeemed cup that would otherwise have counted (qualifying drink
+  // category AND price above the level threshold), capped so we never
+  // subtract more cups than were actually counted.
+  const fcRedemptions = Array.isArray(order.freeCoffeeRedemptions)
+    ? order.freeCoffeeRedemptions
+    : [];
+  let freeDrinks = 0;
+  for (const r of fcRedemptions) {
+    const name = String(r?.itemName ?? "").trim();
+    if (!name) continue;
+    const line = Array.isArray(order.items)
+      ? order.items.find((it: any) => String(it?.name ?? "").trim() === name)
+      : null;
+    if (!line) continue;
+    const cat = String(line.category ?? "");
+    const isDrink = cat === "مشروب ساخن"
+      || cat === "مشروبات ساخنة"
+      || cat === "مشروبات باردة"
+      || cat === "مشروب بارد";
+    if (!isDrink) continue;
+    const unitPrice = Number(line.price);
+    if (!Number.isFinite(unitPrice) || unitPrice <= LEVEL_MIN_DRINK_PRICE) continue;
+    freeDrinks++;
+  }
+  const paidDrinks = Math.max(0, drinks - freeDrinks);
+  if (paidDrinks > 0) {
     const u = findRegisteredUser(order);
     if (u) {
       // ── Per-cafe progress bump (critical for admin-set consistency) ──
@@ -762,8 +789,8 @@ function awardOrderProgress(order: any) {
       const prog = (u.cafeProgress ??= {});
       const curr = prog[order.cafeId] ?? { level: 0, totalOrders: 0 };
       prog[order.cafeId] = {
-        level: Math.min(999, (curr.level ?? 0) + drinks),
-        totalOrders: (curr.totalOrders ?? 0) + drinks,
+        level: Math.min(999, (curr.level ?? 0) + paidDrinks),
+        totalOrders: (curr.totalOrders ?? 0) + paidDrinks,
       };
       // Recompute globals from the union of all cafe progresses (same
       // invariant the admin-set branch enforces). This guarantees the
@@ -777,15 +804,15 @@ function awardOrderProgress(order: any) {
       // instead of level 17 = total cups).
       const allLvls = Object.values(prog).map(c => c.level ?? 0);
       const allOrds = Object.values(prog).map(c => c.totalOrders ?? 0);
-      u.level       = allLvls.length ? allLvls.reduce((s, n) => s + n, 0) : (u.level ?? 0) + drinks;
-      u.totalOrders = allOrds.length ? allOrds.reduce((s, n) => s + n, 0) : (u.totalOrders ?? 0) + drinks;
+      u.level       = allLvls.length ? allLvls.reduce((s, n) => s + n, 0) : (u.level ?? 0) + paidDrinks;
+      u.totalOrders = allOrds.length ? allOrds.reduce((s, n) => s + n, 0) : (u.totalOrders ?? 0) + paidDrinks;
       const cafe = cafes.find(c => c.id === order.cafeId);
       // Push: drink-progress credited to the player. The milestone push
       // (free coffee) is fired separately inside awardMilestoneCoffees.
       void sendPushToUser(u.id, {
         title: "🎮 نقاط جديدة في لعبة كوبوينتو",
-        body:  `أحرزت ${drinks} كوب جديد${drinks > 1 ? "اً" : ""} — مجموعك الآن ${u.totalOrders}`,
-        data:  { type: "game_points", drinks, totalOrders: u.totalOrders, cafeId: order.cafeId },
+        body:  `أحرزت ${paidDrinks} كوب جديد${paidDrinks > 1 ? "اً" : ""} — مجموعك الآن ${u.totalOrders}`,
+        data:  { type: "game_points", drinks: paidDrinks, totalOrders: u.totalOrders, cafeId: order.cafeId },
       });
       awardMilestoneCoffees(u.phone, u.username, u.totalOrders, order.cafeId, cafe?.name ?? null);
     }
