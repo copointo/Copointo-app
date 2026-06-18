@@ -1376,6 +1376,9 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
   // immediately marked paymentMethod="free" so cash/visa totals stay at 0
   // for accounting while the order itself still goes through the pipeline.
   const [freeOrder, setFreeOrder] = useState(false);
+  // BOGO "اشترِ واحد والثاني مجاني" — when on, the cheapest floor(total/2) units
+  // are free. Computed live for preview; the server recomputes authoritatively.
+  const [bogoOffer, setBogoOffer] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -1421,14 +1424,25 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
     setCart({}); setCustomerName(""); setCustomerPhone("");
     setMatchedUser(null); setLookupTried(false); setNotes(""); setErr("");
     setDiscountInput(""); setAppliedDiscount(null); setDiscountErr("");
-    setFreeOrder(false);
+    setFreeOrder(false); setBogoOffer(false);
   };
 
-  // Computed totals: subtotal → after-code discount → free toggle override.
+  // Computed totals: subtotal → after-code discount → BOGO → free toggle override.
   const discountAmt = appliedDiscount
     ? +((subtotal * appliedDiscount.percent) / 100).toFixed(3)
     : 0;
-  const afterDiscount = +(subtotal - discountAmt).toFixed(3);
+  // BOGO preview: flatten every unit, the cheapest floor(total/2) are free.
+  // Mirrors the server math so the cashier sees the right total before submit.
+  const bogoFreeQty = bogoOffer ? Math.floor(itemCount / 2) : 0;
+  const bogoDiscount = bogoFreeQty > 0
+    ? +(cartLines
+        .flatMap(l => Array.from({ length: l.qty }, () => Number(l.price) || 0))
+        .sort((a, b) => a - b)
+        .slice(0, bogoFreeQty)
+        .reduce((s, p) => s + p, 0)
+      ).toFixed(3)
+    : 0;
+  const afterDiscount = +Math.max(0, subtotal - discountAmt - bogoDiscount).toFixed(3);
   const finalTotal    = freeOrder ? 0 : afterDiscount;
 
   const applyDiscount = async () => {
@@ -1519,6 +1533,8 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
         // total. We pass the code in the create payload so the order is born
         // with the discount baked in (consistent with mobile cart flow).
         discountCode: appliedDiscount?.code,
+        // BOGO offer — server flattens units and makes the cheapest half free.
+        applyBogo: bogoOffer || undefined,
       });
       // If the cashier marked it free, stamp paymentMethod="free" right after
       // creation so the order shows up as paid (with 0 collected) and won't
@@ -1860,6 +1876,33 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
                 </p>
               </div>
             </label>
+
+            {/* ── BOGO: اشترِ واحد والثاني مجاني ── */}
+            <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border select-none transition ${
+              freeOrder
+                ? "opacity-50 cursor-not-allowed bg-input/40 border-border"
+                : bogoOffer
+                  ? "bg-primary/15 border-primary/50 cursor-pointer"
+                  : "bg-input/40 border-border hover:border-primary/40 cursor-pointer"
+            }`}>
+              <input
+                type="checkbox"
+                checked={bogoOffer}
+                disabled={freeOrder}
+                onChange={(e) => setBogoOffer(e.target.checked)}
+                className="w-4 h-4 accent-primary"
+              />
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-bold ${bogoOffer ? "text-primary" : "text-foreground"}`}>
+                  🎁 عرض: اشترِ واحد والثاني مجاني
+                </p>
+                <p className="text-[10px] text-muted-foreground leading-tight">
+                  {bogoOffer && bogoFreeQty > 0
+                    ? `الأرخص ${bogoFreeQty} ${bogoFreeQty === 1 ? "قطعة مجاناً" : "قطع مجاناً"} (من ${itemCount} قطعة)`
+                    : "كل قطعتين: الأرخص مجاناً (3 قطع = 1 مجاني، 5 = 2 مجاني)."}
+                </p>
+              </div>
+            </label>
           </div>
 
           <div className="border-t border-border pt-3 mb-4 space-y-1">
@@ -1889,6 +1932,12 @@ function DirectOrderTab({ id, onCreated }: { id: string; onCreated: () => void }
               <div className="flex justify-between text-xs text-emerald-400">
                 <span>خصم ({appliedDiscount.percent}%)</span>
                 <span className="tabular-nums">-{discountAmt.toFixed(3)} OMR</span>
+              </div>
+            )}
+            {bogoOffer && bogoFreeQty > 0 && (
+              <div className="flex justify-between text-xs text-primary">
+                <span>🎁 اشترِ واحد والثاني مجاني ({bogoFreeQty} مجاناً)</span>
+                <span className="tabular-nums">-{bogoDiscount.toFixed(3)} OMR</span>
               </div>
             )}
             {freeOrder && (
@@ -2405,6 +2454,11 @@ function OrdersTab({ id }: { id: string }) {
                     ? `🏷️ ${o.discountCode}${o.discountPercent ? ` ${o.discountPercent}%` : ""}`
                     : `💰 خصم`}
                   {" "}−{Number(o.discountAmount).toFixed(3)}
+                </span>
+              )}
+              {Number(o.bogoDiscount) > 0 && (
+                <span className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/15 text-primary text-xs font-semibold">
+                  <Gift size={13}/> اشترِ 1 والثاني مجاني{Number(o.bogoFreeQty) > 0 ? ` (${Number(o.bogoFreeQty)})` : ""} −{Number(o.bogoDiscount).toFixed(3)}
                 </span>
               )}
               {o.paymentMethod && (
@@ -4569,6 +4623,8 @@ async function buildOrderReceipt(
   const discountAmt   = Number(o.discountAmount ?? 0);
   const discountCode  = o.discountCode as string | undefined;
   const discountPct   = o.discountPercent as number | undefined;
+  const bogoAmt       = Number(o.bogoDiscount ?? 0);
+  const bogoQty       = Number(o.bogoFreeQty ?? 0);
   const freeAmtFromOrder = Number(o.freeCoffeeDiscount ?? 0);
   const legacyFreeAmt    = freeCoffee ? Number(freeCoffee.itemPrice ?? 0) : 0;
   const freeAmt       = orderRedemptions.length > 0
@@ -4577,7 +4633,7 @@ async function buildOrderReceipt(
   const isComplimentary = o.paymentMethod === "free";
   const baseFinalTot   = typeof o.total === "number"
     ? Math.max(0, Number(o.total) - (orderRedemptions.length === 0 ? legacyFreeAmt : 0))
-    : Math.max(0, subtotal - discountAmt - freeAmt);
+    : Math.max(0, subtotal - discountAmt - bogoAmt - freeAmt);
   // الحساب مجاناً → الكوفي تكفّل بكامل المبلغ المتبقي.
   const compAmt   = isComplimentary ? baseFinalTot : 0;
   const finalTot  = isComplimentary ? 0 : baseFinalTot;
@@ -4602,9 +4658,10 @@ async function buildOrderReceipt(
 </td></tr>
 ` : "";
 
-  const summaryBlock = (orderRedemptions.length > 0 || discountAmt > 0 || isComplimentary) ? `
+  const summaryBlock = (orderRedemptions.length > 0 || discountAmt > 0 || bogoAmt > 0 || isComplimentary) ? `
 <tr><td class="cell row-cell"><span class="lbl">الإجمالي قبل الخصم / Subtotal</span><span class="val">${subtotal.toFixed(3)} ر.ع / OMR</span></td></tr>
 ${discountAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم${discountCode ? ` (${discountCode}${discountPct ? ` ${discountPct}%` : ""})` : ""} / Discount</span><span class="val">− ${discountAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
+${bogoAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 اشترِ واحد والثاني مجاني${bogoQty > 0 ? ` (${bogoQty} مجاناً)` : ""} / Buy 1 Get 1</span><span class="val">− ${bogoAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ${freeAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">خصم الكوفي المجاني / Free coffee</span><span class="val">− ${freeAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ${compAmt > 0 ? `<tr><td class="cell row-cell"><span class="lbl">🎁 الحساب مجاناً / On the House</span><span class="val">− ${compAmt.toFixed(3)} ر.ع / OMR</span></td></tr>` : ""}
 ` : "";

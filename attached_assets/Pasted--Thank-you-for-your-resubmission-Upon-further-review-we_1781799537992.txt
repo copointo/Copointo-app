@@ -1,0 +1,51 @@
+
+Thank you for your resubmission. Upon further review, we identified additional issues that need your attention. See below for more information.
+
+If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: ac41b26c-ccba-42bc-aefb-92f1eb513193
+Review date: June 18, 2026
+Review Device: iPad Air 11-inch (M3)
+Version reviewed: 1.0 (4)
+
+Guideline 3.1.1 - Business - Payments - In-App Purchase
+
+Issue Description
+
+The app unlocks or enables additional functionality with mechanisms other than In-App Purchase, which is not appropriate.
+
+Specifically, the app uses promo codes to unlock the coins.
+
+Next Steps
+
+It would be appropriate to remove these features from the app and any other feature that unlocks or enables functionality with mechanisms other than the App Store. 
+
+If you want to provide discounted or free access to items or subscriptions in the app, create offer codes for In-App Purchases.
+
+Resources
+
+Learn more about requirements for apps that offer paid digital content and services in guideline 3.1.1.
+Guideline 2.1(b) - Performance - App Completeness
+
+Issue Description
+
+We are unable to complete the review of the app because one or more of the In-App Purchase products have not been submitted for review.
+
+Specifically, the app includes references to paid coins but the associated In-App Purchase products have not been submitted for review. 
+
+Next Steps
+
+To resolve this issue, please be sure to take action and submit your In-App Purchases and upload a new binary in App Store Connect so we can proceed with our review. 
+
+Note you must provide an App Review screenshot in App Store Connect in order to submit In-App Purchases for review. Learn more about required In-App Purchase metadata.
+
+Resources 
+
+- Learn more about how to offer In-App Purchases.
+- Learn more about submitting In-App Purchases and subscriptions to App Review.
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Request an App Review Appointment at Meet with Apple to discuss your app's review. Appointments subject to availability during your local business hours on Tuesdays and Thursdays.
+- Provide feedback on this message and your review experience by completing a short survey.

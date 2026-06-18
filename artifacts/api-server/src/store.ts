@@ -172,6 +172,13 @@ export interface Order {
   freeCoffeeRedemptions?: { code: string; level: number; itemName: string; itemPrice: number }[];
   /** Total OMR deducted from the order via free-coffee redemptions. */
   freeCoffeeDiscount?: number;
+  /** Order-level "buy one get one free" (BOGO) offer the cashier applied on a
+   *  direct in-cafe order. The cheapest `bogoFreeQty` units in the order are
+   *  made free; `bogoDiscount` is their total OMR value (already subtracted
+   *  from `total`). bogoFreeQty = floor(totalUnits / 2). */
+  bogoApplied?: boolean;
+  bogoFreeQty?: number;
+  bogoDiscount?: number;
   /** Payment method recorded by the cafe when the order is ready.
    *  - "cash"  → كل المبلغ كاش
    *  - "visa"  → كل المبلغ فيزا

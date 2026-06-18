@@ -486,6 +486,36 @@ router.post("/orders", (req: any, res): any => {
     dcRef = dc; // commit usedCount in phase 2
   }
 
+  // ── BOGO "buy one get one free" (cashier-toggled on direct orders) ──
+  // Flatten every ordered unit into a price list, then make the CHEAPEST
+  // floor(totalUnits / 2) units free. Examples: 3 cups → 1 free, 5 → 2 free.
+  // Computed server-side from the order's own line prices (never trusts a
+  // client-sent amount) and subtracted from the running total.
+  let bogoApplied = false;
+  let bogoFreeQty = 0;
+  let bogoDiscount = 0;
+  // The BOGO offer is a cashier toggle exclusive to the direct in-cafe order
+  // flow ("اطلب مباشر"). Reject the flag on any other source (e.g. chat) so a
+  // non-direct caller can't force the discount on an app/chat order.
+  const isDirectOrder = (body.source ?? "direct") === "direct";
+  if (body.applyBogo && isDirectOrder) {
+    const units: number[] = [];
+    for (const it of (body.items ?? [])) {
+      const q = Math.max(0, Math.floor(Number(it?.qty) || 0));
+      const p = Number(it?.price) || 0;
+      for (let k = 0; k < q; k++) units.push(p);
+    }
+    bogoFreeQty = Math.floor(units.length / 2);
+    if (bogoFreeQty > 0) {
+      units.sort((a, b) => a - b); // cheapest first
+      for (let k = 0; k < bogoFreeQty; k++) bogoDiscount += units[k];
+      bogoDiscount = +bogoDiscount.toFixed(3);
+      bogoApplied = true;
+      total = +(total - bogoDiscount).toFixed(3);
+      if (total < 0) total = 0;
+    }
+  }
+
   // ── Free-coffee redemptions: validate (do not mark redeemed yet) ──
   // Each entry redeems one free coffee against one drink in the order.
   // Validation per entry: code exists, owned by this customer's phone,
@@ -606,6 +636,9 @@ router.post("/orders", (req: any, res): any => {
     total,
     freeCoffeeRedemptions: redemptionRecords.length > 0 ? redemptionRecords : undefined,
     freeCoffeeDiscount:    redemptionRecords.length > 0 ? freeCoffeeDiscount  : undefined,
+    bogoApplied:  bogoApplied || undefined,
+    bogoFreeQty:  bogoApplied ? bogoFreeQty  : undefined,
+    bogoDiscount: bogoApplied ? bogoDiscount : undefined,
   };
   orders.push(o);
   // Invoice is created only when the manager confirms preparation.
