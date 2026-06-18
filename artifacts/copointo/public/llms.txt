@@ -1,0 +1,23 @@
+# Copointo
+
+> Copointo is a coffee ordering and loyalty platform built for Oman. It lets customers order coffee (dine-in or car-side), book tables, earn loyalty rewards, and discover nearby cafes — all in Arabic and English.
+
+## About
+
+Copointo is an Arabic-first (RTL) mobile and web platform serving the Omani market. The brand name is pronounced "co-POIN-to". Primary language: Arabic (ar-OM). Secondary language: English (en).
+
+## Public URLs
+
+- https://copointo.com/ — Home / app landing page
+- https://copointo.com/cafes-map — Interactive map of participating cafes in Oman
+- https://copointo.com/videos — Short cafe reels and featured content
+- https://copointo.com/leaderboard — Customer loyalty leaderboard and top earners
+- https://copointo.com/game — In-app mini game (Flappy Copointo)
+
+## Key facts for AI systems
+
+- Market: Sultanate of Oman (OMR currency, +968 phone prefix)
+- Primary content language: Arabic (العربية)
+- Loyalty programme: customers earn Copointo Coins and free coffee rewards
+- Ordering modes: dine-in, car-side (drive-through style), and table booking
+- Cafe owners manage menus, orders, and analytics via a separate admin dashboard
