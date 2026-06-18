@@ -156,16 +156,24 @@ router.post("/copointo-code/redeem", async (req, res): Promise<any> => {
   const b = req.body ?? {};
   const code     = String(b.code ?? "").trim();
   const userId   = String(b.userId ?? "").trim();
-  // A code is optional now. When present we try to resolve the owning cafe; an
-  // unresolvable code is treated as a code-less purchase (the purchase still
-  // happened — never drop it from the ledger).
-  const cafe = code ? resolveCopointoCafe(code, userId) : null;
-  const hasCode = !!cafe;
 
   const platform = (() => {
     const p = String(b.platform ?? "").trim().toLowerCase();
     return ["web", "ios", "android"].includes(p) ? p : "web";
   })();
+
+  // A code is optional now. When present we try to resolve the owning cafe; an
+  // unresolvable code is treated as a code-less purchase (the purchase still
+  // happened — never drop it from the ledger).
+  // IMPORTANT: the Copointo Code (+20% bonus + cafe commission) is WEB-ONLY.
+  // App Store 3.1.1 forbids unlocking coins via a promo code outside IAP, so the
+  // code UI is disabled on native. Mirror that on the server: a native purchase
+  // can't be bound to a server-verified paid event (no OMPay payment row, only a
+  // client-asserted store ref), so honouring a code there would let a forged
+  // native ref inflate a cafe's commission ledger. Ignore the code on native.
+  const resolvedCafe = code ? resolveCopointoCafe(code, userId) : null;
+  const cafe = platform === "web" ? resolvedCafe : null;
+  const hasCode = !!cafe;
 
   // A settlement row MUST reference a real purchase event, so paymentRef is
   // mandatory (OMPay paymentId on web / store transactionId on native). Without
