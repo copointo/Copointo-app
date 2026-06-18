@@ -8,141 +8,19 @@
       html, body { touch-action: pan-x pan-y; -ms-touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
     </style>
 
-    <!--
-      Per-domain identity: this MUST run BEFORE the <title> and <meta> below so
-      Googlebot (which renders JS) sees the correct title/description for the
-      admin dashboard hostname. On copointoadmin-al-yaqathan.com (or any admin.*
-      subdomain, or /admin/* path) we:
-        1. Rewrite <title> to "Al yaqathan" so the brand name never shows.
-        2. Strip every "Copointo" reference from meta description/keywords/og.
-        3. Apply the strictest possible noindex/nofollow to all known crawlers.
-        4. Drop the canonical so Google can't merge it with copointo.com.
-    -->
-    <script>
-      (function () {
-        try {
-          var h = (location.hostname || "").toLowerCase();
-          var p = (location.pathname || "").toLowerCase();
-          var isAdminHost =
-            h.indexOf("copointoadmin") !== -1 ||
-            h.indexOf("admin.") === 0 ||
-            h.indexOf(".admin.") !== -1;
-          var isAdminPath = p.indexOf("/admin") === 0;
-          window.__IS_ADMIN_DOMAIN__ = isAdminHost || isAdminPath;
-          if (!window.__IS_ADMIN_DOMAIN__) return;
-
-          // Rewrite document title immediately so Googlebot's renderer captures
-          // the admin-dashboard identity instead of the public Copointo brand.
-          document.title = "لوحة التحكم الخاصة بالكافيه Copointo";
-
-          function setMeta(attr, name, content) {
-            var sel = 'meta[' + attr + '="' + name + '"]';
-            var m = document.querySelector(sel);
-            if (!m) {
-              m = document.createElement("meta");
-              m.setAttribute(attr, name);
-              document.head.appendChild(m);
-            }
-            m.setAttribute("content", content);
-          }
-          // Strictest noindex for every crawler we know about.
-          [
-            "robots", "googlebot", "googlebot-news", "googlebot-image",
-            "bingbot", "slurp", "duckduckbot", "baiduspider", "yandex",
-            "applebot", "facebookexternalhit", "twitterbot",
-          ].forEach(function (n) {
-            setMeta("name", n, "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate");
-          });
-
-          // Replace public-brand meta with the admin identity so any cached or
-          // scraped copy shows the admin-dashboard title.
-          var ADMIN_TITLE = "لوحة التحكم الخاصة بالكافيه Copointo";
-          setMeta("name", "description",     ADMIN_TITLE + " — لوحة تحكم خاصة. ليست موقعاً عاماً.");
-          setMeta("name", "keywords",        "");
-          setMeta("name", "application-name", ADMIN_TITLE);
-          setMeta("property", "og:title",       ADMIN_TITLE);
-          setMeta("property", "og:site_name",   ADMIN_TITLE);
-          setMeta("property", "og:description", "لوحة تحكم خاصة.");
-          setMeta("name", "twitter:title",       ADMIN_TITLE);
-          setMeta("name", "twitter:description", "لوحة تحكم خاصة.");
-
-          // Drop canonical so Google can't fold this URL into copointo.com.
-          var c = document.querySelector('link[rel="canonical"]');
-          if (c) c.parentNode.removeChild(c);
-
-          // Drop the public-site structured data (JSON-LD) — it advertises the
-          // Copointo brand and would otherwise leak into rich-result previews.
-          document.querySelectorAll('script[type="application/ld+json"]').forEach(function (s) {
-            s.parentNode.removeChild(s);
-          });
-        } catch (e) {}
-      })();
-    </script>
-
-    <title>Copointo — دليل الكوفيهات في سلطنة عمان</title>
-    <meta name="description" content="كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً." />
-    <meta name="keywords" content="كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, coffee Oman" />
-    <link rel="canonical" href="https://copointo.com/" />
-    <meta name="application-name" content="Copointo" />
+    <title>لوحة التحكم الخاصة بالكافيه</title>
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate" />
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet" />
+    <meta name="googlebot-news" content="noindex, nofollow" />
+    <meta name="bingbot" content="noindex, nofollow" />
+    <meta name="slurp" content="noindex, nofollow" />
+    <meta name="applebot" content="noindex, nofollow" />
     <meta name="theme-color" content="#000000" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
-    <meta name="googlebot" content="index, follow" />
 
     <!-- Favicons -->
     <link rel="icon" type="image/png" href="%BASE_URL%copointo-logo.png" />
     <link rel="shortcut icon" type="image/png" href="%BASE_URL%copointo-logo.png" />
     <link rel="apple-touch-icon" href="%BASE_URL%copointo-logo.png" />
-
-    <!-- Open Graph / Facebook / WhatsApp -->
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Copointo" />
-    <meta property="og:title" content="Copointo — كوبوينتو" />
-    <meta property="og:description" content="موقع مختص بعالم الكوفيهات في سلطنة عمان" />
-    <meta property="og:image" content="%BASE_URL%copointo-logo.png" />
-    <meta property="og:locale" content="ar_OM" />
-
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Copointo — كوبوينتو" />
-    <meta name="twitter:description" content="موقع مختص بعالم الكوفيهات في سلطنة عمان" />
-    <meta name="twitter:image" content="%BASE_URL%copointo-logo.png" />
-
-    <!-- Structured data for Google search -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "Copointo",
-      "alternateName": "كوبوينتو",
-      "url": "https://copointo.com/",
-      "logo": "https://copointo.com/copointo-logo.png",
-      "image": "https://copointo.com/copointo-logo.png",
-      "description": "موقع مختص بعالم الكوفيهات في سلطنة عمان",
-      "areaServed": "OM",
-      "sameAs": [
-        "https://www.instagram.com/copointo._"
-      ]
-    }
-    </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Copointo",
-      "alternateName": "كوبوينتو",
-      "url": "https://copointo.com/",
-      "description": "موقع مختص بعالم الكوفيهات في سلطنة عمان",
-      "inLanguage": "ar-OM",
-      "publisher": {
-        "@type": "Organization",
-        "name": "Copointo",
-        "logo": {
-          "@type": "ImageObject",
-          "url": "https://copointo.com/copointo-logo.png"
-        }
-      }
-    }
-    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -152,16 +30,16 @@
     <div id="root">
       <div style="font-family: Inter, system-ui, sans-serif; color: #E8B86D; background: #000; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px;">
         <div>
-          <h1 style="font-size: 28px; margin: 0 0 12px;">Copointo — كوبوينتو</h1>
-          <p style="font-size: 18px; color: #fff; margin: 0;">منصة لعشاق القهوة والتحديات — سلطنة عمان</p>
+          <h1 style="font-size: 28px; margin: 0 0 12px;">لوحة التحكم</h1>
+          <p style="font-size: 18px; color: #fff; margin: 0;">جارٍ التحميل…</p>
         </div>
       </div>
     </div>
     <noscript>
       <div style="font-family: Inter, system-ui, sans-serif; color: #E8B86D; background: #000; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px;">
         <div>
-          <h1 style="font-size: 28px; margin: 0 0 12px;">Copointo — كوبوينتو</h1>
-          <p style="font-size: 18px; color: #fff; margin: 0;">منصة لعشاق القهوة والتحديات — سلطنة عمان</p>
+          <h1 style="font-size: 28px; margin: 0 0 12px;">لوحة التحكم</h1>
+          <p style="font-size: 18px; color: #fff; margin: 0;">يرجى تفعيل JavaScript لاستخدام لوحة التحكم.</p>
         </div>
       </div>
     </noscript>

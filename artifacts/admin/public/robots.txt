@@ -1,13 +1,2 @@
 User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /admin/
-
-# Block the admin-only domain entirely (admin dashboard must not be indexed).
-# Crawlers that read robots.txt per-host will see this as a host-wide block
-# when served from copointoadmin-al-yaqathan.com.
-User-agent: *
-Host: copointoadmin-al-yaqathan.com
 Disallow: /
-
-Sitemap: https://copointo.com/sitemap.xml
