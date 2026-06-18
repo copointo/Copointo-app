@@ -1120,7 +1120,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Account actions — tidy 2×2 grid of square tiles ── */}
+        {/* ── Account actions — compact 2×2 grid of row tiles ── */}
         <View style={styles.actionGrid}>
           <TouchableOpacity
             style={styles.actionTile}
@@ -1128,7 +1128,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}
           >
             <View style={styles.actionTileIcon}>
-              <Feather name="help-circle" size={22} color={PRIMARY} />
+              <Feather name="help-circle" size={18} color={PRIMARY} />
             </View>
             <Text style={styles.actionTileText} numberOfLines={2}>{t("profile.support")}</Text>
           </TouchableOpacity>
@@ -1139,7 +1139,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}
           >
             <View style={styles.actionTileIcon}>
-              <Feather name="shield" size={22} color={PRIMARY} />
+              <Feather name="shield" size={18} color={PRIMARY} />
             </View>
             <Text style={styles.actionTileText} numberOfLines={2}>{t("profile.privacy")}</Text>
           </TouchableOpacity>
@@ -1150,7 +1150,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}
           >
             <View style={[styles.actionTileIcon, styles.actionTileIconDanger]}>
-              <Feather name="log-out" size={22} color={DANGER} />
+              <Feather name="log-out" size={18} color={DANGER} />
             </View>
             <Text style={[styles.actionTileText, styles.actionTileTextDanger]} numberOfLines={2}>{t("profile.logout")}</Text>
           </TouchableOpacity>
@@ -1161,7 +1161,7 @@ export default function ProfileScreen() {
             activeOpacity={0.85}
           >
             <View style={[styles.actionTileIcon, styles.actionTileIconDanger]}>
-              <Feather name="trash-2" size={22} color={DANGER} />
+              <Feather name="trash-2" size={18} color={DANGER} />
             </View>
             <Text style={[styles.actionTileText, styles.actionTileTextDanger]} numberOfLines={2}>{t("profile.deleteAccount")}</Text>
           </TouchableOpacity>
@@ -1677,22 +1677,22 @@ const styles = StyleSheet.create({
     marginTop: 6, marginBottom: 6,
   },
   actionTile: {
-    width: "48%", aspectRatio: 1.05,
-    alignItems: "center", justifyContent: "center", gap: 10,
-    paddingHorizontal: 8,
+    width: "48%",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 11, paddingHorizontal: 10,
     backgroundColor: "rgba(232,184,109,0.07)",
-    borderWidth: 1, borderColor: BORDER, borderRadius: 18,
+    borderWidth: 1, borderColor: BORDER, borderRadius: 14,
   },
   actionTileDanger: { backgroundColor: `${DANGER}12`, borderColor: `${DANGER}40` },
   actionTileDangerDashed: { backgroundColor: "transparent", borderColor: `${DANGER}66`, borderStyle: "dashed" },
   actionTileIcon: {
-    width: 50, height: 50, borderRadius: 15,
+    width: 34, height: 34, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "rgba(232,184,109,0.12)",
     borderWidth: 1, borderColor: "rgba(232,184,109,0.3)",
   },
   actionTileIconDanger: { backgroundColor: `${DANGER}1A`, borderColor: `${DANGER}55` },
-  actionTileText: { fontSize: 13.5, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "center" },
+  actionTileText: { fontSize: 12.5, fontFamily: "Inter_700Bold", color: PRIMARY, textAlign: "center", flexShrink: 1 },
   actionTileTextDanger: { color: DANGER },
 
   // Notifications opt-in
