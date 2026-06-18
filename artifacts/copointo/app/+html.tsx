@@ -107,7 +107,24 @@ export default function Root({ children }: PropsWithChildren) {
             replacing Expo's default "You need to enable JavaScript". */}
         <noscript
           dangerouslySetInnerHTML={{
-            __html: `<div style="font-family: system-ui, sans-serif; color: #E8B86D; background: #000; min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px;"><div><h1 style="font-size: 28px; margin: 0 0 12px;">Copointo — كوبوينتو</h1><p style="font-size: 18px; color: #fff; margin: 0;">منصة لعشاق القهوة والتحديات — سلطنة عمان</p></div></div>`,
+            __html: `
+<div style="font-family:system-ui,sans-serif;background:#000;color:#E8B86D;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px 20px;direction:rtl;">
+  <img src="/copointo-logo.png" alt="Copointo logo" width="80" height="80" style="border-radius:22px;margin-bottom:20px;" />
+  <h1 style="font-size:32px;margin:0 0 10px;color:#E8B86D;">Copointo — كوبوينتو</h1>
+  <p style="font-size:18px;color:#fff;margin:0 0 8px;">دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕</p>
+  <p style="font-size:15px;color:rgba(255,255,255,0.65);max-width:500px;margin:0 0 28px;line-height:1.7;">
+    تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بريلز الكوفيهات، واجمع نقاط الولاء للحصول على قهوة مجاناً.
+  </p>
+  <ul style="list-style:none;padding:0;margin:0 0 28px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
+    <li style="background:#111;border:1px solid #E8B86D44;border-radius:999px;padding:7px 16px;font-size:14px;color:#E8B86D;">طلب القهوة</li>
+    <li style="background:#111;border:1px solid #E8B86D44;border-radius:999px;padding:7px 16px;font-size:14px;color:#E8B86D;">حجز الطاولات</li>
+    <li style="background:#111;border:1px solid #E8B86D44;border-radius:999px;padding:7px 16px;font-size:14px;color:#E8B86D;">ريلز الكوفيهات</li>
+    <li style="background:#111;border:1px solid #E8B86D44;border-radius:999px;padding:7px 16px;font-size:14px;color:#E8B86D;">نقاط الولاء</li>
+    <li style="background:#111;border:1px solid #E8B86D44;border-radius:999px;padding:7px 16px;font-size:14px;color:#E8B86D;">خريطة الكوفيهات</li>
+    <li style="background:#111;border:1px solid #E8B86D44;border-radius:999px;padding:7px 16px;font-size:14px;color:#E8B86D;">لوحة الشرف</li>
+  </ul>
+  <p style="color:rgba(255,255,255,0.45);font-size:13px;margin:0;">لاستخدام كوبوينتو يرجى تفعيل JavaScript في المتصفح.</p>
+</div>`,
           }}
         />
         {children}

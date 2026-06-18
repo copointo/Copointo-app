@@ -40,6 +40,220 @@ const MIME_TYPES = {
   ".webm": "video/webm",
 };
 
+/**
+ * Top-level SPA route prefixes derived from the Expo Router file tree.
+ * Any browser request whose pathname does NOT start with one of these (and is
+ * not a static asset) is genuinely unknown and should receive a real 404.
+ */
+const KNOWN_ROUTE_PREFIXES = [
+  "/",
+  "/videos",
+  "/cafes-map",
+  "/game",
+  "/leaderboard",
+  "/cafe/",
+  "/add-friend",
+  "/buy-coins",
+  "/cart",
+  "/collection",
+  "/communities",
+  "/community-info",
+  "/community-invites",
+  "/competitor-profile",
+  "/conversation",
+  "/create-community",
+  "/create-group",
+  "/flappy-copointo",
+  "/group-info",
+  "/levels",
+  "/messages",
+  "/my-cafes",
+  "/notifications",
+  "/order-timer",
+  "/play-win",
+  "/privacy",
+  "/profile",
+  "/sent-gifts",
+  "/store",
+  "/support",
+];
+
+/**
+ * Routes that are entirely behind the auth gate and therefore must not be
+ * indexed. The server adds `X-Robots-Tag: noindex` for these paths so
+ * crawlers that cannot sign in do not index a login-wall page.
+ * "/" is intentionally excluded — the landing page is indexable.
+ */
+const NOINDEX_ROUTE_PREFIXES = [
+  "/videos",
+  "/cafes-map",
+  "/game",
+  "/leaderboard",
+  "/cafe/",
+  "/add-friend",
+  "/buy-coins",
+  "/cart",
+  "/collection",
+  "/communities",
+  "/community-info",
+  "/community-invites",
+  "/competitor-profile",
+  "/conversation",
+  "/create-community",
+  "/create-group",
+  "/flappy-copointo",
+  "/group-info",
+  "/levels",
+  "/messages",
+  "/my-cafes",
+  "/notifications",
+  "/order-timer",
+  "/play-win",
+  "/privacy",
+  "/profile",
+  "/sent-gifts",
+  "/store",
+  "/support",
+];
+
+/**
+ * Per-route meta overrides injected into the index.html shell before serving.
+ * This lets each important URL return its own <title> and <meta description>
+ * in the first HTTP response so social bots and search crawlers see
+ * route-specific content without waiting for JS to execute.
+ */
+const ROUTE_META = {
+  "/": {
+    title: "Copointo — دليل الكوفيهات في سلطنة عمان",
+    description:
+      "كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، واجمع نقاط الولاء.",
+    canonical: "https://copointo.com/",
+    ogUrl: "https://copointo.com/",
+  },
+  "/videos": {
+    title: "Copointo — ريلز الكوفيهات | سلطنة عمان",
+    description:
+      "اكتشف أحدث مقاطع ريلز الكوفيهات في سلطنة عمان على كوبوينتو.",
+    canonical: "https://copointo.com/videos",
+    ogUrl: "https://copointo.com/videos",
+  },
+  "/cafes-map": {
+    title: "Copointo — خريطة الكوفيهات في عمان",
+    description:
+      "ابحث عن أقرب الكوفيهات إليك على الخريطة التفاعلية لكوبوينتو في سلطنة عمان.",
+    canonical: "https://copointo.com/cafes-map",
+    ogUrl: "https://copointo.com/cafes-map",
+  },
+  "/game": {
+    title: "Copointo — Flappy Copointo",
+    description:
+      "العب Flappy Copointo واكسب كوينز على منصة كوبوينتو.",
+    canonical: "https://copointo.com/game",
+    ogUrl: "https://copointo.com/game",
+  },
+  "/leaderboard": {
+    title: "Copointo — لوحة الشرف",
+    description:
+      "تابع ترتيب أفضل اللاعبين والمستخدمين على لوحة الشرف في كوبوينتو.",
+    canonical: "https://copointo.com/leaderboard",
+    ogUrl: "https://copointo.com/leaderboard",
+  },
+};
+
+function isKnownRoute(pathname) {
+  const p = pathname === "" ? "/" : pathname;
+  return KNOWN_ROUTE_PREFIXES.some(
+    (prefix) =>
+      prefix === "/"
+        ? p === "/"
+        : p === prefix || p.startsWith(prefix.endsWith("/") ? prefix : prefix + "/") || p === prefix
+  );
+}
+
+function isNoindexRoute(pathname) {
+  return NOINDEX_ROUTE_PREFIXES.some(
+    (prefix) =>
+      pathname === prefix ||
+      pathname.startsWith(prefix.endsWith("/") ? prefix : prefix + "/")
+  );
+}
+
+/**
+ * Inject route-specific meta tags into the built index.html shell.
+ * Replaces <title> and the first <meta name="description">, <link rel="canonical">,
+ * og:title, og:description, og:url, twitter:title, twitter:description in place.
+ */
+function buildHtmlForRoute(html, pathname) {
+  const meta = ROUTE_META[pathname];
+  if (!meta) return html;
+
+  let out = html;
+
+  out = out.replace(/<title>[^<]*<\/title>/, `<title>${meta.title}</title>`);
+
+  out = out.replace(
+    /(<meta\s+name="description"\s+content=")[^"]*(")/,
+    `$1${meta.description}$2`
+  );
+
+  out = out.replace(
+    /(<link\s+rel="canonical"\s+href=")[^"]*(")/,
+    `$1${meta.canonical}$2`
+  );
+
+  out = out.replace(
+    /(<meta\s+property="og:title"\s+content=")[^"]*(")/,
+    `$1${meta.title}$2`
+  );
+
+  out = out.replace(
+    /(<meta\s+property="og:description"\s+content=")[^"]*(")/,
+    `$1${meta.description}$2`
+  );
+
+  out = out.replace(
+    /(<meta\s+property="og:url"\s+content=")[^"]*(")/,
+    `$1${meta.ogUrl}$2`
+  );
+
+  out = out.replace(
+    /(<meta\s+name="twitter:title"\s+content=")[^"]*(")/,
+    `$1${meta.title}$2`
+  );
+
+  out = out.replace(
+    /(<meta\s+name="twitter:description"\s+content=")[^"]*(")/,
+    `$1${meta.description}$2`
+  );
+
+  return out;
+}
+
+const NOT_FOUND_HTML = `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>404 — الصفحة غير موجودة | Copointo</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; background: #000; color: #E8B86D;
+           display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; margin: 0; text-align: center; padding: 20px; }
+    h1 { font-size: 28px; margin: 0 0 12px; }
+    p  { color: #fff; font-size: 16px; margin: 0 0 20px; }
+    a  { color: #E8B86D; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>404 — الصفحة غير موجودة</h1>
+    <p>هذه الصفحة غير موجودة أو تمت إزالتها.</p>
+    <a href="/">العودة إلى كوبوينتو</a>
+  </div>
+</body>
+</html>`;
+
 function serveManifest(platform, res) {
   const manifestPath = path.join(STATIC_ROOT, platform, "manifest.json");
   if (!fs.existsSync(manifestPath)) {
@@ -77,13 +291,25 @@ function tryServeFrom(roots, urlPath, res) {
   return false;
 }
 
-function serveWebSpa(res) {
+/**
+ * Serve the SPA shell (index.html) with optional per-route meta injection
+ * and X-Robots-Tag: noindex for auth-gated paths.
+ */
+function serveWebSpa(pathname, res) {
   const indexPath = path.join(WEB_ROOT, "index.html");
-  if (fs.existsSync(indexPath)) {
-    sendFile(indexPath, res);
-    return true;
+  if (!fs.existsSync(indexPath)) return false;
+
+  let html = fs.readFileSync(indexPath, "utf-8");
+  html = buildHtmlForRoute(html, pathname);
+
+  const headers = { "content-type": "text/html; charset=utf-8" };
+  if (isNoindexRoute(pathname)) {
+    headers["x-robots-tag"] = "noindex, nofollow";
   }
-  return false;
+
+  res.writeHead(200, headers);
+  res.end(html);
+  return true;
 }
 
 const server = http.createServer((req, res) => {
@@ -104,7 +330,7 @@ const server = http.createServer((req, res) => {
 
   // Browser hitting "/" → web SPA index.
   if (pathname === "/" || pathname === "") {
-    if (serveWebSpa(res)) return;
+    if (serveWebSpa("/", res)) return;
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     return res.end("Web build not found. Run `pnpm --filter @workspace/copointo run build`.");
   }
@@ -112,9 +338,16 @@ const server = http.createServer((req, res) => {
   // Static files: try web build first, then the legacy expo asset roots.
   if (tryServeFrom([WEB_ROOT, STATIC_ROOT], pathname, res)) return;
 
-  // SPA fallback: unknown route from a browser → serve the web index so the
-  // expo-router client can handle the path.
-  if (!isExpoClient && serveWebSpa(res)) return;
+  // SPA fallback: only serve the app shell for known Expo Router paths.
+  // Unknown paths get a real HTTP 404 instead of a silent 200 soft-404.
+  if (!isExpoClient) {
+    if (isKnownRoute(pathname)) {
+      if (serveWebSpa(pathname, res)) return;
+    }
+    // Truly unknown path — return a proper 404.
+    res.writeHead(404, { "content-type": "text/html; charset=utf-8" });
+    return res.end(NOT_FOUND_HTML);
+  }
 
   res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
   res.end("Not Found");
