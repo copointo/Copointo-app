@@ -522,9 +522,12 @@ export function BuyCoinsPanel() {
 
   const handleBuy = (p: Pack) => {
     if (busyId) return;
-    // First purchase tap → show the Copointo Code panel (apply +20% or skip),
-    // then resume this exact pack. Once resolved, later taps buy directly.
-    if (!codeGateDone.current && !appliedCode) {
+    // First purchase tap (WEB ONLY) → show the Copointo Code panel (apply +20%
+    // or skip), then resume this exact pack. Once resolved, later taps buy
+    // directly. On native (App Store / Play) the code is disabled entirely:
+    // unlocking extra coins via a promo code outside In-App Purchase violates
+    // App Store Guideline 3.1.1, so native goes straight to IAP with no bonus.
+    if (IS_WEB && !codeGateDone.current && !appliedCode) {
       pendingBuyRef.current = p;
       setCodeError("");
       setCodeModal(true);
@@ -564,10 +567,13 @@ export function BuyCoinsPanel() {
       // stable transaction id we dedupe on it (guards any double-resolution of
       // the same transaction). Concurrent double-taps are already blocked by
       // `busyId` + the confirm modal, so a missing id still credits exactly once.
-      // Always pass a context so EVERY native purchase is logged; carry the
-      // code only when one was applied (it drives the +20% bonus + commission).
+      // Always pass a context so EVERY native purchase is logged (code is
+      // always null on native — see below).
       const redeemCtx = {
-        code: appliedCode ? appliedCode.code : null,
+        // Native NEVER carries a promo code: the Copointo Code (+20% bonus) is
+        // web-only, because unlocking coins via a code outside IAP breaks App
+        // Store 3.1.1. Forced null so no bonus can ever be credited on native.
+        code: null,
         priceUsd: pending.pack.price,
         priceOmr: usdToOmr(pending.pack.price),
         platform: (Platform.OS === "ios" ? "ios" : "android") as "ios" | "android",
@@ -670,8 +676,9 @@ export function BuyCoinsPanel() {
         اختر الباقة المناسبة لك واحصل على عملات Copointo فوراً
       </Animated.Text>
 
-      {/* Copointo Code banner — applied for the whole session before paying */}
-      {appliedCode ? (
+      {/* Copointo Code banner — WEB ONLY (OMPay). Hidden on native: granting
+          bonus coins via a promo code outside IAP breaks App Store 3.1.1. */}
+      {IS_WEB && (appliedCode ? (
         <View style={styles.codeApplied}>
           <View style={styles.codeAppliedInfo}>
             <Text style={styles.codeAppliedBadge}>كود {appliedCode.code} · +20% عملات</Text>
@@ -692,7 +699,7 @@ export function BuyCoinsPanel() {
           <Feather name="tag" size={16} color={PRIMARY} />
           <Text style={styles.codePromptText}>هل لديك كود Copointo؟ احصل على +20% عملات</Text>
         </TouchableOpacity>
-      )}
+      ))}
 
       <View style={styles.grid}>
         {PACKS.map((p, i) => {

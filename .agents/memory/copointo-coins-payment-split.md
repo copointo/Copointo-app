@@ -25,6 +25,13 @@ currency. Web has no such rule, and OMPay (Oman) is the only card option there.
   (`package.product.priceString`). If offerings haven't loaded, show a loading
   state and disable the tile — never fall back to a hardcoded USD/OMR price.
 - A "Restore Purchases" affordance is required by the App Store; keep it on native.
+- The **Copointo Code (+20% coin bonus promo code) is WEB-ONLY**. Apple rejected
+  3.1.1 a second time for "promo codes to unlock the coins" — any code/voucher
+  that grants or boosts coins must be hidden AND inert on native: gate the code
+  UI behind `IS_WEB`, skip the code gate in the buy handler, and force the native
+  purchase context `code: null` so no bonus is ever credited via IAP. Free
+  developer-granted coins (signup bonus, level/milestone rewards, admin gifts)
+  are fine on native — only *code-redeemed* coins violate 3.1.1.
 - User-cancelled store sheet (`userCancelled`) is not an error and must not credit.
 - RevenueCat is still `configure()`d on web (Browser/Test mode) but is never used
   to purchase there — harmless; don't "clean it up" by gating init off web.
