@@ -53,18 +53,74 @@ if (typeof window !== "undefined" && typeof window.location !== "undefined") {
   }
 }
 
+// ─── Per-route SEO metadata ────────────────────────────────────────────────
+// Each indexable public route gets its own title, description, canonical URL,
+// and og:url so crawlers and social previews show the correct page instead of
+// the home page copy for every deep link.
+type RouteMeta = { title: string; description: string; canonical: string };
+
+const ROUTE_META: Record<string, RouteMeta> = {
+  "/": {
+    title: "Copointo — دليل الكوفيهات في سلطنة عمان",
+    description: "كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً.",
+    canonical: "https://copointo.com/",
+  },
+  "/videos": {
+    title: "ريلز الكوفيهات | Copointo",
+    description: "اكتشف أجمل مقاطع فيديو الكوفيهات في سلطنة عمان. شاهد ريلز حصرية من أبرز الكوفيهات العُمانية عبر منصة كوبوينتو.",
+    canonical: "https://copointo.com/videos",
+  },
+  "/cafes-map": {
+    title: "خريطة الكوفيهات | Copointo",
+    description: "اعثر على أقرب كوفيه إليك في سلطنة عمان. استعرض خريطة تفاعلية لجميع الكوفيهات المسجّلة في منصة كوبوينتو.",
+    canonical: "https://copointo.com/cafes-map",
+  },
+  "/game": {
+    title: "الألعاب والنقاط | Copointo",
+    description: "العب واجمع نقاط كوبوينتو. استمتع بتجربة الولاء والمستويات والمكافآت في منصة كوبوينتو لعشاق القهوة في عمان.",
+    canonical: "https://copointo.com/game",
+  },
+  "/leaderboard": {
+    title: "لوحة الشرف | Copointo",
+    description: "تنافس مع أبرز عشاق القهوة في عمان. استعرض لوحة شرف كوبوينتو وتعرّف على أعلى المستخدمين نقاطاً وأكثرهم ولاءً.",
+    canonical: "https://copointo.com/leaderboard",
+  },
+};
+
+function getRouteMeta(pathname: string): RouteMeta {
+  const key = pathname === "/" ? "/" : pathname.replace(/\/$/, "");
+  return ROUTE_META[key] ?? ROUTE_META["/"];
+}
+
 // Web-only: force the Copointo logo as the browser favicon and inject SEO meta
 // tags. Expo's dev server uses an internal HTML template that ignores
 // `+html.tsx` and serves a default `/favicon.ico`, so we override the head
 // at runtime so the tab icon + Google preview show our logo immediately.
-if (typeof document !== "undefined") {
+// The helper is also called on popstate so SPA navigation updates the tags.
+function applyWebMetadata() {
+  if (typeof document === "undefined") return;
   const head = document.head;
   const ensure = (sel: string, create: () => HTMLElement) => {
     let el = head.querySelector(sel) as HTMLElement | null;
     if (!el) { el = create(); head.appendChild(el); }
     return el;
   };
-  document.title = "Copointo — موقع مختص بعالم الكوفيهات في سلطنة عمان";
+  const setMeta = (attr: "name" | "property", key: string, content: string) => {
+    const el = ensure(`meta[${attr}="${key}"]`, () => {
+      const m = document.createElement("meta"); m.setAttribute(attr, key); return m;
+    }) as HTMLMetaElement;
+    el.content = content;
+  };
+  const setLink = (rel: string, href: string) => {
+    const el = ensure(`link[rel="${rel}"]`, () => {
+      const l = document.createElement("link"); l.rel = rel; return l;
+    }) as HTMLLinkElement;
+    el.href = href;
+  };
+
+  const { title, description, canonical } = getRouteMeta(window.location.pathname);
+
+  document.title = title;
   document.documentElement.setAttribute("lang", "ar");
   document.documentElement.setAttribute("dir", "rtl");
 
@@ -80,28 +136,42 @@ if (typeof document !== "undefined") {
   addLink("shortcut icon",   "/copointo-logo.png", "image/png");
   addLink("apple-touch-icon","/copointo-logo.png");
 
-  const setMeta = (attr: "name" | "property", key: string, content: string) => {
-    const el = ensure(`meta[${attr}="${key}"]`, () => {
-      const m = document.createElement("meta"); m.setAttribute(attr, key); return m;
-    }) as HTMLMetaElement;
-    el.content = content;
-  };
-  const RICH_DESC = "كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، استمتع بقسائم الإهداء، شاهد ريلز الكوفيهات، واجمع نقاط الولاء واحصل على قهوة مجاناً.";
-  setMeta("name",     "description",     RICH_DESC);
+  setLink("canonical", canonical);
+
+  setMeta("name",     "description",     description);
   setMeta("name",     "keywords",        "كوبوينتو, Copointo, كوفي عمان, قهوة عمان, كوفيهات سلطنة عمان, طلب قهوة, حجز طاولة كوفي, قسائم شرائية كوفي, coffee Oman, cafes Oman");
   setMeta("name",     "application-name","Copointo");
   setMeta("name",     "theme-color",     "#000000");
   setMeta("property", "og:type",         "website");
   setMeta("property", "og:site_name",    "Copointo");
-  setMeta("property", "og:title",        "Copointo — دليل الكوفيهات في سلطنة عمان");
-  setMeta("property", "og:description",  RICH_DESC);
-  setMeta("property", "og:image",        "/copointo-logo.png");
-  setMeta("property", "og:url",          "https://copointo.com/");
+  setMeta("property", "og:title",        title);
+  setMeta("property", "og:description",  description);
+  setMeta("property", "og:image",        "https://copointo.com/copointo-logo.png");
+  setMeta("property", "og:url",          canonical);
   setMeta("property", "og:locale",       "ar_OM");
   setMeta("name",     "twitter:card",    "summary_large_image");
-  setMeta("name",     "twitter:title",   "Copointo — دليل الكوفيهات في سلطنة عمان");
-  setMeta("name",     "twitter:description", RICH_DESC);
-  setMeta("name",     "twitter:image",   "/copointo-logo.png");
+  setMeta("name",     "twitter:title",   title);
+  setMeta("name",     "twitter:description", description);
+  setMeta("name",     "twitter:image",   "https://copointo.com/copointo-logo.png");
+}
+
+if (typeof window !== "undefined") {
+  applyWebMetadata();
+  // Re-apply on all SPA navigations. Expo Router uses the History API
+  // (pushState / replaceState) for in-app route changes, and popstate for
+  // browser back/forward. Patch the History methods so every navigation —
+  // tab switch, router.push(), etc. — also updates the head tags.
+  const patchHistory = (method: "pushState" | "replaceState") => {
+    const orig = history[method].bind(history);
+    history[method] = function (...args: Parameters<typeof history.pushState>) {
+      const result = orig(...args);
+      applyWebMetadata();
+      return result;
+    };
+  };
+  patchHistory("pushState");
+  patchHistory("replaceState");
+  window.addEventListener("popstate", applyWebMetadata);
 }
 
 const queryClient = new QueryClient();

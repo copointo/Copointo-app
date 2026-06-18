@@ -10,6 +10,22 @@ import { type PropsWithChildren } from "react";
  *  - in WhatsApp / Twitter / Facebook link previews (Open Graph)
  *
  * Only runs at build/export time; client navigation does not re-render it.
+ *
+ * PER-ROUTE METADATA: Because the app is served as a single-page application
+ * (no Expo static prerender), this file emits home-page defaults that are
+ * overridden at the HTTP layer before the response leaves the server:
+ *   - Production / deployed: `artifacts/copointo/server/serve.js`
+ *     `buildHtmlForRoute()` patches title, description, canonical, og:url,
+ *     og:title, og:description, Twitter tags, and injects a WebPage JSON-LD
+ *     block for each of the five public routes (/, /videos, /cafes-map,
+ *     /game, /leaderboard) so crawlers and social bots see the correct
+ *     metadata in the initial HTML without executing JavaScript.
+ *   - Client-side SPA navigation: `artifacts/copointo/app/_layout.tsx`
+ *     `applyWebMetadata()` updates the same tags in the DOM on every
+ *     route change so the browser tab and sharing metadata stay accurate.
+ *
+ * When adding a new indexable public route, update ROUTE_META in both
+ * `serve.js` and `_layout.tsx`, then add the URL to `public/sitemap.xml`.
  */
 export default function Root({ children }: PropsWithChildren) {
   return (

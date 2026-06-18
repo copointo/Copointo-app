@@ -82,13 +82,14 @@ const KNOWN_ROUTE_PREFIXES = [
  * Routes that are entirely behind the auth gate and therefore must not be
  * indexed. The server adds `X-Robots-Tag: noindex` for these paths so
  * crawlers that cannot sign in do not index a login-wall page.
+ *
  * "/" is intentionally excluded — the landing page is indexable.
+ * "/videos", "/cafes-map", "/game", and "/leaderboard" are intentionally
+ * excluded — they are public-facing pages listed in sitemap.xml and should
+ * be indexed. They do require sign-in inside the app, but their initial HTML
+ * (served before JS runs) provides enough content for crawlers.
  */
 const NOINDEX_ROUTE_PREFIXES = [
-  "/videos",
-  "/cafes-map",
-  "/game",
-  "/leaderboard",
   "/cafe/",
   "/add-friend",
   "/buy-coins",
@@ -118,9 +119,19 @@ const NOINDEX_ROUTE_PREFIXES = [
 
 /**
  * Per-route meta overrides injected into the index.html shell before serving.
- * This lets each important URL return its own <title> and <meta description>
- * in the first HTTP response so social bots and search crawlers see
- * route-specific content without waiting for JS to execute.
+ *
+ * This is the canonical source of per-route SEO metadata for the Copointo web
+ * app. Because the app is an Expo Router SPA (no `output: "static"` prerender),
+ * `+html.tsx` emits one shared HTML shell with home-page defaults. This server
+ * overrides title, description, canonical, og:url, og:title, og:description,
+ * Twitter card tags, and injects a route-specific WebPage JSON-LD block on
+ * every HTTP response for the five public indexable routes — so crawlers and
+ * social bots receive the correct metadata in the initial HTML without needing
+ * to execute JavaScript.
+ *
+ * IMPORTANT: keep this map in sync with:
+ *   - artifacts/copointo/app/_layout.tsx  ROUTE_META  (client-side SPA update)
+ *   - artifacts/copointo/public/sitemap.xml            (crawler discovery)
  */
 const ROUTE_META = {
   "/": {
@@ -129,34 +140,39 @@ const ROUTE_META = {
       "كوبوينتو — دليلك الأول لعالم الكوفيهات في سلطنة عمان ☕ تصفّح أجمل الكوفيهات، اطلب مشروبك المفضّل، احجز طاولتك، واجمع نقاط الولاء.",
     canonical: "https://copointo.com/",
     ogUrl: "https://copointo.com/",
+    jsonLdType: "WebSite",
   },
   "/videos": {
-    title: "Copointo — ريلز الكوفيهات | سلطنة عمان",
+    title: "ريلز الكوفيهات | Copointo",
     description:
-      "اكتشف أحدث مقاطع ريلز الكوفيهات في سلطنة عمان على كوبوينتو.",
+      "اكتشف أجمل مقاطع فيديو الكوفيهات في سلطنة عمان. شاهد ريلز حصرية من أبرز الكوفيهات العُمانية عبر منصة كوبوينتو.",
     canonical: "https://copointo.com/videos",
     ogUrl: "https://copointo.com/videos",
+    jsonLdType: "CollectionPage",
   },
   "/cafes-map": {
-    title: "Copointo — خريطة الكوفيهات في عمان",
+    title: "خريطة الكوفيهات | Copointo",
     description:
-      "ابحث عن أقرب الكوفيهات إليك على الخريطة التفاعلية لكوبوينتو في سلطنة عمان.",
+      "اعثر على أقرب كوفيه إليك في سلطنة عمان. استعرض خريطة تفاعلية لجميع الكوفيهات المسجّلة في منصة كوبوينتو.",
     canonical: "https://copointo.com/cafes-map",
     ogUrl: "https://copointo.com/cafes-map",
+    jsonLdType: "WebPage",
   },
   "/game": {
-    title: "Copointo — Flappy Copointo",
+    title: "الألعاب والنقاط | Copointo",
     description:
-      "العب Flappy Copointo واكسب كوينز على منصة كوبوينتو.",
+      "العب واجمع نقاط كوبوينتو. استمتع بتجربة الولاء والمستويات والمكافآت في منصة كوبوينتو لعشاق القهوة في عمان.",
     canonical: "https://copointo.com/game",
     ogUrl: "https://copointo.com/game",
+    jsonLdType: "WebPage",
   },
   "/leaderboard": {
-    title: "Copointo — لوحة الشرف",
+    title: "لوحة الشرف | Copointo",
     description:
-      "تابع ترتيب أفضل اللاعبين والمستخدمين على لوحة الشرف في كوبوينتو.",
+      "تنافس مع أبرز عشاق القهوة في عمان. استعرض لوحة شرف كوبوينتو وتعرّف على أعلى المستخدمين نقاطاً وأكثرهم ولاءً.",
     canonical: "https://copointo.com/leaderboard",
     ogUrl: "https://copointo.com/leaderboard",
+    jsonLdType: "WebPage",
   },
 };
 
@@ -180,11 +196,18 @@ function isNoindexRoute(pathname) {
 
 /**
  * Inject route-specific meta tags into the built index.html shell.
- * Replaces <title> and the first <meta name="description">, <link rel="canonical">,
- * og:title, og:description, og:url, twitter:title, twitter:description in place.
+ *
+ * Patches in-place: <title>, meta[name=description], link[rel=canonical],
+ * og:title, og:description, og:url, twitter:title, twitter:description.
+ *
+ * For non-home routes it also appends a route-specific WebPage JSON-LD
+ * block just before </head> so structured-data crawlers (Google, Bing) see
+ * a page-level schema without needing to execute JavaScript.
  */
 function buildHtmlForRoute(html, pathname) {
-  const meta = ROUTE_META[pathname];
+  // Normalize trailing slash so /videos/ resolves the same as /videos.
+  const key = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
+  const meta = ROUTE_META[key];
   if (!meta) return html;
 
   let out = html;
@@ -225,6 +248,24 @@ function buildHtmlForRoute(html, pathname) {
     /(<meta\s+name="twitter:description"\s+content=")[^"]*(")/,
     `$1${meta.description}$2`
   );
+
+  // For non-home routes inject a route-specific WebPage JSON-LD block.
+  // The home route already has Organisation + WebSite JSON-LD in +html.tsx.
+  if (pathname !== "/") {
+    const webPageJsonLd = JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": meta.jsonLdType || "WebPage",
+      name: meta.title,
+      description: meta.description,
+      url: meta.canonical,
+      inLanguage: "ar-OM",
+      isPartOf: { "@type": "WebSite", url: "https://copointo.com/", name: "Copointo" },
+    });
+    out = out.replace(
+      "</head>",
+      `<script type="application/ld+json">${webPageJsonLd}</script></head>`
+    );
+  }
 
   return out;
 }
