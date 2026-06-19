@@ -322,7 +322,7 @@ export default function CartScreen() {
 
   const clearDiscount = () => { setDiscountCode(""); setDiscountPercent(0); setDiscountErr(""); };
 
-  const submitOrder = async () => {
+  const submitOrder = async (skipFreePrompt = false) => {
     const isDine = orderType === "dine";
     // الاسم يُؤخذ من الحساب المسجّل؛ نمنع الإرسال إن لم يتوفر اسم حساب.
     if (!displayName) {
@@ -351,6 +351,27 @@ export default function CartScreen() {
       return;
     }
     setErrors({});
+
+    // قبل تأكيد الطلب: إن كان لدى العميل كوفي مجاني صالح للاستخدام على هذا الطلب
+    // ولم يطبّقه بعد، نُذكّره بوضوح ونمنحه خيار استخدامه قبل المتابعة.
+    if (
+      !skipFreePrompt &&
+      heldFreeCoffees.length > 0 &&
+      drinkRows.length > 0 &&
+      validPicks.length === 0
+    ) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        "🎁 لديك كوفي مجاني",
+        `لديك ${heldFreeCoffees.length} كوفي مجاني يمكنك استخدامه على هذا الطلب. هل تريد استخدامه قبل تأكيد الطلب؟`,
+        [
+          { text: "تابع بدون استخدام", style: "cancel", onPress: () => submitOrder(true) },
+          { text: "استخدم الكوفي المجاني", onPress: () => setFreeModal(true) },
+        ],
+      );
+      return;
+    }
+
     setSubmitting(true);
     try {
       const cafeId   = cart[0].cafeId;
@@ -812,7 +833,7 @@ export default function CartScreen() {
           </View>
 
           {/* Submit */}
-          <TouchableOpacity style={styles.submitBtn} onPress={submitOrder} activeOpacity={0.88} disabled={submitting}>
+          <TouchableOpacity style={styles.submitBtn} onPress={() => submitOrder()} activeOpacity={0.88} disabled={submitting}>
             <LinearGradient
               colors={submitting ? ["#555", "#333"] : [PRIMARY, "#C9985A"]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
