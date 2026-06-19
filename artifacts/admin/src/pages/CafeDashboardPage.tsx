@@ -6669,6 +6669,7 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
   { data: any; period: "daily"|"monthly"|"yearly"; setPeriod: (p: "daily"|"monthly"|"yearly") => void }) {
   if (!data) return null;
   const r = data.revenue, o = data.orders, b = data.bookings, v = data.visits;
+  const ex = data.expenses ?? {};
   const PIE_COLORS = ["#E8B86D", "#C99654", "#7A4F1E", "#F5E6CC", "#A87236", "#5B3A14"];
 
   const chartData = period === "daily" ? r.daily.map((d: any) => ({ x: d.date.slice(5), revenue: d.revenue }))
@@ -6681,19 +6682,31 @@ function ManagerAnalyticsView({ data, period, setPeriod }:
 
   return (
     <div className="dash-stagger space-y-6">
-      {/* Revenue summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <GoldStat label="الإيرادات اليوم"    value={`${r.today.toFixed(3)} OMR`}  icon={<TrendingUp size={18} />} />
-        <GoldStat label="الإيرادات الشهرية"  value={`${r.month.toFixed(3)} OMR`}  icon={<CalendarRange size={18} />} />
-        <GoldStat label="الإيرادات السنوية"  value={`${r.year.toFixed(3)} OMR`}   icon={<BarChart3 size={18} />} />
-        <GoldStat label="الإيرادات الكلية"  value={`${r.total.toFixed(3)} OMR`}  icon={<Trophy size={18} />} accent="#FFD700" />
+      {/* Sales by period (daily / monthly / yearly) with cash & visa breakdown */}
+      <div className="space-y-4">
+        {([
+          ["مبيعات اليوم", r.today, r.cash?.today, r.visa?.today],
+          ["مبيعات الشهر", r.month, r.cash?.month, r.visa?.month],
+          ["مبيعات السنة", r.year,  r.cash?.year,  r.visa?.year],
+        ] as const).map(([lbl, rev, cash, visa]) => (
+          <SectionCard key={lbl} title={lbl} icon={<TrendingUp size={16} />}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <GoldStat label="الإيرادات" value={`${Number(rev ?? 0).toFixed(3)} OMR`} icon={<TrendingUp size={18} />} />
+              <GoldStat label="كاش"        value={`${Number(cash ?? 0).toFixed(3)} OMR`} icon={<Banknote size={18} />} accent="#10B981" />
+              <GoldStat label="فيزا"       value={`${Number(visa ?? 0).toFixed(3)} OMR`} icon={<CreditCard size={18} />} accent="#60A5FA" />
+            </div>
+          </SectionCard>
+        ))}
       </div>
 
-      {/* Cash / Visa breakdown */}
-      <div className="grid grid-cols-2 gap-3">
-        <GoldStat label="إجمالي المبيعات كاش" value={`${(r.cash ?? 0).toFixed(3)} OMR`} sub="مدفوعات الطلبات فقط" icon={<Banknote size={18} />} accent="#10B981" />
-        <GoldStat label="إجمالي المبيعات فيزا" value={`${(r.visa ?? 0).toFixed(3)} OMR`} sub="مدفوعات الطلبات فقط" icon={<CreditCard size={18} />} accent="#60A5FA" />
-      </div>
+      {/* Expenses by period (by the date each expense was added) */}
+      <SectionCard title="المصاريف حسب التاريخ المُضاف" icon={<Wallet size={16} />}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <GoldStat label="مصاريف اليوم" value={`${Number(ex.today ?? 0).toFixed(3)} OMR`} icon={<Wallet size={18} />} accent="#EF4444" />
+          <GoldStat label="مصاريف الشهر" value={`${Number(ex.month ?? 0).toFixed(3)} OMR`} icon={<Wallet size={18} />} accent="#EF4444" />
+          <GoldStat label="مصاريف السنة" value={`${Number(ex.year ?? 0).toFixed(3)} OMR`} icon={<Wallet size={18} />} accent="#EF4444" />
+        </div>
+      </SectionCard>
 
       {/* ── Intraday curves (today, hour by hour) ── */}
       {Array.isArray(data.hourly) && data.hourly.length > 0 && (

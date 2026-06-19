@@ -1870,23 +1870,38 @@ router.post("/advanced-stats", (req: any, res): any => {
   const monthlyRevenue = Object.entries(revByMonth).map(([month,revenue]) => ({ month, revenue: +revenue.toFixed(3) })).sort((a,b)=>a.month.localeCompare(b.month)).slice(-12);
   const yearlyRevenue  = Object.entries(revByYear) .map(([year, revenue]) => ({ year,  revenue: +revenue.toFixed(3) })).sort((a,b)=>a.year.localeCompare(b.year));
 
-  const totalRevenue   = cInv.reduce((s,i) => s + i.total, 0);
-
-  // ── Cash vs Visa split (from order payments) ──
-  // cashAmount/visaAmount are stamped when the cashier settles each order.
-  // "split" orders contribute to both buckets; "free" orders contribute 0.
-  let cashTotal = 0, visaTotal = 0;
-  cOrders.forEach(o => {
-    cashTotal += Number(o.cashAmount) || 0;
-    visaTotal += Number(o.visaAmount) || 0;
-  });
-
   const todayKey       = new Date().toISOString().substring(0,10);
   const monthKey       = new Date().toISOString().substring(0,7);
   const yearKey        = new Date().toISOString().substring(0,4);
   const todayRevenue   = revByDay[todayKey]   || 0;
   const monthRevenue   = revByMonth[monthKey] || 0;
   const yearRevenue    = revByYear[yearKey]   || 0;
+
+  // ── Cash vs Visa split per period (from order payments, by order date) ──
+  // cashAmount/visaAmount are stamped when the cashier settles each order.
+  // "split" orders contribute to both buckets; "free" orders contribute 0.
+  // Broken down into اليوم / الشهر / السنة so the manager sees each period.
+  const cashByPeriod = { today: 0, month: 0, year: 0 };
+  const visaByPeriod = { today: 0, month: 0, year: 0 };
+  cOrders.forEach(o => {
+    const iso  = o.createdAt || "";
+    const cash = Number(o.cashAmount) || 0;
+    const visa = Number(o.visaAmount) || 0;
+    if (iso.substring(0,10) === todayKey) { cashByPeriod.today += cash; visaByPeriod.today += visa; }
+    if (iso.substring(0,7)  === monthKey) { cashByPeriod.month += cash; visaByPeriod.month += visa; }
+    if (iso.substring(0,4)  === yearKey)  { cashByPeriod.year  += cash; visaByPeriod.year  += visa; }
+  });
+
+  // ── Expenses per period (by the user-entered date the expense was added) ──
+  const cExpenses = expenses.filter(e => e.cafeId === id);
+  const expByPeriod = { today: 0, month: 0, year: 0 };
+  cExpenses.forEach(e => {
+    const amt = Number(e.amount) || 0;
+    const dt  = String(e.date || "");
+    if (dt.substring(0,10) === todayKey) expByPeriod.today += amt;
+    if (dt.substring(0,7)  === monthKey) expByPeriod.month += amt;
+    if (dt.substring(0,4)  === yearKey)  expByPeriod.year  += amt;
+  });
 
   // ── Intraday hourly series (today only) ─────────────────────────
   // Cumulative running totals across the 24 hours of the current day so
@@ -2028,15 +2043,19 @@ router.post("/advanced-stats", (req: any, res): any => {
 
   res.json({
     revenue: {
-      total:   +totalRevenue.toFixed(3),
       today:   +todayRevenue.toFixed(3),
       month:   +monthRevenue.toFixed(3),
       year:    +yearRevenue.toFixed(3),
       daily:   dailyRevenue,
       monthly: monthlyRevenue,
       yearly:  yearlyRevenue,
-      cash:    +cashTotal.toFixed(3),
-      visa:    +visaTotal.toFixed(3),
+      cash:    { today: +cashByPeriod.today.toFixed(3), month: +cashByPeriod.month.toFixed(3), year: +cashByPeriod.year.toFixed(3) },
+      visa:    { today: +visaByPeriod.today.toFixed(3), month: +visaByPeriod.month.toFixed(3), year: +visaByPeriod.year.toFixed(3) },
+    },
+    expenses: {
+      today: +expByPeriod.today.toFixed(3),
+      month: +expByPeriod.month.toFixed(3),
+      year:  +expByPeriod.year.toFixed(3),
     },
     hourly,
     orders: {
