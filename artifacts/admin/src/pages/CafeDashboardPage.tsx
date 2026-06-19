@@ -20,21 +20,6 @@ import {
 import { api } from "@/lib/api";
 import { Link } from "wouter";
 import copointoLogoUrl from "@/assets/copointo-logo.png";
-import managerStatsIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_44_45_PM_1780267519003.png";
-import statsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_45_50_PM_1780267556237.png";
-import ordersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_47_49_PM_1780267690004.png";
-import directTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_48_30_PM_1780267733809.png";
-import bookingsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_53_32_PM_1780268016648.png";
-import menuTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_52_42_PM_1780267968603.png";
-import chatTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_56_47_PM_1780268212312.png";
-import tablesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_03_58_17_PM_1780268301865.png";
-import expensesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_01_39_PM_1780268503577.png";
-import invoicesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_02_15_PM_1780268541848.png";
-import inventoryTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_02_55_PM_1780268603074.png";
-import templatesTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_05_13_PM_1780268718913.png";
-import reelsTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_09_51_PM_1780268997228.png";
-import barcodeTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_12_59_PM_1780269184354.png";
-import vouchersTabIconUrl from "@assets/ChatGPT_Image_May_31,_2026,_04_13_55_PM_1780269239920.png";
 
 type Tab = "stats" | "orders" | "direct" | "bookings" | "menu" | "chat" | "tables" | "invoices" | "expenses" | "inventory" | "templates" | "reels" | "barcode" | "vouchers" | "copointo";
 
@@ -391,25 +376,6 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id:"vouchers",  label:"القسائم الشرائية",  icon: Gift             },
   { id:"copointo",  label:"كود Copointo",       icon: Tag              },
 ];
-
-// Tabs that use a custom image as their button face (instead of a lucide icon).
-// The image fills the square button; the label sits below it.
-const TAB_IMAGES: Partial<Record<Tab, string>> = {
-  stats:    statsTabIconUrl,
-  orders:   ordersTabIconUrl,
-  direct:   directTabIconUrl,
-  bookings: bookingsTabIconUrl,
-  menu:     menuTabIconUrl,
-  chat:     chatTabIconUrl,
-  tables:   tablesTabIconUrl,
-  expenses: expensesTabIconUrl,
-  invoices: invoicesTabIconUrl,
-  inventory: inventoryTabIconUrl,
-  templates: templatesTabIconUrl,
-  reels:     reelsTabIconUrl,
-  barcode:   barcodeTabIconUrl,
-  vouchers:  vouchersTabIconUrl,
-};
 
 const INVOICE_TYPE_LABEL: Record<string, string> = {
   order:   "فواتير الطلبات",
@@ -6130,16 +6096,14 @@ export default function CafeDashboardPage() {
             title="إحصائيات المدير"
           >
             <div
-              className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden
+              className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex items-center justify-center
                 border-2 border-[#A855F7] shadow-md shadow-[#7C3AED]/50
+                bg-gradient-to-br from-[#2E1065] via-[#1E1035] to-black
                 hover:shadow-lg hover:shadow-[#A855F7]/70 group-hover:scale-[1.05] transition-all duration-200
                 group-focus:ring-2 group-focus:ring-[#A855F7]/60"
             >
-              <img
-                src={managerStatsIconUrl}
-                alt="إحصائيات المدير"
-                className="w-full h-full object-cover"
-              />
+              <span className="absolute inset-0.5 rounded-lg ring-1 ring-[#A855F7]/25 pointer-events-none" />
+              <Crown size={28} strokeWidth={1.75} className="text-[#D8B4FE] drop-shadow-[0_0_6px_rgba(168,85,247,0.6)]" />
               {shineIdx === -1 && (
                 <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
                   <span className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-transparent via-white to-transparent animate-tab-shine" />
@@ -6157,42 +6121,6 @@ export default function CafeDashboardPage() {
           {TABS.map(({ id: tid, label, icon: Icon }, i) => {
             const active     = tab === tid;
             const notifCount = notifCounts[tid] ?? 0;
-            const tabImg = TAB_IMAGES[tid];
-            if (tabImg) {
-              return (
-                <button
-                  key={tid}
-                  onClick={() => { setTab(tid); markTabSeen(tid); }}
-                  className="group relative shrink-0 flex flex-col items-center gap-1 focus:outline-none"
-                  title={label}
-                >
-                  <div
-                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all duration-200
-                      ${active
-                        ? "border-[#E8B86D] shadow-md shadow-[#E8B86D]/40"
-                        : "border-[#E8B86D]/30 hover:border-[#E8B86D]/60 hover:shadow-md hover:shadow-[#E8B86D]/20 group-hover:scale-[1.04]"}`}
-                  >
-                    <img src={tabImg} alt={label} className="w-full h-full object-cover" />
-                    {shineIdx === i && (
-                      <span className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
-                        <span className="absolute inset-y-0 w-2/5 bg-gradient-to-r from-transparent via-white to-transparent animate-tab-shine" />
-                      </span>
-                    )}
-                    {active && (
-                      <span className="absolute inset-0 rounded-xl ring-2 ring-inset ring-[#E8B86D] pointer-events-none" />
-                    )}
-                    {notifCount > 0 && (
-                      <span className="absolute -top-1 -right-1 z-10 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-card shadow shadow-red-500/40 animate-pulse">
-                        {notifCount > 9 ? "9+" : notifCount}
-                      </span>
-                    )}
-                  </div>
-                  <span className={`text-[9px] sm:text-[10px] font-extrabold leading-tight text-center ${active ? "text-[#E8B86D]" : "text-[#F5E6CC]"}`}>
-                    {label}
-                  </span>
-                </button>
-              );
-            }
             return (
               <button
                 key={tid}
