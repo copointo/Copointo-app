@@ -505,9 +505,11 @@ export interface ProgressAdjustment {
   /**
    * `delta` (legacy): apply levelDelta/ordersDelta as relative changes.
    * `set`   (current): set per-cafe progress to ABSOLUTE setLevel/setOrders.
+   * `reset` (current): zero out ALL progress — global level/totalOrders AND
+   *          every per-cafe entry. Used by the super-admin "تصفير الكل" button.
    * Older records without a mode field are treated as `delta` for compat.
    */
-  mode?: "delta" | "set";
+  mode?: "delta" | "set" | "reset";
   levelDelta: number;
   ordersDelta: number;
   /** Used only when mode === "set". Both required if mode is set. */

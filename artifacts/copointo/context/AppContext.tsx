@@ -1114,7 +1114,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const items: {
           id: string;
           userId: string;
-          mode?: "delta" | "set";
+          mode?: "delta" | "set" | "reset";
           levelDelta: number;
           ordersDelta: number;
           setLevel?: number;
@@ -1143,6 +1143,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch { continue; }
           if (!claimedNow) continue;
           const cafeId = adj.awardCafeId || null;
+          // ── Reset mode: super-admin "تصفير الكل" zeroed everyone's progress ──
+          // Wipe LOCAL global level/orders AND every per-cafe entry so the
+          // device reflects the reset (the Math.max merge can't reduce values
+          // on its own). Coins / cosmetics / free coffees are untouched.
+          if (adj.mode === "reset") {
+            setUserState(prev => {
+              if (!prev || prev.id !== uid) return prev;
+              const updated: User = { ...prev, level: 0, totalOrders: 0, cafeProgress: {} };
+              AsyncStorage.setItem("currentUser", JSON.stringify(updated)).catch(() => {});
+              return updated;
+            });
+            setRegisteredUsers(prev => {
+              const idx = prev.findIndex(u => u.id === uid);
+              if (idx === -1) return prev;
+              const next = [...prev];
+              next[idx] = { ...next[idx]!, level: 0, totalOrders: 0, cafeProgress: {} };
+              AsyncStorage.setItem("registeredUsers", JSON.stringify(next)).catch(() => {});
+              return next;
+            });
+            continue;
+          }
           const isSet = adj.mode === "set" && cafeId;
           if (isSet) {
             // ── Absolute set mode: replace per-cafe progress exactly ──

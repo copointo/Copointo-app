@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins, Gift, Package } from "lucide-react";
+import { Ban, CheckCircle, Search, MessageSquare, X, Send, AlertTriangle, Trash2, SlidersHorizontal, Coffee, Trophy, Coins, Gift, Package, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import coinUrl from "@/assets/copointo-coin.png";
 import { CosmeticShape, cosmeticName, type CosmeticCategory } from "@/data/cosmetics";
@@ -89,6 +89,28 @@ export default function UsersPage() {
       window.removeEventListener("focus", load);
     };
   }, []);
+
+  // ─── Reset-all-progress modal state ─────────────────────────────────────
+  // Destructive global action: zeroes drink count + level for ALL users across
+  // ALL cafes. Guarded behind a confirm modal (no undo).
+  const [resetOpen,    setResetOpen]    = useState(false);
+  const [resetSaving,  setResetSaving]  = useState(false);
+  const [resetErr,     setResetErr]     = useState("");
+  const [resetDone,    setResetDone]    = useState<number | null>(null);
+  const closeReset = () => {
+    if (resetSaving) return;
+    setResetOpen(false); setResetErr(""); setResetDone(null);
+  };
+  const submitReset = async () => {
+    setResetSaving(true); setResetErr(""); setResetDone(null);
+    try {
+      const res = await api.resetAllProgress();
+      setUsers(prev => prev.map(u => ({ ...u, level: 0, totalOrders: 0, cafeProgress: {} })));
+      setResetDone(res?.count ?? 0);
+    } catch (e: any) {
+      setResetErr(e?.message?.substring(0, 200) || "تعذّر التصفير");
+    } finally { setResetSaving(false); }
+  };
 
   // ─── Ban modal state ───────────────────────────────────────────────────
   // Banning now REQUIRES a written reason which is shown to the user inside
@@ -440,14 +462,23 @@ export default function UsersPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8" dir="rtl">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">المستخدمون</h1>
-        <p className="text-muted-foreground mt-1 flex items-center gap-2">
-          {users.length} مستخدم مسجل • {users.filter(u => u.banned).length} محظور
-          <span className="inline-flex items-center gap-1.5 text-xs text-green-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> تحديث تلقائي
-          </span>
-        </p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">المستخدمون</h1>
+          <p className="text-muted-foreground mt-1 flex items-center gap-2">
+            {users.length} مستخدم مسجل • {users.filter(u => u.banned).length} محظور
+            <span className="inline-flex items-center gap-1.5 text-xs text-green-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> تحديث تلقائي
+            </span>
+          </p>
+        </div>
+        <button
+          onClick={() => { setResetDone(null); setResetErr(""); setResetOpen(true); }}
+          className="inline-flex items-center gap-2 bg-destructive/15 text-destructive hover:bg-destructive/25 border border-destructive/30 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors"
+          title="تصفير عدد المشروبات والمستوى لكل المستخدمين في كل الكافيهات"
+        >
+          <RotateCcw size={16} /> تصفير المشروبات والمستويات للجميع
+        </button>
       </div>
 
       {/* Search */}
@@ -590,6 +621,68 @@ export default function UsersPage() {
           )}
         </div>
       </div>
+
+      {/* ── Reset-all-progress confirm modal ── */}
+      {resetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeReset} />
+          <div className="relative bg-card border border-red-500/40 rounded-2xl w-full max-w-md shadow-2xl z-10 overflow-hidden" dir="rtl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-gradient-to-l from-red-900/30 to-transparent">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400">
+                  <RotateCcw size={20} />
+                </div>
+                <p className="font-bold text-foreground">تصفير المشروبات والمستويات للجميع</p>
+              </div>
+              <button onClick={closeReset} className="text-muted-foreground hover:text-foreground" disabled={resetSaving}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5">
+              {resetDone === null ? (
+                <>
+                  <p className="text-sm text-foreground mb-2">
+                    سيتم تصفير <span className="font-bold text-red-400">عدد المشروبات والمستوى</span> لكل المستخدمين ({users.length}) في كل الكافيهات إلى صفر.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    لن يتأثر رصيد العملات أو العناصر المملوكة أو القهوة المجانية. لا يمكن التراجع عن هذا الإجراء.
+                  </p>
+                  {resetErr && <p className="text-xs text-red-400 mt-3">{resetErr}</p>}
+                  <div className="flex items-center gap-2 mt-5">
+                    <button
+                      onClick={closeReset}
+                      disabled={resetSaving}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-border text-muted-foreground text-sm font-semibold hover:bg-muted/30 transition-colors disabled:opacity-50"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      onClick={submitReset}
+                      disabled={resetSaving}
+                      className="flex-1 flex items-center justify-center gap-2 bg-red-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RotateCcw size={14} /> {resetSaving ? "جاري التصفير..." : "تأكيد التصفير"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2 text-green-400 mb-4">
+                    <CheckCircle size={18} />
+                    <p className="text-sm font-semibold">تم تصفير {resetDone} مستخدم بنجاح.</p>
+                  </div>
+                  <button
+                    onClick={closeReset}
+                    className="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
+                  >
+                    تم
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Ban modal (require reason) ── */}
       {banTarget && (

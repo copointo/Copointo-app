@@ -448,6 +448,36 @@ router.post("/wipe-everything", async (req, res): Promise<any> => {
   }
 });
 
+// ── POST /api/admin/reset-all-progress ─────
+// Super-admin "تصفير الكل" button: zeroes EVERY user's drink count
+// (totalOrders) and level — both the GLOBAL values AND every per-cafe entry
+// (cafeProgress) across ALL cafes. Coins, owned cosmetics, and earned free
+// coffees are intentionally LEFT untouched (this only resets progress).
+// A `reset`-mode ProgressAdjustment is enqueued per user so each mobile
+// device zeroes its LOCAL progress on the next poll — the mobile sync's
+// Math.max(local, server) merge would otherwise mask the server-side
+// decrease and pull the old level/orders back up.
+router.post("/reset-all-progress", (_req, res): any => {
+  let count = 0;
+  for (const user of users) {
+    user.level = 0;
+    user.totalOrders = 0;
+    user.cafeProgress = {};
+    progressAdjustments.unshift({
+      id:          `pa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      userId:      user.id,
+      mode:        "reset",
+      levelDelta:  0,
+      ordersDelta: 0,
+      createdAt:   new Date().toISOString(),
+      claimedAt:   null,
+    });
+    count++;
+  }
+  persistStore();
+  res.json({ ok: true, count });
+});
+
 // ── GET /api/admin/users ────────────────────
 router.get("/users", (_req, res) => {
   // `freeCoffees` is returned alongside so the admin UI can group every

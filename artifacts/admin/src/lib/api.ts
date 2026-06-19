@@ -49,6 +49,9 @@ export const api = {
   setUserItems:        (id: string, ownedItems: Record<string, string[]>) => req<any>("POST", `${A}/users/${id}/set-items`, { ownedItems }),
   deleteUserFreeCoffees: (id: string, codeId?: string) => req<any>("POST", `${A}/users/${id}/delete-free-coffees`, codeId ? { id: codeId } : {}),
   wipeUserEarnings:    (id: string) => req<any>("POST", `${A}/users/${id}/wipe-earnings`),
+  // Super-admin "تصفير الكل": zero EVERY user's drink count + level across ALL
+  // cafes (coins / cosmetics / free coffees untouched).
+  resetAllProgress:    () => req<{ ok: boolean; count: number }>("POST", `${A}/reset-all-progress`),
   // User-submitted reports (problem / cafe complaint)
   getReports:        ()              => req<any>("GET",    `${A}/reports`),
   resolveReport:     (id: string, status: "open" | "resolved") =>
