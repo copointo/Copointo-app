@@ -743,7 +743,7 @@ export default function OrderTimerScreen() {
                 <Image source={{ uri: it.image }} style={styles.itemImage} resizeMode="cover" />
               ) : (
                 <View style={styles.itemImagePlaceholder}>
-                  <Feather name="coffee" size={30} color={PRIMARY} />
+                  <Feather name="coffee" size={36} color={PRIMARY} />
                 </View>
               )}
             </View>
@@ -964,11 +964,17 @@ const styles = StyleSheet.create({
   itemPriceRow: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end" },
   itemPrice: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
   itemPriceOld: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.4)", textDecorationLine: "line-through" },
-  itemImageWrap: { width: 72, height: 72, borderRadius: 14, overflow: "hidden" },
+  itemImageWrap: {
+    width: 84, height: 84, borderRadius: 18, overflow: "hidden",
+    borderWidth: 1.5, borderColor: "rgba(232,184,109,0.5)",
+    backgroundColor: "rgba(0,0,0,0.25)",
+    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 9, shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
   itemImage: { width: "100%", height: "100%" },
   itemImagePlaceholder: {
     width: "100%", height: "100%", alignItems: "center", justifyContent: "center",
-    backgroundColor: "rgba(232,184,109,0.08)", borderWidth: 1, borderColor: BORDER, borderRadius: 14,
+    backgroundColor: "rgba(232,184,109,0.14)",
   },
 
   totalCard: {
