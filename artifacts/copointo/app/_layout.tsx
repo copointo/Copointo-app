@@ -151,7 +151,12 @@ function applyWebMetadata() {
   setMeta("name",     "twitter:image",   "https://copointo.com/copointo-logo.png");
 }
 
-if (typeof window !== "undefined") {
+// Web only. React Native (incl. Expo Go on iOS) defines a global `window` but
+// NOT `document` / `history`, so guarding on `window` alone throws a
+// ReferenceError on `history` at module-eval time — which aborts this module,
+// drops its default export, and cascades into "missing default export" +
+// "useApp must be used within AppProvider". Gate on document + history instead.
+if (typeof document !== "undefined" && typeof history !== "undefined") {
   applyWebMetadata();
   // Re-apply on all SPA navigations. Expo Router uses the History API
   // (pushState / replaceState) for in-app route changes, and popstate for

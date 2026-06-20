@@ -18,6 +18,7 @@
 - [api-server no hot-reload](api-server-no-hot-reload.md) — api-server serves stale code until its workflow is restarted; new response fields read undefined; always restart + curl the live endpoint to verify.
 - [Copointo iPad responsive](copointo-ipad-responsive.md) — hub scaling gated behind r.scale (=1 on phone); left FAB stack has fixed +70px steps so cap transform scale at 1.2 or it overlaps.
 - [RN New-Arch native init](rn-newarch-native-init.md) — under newArchEnabled, never call native SDK config (e.g. Purchases.configure) at module-eval; defer to a mount useEffect or it segfaults on launch.
+- [RN web-global guards](rn-web-global-guards.md) — `window` exists on native but `document`/`history` don't; guard web-only top-level code on document/history (not window) or it throws & drops _layout's default export.
 - [Redeemed free coffee = no progress](copointo-free-coffee-no-progress.md) — awardOrderProgress credits paidDrinks=max(0,drinks-freeDrinks); redeemed free cups must never raise level/milestone.
 - [iOS/iPad modal unmount bug](ios-modal-unmount-bug.md) — never conditionally UNMOUNT a presented RN <Modal> (incl. auth-gate branch swap); toggle `visible` or it sticks on iPad → Apple 2.1 reject.
 - [Copointo purchases ledger & dues](copointo-purchases-ledger.md) — copointoRedemptions = single canonical ledger for EVERY coin purchase (code optional); cafe report filters by cafeId; dues anchor = settledAt||enabledAt||createdAt.
