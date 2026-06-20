@@ -65,7 +65,10 @@ function LiquidTabBar({ state, descriptors, navigation }: TabBarProps) {
 
   const icSize = r.iconSize;
   const labelSize = r.isPhone ? 10 : r.isTablet ? 12 : 13;
-  const barHeight = (r.tabBarHeight as number | undefined) ?? 62;
+  // r.tabBarHeight is 0 on native (web-only value), so fall back to a real
+  // height there — otherwise the bar/row collapse and the bubble renders as a
+  // thin line instead of a rounded box.
+  const barHeight = isWeb ? r.tabBarHeight : r.isPhone ? 58 : r.isTablet ? 72 : 80;
 
   // Measured {x,width} per tab index (relative to the tab row).
   const [layouts, setLayouts] = useState<Record<number, { x: number; width: number }>>({});
