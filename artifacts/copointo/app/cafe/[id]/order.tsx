@@ -217,6 +217,7 @@ export default function OrderScreen() {
       cafeId: id,
       cafeName: displayName,
       category: item.category,
+      ...(item.image ? { image: item.image } : {}),
       ...(bean ? { selectedBean: bean } : {}),
       ...(size ? { selectedSize: size.label, sizeExtraPrice: size.extraPrice } : {}),
       ...(item.originalPrice && item.originalPrice > item.price
