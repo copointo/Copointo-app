@@ -19,7 +19,7 @@ function ClassicTabLayout() {
   const r = useResponsive();
   const tbHeight = isWeb ? r.tabBarHeight : undefined;
   const icSize = r.iconSize;
-  const labelSize = r.isPhone ? 11 : r.isTablet ? 12 : 13;
+  const labelSize = r.isPhone ? 10 : r.isTablet ? 12 : 13;
 
   // Single active "panel" that wraps BOTH the icon and the label together.
   // The default label is hidden (`tabBarShowLabel: false`) and we render it
@@ -27,7 +27,12 @@ function ClassicTabLayout() {
   const renderTab = (label: string, icon: React.ReactNode, focused: boolean, color: string) => (
     <View style={[tabStyles.pill, focused && tabStyles.pillActive]}>
       {icon}
-      <Text style={[tabStyles.pillLabel, { color, fontSize: labelSize }]} numberOfLines={1}>
+      <Text
+        style={[tabStyles.pillLabel, { color, fontSize: labelSize }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
         {label}
       </Text>
     </View>
@@ -122,10 +127,10 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="game"
         options={{
-          title: "Copointo Hub",
+          title: "Copointo",
           tabBarIcon: ({ color, focused }) =>
             renderTab(
-              "Copointo Hub",
+              "Copointo",
               <Image
                 source={COPOINTO_HUB}
                 style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain", opacity: focused ? 1 : 0.85 }}
@@ -169,8 +174,8 @@ const tabStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
-    minWidth: 58,
-    paddingHorizontal: 12,
+    minWidth: 48,
+    paddingHorizontal: 4,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
