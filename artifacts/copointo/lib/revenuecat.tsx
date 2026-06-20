@@ -5,7 +5,7 @@
 // purchased package maps back to a coin amount via its identifier ("coins_<n>",
 // set in scripts/src/seedRevenueCat.ts). The buy-coins screen consumes
 // `offerings` + `purchase()` and credits coins using `coinsForPackage()`.
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { Platform } from "react-native";
 import Purchases, {
   type PurchasesOffering,
@@ -62,17 +62,19 @@ export function initializeRevenueCat() {
   console.log("Configured RevenueCat");
 }
 
-function useSubscriptionContext() {
+function useSubscriptionContext(enabled: boolean) {
   const customerInfoQuery = useQuery({
     queryKey: ["revenuecat", "customer-info"],
     queryFn: async () => Purchases.getCustomerInfo(),
     staleTime: 60 * 1000,
+    enabled,
   });
 
   const offeringsQuery = useQuery({
     queryKey: ["revenuecat", "offerings"],
     queryFn: async () => Purchases.getOfferings(),
     staleTime: 300 * 1000,
+    enabled,
   });
 
   const purchaseMutation = useMutation({
@@ -117,7 +119,24 @@ type SubscriptionContextValue = ReturnType<typeof useSubscriptionContext>;
 const Context = createContext<SubscriptionContextValue | null>(null);
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const value = useSubscriptionContext();
+  // Configure RevenueCat INSIDE a mount effect — never at module-eval time.
+  // Under the New Architecture (bridgeless), calling the native Purchases
+  // module while the JS bundle is still being evaluated runs before the native
+  // runtime is ready and segfaults on launch (EXC_BAD_ACCESS on the JS thread,
+  // Swift/StoreKit frames) — which is what crashed the App Store review build.
+  // Running it here, after the first render, guarantees the native side is up.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    try {
+      initializeRevenueCat();
+      setReady(true);
+    } catch (err) {
+      // A misconfiguration must never crash or block the app — coin purchases
+      // simply stay unavailable (queries below remain disabled).
+      console.warn("RevenueCat unavailable:", err);
+    }
+  }, []);
+  const value = useSubscriptionContext(ready);
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
