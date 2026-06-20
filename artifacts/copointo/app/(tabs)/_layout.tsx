@@ -2,13 +2,63 @@ import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
-import React from "react";
-import { Image, Platform, StyleSheet, Text, View, useColorScheme } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Image, Platform, StyleSheet, Text, View, useColorScheme } from "react-native";
 
 const COPOINTO_LOGO = require("../../assets/images/copointo-logo.png");
 const COPOINTO_HUB = require("../../assets/images/copointo-hub.png");
 import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
+
+// iOS-style animated tab pill: when a tab becomes focused, a spring pops the
+// icon+label up a touch while the amber highlight (background + border + glow)
+// fades in behind them. Inactive tabs spring back smoothly. All animations run
+// on the native driver (transform + opacity) so it stays buttery during nav.
+function AnimatedTabPill({
+  label,
+  icon,
+  focused,
+  color,
+  labelSize,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  focused: boolean;
+  color: string;
+  labelSize: number;
+}) {
+  const v = useRef(new Animated.Value(focused ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(v, {
+      toValue: focused ? 1 : 0,
+      useNativeDriver: true,
+      friction: 6,
+      tension: 130,
+    }).start();
+  }, [focused, v]);
+
+  const scale = v.interpolate({ inputRange: [0, 1], outputRange: [1, 1.14] });
+  const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [0, -3] });
+
+  return (
+    <Animated.View style={[tabStyles.pill, { transform: [{ scale }, { translateY }] }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, tabStyles.pillActive, { opacity: v }]}
+      />
+      {icon}
+      <Text
+        style={[tabStyles.pillLabel, { color, fontSize: labelSize }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+      >
+        {label}
+      </Text>
+    </Animated.View>
+  );
+}
 
 function ClassicTabLayout() {
   const colors = useColors();
@@ -24,18 +74,9 @@ function ClassicTabLayout() {
   // Single active "panel" that wraps BOTH the icon and the label together.
   // The default label is hidden (`tabBarShowLabel: false`) and we render it
   // ourselves inside the pill so the selected highlight covers icon + word.
+  // An iOS-style spring drives the pop + highlight fade when a tab is picked.
   const renderTab = (label: string, icon: React.ReactNode, focused: boolean, color: string) => (
-    <View style={[tabStyles.pill, focused && tabStyles.pillActive]}>
-      {icon}
-      <Text
-        style={[tabStyles.pillLabel, { color, fontSize: labelSize }]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.75}
-      >
-        {label}
-      </Text>
-    </View>
+    <AnimatedTabPill label={label} icon={icon} focused={focused} color={color} labelSize={labelSize} />
   );
 
   return (
@@ -183,6 +224,8 @@ const tabStyles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   pillActive: {
+    borderRadius: 16,
+    borderWidth: 1,
     backgroundColor: "rgba(232,184,109,0.15)",
     borderColor: "rgba(232,184,109,0.45)",
     shadowColor: "#E8B86D",
