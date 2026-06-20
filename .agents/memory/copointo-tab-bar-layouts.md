@@ -1,28 +1,30 @@
 ---
-name: Copointo bottom tab bar has TWO layouts
-description: app/(tabs)/_layout.tsx renders NativeTabLayout (iOS 26 liquid glass) OR ClassicTabLayout; styling fixes must cover the right one.
+name: Copointo bottom tab bar (single amber bar)
+description: app/(tabs)/_layout.tsx now renders ONLY the custom amber ClassicTabLayout on every platform; native iOS-26 glass bar was removed.
 ---
 
-# Copointo bottom tab bar: two layouts, pick the right one
+# Copointo bottom tab bar: one amber bar everywhere
 
-`app/(tabs)/_layout.tsx` branches on `isLiquidGlassAvailable()`:
-- **NativeTabLayout** — `<NativeTabs>` from `expo-router/unstable-native-tabs`.
-  Renders on iOS 26+ (liquid glass), incl. newer devices in Expo Go. Looks like a
-  floating glass capsule/pill.
-- **ClassicTabLayout** — custom `<Tabs>` with amber "pill" highlights, BlurView on
-  iOS, solid bg on web. Renders everywhere else (older iOS, Android, web preview).
+`app/(tabs)/_layout.tsx` used to branch on `isLiquidGlassAvailable()` between a
+native iOS-26 liquid-glass `<NativeTabs>` bar and a custom amber `ClassicTabLayout`.
+That branch was **removed** — `TabLayout()` now always returns `ClassicTabLayout`
+(custom `<Tabs>` with amber pill highlights, BlurView on iOS, solid bg on web).
 
-**Why this bites:** a visual bug a user reports from a real iOS device is almost
-always in NativeTabLayout, but the web preview / canvas iframe shows
-ClassicTabLayout — so you can fix the wrong one and "see nothing wrong."
+**Why removed:** the iOS-26 liquid-glass `<NativeTabs>` selection highlight rendered
+an off-brand system-**blue** blob over the selected tab, and `tintColor` /
+`iconColor` / `labelStyle` did NOT reliably override that glass highlight. Users
+kept reporting "blue / unclear bar" on real iPhones.
 
-**The blue-blob symptom:** `<NativeTabs>` with no color props falls back to the
-iOS SYSTEM tint (blue) for the selected item AND its glass selection highlight —
-reads as an off-brand blue blob over the bar. Fix by setting on `<NativeTabs>`:
-`tintColor` (selected accent), `iconColor` `{default,selected}`, and `labelStyle`
-`{default,selected}` to the brand amber `#E8B86D`. On iOS, `indicatorColor` is
-android/web-only — `tintColor` is what recolors the iOS selection highlight.
+**The verification trap that drove the decision:** the native liquid-glass bar
+only renders on a real iOS device — it CANNOT be reproduced in the web preview,
+the canvas iframe, or Playwright/runTest on this Linux env. So a native-only bug
+there is unfixable-with-confidence from the agent environment. Forcing
+ClassicTabLayout means the bar is identical on web and device, so a web screenshot
+genuinely verifies what the iPhone shows.
 
-**How to apply:** when changing tab-bar appearance, edit BOTH layouts (or confirm
-which one the reporting device uses). The web/canvas preview cannot show the
-native (liquid glass) bar.
+**How to apply:** keep the single ClassicTabLayout. Do NOT re-introduce
+`<NativeTabs>` / `isLiquidGlassAvailable()` unless you have a real iOS device to
+verify the blue is gone. Brand amber is `#E8B86D`; selected pill bg
+`rgba(232,184,109,0.15)`. More broadly: native-only iOS surfaces (liquid glass,
+voice recording, camera) can't be verified from this Linux env — say so plainly
+instead of claiming a web "pass" proves the device is fixed.

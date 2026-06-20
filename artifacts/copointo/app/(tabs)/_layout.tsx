@@ -1,7 +1,5 @@
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
@@ -11,44 +9,6 @@ const COPOINTO_LOGO = require("../../assets/images/copointo-logo.png");
 const COPOINTO_HUB = require("../../assets/images/copointo-hub.png");
 import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
-
-function NativeTabLayout() {
-  // On iOS 26 "Liquid Glass" the native tab bar defaults to the SYSTEM tint
-  // (blue) for the selected item + its glass selection highlight. That reads as
-  // an off-brand blue blob over the bar and makes the buttons unclear. Pin the
-  // brand amber so selected = solid amber, unselected = dimmed amber.
-  return (
-    <NativeTabs
-      tintColor="#E8B86D"
-      iconColor={{ default: "rgba(232,184,109,0.85)", selected: "#E8B86D" }}
-      labelStyle={{
-        default: { color: "rgba(232,184,109,0.85)" },
-        selected: { color: "#E8B86D" },
-      }}
-    >
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="messages">
-        <Icon sf={{ default: "message", selected: "message.fill" }} />
-        <Label>Messages</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="videos">
-        <Icon sf={{ default: "play.rectangle", selected: "play.rectangle.fill" }} />
-        <Label>Reels</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="game">
-        <Icon src={COPOINTO_HUB} />
-        <Label>Copointo Hub</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>Profile</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
 
 function ClassicTabLayout() {
   const colors = useColors();
@@ -197,9 +157,10 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
+  // Always render the brand amber tab bar on every platform. The iOS 26
+  // "Liquid Glass" native tab bar forced an off-brand system-blue selection
+  // highlight that could not be reliably overridden, so the custom amber bar
+  // is used everywhere for a clear, consistent, on-brand result.
   return <ClassicTabLayout />;
 }
 

@@ -569,6 +569,7 @@ function ProductTile({
   index: number;
 }) {
   const [width, setWidth] = useState(0);
+  const [imgFailed, setImgFailed] = useState(false);
   const progress = useSharedValue(0);
 
   // Staggered mount entrance: fade + rise + slight scale, delayed by grid order
@@ -580,6 +581,10 @@ function ProductTile({
       withTiming(1, { duration: 430, easing: Easing.out(Easing.cubic) }),
     );
   }, [enter, index]);
+
+  // Recover from a transient image failure if the 6s menu poll later
+  // delivers a corrected/working image URL for this product.
+  useEffect(() => { setImgFailed(false); }, [item.image]);
 
   useEffect(() => {
     if (width === 0) return;
@@ -616,8 +621,12 @@ function ProductTile({
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
     >
       {/* Background image (or fallback gradient + emoji) */}
-      {item.image ? (
-        <Image source={{ uri: item.image }} style={styles.tileBg} />
+      {item.image && !imgFailed ? (
+        <Image
+          source={{ uri: item.image }}
+          style={styles.tileBg}
+          onError={() => setImgFailed(true)}
+        />
       ) : (
         <LinearGradient
           colors={["rgba(232,184,109,0.22)", "rgba(232,184,109,0.05)"]}

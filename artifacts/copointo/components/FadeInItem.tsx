@@ -26,7 +26,10 @@ export default function FadeInItem({
   const ty = useRef(new Animated.Value(translateY)).current;
 
   useEffect(() => {
-    const delay = index * delayStep;
+    // Cap the stagger so long lists never feel like they're "loading" in.
+    // Without a cap, later items wait index*delayStep ms before appearing,
+    // which on a full store grid reads as a slow progressive load.
+    const delay = Math.min(index, 5) * delayStep;
     Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
