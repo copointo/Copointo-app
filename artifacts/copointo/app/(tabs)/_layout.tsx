@@ -13,8 +13,19 @@ import { useColors } from "@/hooks/useColors";
 import { useResponsive } from "@/hooks/useResponsive";
 
 function NativeTabLayout() {
+  // On iOS 26 "Liquid Glass" the native tab bar defaults to the SYSTEM tint
+  // (blue) for the selected item + its glass selection highlight. That reads as
+  // an off-brand blue blob over the bar and makes the buttons unclear. Pin the
+  // brand amber so selected = solid amber, unselected = dimmed amber.
   return (
-    <NativeTabs>
+    <NativeTabs
+      tintColor="#E8B86D"
+      iconColor={{ default: "rgba(232,184,109,0.85)", selected: "#E8B86D" }}
+      labelStyle={{
+        default: { color: "rgba(232,184,109,0.85)" },
+        selected: { color: "#E8B86D" },
+      }}
+    >
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>Home</Label>
