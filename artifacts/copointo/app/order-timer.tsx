@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApp } from "@/context/AppContext";
 import { useT } from "@/context/LanguageContext";
 import { apiFetch } from "@/constants/api";
+import FadeInItem from "@/components/FadeInItem";
 import { playLevelUpSound } from "@/lib/notification-sound";
 
 
@@ -715,7 +716,8 @@ export default function OrderTimerScreen() {
 
         {/* ── Order items ── */}
         {items.map((it, idx) => (
-          <View key={`${it.name}-${idx}`} style={styles.itemCard}>
+          <FadeInItem key={`${it.name}-${idx}`} index={idx} delayStep={85} duration={440} translateY={22}>
+          <View style={styles.itemCard}>
             <Feather name="coffee" size={84} color="rgba(232,184,109,0.05)" style={styles.itemWatermark} />
             <View style={styles.itemInfo}>
               <Text style={styles.itemName} numberOfLines={2}>{it.name}</Text>
@@ -748,6 +750,7 @@ export default function OrderTimerScreen() {
               )}
             </View>
           </View>
+          </FadeInItem>
         ))}
 
         {/* ── Order total (when known and multiple items) ── */}
@@ -965,11 +968,9 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: 15, fontFamily: "Inter_700Bold", color: PRIMARY },
   itemPriceOld: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(245,230,204,0.4)", textDecorationLine: "line-through" },
   itemImageWrap: {
-    width: 84, height: 84, borderRadius: 18, overflow: "hidden",
-    borderWidth: 1.5, borderColor: "rgba(232,184,109,0.5)",
-    backgroundColor: "rgba(0,0,0,0.25)",
-    shadowColor: PRIMARY, shadowOpacity: 0.4, shadowRadius: 9, shadowOffset: { width: 0, height: 3 },
-    elevation: 5,
+    width: 80, height: 80, borderRadius: 18, overflow: "hidden",
+    borderWidth: 1, borderColor: "rgba(232,184,109,0.35)",
+    backgroundColor: "rgba(0,0,0,0.2)",
   },
   itemImage: { width: "100%", height: "100%" },
   itemImagePlaceholder: {
