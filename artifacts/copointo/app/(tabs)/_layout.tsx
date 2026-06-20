@@ -48,7 +48,7 @@ function ClassicTabLayout() {
   const r = useResponsive();
   const tbHeight = isWeb ? r.tabBarHeight : undefined;
   const icSize = r.iconSize;
-  const labelSize = r.isPhone ? 10 : r.isTablet ? 11 : 12;
+  const labelSize = r.isPhone ? 11 : r.isTablet ? 12 : 13;
 
   // Single active "panel" that wraps BOTH the icon and the label together.
   // The default label is hidden (`tabBarShowLabel: false`) and we render it
@@ -66,7 +66,7 @@ function ClassicTabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: "#E8B86D",
-        tabBarInactiveTintColor: "rgba(232,184,109,0.5)",
+        tabBarInactiveTintColor: "rgba(232,184,109,0.85)",
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: {
@@ -157,7 +157,7 @@ function ClassicTabLayout() {
               "Copointo Hub",
               <Image
                 source={COPOINTO_HUB}
-                style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain", opacity: focused ? 1 : 0.5 }}
+                style={{ width: icSize + 4, height: icSize + 4, resizeMode: "contain", opacity: focused ? 1 : 0.85 }}
               />,
               focused,
               color,
