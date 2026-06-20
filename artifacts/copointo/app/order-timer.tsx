@@ -720,7 +720,7 @@ export default function OrderTimerScreen() {
           <View style={styles.itemCard}>
             <Feather name="coffee" size={84} color="rgba(232,184,109,0.05)" style={styles.itemWatermark} />
             <View style={styles.itemInfo}>
-              <Text style={styles.itemName} numberOfLines={2}>{it.name}</Text>
+              <Text style={styles.itemName}>{it.name}</Text>
               <View style={styles.itemChips}>
                 {!!it.selectedSize && (
                   <View style={styles.itemChip}><Text style={styles.itemChipText}>{it.selectedSize}</Text></View>

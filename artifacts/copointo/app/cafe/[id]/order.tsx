@@ -676,7 +676,7 @@ function ProductTile({
 
       {/* Bottom info: name, price, add control */}
       <View style={styles.tileInfo} pointerEvents="box-none">
-        <Text style={styles.tileName} numberOfLines={2}>{item.name}</Text>
+        <Text style={styles.tileName}>{item.name}</Text>
         <View style={styles.tilePriceRow}>
           <View style={{ flex: 1 }}>
             {hasDiscount && (
