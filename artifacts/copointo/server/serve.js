@@ -11,8 +11,11 @@
  */
 
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
+
+const API_UPSTREAM = "https://copointo-api.onrender.com";
 
 const STATIC_ROOT = path.resolve(__dirname, "..", "static-build");
 const WEB_ROOT = path.join(STATIC_ROOT, "web");
@@ -424,12 +427,38 @@ function serveWebSpa(pathname, res) {
   return true;
 }
 
+function proxyApi(req, res, apiPath) {
+  const target = new URL(apiPath, API_UPSTREAM);
+  const options = {
+    hostname: target.hostname,
+    port: 443,
+    path: target.pathname + target.search,
+    method: req.method,
+    headers: { ...req.headers, host: target.hostname },
+  };
+  const proxy = https.request(options, (upstream) => {
+    res.writeHead(upstream.statusCode, upstream.headers);
+    upstream.pipe(res);
+  });
+  proxy.on("error", (err) => {
+    console.error("API proxy error:", err.message);
+    res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
+    res.end("Bad Gateway");
+  });
+  req.pipe(proxy);
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`);
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
     pathname = pathname.slice(basePath.length) || "/";
+  }
+
+  // Proxy all /api/* requests to the upstream API server.
+  if (pathname.startsWith("/api")) {
+    return proxyApi(req, res, pathname + url.search);
   }
 
   const platform = req.headers["expo-platform"];
