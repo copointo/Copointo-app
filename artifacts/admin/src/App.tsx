@@ -296,10 +296,13 @@ function AdminApp() {
       <Route path="/copointo-hub" component={GateWrap(CopointoHubWrapped)} />
       <Route path="/reports"      component={GateWrap(ReportsWrapped)} />
       <Route path="/communities"  component={GateWrap(CommunitiesWrapped)} />
-      <Route path="/store-purchases" component={GateWrap(StorePurchasesWrapped)} />
-      {/* Cafe-owner routes — accessible from any domain. */}
-      <Route path="/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
-      <Route path="/cafe/:id"           component={CafeDashboardPage}/>
+     <Route path="/store-purchases" component={GateWrap(StorePurchasesWrapped)} />
+
+<Route path="/admin/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
+<Route path="/admin/cafe/:id" component={CafeDashboardPage}/>
+
+<Route path="/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
+<Route path="/cafe/:id" component={CafeDashboardPage}/>
     </Switch>
   );
 
