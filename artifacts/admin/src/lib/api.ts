@@ -1,10 +1,24 @@
-async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(path, {
+const API =
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
+  "https://copointo-api.onrender.com";
+
+async function req<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${API}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(await res.text());
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
   return res.json();
 }
 
