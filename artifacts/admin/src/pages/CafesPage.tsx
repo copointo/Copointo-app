@@ -40,7 +40,11 @@ function slugifyName(name: string): string {
 
 // Manager dashboard URL  →  https://copointo.com/admin/cafe/:id?name=<slug>
 function managerUrl(id: string, name?: string) {
-  const url = `${PROD_DOMAIN}/admin/cafe/${encodeURIComponent(id)}`;
+  <Route path="/manager/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
+<Route path="/manager/cafe/:id" component={CafeDashboardPage}/>
+
+<Route path="/cafe/:id/analytics" component={ManagerAnalyticsPage}/>
+<Route path="/cafe/:id" component={CafeDashboardPage}/>
   const slug = slugifyName(name ?? "");
   return slug ? `${url}?name=${encodeURIComponent(slug)}` : url;
 }
