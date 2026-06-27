@@ -974,20 +974,20 @@ export async function refreshFromDb(): Promise<void> {
       lastLoadedAt.set(row.key, row.updatedAt.getTime());
     }
   } catch (e) {
-    // eslint-disable-next-line no-console
-    catch (e) {
-  console.error("========== DATABASE ERROR ==========");
-  console.dir(e, { depth: null });
-  console.error("message:", (e as any)?.message);
-  console.error("code:", (e as any)?.code);
-  console.error("detail:", (e as any)?.detail);
-  console.error("schema:", (e as any)?.schema);
-  console.error("table:", (e as any)?.table);
-  console.error("column:", (e as any)?.column);
-  console.error("stack:", (e as any)?.stack);
-  console.error("====================================");
-}
+  // eslint-disable-next-line no-console
+  catch (e) {
+    console.error("========== DATABASE ERROR ==========");
+    console.dir(e, { depth: null });
+    console.error("message:", (e as any)?.message);
+    console.error("code:", (e as any)?.code);
+    console.error("detail:", (e as any)?.detail);
+    console.error("schema:", (e as any)?.schema);
+    console.error("table:", (e as any)?.table);
+    console.error("column:", (e as any)?.column);
+    console.error("stack:", (e as any)?.stack);
+    console.error("====================================");
   }
+}
 }
 
 async function flushAll(): Promise<void> {
