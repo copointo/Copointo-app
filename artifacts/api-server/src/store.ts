@@ -813,20 +813,7 @@ export const communityInvites: CommunityInvite[] = [];
 // would not see writes made by sibling instances. We now persist each
 // collection as one JSONB row in the `kv_store` table and refresh in-memory
 // arrays from the DB before every request handler runs.
-import { kvStoreTable } from "@workspace/db";
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
-
-const { Pool } = pg;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
-});
-
-const db = drizzle(pool);
+import { db, kvStoreTable } from "@workspace/db";
 import { sql, inArray } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
