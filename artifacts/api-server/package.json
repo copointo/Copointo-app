@@ -19,6 +19,7 @@
     "express": "^5",
     "google-auth-library": "^10.6.2",
     "multer": "^2.1.1",
+    "pg": "^8.20.0",
     "pino": "^9",
     "pino-http": "^10",
     "twilio": "5.3.2",
