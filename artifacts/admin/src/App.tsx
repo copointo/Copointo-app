@@ -284,8 +284,9 @@ function AdminApp() {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   const relPath = base && path.startsWith(base) ? path.slice(base.length) : path;
-  const isCafeOwnerRoute = /^\/cafe\//.test(relPath);
-
+  const isCafeOwnerRoute =
+  /^\/cafe\//.test(relPath) ||
+  /^\/admin\/cafe\//.test(relPath);
   const routes = (
     <Switch>
       <Route path="/"             component={Gate} />
