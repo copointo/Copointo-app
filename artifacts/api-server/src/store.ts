@@ -964,7 +964,7 @@ export async function refreshFromDb(): Promise<void> {
     }
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.warn(`[store] refresh failed: ${(e as Error).message}`);
+    console.error("[store] REFRESH ERROR FULL:", e);
   }
 }
 
