@@ -931,7 +931,7 @@ async function bootLoad(): Promise<void> {
     // every subsequent flush() a no-op until the next process restart,
     // which is the safe failure mode (read-only-ish until DB is healthy).
     // eslint-disable-next-line no-console
-    console.warn(`[store] boot load failed: ${(e as Error).message}`);
+    console.error("[store] BOOT ERROR FULL:", e);
   }
 }
 
